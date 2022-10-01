@@ -3,9 +3,9 @@
 
 class NutshellGraphicsModule : public NutshellGraphicsModuleInterface {
 public:
-    NutshellGraphicsModule() : NutshellGraphicsModuleInterface("Nutshell Graphics Test Module") {}
+	NutshellGraphicsModule() : NutshellGraphicsModuleInterface("Nutshell Graphics Test Module") {}
 
-    void init();
-    void update(double dt);
-    void destroy();
+	void init();
+	void update(double dt);
+	void destroy();
 };
