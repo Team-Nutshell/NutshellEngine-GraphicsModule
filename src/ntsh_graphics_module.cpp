@@ -1,6 +1,7 @@
 #include "ntsh_graphics_module.h"
 #include "../external/Module/ntsh_module_defines.h"
 #include "../external/Module/ntsh_dynamic_library.h"
+#include "../external/Common/ntsh_engine_defines.h"
 #include "../external/Common/ntsh_engine_enums.h"
 
 void NutshellGraphicsModule::init() {
@@ -16,10 +17,10 @@ void NutshellGraphicsModule::destroy() {
 	NTSH_MODULE_WARNING("destroy() function not implemented.");
 }
 
-extern "C" NTSH_MODULE_API NutshellGraphicsModuleInterface * createModule() {
+extern "C" NTSH_MODULE_API NutshellGraphicsModuleInterface* createModule() {
 	return new NutshellGraphicsModule;
 }
 
-extern "C" NTSH_MODULE_API void destroyModule(NutshellGraphicsModuleInterface * m) {
+extern "C" NTSH_MODULE_API void destroyModule(NutshellGraphicsModuleInterface* m) {
 	delete m;
 }
