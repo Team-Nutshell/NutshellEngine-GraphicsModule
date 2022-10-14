@@ -120,6 +120,54 @@ void NutshellGraphicsModule::init() {
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, physicalDevices.data());
 	m_physicalDevice = physicalDevices[0];
 
+	VkPhysicalDeviceProperties2 physicalDeviceProperties2 = {};
+	physicalDeviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+	physicalDeviceProperties2.pNext = nullptr;
+	vkGetPhysicalDeviceProperties2(m_physicalDevice, &physicalDeviceProperties2);
+
+	std::string physicalDeviceType;
+	switch (physicalDeviceProperties2.properties.deviceType) {
+	case VK_PHYSICAL_DEVICE_TYPE_OTHER:
+		physicalDeviceType = "Other";
+		break;
+	case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
+		physicalDeviceType = "Integrated";
+		break;
+	case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
+		physicalDeviceType = "Discrete";
+		break;
+	case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
+		physicalDeviceType = "Virtual";
+		break;
+	case VK_PHYSICAL_DEVICE_TYPE_CPU:
+		physicalDeviceType = "CPU";
+		break;
+	}
+
+	std::string driverVersion = std::to_string(VK_API_VERSION_MAJOR(physicalDeviceProperties2.properties.driverVersion)) + "."
+		+ std::to_string(VK_API_VERSION_MINOR(physicalDeviceProperties2.properties.driverVersion)) + "."
+		+ std::to_string(VK_API_VERSION_PATCH(physicalDeviceProperties2.properties.driverVersion));
+	if (physicalDeviceProperties2.properties.vendorID == 4318) { // NVIDIA
+		uint32_t major = (physicalDeviceProperties2.properties.driverVersion >> 22) & 0x3ff;
+		uint32_t minor = (physicalDeviceProperties2.properties.driverVersion >> 14) & 0x0ff;
+		uint32_t patch = (physicalDeviceProperties2.properties.driverVersion >> 6) & 0x0ff;
+		driverVersion = std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch);
+	}
+#ifdef NTSH_OS_WINDOWS
+	else if (physicalDeviceProperties2.properties.vendorID == 0x8086) { // Intel
+		uint32_t major = (physicalDeviceProperties2.properties.driverVersion >> 14);
+		uint32_t minor = (physicalDeviceProperties2.properties.driverVersion) & 0x3fff;
+		driverVersion = std::to_string(major) + "." + std::to_string(minor);
+	}
+#endif
+
+	NTSH_MODULE_INFO("Physical Device Name: " + std::string(physicalDeviceProperties2.properties.deviceName));
+	NTSH_MODULE_INFO("Physical Device Type: " + physicalDeviceType);
+	NTSH_MODULE_INFO("Physical Device Driver Version: " + driverVersion);
+	NTSH_MODULE_INFO("Physical Device Vulkan API Version: " + std::to_string(VK_API_VERSION_MAJOR(physicalDeviceProperties2.properties.apiVersion)) + "."
+		+ std::to_string(VK_API_VERSION_MINOR(physicalDeviceProperties2.properties.apiVersion)) + "."
+		+ std::to_string(VK_API_VERSION_PATCH(physicalDeviceProperties2.properties.apiVersion)));
+
 	// Find a queue family supporting graphics
 	uint32_t queueFamilyPropertyCount;
 	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyPropertyCount, nullptr);
