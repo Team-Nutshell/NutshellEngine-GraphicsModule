@@ -109,6 +109,72 @@ void NutshellGraphicsModule::init() {
 		NTSH_VK_CHECK(createXlibSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
 #endif
 	}
+
+	// Pick a physical device
+	uint32_t deviceCount;
+	vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
+	if (deviceCount == 0) {
+		NTSH_MODULE_ERROR("Vulkan: Found no suitable GPU.", NTSH_RESULT_UNKNOWN_ERROR);
+	}
+	std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
+	vkEnumeratePhysicalDevices(m_instance, &deviceCount, physicalDevices.data());
+	m_physicalDevice = physicalDevices[0];
+
+	// Find a queue family supporting graphics
+	uint32_t queueFamilyPropertyCount;
+	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyPropertyCount, nullptr);
+	std::vector<VkQueueFamilyProperties> queueFamilyProperties(queueFamilyPropertyCount);
+	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyPropertyCount, queueFamilyProperties.data());
+	uint32_t graphicsQueueIndex = 0;
+	for (const VkQueueFamilyProperties& queueFamilyProperty : queueFamilyProperties) {
+		if (queueFamilyProperty.queueCount > 0 && queueFamilyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+			break;
+		}
+		graphicsQueueIndex++;
+	}
+
+	// Create a queue supporting graphics
+	float queuePriority = 1.0f;
+	VkDeviceQueueCreateInfo deviceQueueCreateInfo = {};
+	deviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	deviceQueueCreateInfo.pNext = nullptr;
+	deviceQueueCreateInfo.flags = 0;
+	deviceQueueCreateInfo.queueFamilyIndex = graphicsQueueIndex;
+	deviceQueueCreateInfo.queueCount = 1;
+	deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
+	
+	// Create the logical device
+	VkDeviceCreateInfo deviceCreateInfo = {};
+	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	deviceCreateInfo.pNext = nullptr;
+	deviceCreateInfo.queueCreateInfoCount = 1;
+	deviceCreateInfo.pQueueCreateInfos = &deviceQueueCreateInfo;
+#ifdef NTSH_DEBUG
+	if (foundValidationLayer) {
+		deviceCreateInfo.enabledLayerCount = 1;
+		deviceCreateInfo.ppEnabledLayerNames = explicitLayers.data();
+	}
+	else {
+		deviceCreateInfo.enabledLayerCount = 0;
+		deviceCreateInfo.ppEnabledLayerNames = nullptr;
+	}
+#else
+	deviceCreateInfo.enabledLayerCount = 0;
+	deviceCreateInfo.ppEnabledLayerNames = nullptr;
+#endif
+	std::array<const char*, 1> deviceExtensions = { "VK_KHR_swapchain" };
+	if (m_windowModule) {
+		deviceCreateInfo.enabledExtensionCount = 1;
+		deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
+	}
+	else {
+		deviceCreateInfo.enabledExtensionCount = 0;
+		deviceCreateInfo.ppEnabledExtensionNames = nullptr;
+	}
+	deviceCreateInfo.pEnabledFeatures = nullptr;
+	NTSH_VK_CHECK(vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device));
+
+	vkGetDeviceQueue(m_device, graphicsQueueIndex, 0, &m_graphicsQueue);
 }
 
 void NutshellGraphicsModule::update(double dt) {
@@ -117,6 +183,8 @@ void NutshellGraphicsModule::update(double dt) {
 }
 
 void NutshellGraphicsModule::destroy() {
+	vkDestroyDevice(m_device, nullptr);
+
 	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
 
 #ifdef NTSH_OS_LINUX
