@@ -3,6 +3,11 @@
 #include "../external/Common/ntsh_engine_defines.h"
 #include "../external/Common/ntsh_engine_enums.h"
 #include "../external/Module/ntsh_module_defines.h"
+#ifdef NTSH_OS_WINDOWS
+#define VK_USE_PLATFORM_WIN32_KHR
+#elif NTSH_OS_LINUX
+#define VK_USE_PLATFORM_XLIB_KHR
+#endif
 #include "vulkan/vulkan.h"
 
 #define NTSH_VK_CHECK(f) \
@@ -38,6 +43,7 @@ public:
 
 private:
 	VkInstance m_instance;
+	VkSurfaceKHR m_surface;
 #ifdef NTSH_DEBUG
 	VkDebugUtilsMessengerEXT m_debugMessenger;
 #endif

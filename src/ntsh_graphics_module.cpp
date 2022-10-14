@@ -1,7 +1,9 @@
 #include "ntsh_graphics_module.h"
 #include "../external/Module/ntsh_dynamic_library.h"
+#include "../external/Common/module_interfaces/ntsh_window_module_interface.h"
 
 void NutshellGraphicsModule::init() {
+	// Create instance
 	VkApplicationInfo applicationInfo = {};
 	applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	applicationInfo.pNext = nullptr;
@@ -50,6 +52,11 @@ void NutshellGraphicsModule::init() {
 #endif
 	if (m_windowModule) {
 		extensions.push_back("VK_KHR_surface");
+#ifdef NTSH_OS_WINDOWS
+		extensions.push_back("VK_KHR_win32_surface");
+#elif NTSH_OS_LINUX
+		extensions.push_back("VK_KHR_xlib_surface");
+#endif
 		instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
 		instanceCreateInfo.ppEnabledExtensionNames = extensions.data();
 	}
@@ -60,6 +67,7 @@ void NutshellGraphicsModule::init() {
 	NTSH_VK_CHECK(vkCreateInstance(&instanceCreateInfo, nullptr, &m_instance));
 
 #ifdef NTSH_DEBUG
+	// Create debug messenger
 	VkDebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo = {};
 	debugMessengerCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 	debugMessengerCreateInfo.pNext = nullptr;
@@ -72,9 +80,34 @@ void NutshellGraphicsModule::init() {
 	debugMessengerCreateInfo.pfnUserCallback = debugCallback;
 	debugMessengerCreateInfo.pUserData = nullptr;
 
-	auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkCreateDebugUtilsMessengerEXT");
-	NTSH_VK_CHECK(func(m_instance, &debugMessengerCreateInfo, nullptr, &m_debugMessenger));
+	auto createDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkCreateDebugUtilsMessengerEXT");
+	NTSH_VK_CHECK(createDebugUtilsMessengerEXT(m_instance, &debugMessengerCreateInfo, nullptr, &m_debugMessenger));
 #endif
+
+	// Create surface
+	if (m_windowModule) {
+#ifdef NTSH_OS_WINDOWS
+		HWND windowHandle = m_windowModule->getWindowHandle();
+		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
+		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+		surfaceCreateInfo.pNext = nullptr;
+		surfaceCreateInfo.flags = 0;
+		surfaceCreateInfo.hinstance = GetModuleHandle(NULL);
+		surfaceCreateInfo.hwnd = windowHandle;
+		auto createWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateWin32SurfaceKHR");
+		NTSH_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
+#elif NTSH_OS_LINUX
+		Window windowHandle = m_windowModule->getWindowHandle();
+		VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
+		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
+		surfaceCreateInfo.pNext = nullptr;
+		surfaceCreateInfo.flags = 0;
+		surfaceCreateInfo.dpy = nullptr;
+		surfaceCreateInfo.window = windowHandle;
+		auto createXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateXlibSurfaceKHR");
+		NTSH_VK_CHECK(createXlibSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
+#endif
+	}
 }
 
 void NutshellGraphicsModule::update(double dt) {
@@ -83,9 +116,11 @@ void NutshellGraphicsModule::update(double dt) {
 }
 
 void NutshellGraphicsModule::destroy() {
+	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+
 #ifdef NTSH_DEBUG
-	auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT");
-	func(m_instance, m_debugMessenger, nullptr);
+	auto destroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT");
+	destroyDebugUtilsMessengerEXT(m_instance, m_debugMessenger, nullptr);
 #endif
 
 	vkDestroyInstance(m_instance, nullptr);
