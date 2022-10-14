@@ -43,6 +43,9 @@ public:
 
 private:
 	VkInstance m_instance;
+#ifdef NTSH_OS_LINUX
+	Display* m_display = nullptr;
+#endif
 	VkSurfaceKHR m_surface;
 #ifdef NTSH_DEBUG
 	VkDebugUtilsMessengerEXT m_debugMessenger;

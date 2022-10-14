@@ -92,17 +92,18 @@ void NutshellGraphicsModule::init() {
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.pNext = nullptr;
 		surfaceCreateInfo.flags = 0;
-		surfaceCreateInfo.hinstance = GetModuleHandle(NULL);
+		surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(GetWindowLongPtr(windowHandle, GWLP_HINSTANCE));
 		surfaceCreateInfo.hwnd = windowHandle;
 		auto createWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateWin32SurfaceKHR");
 		NTSH_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
 #elif NTSH_OS_LINUX
+		m_display = XOpenDisplay(NULL);
 		Window windowHandle = m_windowModule->getWindowHandle();
 		VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.pNext = nullptr;
 		surfaceCreateInfo.flags = 0;
-		surfaceCreateInfo.dpy = nullptr;
+		surfaceCreateInfo.dpy = m_display;
 		surfaceCreateInfo.window = windowHandle;
 		auto createXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateXlibSurfaceKHR");
 		NTSH_VK_CHECK(createXlibSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
@@ -117,6 +118,10 @@ void NutshellGraphicsModule::update(double dt) {
 
 void NutshellGraphicsModule::destroy() {
 	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+
+#ifdef NTSH_OS_LINUX
+	XCloseDisplay(m_display);
+#endif
 
 #ifdef NTSH_DEBUG
 	auto destroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT");
