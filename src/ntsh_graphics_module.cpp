@@ -1,6 +1,8 @@
 #include "ntsh_graphics_module.h"
 #include "../external/Module/ntsh_dynamic_library.h"
 #include "../external/Common/module_interfaces/ntsh_window_module_interface.h"
+#include <limits>
+#include <array>
 
 void NutshellGraphicsModule::init() {
 	// Create instance
@@ -202,9 +204,14 @@ void NutshellGraphicsModule::init() {
 	deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
 
 	// Enable features
+	VkPhysicalDeviceDynamicRenderingFeatures physicalDeviceDynamicRenderingFeatures = {};
+	physicalDeviceDynamicRenderingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
+	physicalDeviceDynamicRenderingFeatures.pNext = nullptr;
+	physicalDeviceDynamicRenderingFeatures.dynamicRendering = VK_TRUE;
+
 	VkPhysicalDeviceSynchronization2Features physicalDeviceSynchronization2Features = {};
 	physicalDeviceSynchronization2Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
-	physicalDeviceSynchronization2Features.pNext = nullptr;
+	physicalDeviceSynchronization2Features.pNext = &physicalDeviceDynamicRenderingFeatures;
 	physicalDeviceSynchronization2Features.synchronization2 = VK_TRUE;
 	
 	// Create the logical device
@@ -226,15 +233,19 @@ void NutshellGraphicsModule::init() {
 	deviceCreateInfo.enabledLayerCount = 0;
 	deviceCreateInfo.ppEnabledLayerNames = nullptr;
 #endif
-	std::array<const char*, 2> deviceExtensionsWindow = { "VK_KHR_swapchain", "VK_KHR_synchronization2" };
-	std::array<const char*, 1> deviceExtensionsNoWindow = { "VK_KHR_synchronization2" };
+	std::vector<const char*> deviceExtensions = { "VK_KHR_synchronization2",
+		"VK_KHR_create_renderpass2",
+		"VK_KHR_depth_stencil_resolve", 
+		"VK_KHR_dynamic_rendering",
+		"VK_KHR_maintenance4" };
 	if (m_windowModule) {
-		deviceCreateInfo.enabledExtensionCount = 2;
-		deviceCreateInfo.ppEnabledExtensionNames = deviceExtensionsWindow.data();
+		deviceExtensions.push_back("VK_KHR_swapchain");
+		deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+		deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
 	}
 	else {
-		deviceCreateInfo.enabledExtensionCount = 1;
-		deviceCreateInfo.ppEnabledExtensionNames = deviceExtensionsNoWindow.data();
+		deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+		deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
 	}
 	deviceCreateInfo.pEnabledFeatures = nullptr;
 	NTSH_VK_CHECK(vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device));
@@ -250,11 +261,11 @@ void NutshellGraphicsModule::init() {
 		}
 
 		std::vector<VkSurfaceFormatKHR> surfaceFormats = getSurfaceFormats();
-		VkFormat swapchainFormat = surfaceFormats[0].format;
+		m_swapchainFormat = surfaceFormats[0].format;
 		VkColorSpaceKHR swapchainColorSpace = surfaceFormats[0].colorSpace;
 		for (const VkSurfaceFormatKHR& surfaceFormat : surfaceFormats) {
 			if (surfaceFormat.format == VK_FORMAT_B8G8R8A8_SRGB && surfaceFormat.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR) {
-				swapchainFormat = surfaceFormat.format;
+				m_swapchainFormat = surfaceFormat.format;
 				swapchainColorSpace = surfaceFormat.colorSpace;
 				break;
 			}
@@ -276,13 +287,25 @@ void NutshellGraphicsModule::init() {
 		swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWindowWidth());
 		swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getWindowHeight());
 
+		m_viewport.x = 0.0f;
+		m_viewport.y = 0.0f;
+		m_viewport.width = static_cast<float>(swapchainExtent.width);
+		m_viewport.height = static_cast<float>(swapchainExtent.height);
+		m_viewport.minDepth = 0.0f;
+		m_viewport.maxDepth = 1.0f;
+
+		m_scissor.offset.x = 0;
+		m_scissor.offset.y = 0;
+		m_scissor.extent.width = swapchainExtent.width;
+		m_scissor.extent.height = swapchainExtent.height;
+
 		VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
 		swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 		swapchainCreateInfo.pNext = nullptr;
 		swapchainCreateInfo.flags = 0;
 		swapchainCreateInfo.surface = m_surface;
 		swapchainCreateInfo.minImageCount = minImageCount;
-		swapchainCreateInfo.imageFormat = swapchainFormat;
+		swapchainCreateInfo.imageFormat = m_swapchainFormat;
 		swapchainCreateInfo.imageColorSpace = swapchainColorSpace;
 		swapchainCreateInfo.imageExtent = swapchainExtent;
 		swapchainCreateInfo.imageArrayLayers = 1;
@@ -311,7 +334,7 @@ void NutshellGraphicsModule::init() {
 			swapchainImageViewCreateInfo.flags = 0;
 			swapchainImageViewCreateInfo.image = m_swapchainImages[i];
 			swapchainImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			swapchainImageViewCreateInfo.format = swapchainFormat;
+			swapchainImageViewCreateInfo.format = m_swapchainFormat;
 			swapchainImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
 			swapchainImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
 			swapchainImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
@@ -326,6 +349,18 @@ void NutshellGraphicsModule::init() {
 	}
 	// Or create an image to draw on
 	else {
+		m_viewport.x = 0.0f;
+		m_viewport.y = 0.0f;
+		m_viewport.width = 1280.0f;
+		m_viewport.height = 720.0f;
+		m_viewport.minDepth = 0.0f;
+		m_viewport.maxDepth = 1.0f;
+
+		m_scissor.offset.x = 0;
+		m_scissor.offset.y = 0;
+		m_scissor.extent.width = 1280;
+		m_scissor.extent.height = 720;
+
 		VkImageCreateInfo imageCreateInfo = {};
 		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		imageCreateInfo.pNext = nullptr;
@@ -478,11 +513,259 @@ void NutshellGraphicsModule::init() {
 
 		auto queueSubmit2KHR = (PFN_vkQueueSubmit2KHR)vkGetInstanceProcAddr(m_instance, "vkQueueSubmit2KHR");
 		NTSH_VK_CHECK(queueSubmit2KHR(m_graphicsQueue, 1, &submitInfo, fence));
-		NTSH_VK_CHECK(vkWaitForFences(m_device, 1, &fence, VK_TRUE, 100000000000));
+		NTSH_VK_CHECK(vkWaitForFences(m_device, 1, &fence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 
 		vkDestroyFence(m_device, fence, nullptr);
 		vkDestroyCommandPool(m_device, commandPool, nullptr);
 	}
+
+	// Create graphics pipeline
+	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
+	if (m_windowModule) {
+		pipelineRenderingColorFormat = m_swapchainFormat;
+	}
+
+	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
+	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+	pipelineRenderingCreateInfo.pNext = nullptr;
+	pipelineRenderingCreateInfo.viewMask = 0;
+	pipelineRenderingCreateInfo.colorAttachmentCount = 1;
+	pipelineRenderingCreateInfo.pColorAttachmentFormats = &pipelineRenderingColorFormat;
+	pipelineRenderingCreateInfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+	pipelineRenderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+
+	std::vector<uint32_t> vertexShaderCode = { 0x07230203,0x00010000,0x0008000a,0x00000036,0x00000000,0x00020011,0x00000001,0x0006000b,
+	0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
+	0x0008000f,0x00000000,0x00000004,0x6e69616d,0x00000000,0x00000009,0x00000015,0x00000021,
+	0x00030003,0x00000002,0x000001cc,0x00040005,0x00000004,0x6e69616d,0x00000000,0x00050005,
+	0x00000009,0x4374756f,0x726f6c6f,0x00000000,0x00060005,0x00000015,0x565f6c67,0x65747265,
+	0x646e4978,0x00007865,0x00050005,0x00000018,0x65646e69,0x6c626178,0x00000065,0x00060005,
+	0x0000001f,0x505f6c67,0x65567265,0x78657472,0x00000000,0x00060006,0x0000001f,0x00000000,
+	0x505f6c67,0x7469736f,0x006e6f69,0x00070006,0x0000001f,0x00000001,0x505f6c67,0x746e696f,
+	0x657a6953,0x00000000,0x00070006,0x0000001f,0x00000002,0x435f6c67,0x4470696c,0x61747369,
+	0x0065636e,0x00070006,0x0000001f,0x00000003,0x435f6c67,0x446c6c75,0x61747369,0x0065636e,
+	0x00030005,0x00000021,0x00000000,0x00050005,0x0000002d,0x65646e69,0x6c626178,0x00000065,
+	0x00040047,0x00000009,0x0000001e,0x00000000,0x00040047,0x00000015,0x0000000b,0x0000002a,
+	0x00050048,0x0000001f,0x00000000,0x0000000b,0x00000000,0x00050048,0x0000001f,0x00000001,
+	0x0000000b,0x00000001,0x00050048,0x0000001f,0x00000002,0x0000000b,0x00000003,0x00050048,
+	0x0000001f,0x00000003,0x0000000b,0x00000004,0x00030047,0x0000001f,0x00000002,0x00020013,
+	0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,0x00040017,
+	0x00000007,0x00000006,0x00000003,0x00040020,0x00000008,0x00000003,0x00000007,0x0004003b,
+	0x00000008,0x00000009,0x00000003,0x00040015,0x0000000a,0x00000020,0x00000000,0x0004002b,
+	0x0000000a,0x0000000b,0x00000003,0x0004001c,0x0000000c,0x00000007,0x0000000b,0x0004002b,
+	0x00000006,0x0000000d,0x3f800000,0x0004002b,0x00000006,0x0000000e,0x00000000,0x0006002c,
+	0x00000007,0x0000000f,0x0000000d,0x0000000e,0x0000000e,0x0006002c,0x00000007,0x00000010,
+	0x0000000e,0x0000000d,0x0000000e,0x0006002c,0x00000007,0x00000011,0x0000000e,0x0000000e,
+	0x0000000d,0x0006002c,0x0000000c,0x00000012,0x0000000f,0x00000010,0x00000011,0x00040015,
+	0x00000013,0x00000020,0x00000001,0x00040020,0x00000014,0x00000001,0x00000013,0x0004003b,
+	0x00000014,0x00000015,0x00000001,0x00040020,0x00000017,0x00000007,0x0000000c,0x00040020,
+	0x00000019,0x00000007,0x00000007,0x00040017,0x0000001c,0x00000006,0x00000004,0x0004002b,
+	0x0000000a,0x0000001d,0x00000001,0x0004001c,0x0000001e,0x00000006,0x0000001d,0x0006001e,
+	0x0000001f,0x0000001c,0x00000006,0x0000001e,0x0000001e,0x00040020,0x00000020,0x00000003,
+	0x0000001f,0x0004003b,0x00000020,0x00000021,0x00000003,0x0004002b,0x00000013,0x00000022,
+	0x00000000,0x00040017,0x00000023,0x00000006,0x00000002,0x0004001c,0x00000024,0x00000023,
+	0x0000000b,0x0004002b,0x00000006,0x00000025,0xbf000000,0x0005002c,0x00000023,0x00000026,
+	0x0000000e,0x00000025,0x0004002b,0x00000006,0x00000027,0x3f000000,0x0005002c,0x00000023,
+	0x00000028,0x00000027,0x00000027,0x0005002c,0x00000023,0x00000029,0x00000025,0x00000027,
+	0x0006002c,0x00000024,0x0000002a,0x00000026,0x00000028,0x00000029,0x00040020,0x0000002c,
+	0x00000007,0x00000024,0x00040020,0x0000002e,0x00000007,0x00000023,0x00040020,0x00000034,
+	0x00000003,0x0000001c,0x00050036,0x00000002,0x00000004,0x00000000,0x00000003,0x000200f8,
+	0x00000005,0x0004003b,0x00000017,0x00000018,0x00000007,0x0004003b,0x0000002c,0x0000002d,
+	0x00000007,0x0004003d,0x00000013,0x00000016,0x00000015,0x0003003e,0x00000018,0x00000012,
+	0x00050041,0x00000019,0x0000001a,0x00000018,0x00000016,0x0004003d,0x00000007,0x0000001b,
+	0x0000001a,0x0003003e,0x00000009,0x0000001b,0x0004003d,0x00000013,0x0000002b,0x00000015,
+	0x0003003e,0x0000002d,0x0000002a,0x00050041,0x0000002e,0x0000002f,0x0000002d,0x0000002b,
+	0x0004003d,0x00000023,0x00000030,0x0000002f,0x00050051,0x00000006,0x00000031,0x00000030,
+	0x00000000,0x00050051,0x00000006,0x00000032,0x00000030,0x00000001,0x00070050,0x0000001c,
+	0x00000033,0x00000031,0x00000032,0x0000000e,0x0000000d,0x00050041,0x00000034,0x00000035,
+	0x00000021,0x00000022,0x0003003e,0x00000035,0x00000033,0x000100fd,0x00010038 };
+
+	VkShaderModule vertexShaderModule;
+	VkShaderModuleCreateInfo vertexShaderModuleCreateInfo = {};
+	vertexShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	vertexShaderModuleCreateInfo.pNext = nullptr;
+	vertexShaderModuleCreateInfo.flags = 0;
+	vertexShaderModuleCreateInfo.codeSize = vertexShaderCode.size() * sizeof(uint32_t);
+	vertexShaderModuleCreateInfo.pCode = vertexShaderCode.data();
+	NTSH_VK_CHECK(vkCreateShaderModule(m_device, &vertexShaderModuleCreateInfo, nullptr, &vertexShaderModule));
+
+	VkPipelineShaderStageCreateInfo vertexShaderStageCreateInfo = {};
+	vertexShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vertexShaderStageCreateInfo.pNext = nullptr;
+	vertexShaderStageCreateInfo.flags = 0;
+	vertexShaderStageCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	vertexShaderStageCreateInfo.module = vertexShaderModule;
+	vertexShaderStageCreateInfo.pName = "main";
+	vertexShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	std::vector<uint32_t> fragmentShaderCode = { 0x07230203,0x00010000,0x0008000a,0x00000013,0x00000000,0x00020011,0x00000001,0x0006000b,
+	0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
+	0x0007000f,0x00000004,0x00000004,0x6e69616d,0x00000000,0x00000009,0x0000000c,0x00030010,
+	0x00000004,0x00000007,0x00030003,0x00000002,0x000001cc,0x00040005,0x00000004,0x6e69616d,
+	0x00000000,0x00050005,0x00000009,0x4374756f,0x726f6c6f,0x00000000,0x00040005,0x0000000c,
+	0x6f6c6f63,0x00000072,0x00040047,0x00000009,0x0000001e,0x00000000,0x00040047,0x0000000c,
+	0x0000001e,0x00000000,0x00020013,0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,
+	0x00000006,0x00000020,0x00040017,0x00000007,0x00000006,0x00000004,0x00040020,0x00000008,
+	0x00000003,0x00000007,0x0004003b,0x00000008,0x00000009,0x00000003,0x00040017,0x0000000a,
+	0x00000006,0x00000003,0x00040020,0x0000000b,0x00000001,0x0000000a,0x0004003b,0x0000000b,
+	0x0000000c,0x00000001,0x0004002b,0x00000006,0x0000000e,0x3f800000,0x00050036,0x00000002,
+	0x00000004,0x00000000,0x00000003,0x000200f8,0x00000005,0x0004003d,0x0000000a,0x0000000d,
+	0x0000000c,0x00050051,0x00000006,0x0000000f,0x0000000d,0x00000000,0x00050051,0x00000006,
+	0x00000010,0x0000000d,0x00000001,0x00050051,0x00000006,0x00000011,0x0000000d,0x00000002,
+	0x00070050,0x00000007,0x00000012,0x0000000f,0x00000010,0x00000011,0x0000000e,0x0003003e,
+	0x00000009,0x00000012,0x000100fd,0x00010038 };
+
+	VkShaderModule fragmentShaderModule;
+	VkShaderModuleCreateInfo fragmentShaderModuleCreateInfo = {};
+	fragmentShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	fragmentShaderModuleCreateInfo.pNext = nullptr;
+	fragmentShaderModuleCreateInfo.flags = 0;
+	fragmentShaderModuleCreateInfo.codeSize = fragmentShaderCode.size() * sizeof(uint32_t);
+	fragmentShaderModuleCreateInfo.pCode = fragmentShaderCode.data();
+	NTSH_VK_CHECK(vkCreateShaderModule(m_device, &fragmentShaderModuleCreateInfo, nullptr, &fragmentShaderModule));
+
+	VkPipelineShaderStageCreateInfo fragmentShaderStageCreateInfo = {};
+	fragmentShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fragmentShaderStageCreateInfo.pNext = nullptr;
+	fragmentShaderStageCreateInfo.flags = 0;
+	fragmentShaderStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragmentShaderStageCreateInfo.module = fragmentShaderModule;
+	fragmentShaderStageCreateInfo.pName = "main";
+	fragmentShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStageCreateInfos = { vertexShaderStageCreateInfo, fragmentShaderStageCreateInfo };
+
+	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
+	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInputStateCreateInfo.pNext = nullptr;
+	vertexInputStateCreateInfo.flags = 0;
+	vertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
+	vertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr;
+	vertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
+	vertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr;
+
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo = {};
+	inputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	inputAssemblyStateCreateInfo.pNext = nullptr;
+	inputAssemblyStateCreateInfo.flags = 0;
+	inputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+	inputAssemblyStateCreateInfo.primitiveRestartEnable = VK_FALSE;
+
+	VkPipelineViewportStateCreateInfo viewportStateCreateInfo = {};
+	viewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewportStateCreateInfo.pNext = nullptr;
+	viewportStateCreateInfo.flags = 0;
+	viewportStateCreateInfo.viewportCount = 1;
+	viewportStateCreateInfo.pViewports = &m_viewport;
+	viewportStateCreateInfo.scissorCount = 1;
+	viewportStateCreateInfo.pScissors = &m_scissor;
+
+	VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo = {};
+	rasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizationStateCreateInfo.pNext = nullptr;
+	rasterizationStateCreateInfo.flags = 0;
+	rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
+	rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
+	rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	rasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
+	rasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
+	rasterizationStateCreateInfo.depthBiasClamp = 0.0f;
+	rasterizationStateCreateInfo.depthBiasSlopeFactor = 0.0f;
+	rasterizationStateCreateInfo.lineWidth = 1.0f;
+
+	VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo = {};
+	multisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampleStateCreateInfo.pNext = nullptr;
+	multisampleStateCreateInfo.flags = 0;
+	multisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	multisampleStateCreateInfo.sampleShadingEnable = VK_FALSE;
+	multisampleStateCreateInfo.minSampleShading = 0.0f;
+	multisampleStateCreateInfo.pSampleMask = nullptr;
+	multisampleStateCreateInfo.alphaToCoverageEnable = VK_FALSE;
+	multisampleStateCreateInfo.alphaToOneEnable = VK_FALSE;
+	
+	VkPipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo = {};
+	depthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencilStateCreateInfo.pNext = nullptr;
+	depthStencilStateCreateInfo.flags = 0;
+	depthStencilStateCreateInfo.depthTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.depthWriteEnable = VK_FALSE;
+	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_NEVER;
+	depthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.front = {};
+	depthStencilStateCreateInfo.back = {};
+	depthStencilStateCreateInfo.minDepthBounds = 0.0f;
+	depthStencilStateCreateInfo.maxDepthBounds = 1.0f;
+
+	VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
+	colorBlendAttachmentState.blendEnable = VK_FALSE;
+	colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachmentState.colorWriteMask = { VK_COLOR_COMPONENT_R_BIT |
+		VK_COLOR_COMPONENT_G_BIT |
+		VK_COLOR_COMPONENT_B_BIT |
+		VK_COLOR_COMPONENT_A_BIT };
+
+	VkPipelineColorBlendStateCreateInfo colorBlendStateCreateInfo = {};
+	colorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	colorBlendStateCreateInfo.pNext = nullptr;
+	colorBlendStateCreateInfo.flags = 0;
+	colorBlendStateCreateInfo.logicOpEnable = VK_FALSE;
+	colorBlendStateCreateInfo.logicOp = VK_LOGIC_OP_COPY;
+	colorBlendStateCreateInfo.attachmentCount = 1;
+	colorBlendStateCreateInfo.pAttachments = &colorBlendAttachmentState;
+
+	std::array<VkDynamicState, 2> dynamicStates = { VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_VIEWPORT };
+	VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = {};
+	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynamicStateCreateInfo.pNext = nullptr;
+	dynamicStateCreateInfo.flags = 0;
+	dynamicStateCreateInfo.dynamicStateCount = 2;
+	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
+
+	VkPipelineLayout pipelineLayout;
+	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
+	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutCreateInfo.pNext = nullptr;
+	pipelineLayoutCreateInfo.flags = 0;
+	pipelineLayoutCreateInfo.setLayoutCount = 0;
+	pipelineLayoutCreateInfo.pSetLayouts = nullptr;
+	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
+	pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
+	NTSH_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout));
+
+	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};
+	graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	graphicsPipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
+	graphicsPipelineCreateInfo.flags = 0;
+	graphicsPipelineCreateInfo.stageCount = 2;
+	graphicsPipelineCreateInfo.pStages = shaderStageCreateInfos.data();
+	graphicsPipelineCreateInfo.pVertexInputState = &vertexInputStateCreateInfo;
+	graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;
+	graphicsPipelineCreateInfo.pTessellationState = nullptr;
+	graphicsPipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
+	graphicsPipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
+	graphicsPipelineCreateInfo.pMultisampleState = &multisampleStateCreateInfo;
+	graphicsPipelineCreateInfo.pDepthStencilState = &depthStencilStateCreateInfo;
+	graphicsPipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
+	graphicsPipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
+	graphicsPipelineCreateInfo.layout = pipelineLayout;
+	graphicsPipelineCreateInfo.renderPass = VK_NULL_HANDLE;
+	graphicsPipelineCreateInfo.subpass = 0;
+	graphicsPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+	graphicsPipelineCreateInfo.basePipelineIndex = 0;
+	NTSH_VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_graphicsPipeline));
+
+	vkDestroyPipelineLayout(m_device, pipelineLayout, nullptr);
+	vkDestroyShaderModule(m_device, vertexShaderModule, nullptr);
+	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
 }
 
 void NutshellGraphicsModule::update(double dt) {
@@ -491,6 +774,9 @@ void NutshellGraphicsModule::update(double dt) {
 }
 
 void NutshellGraphicsModule::destroy() {
+	// Destroy graphics pipeline
+	vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
+
 	// Destroy swapchain
 	if (m_windowModule) {
 		for (VkImageView& swapchainImageView : m_swapchainImageViews) {
