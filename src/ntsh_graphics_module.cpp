@@ -5,6 +5,13 @@
 #include <array>
 
 void NutshellGraphicsModule::init() {
+	if (m_windowModule) {
+		m_framesInFlight = 2;
+	}
+	else {
+		m_framesInFlight = 1;
+	}
+
 	// Create instance
 	VkApplicationInfo applicationInfo = {};
 	applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -86,6 +93,11 @@ void NutshellGraphicsModule::init() {
 	auto createDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkCreateDebugUtilsMessengerEXT");
 	NTSH_VK_CHECK(createDebugUtilsMessengerEXT(m_instance, &debugMessengerCreateInfo, nullptr, &m_debugMessenger));
 #endif
+
+	// Get functions
+	m_vkCmdPipelineBarrier2KHR = (PFN_vkCmdPipelineBarrier2KHR)vkGetInstanceProcAddr(m_instance, "vkCmdPipelineBarrier2KHR");
+	m_vkCmdBeginRenderingKHR = (PFN_vkCmdBeginRenderingKHR)vkGetInstanceProcAddr(m_instance, "vkCmdBeginRenderingKHR");
+	m_vkCmdEndRenderingKHR = (PFN_vkCmdEndRenderingKHR)vkGetInstanceProcAddr(m_instance, "vkCmdEndRenderingKHR");
 
 	// Create surface
 	if (m_windowModule) {
@@ -325,14 +337,13 @@ void NutshellGraphicsModule::init() {
 		swapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
 		NTSH_VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_swapchain));
 
-		uint32_t swapchainImagesCount;
-		NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &swapchainImagesCount, nullptr));
-		m_swapchainImages.resize(swapchainImagesCount);
-		NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &swapchainImagesCount, m_swapchainImages.data()));
+		NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, nullptr));
+		m_swapchainImages.resize(m_imageCount);
+		NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, m_swapchainImages.data()));
 
 		// Create the swapchain image views
-		m_swapchainImageViews.resize(swapchainImagesCount);
-		for (uint32_t i = 0; i < swapchainImagesCount; i++) {
+		m_swapchainImageViews.resize(m_imageCount);
+		for (uint32_t i = 0; i < m_imageCount; i++) {
 			VkImageViewCreateInfo swapchainImageViewCreateInfo = {};
 			swapchainImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 			swapchainImageViewCreateInfo.pNext = nullptr;
@@ -354,6 +365,8 @@ void NutshellGraphicsModule::init() {
 	}
 	// Or create an image to draw on
 	else {
+		m_imageCount = 1;
+
 		m_viewport.x = 0.0f;
 		m_viewport.y = 0.0f;
 		m_viewport.width = 1280.0f;
@@ -487,8 +500,7 @@ void NutshellGraphicsModule::init() {
 		dependencyInfo.imageMemoryBarrierCount = 1;
 		dependencyInfo.pImageMemoryBarriers = &imageMemoryBarrier;
 
-		auto cmdPipelineBarrier2KHR = (PFN_vkCmdPipelineBarrier2KHR)vkGetInstanceProcAddr(m_instance, "vkCmdPipelineBarrier2KHR");
-		cmdPipelineBarrier2KHR(commandBuffer, &dependencyInfo);
+		m_vkCmdPipelineBarrier2KHR(commandBuffer, &dependencyInfo);
 
 		NTSH_VK_CHECK(vkEndCommandBuffer(commandBuffer));
 
@@ -505,19 +517,18 @@ void NutshellGraphicsModule::init() {
 		fenceCreateInfo.flags = 0;
 		NTSH_VK_CHECK(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &fence));
 
-		VkSubmitInfo2 submitInfo = {};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+		VkSubmitInfo submitInfo = {};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submitInfo.pNext = nullptr;
-		submitInfo.flags = 0;
-		submitInfo.waitSemaphoreInfoCount = 0;
-		submitInfo.pWaitSemaphoreInfos = nullptr;
-		submitInfo.commandBufferInfoCount = 1;
-		submitInfo.pCommandBufferInfos = &commandBufferSubmitInfo;
-		submitInfo.signalSemaphoreInfoCount = 0;
-		submitInfo.pSignalSemaphoreInfos = nullptr;
+		submitInfo.waitSemaphoreCount = 0;
+		submitInfo.pWaitSemaphores = nullptr;
+		submitInfo.pWaitDstStageMask = nullptr;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &commandBuffer;
+		submitInfo.signalSemaphoreCount = 0;
+		submitInfo.pSignalSemaphores = nullptr;
+		NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, fence));
 
-		auto queueSubmit2KHR = (PFN_vkQueueSubmit2KHR)vkGetInstanceProcAddr(m_instance, "vkQueueSubmit2KHR");
-		NTSH_VK_CHECK(queueSubmit2KHR(m_graphicsQueue, 1, &submitInfo, fence));
 		NTSH_VK_CHECK(vkWaitForFences(m_device, 1, &fence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 
 		vkDestroyFence(m_device, fence, nullptr);
@@ -541,49 +552,49 @@ void NutshellGraphicsModule::init() {
 
 	std::vector<uint32_t> vertexShaderCode = { 0x07230203,0x00010000,0x0008000a,0x00000036,0x00000000,0x00020011,0x00000001,0x0006000b,
 	0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
-	0x0008000f,0x00000000,0x00000004,0x6e69616d,0x00000000,0x00000009,0x00000015,0x00000021,
+	0x0008000f,0x00000000,0x00000004,0x6e69616d,0x00000000,0x0000001e,0x00000021,0x0000002b,
 	0x00030003,0x00000002,0x000001cc,0x00040005,0x00000004,0x6e69616d,0x00000000,0x00050005,
-	0x00000009,0x4374756f,0x726f6c6f,0x00000000,0x00060005,0x00000015,0x565f6c67,0x65747265,
-	0x646e4978,0x00007865,0x00050005,0x00000018,0x65646e69,0x6c626178,0x00000065,0x00060005,
-	0x0000001f,0x505f6c67,0x65567265,0x78657472,0x00000000,0x00060006,0x0000001f,0x00000000,
-	0x505f6c67,0x7469736f,0x006e6f69,0x00070006,0x0000001f,0x00000001,0x505f6c67,0x746e696f,
-	0x657a6953,0x00000000,0x00070006,0x0000001f,0x00000002,0x435f6c67,0x4470696c,0x61747369,
-	0x0065636e,0x00070006,0x0000001f,0x00000003,0x435f6c67,0x446c6c75,0x61747369,0x0065636e,
-	0x00030005,0x00000021,0x00000000,0x00050005,0x0000002d,0x65646e69,0x6c626178,0x00000065,
-	0x00040047,0x00000009,0x0000001e,0x00000000,0x00040047,0x00000015,0x0000000b,0x0000002a,
-	0x00050048,0x0000001f,0x00000000,0x0000000b,0x00000000,0x00050048,0x0000001f,0x00000001,
-	0x0000000b,0x00000001,0x00050048,0x0000001f,0x00000002,0x0000000b,0x00000003,0x00050048,
-	0x0000001f,0x00000003,0x0000000b,0x00000004,0x00030047,0x0000001f,0x00000002,0x00020013,
-	0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,0x00040017,
-	0x00000007,0x00000006,0x00000003,0x00040020,0x00000008,0x00000003,0x00000007,0x0004003b,
-	0x00000008,0x00000009,0x00000003,0x00040015,0x0000000a,0x00000020,0x00000000,0x0004002b,
-	0x0000000a,0x0000000b,0x00000003,0x0004001c,0x0000000c,0x00000007,0x0000000b,0x0004002b,
-	0x00000006,0x0000000d,0x3f800000,0x0004002b,0x00000006,0x0000000e,0x00000000,0x0006002c,
-	0x00000007,0x0000000f,0x0000000d,0x0000000e,0x0000000e,0x0006002c,0x00000007,0x00000010,
-	0x0000000e,0x0000000d,0x0000000e,0x0006002c,0x00000007,0x00000011,0x0000000e,0x0000000e,
-	0x0000000d,0x0006002c,0x0000000c,0x00000012,0x0000000f,0x00000010,0x00000011,0x00040015,
-	0x00000013,0x00000020,0x00000001,0x00040020,0x00000014,0x00000001,0x00000013,0x0004003b,
-	0x00000014,0x00000015,0x00000001,0x00040020,0x00000017,0x00000007,0x0000000c,0x00040020,
-	0x00000019,0x00000007,0x00000007,0x00040017,0x0000001c,0x00000006,0x00000004,0x0004002b,
-	0x0000000a,0x0000001d,0x00000001,0x0004001c,0x0000001e,0x00000006,0x0000001d,0x0006001e,
-	0x0000001f,0x0000001c,0x00000006,0x0000001e,0x0000001e,0x00040020,0x00000020,0x00000003,
-	0x0000001f,0x0004003b,0x00000020,0x00000021,0x00000003,0x0004002b,0x00000013,0x00000022,
-	0x00000000,0x00040017,0x00000023,0x00000006,0x00000002,0x0004001c,0x00000024,0x00000023,
-	0x0000000b,0x0004002b,0x00000006,0x00000025,0xbf000000,0x0005002c,0x00000023,0x00000026,
-	0x0000000e,0x00000025,0x0004002b,0x00000006,0x00000027,0x3f000000,0x0005002c,0x00000023,
-	0x00000028,0x00000027,0x00000027,0x0005002c,0x00000023,0x00000029,0x00000025,0x00000027,
-	0x0006002c,0x00000024,0x0000002a,0x00000026,0x00000028,0x00000029,0x00040020,0x0000002c,
-	0x00000007,0x00000024,0x00040020,0x0000002e,0x00000007,0x00000023,0x00040020,0x00000034,
-	0x00000003,0x0000001c,0x00050036,0x00000002,0x00000004,0x00000000,0x00000003,0x000200f8,
-	0x00000005,0x0004003b,0x00000017,0x00000018,0x00000007,0x0004003b,0x0000002c,0x0000002d,
-	0x00000007,0x0004003d,0x00000013,0x00000016,0x00000015,0x0003003e,0x00000018,0x00000012,
-	0x00050041,0x00000019,0x0000001a,0x00000018,0x00000016,0x0004003d,0x00000007,0x0000001b,
-	0x0000001a,0x0003003e,0x00000009,0x0000001b,0x0004003d,0x00000013,0x0000002b,0x00000015,
-	0x0003003e,0x0000002d,0x0000002a,0x00050041,0x0000002e,0x0000002f,0x0000002d,0x0000002b,
-	0x0004003d,0x00000023,0x00000030,0x0000002f,0x00050051,0x00000006,0x00000031,0x00000030,
-	0x00000000,0x00050051,0x00000006,0x00000032,0x00000030,0x00000001,0x00070050,0x0000001c,
-	0x00000033,0x00000031,0x00000032,0x0000000e,0x0000000d,0x00050041,0x00000034,0x00000035,
-	0x00000021,0x00000022,0x0003003e,0x00000035,0x00000033,0x000100fd,0x00010038 };
+	0x0000000c,0x69736f70,0x6e6f6974,0x00000073,0x00040005,0x00000017,0x6f6c6f63,0x00007372,
+	0x00050005,0x0000001e,0x4374756f,0x726f6c6f,0x00000000,0x00060005,0x00000021,0x565f6c67,
+	0x65747265,0x646e4978,0x00007865,0x00060005,0x00000029,0x505f6c67,0x65567265,0x78657472,
+	0x00000000,0x00060006,0x00000029,0x00000000,0x505f6c67,0x7469736f,0x006e6f69,0x00070006,
+	0x00000029,0x00000001,0x505f6c67,0x746e696f,0x657a6953,0x00000000,0x00070006,0x00000029,
+	0x00000002,0x435f6c67,0x4470696c,0x61747369,0x0065636e,0x00070006,0x00000029,0x00000003,
+	0x435f6c67,0x446c6c75,0x61747369,0x0065636e,0x00030005,0x0000002b,0x00000000,0x00040047,
+	0x0000001e,0x0000001e,0x00000000,0x00040047,0x00000021,0x0000000b,0x0000002a,0x00050048,
+	0x00000029,0x00000000,0x0000000b,0x00000000,0x00050048,0x00000029,0x00000001,0x0000000b,
+	0x00000001,0x00050048,0x00000029,0x00000002,0x0000000b,0x00000003,0x00050048,0x00000029,
+	0x00000003,0x0000000b,0x00000004,0x00030047,0x00000029,0x00000002,0x00020013,0x00000002,
+	0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,0x00040017,0x00000007,
+	0x00000006,0x00000002,0x00040015,0x00000008,0x00000020,0x00000000,0x0004002b,0x00000008,
+	0x00000009,0x00000003,0x0004001c,0x0000000a,0x00000007,0x00000009,0x00040020,0x0000000b,
+	0x00000006,0x0000000a,0x0004003b,0x0000000b,0x0000000c,0x00000006,0x0004002b,0x00000006,
+	0x0000000d,0x00000000,0x0004002b,0x00000006,0x0000000e,0xbf000000,0x0005002c,0x00000007,
+	0x0000000f,0x0000000d,0x0000000e,0x0004002b,0x00000006,0x00000010,0x3f000000,0x0005002c,
+	0x00000007,0x00000011,0x0000000e,0x00000010,0x0005002c,0x00000007,0x00000012,0x00000010,
+	0x00000010,0x0006002c,0x0000000a,0x00000013,0x0000000f,0x00000011,0x00000012,0x00040017,
+	0x00000014,0x00000006,0x00000003,0x0004001c,0x00000015,0x00000014,0x00000009,0x00040020,
+	0x00000016,0x00000006,0x00000015,0x0004003b,0x00000016,0x00000017,0x00000006,0x0004002b,
+	0x00000006,0x00000018,0x3f800000,0x0006002c,0x00000014,0x00000019,0x00000018,0x0000000d,
+	0x0000000d,0x0006002c,0x00000014,0x0000001a,0x0000000d,0x0000000d,0x00000018,0x0006002c,
+	0x00000014,0x0000001b,0x0000000d,0x00000018,0x0000000d,0x0006002c,0x00000015,0x0000001c,
+	0x00000019,0x0000001a,0x0000001b,0x00040020,0x0000001d,0x00000003,0x00000014,0x0004003b,
+	0x0000001d,0x0000001e,0x00000003,0x00040015,0x0000001f,0x00000020,0x00000001,0x00040020,
+	0x00000020,0x00000001,0x0000001f,0x0004003b,0x00000020,0x00000021,0x00000001,0x00040020,
+	0x00000023,0x00000006,0x00000014,0x00040017,0x00000026,0x00000006,0x00000004,0x0004002b,
+	0x00000008,0x00000027,0x00000001,0x0004001c,0x00000028,0x00000006,0x00000027,0x0006001e,
+	0x00000029,0x00000026,0x00000006,0x00000028,0x00000028,0x00040020,0x0000002a,0x00000003,
+	0x00000029,0x0004003b,0x0000002a,0x0000002b,0x00000003,0x0004002b,0x0000001f,0x0000002c,
+	0x00000000,0x00040020,0x0000002e,0x00000006,0x00000007,0x00040020,0x00000034,0x00000003,
+	0x00000026,0x00050036,0x00000002,0x00000004,0x00000000,0x00000003,0x000200f8,0x00000005,
+	0x0003003e,0x0000000c,0x00000013,0x0003003e,0x00000017,0x0000001c,0x0004003d,0x0000001f,
+	0x00000022,0x00000021,0x00050041,0x00000023,0x00000024,0x00000017,0x00000022,0x0004003d,
+	0x00000014,0x00000025,0x00000024,0x0003003e,0x0000001e,0x00000025,0x0004003d,0x0000001f,
+	0x0000002d,0x00000021,0x00050041,0x0000002e,0x0000002f,0x0000000c,0x0000002d,0x0004003d,
+	0x00000007,0x00000030,0x0000002f,0x00050051,0x00000006,0x00000031,0x00000030,0x00000000,
+	0x00050051,0x00000006,0x00000032,0x00000030,0x00000001,0x00070050,0x00000026,0x00000033,
+	0x00000031,0x00000032,0x0000000d,0x00000018,0x00050041,0x00000034,0x00000035,0x0000002b,
+	0x0000002c,0x0003003e,0x00000035,0x00000033,0x000100fd,0x00010038 };
 
 	VkShaderModule vertexShaderModule;
 	VkShaderModuleCreateInfo vertexShaderModuleCreateInfo = {};
@@ -653,7 +664,7 @@ void NutshellGraphicsModule::init() {
 	inputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 	inputAssemblyStateCreateInfo.pNext = nullptr;
 	inputAssemblyStateCreateInfo.flags = 0;
-	inputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+	inputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	inputAssemblyStateCreateInfo.primitiveRestartEnable = VK_FALSE;
 
 	VkPipelineViewportStateCreateInfo viewportStateCreateInfo = {};
@@ -771,14 +782,267 @@ void NutshellGraphicsModule::init() {
 	vkDestroyPipelineLayout(m_device, pipelineLayout, nullptr);
 	vkDestroyShaderModule(m_device, vertexShaderModule, nullptr);
 	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
+
+	// Resize buffers according to number of frames in flight and swapchain size
+	m_renderingCommandPools.resize(m_framesInFlight);
+	m_renderingCommandBuffers.resize(m_framesInFlight);
+
+	m_fences.resize(m_framesInFlight);
+	m_imageAvailableSemaphores.resize(m_framesInFlight);
+	m_renderFinishedSemaphores.resize(m_imageCount);
+
+	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
+	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	commandPoolCreateInfo.pNext = nullptr;
+	commandPoolCreateInfo.flags = 0;
+	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueIndex;
+
+	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
+	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	commandBufferAllocateInfo.pNext = nullptr;
+	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	commandBufferAllocateInfo.commandBufferCount = 1;
+
+	VkFenceCreateInfo fenceCreateInfo = {};
+	fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fenceCreateInfo.pNext = nullptr;
+	fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+	VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+	semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	semaphoreCreateInfo.pNext = nullptr;
+	semaphoreCreateInfo.flags = 0;
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		// Create rendering command pools and buffers
+		NTSH_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &m_renderingCommandPools[i]));
+
+		commandBufferAllocateInfo.commandPool = m_renderingCommandPools[i];
+		NTSH_VK_CHECK(vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &m_renderingCommandBuffers[i]));
+
+		// Create sync objects
+		NTSH_VK_CHECK(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_fences[i]));
+
+		NTSH_VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_imageAvailableSemaphores[i]));
+	}
+	for (uint32_t i = 0; i < m_imageCount; i++) {
+		NTSH_VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_renderFinishedSemaphores[i]));
+	}
+
+	// Set current frame-in-flight to 0
+	currentFrameInFlight = 0;
 }
 
 void NutshellGraphicsModule::update(double dt) {
 	NTSH_UNUSED(dt);
-	NTSH_MODULE_WARNING("update() function not implemented.");
+
+	NTSH_VK_CHECK(vkWaitForFences(m_device, 1, &m_fences[currentFrameInFlight], VK_TRUE, std::numeric_limits<uint64_t>::max()));
+
+	uint32_t imageIndex = m_imageCount - 1;
+	if (m_windowModule) {
+		NTSH_VK_CHECK(vkAcquireNextImageKHR(m_device, m_swapchain, std::numeric_limits<uint64_t>::max(), m_imageAvailableSemaphores[currentFrameInFlight], VK_NULL_HANDLE, &imageIndex));
+	}
+	else {
+		VkSubmitInfo emptySignalSubmitInfo = {};
+		emptySignalSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		emptySignalSubmitInfo.pNext = nullptr;
+		emptySignalSubmitInfo.waitSemaphoreCount = 0;
+		emptySignalSubmitInfo.pWaitSemaphores = nullptr;
+		emptySignalSubmitInfo.pWaitDstStageMask = nullptr;
+		emptySignalSubmitInfo.commandBufferCount = 0;
+		emptySignalSubmitInfo.pCommandBuffers = nullptr;
+		emptySignalSubmitInfo.signalSemaphoreCount = 1;
+		emptySignalSubmitInfo.pSignalSemaphores = &m_imageAvailableSemaphores[currentFrameInFlight];
+		NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptySignalSubmitInfo, VK_NULL_HANDLE));
+	}
+
+	// Record rendering commands
+	NTSH_VK_CHECK(vkResetCommandPool(m_device, m_renderingCommandPools[currentFrameInFlight], 0));
+
+	// Begin command buffer recording
+	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	commandBufferBeginInfo.pNext = nullptr;
+	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	NTSH_VK_CHECK(vkBeginCommandBuffer(m_renderingCommandBuffers[currentFrameInFlight], &commandBufferBeginInfo));
+
+	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+	VkImageMemoryBarrier2 undefinedToColorAttachmentOptimalImageMemoryBarrier = {};
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.pNext = nullptr;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcAccessMask = 0;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueIndex;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueIndex;
+	if (m_windowModule) {
+		undefinedToColorAttachmentOptimalImageMemoryBarrier.image = m_swapchainImages[imageIndex];
+	}
+	else {
+		undefinedToColorAttachmentOptimalImageMemoryBarrier.image = m_drawImage;
+	}
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.levelCount = 1;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	VkDependencyInfo undefinedToColorAttachmentOptimalDependencyInfo = {};
+	undefinedToColorAttachmentOptimalDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	undefinedToColorAttachmentOptimalDependencyInfo.pNext = nullptr;
+	undefinedToColorAttachmentOptimalDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToColorAttachmentOptimalDependencyInfo.memoryBarrierCount = 0;
+	undefinedToColorAttachmentOptimalDependencyInfo.pMemoryBarriers = nullptr;
+	undefinedToColorAttachmentOptimalDependencyInfo.bufferMemoryBarrierCount = 0;
+	undefinedToColorAttachmentOptimalDependencyInfo.pBufferMemoryBarriers = nullptr;
+	undefinedToColorAttachmentOptimalDependencyInfo.imageMemoryBarrierCount = 1;
+	undefinedToColorAttachmentOptimalDependencyInfo.pImageMemoryBarriers = &undefinedToColorAttachmentOptimalImageMemoryBarrier;
+
+	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[currentFrameInFlight], &undefinedToColorAttachmentOptimalDependencyInfo);
+
+	// Begin rendering
+	VkRenderingAttachmentInfo renderingAttachmentInfo = {};
+	renderingAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	renderingAttachmentInfo.pNext = nullptr;
+	if (m_windowModule) {
+		renderingAttachmentInfo.imageView = m_swapchainImageViews[imageIndex];
+	}
+	else {
+		renderingAttachmentInfo.imageView = m_drawImageView;
+	}
+	renderingAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	renderingAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+	renderingAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
+	renderingAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	renderingAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	renderingAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	renderingAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
+	renderingAttachmentInfo.clearValue.depthStencil = { 0.0f, 0 };
+
+	VkRenderingInfo renderingInfo = {};
+	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	renderingInfo.pNext = nullptr;
+	renderingInfo.flags = 0;
+	renderingInfo.renderArea = m_scissor;
+	renderingInfo.layerCount = 1;
+	renderingInfo.viewMask = 0;
+	renderingInfo.colorAttachmentCount = 1;
+	renderingInfo.pColorAttachments = &renderingAttachmentInfo;
+	renderingInfo.pDepthAttachment = nullptr;
+	renderingInfo.pStencilAttachment = nullptr;
+	m_vkCmdBeginRenderingKHR(m_renderingCommandBuffers[currentFrameInFlight], &renderingInfo);
+
+	// Bind graphics pipeline
+	vkCmdBindPipeline(m_renderingCommandBuffers[currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+	vkCmdSetViewport(m_renderingCommandBuffers[currentFrameInFlight], 0, 1, &m_viewport);
+	vkCmdSetScissor(m_renderingCommandBuffers[currentFrameInFlight], 0, 1, &m_scissor);
+
+	// Draw
+	vkCmdDraw(m_renderingCommandBuffers[currentFrameInFlight], 3, 1, 0, 0);
+
+	// End rendering
+	m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[currentFrameInFlight]);
+
+	// Layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+	if (m_windowModule) {
+		VkImageMemoryBarrier2 colorAttachmentOptimalToPresentSrcImageMemoryBarrier = {};
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.pNext = nullptr;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_NONE;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.dstAccessMask = 0;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueIndex;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueIndex;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.image = m_swapchainImages[imageIndex];
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.subresourceRange.levelCount = 1;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+		VkDependencyInfo colorAttachmentOptimalToPresentSrcDependencyInfo = {};
+		colorAttachmentOptimalToPresentSrcDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		colorAttachmentOptimalToPresentSrcDependencyInfo.pNext = nullptr;
+		colorAttachmentOptimalToPresentSrcDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+		colorAttachmentOptimalToPresentSrcDependencyInfo.memoryBarrierCount = 0;
+		colorAttachmentOptimalToPresentSrcDependencyInfo.pMemoryBarriers = nullptr;
+		colorAttachmentOptimalToPresentSrcDependencyInfo.bufferMemoryBarrierCount = 0;
+		colorAttachmentOptimalToPresentSrcDependencyInfo.pBufferMemoryBarriers = nullptr;
+		colorAttachmentOptimalToPresentSrcDependencyInfo.imageMemoryBarrierCount = 1;
+		colorAttachmentOptimalToPresentSrcDependencyInfo.pImageMemoryBarriers = &colorAttachmentOptimalToPresentSrcImageMemoryBarrier;
+
+		m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[currentFrameInFlight], &colorAttachmentOptimalToPresentSrcDependencyInfo);
+	}
+
+	// End command buffer recording
+	NTSH_VK_CHECK(vkEndCommandBuffer(m_renderingCommandBuffers[currentFrameInFlight]));
+
+	NTSH_VK_CHECK(vkResetFences(m_device, 1, &m_fences[currentFrameInFlight]));
+
+	VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.pNext = nullptr;
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = &m_imageAvailableSemaphores[currentFrameInFlight];
+	submitInfo.pWaitDstStageMask = &waitDstStageMask;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &m_renderingCommandBuffers[currentFrameInFlight];
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = &m_renderFinishedSemaphores[imageIndex];
+	NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fences[currentFrameInFlight]));
+
+	if (m_windowModule) {
+		VkPresentInfoKHR presentInfo = {};
+		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+		presentInfo.pNext = nullptr;
+		presentInfo.waitSemaphoreCount = 1;
+		presentInfo.pWaitSemaphores = &m_renderFinishedSemaphores[imageIndex];
+		presentInfo.swapchainCount = 1;
+		presentInfo.pSwapchains = &m_swapchain;
+		presentInfo.pImageIndices = &imageIndex;
+		presentInfo.pResults = nullptr;
+		NTSH_VK_CHECK(vkQueuePresentKHR(m_graphicsQueue, &presentInfo));
+	}
+	else {
+		VkPipelineStageFlags emptyWaitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		VkSubmitInfo emptyWaitSubmitInfo = {};
+		emptyWaitSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		emptyWaitSubmitInfo.pNext = nullptr;
+		emptyWaitSubmitInfo.waitSemaphoreCount = 1;
+		emptyWaitSubmitInfo.pWaitSemaphores = &m_renderFinishedSemaphores[imageIndex];
+		emptyWaitSubmitInfo.pWaitDstStageMask = &emptyWaitDstStageMask;
+		emptyWaitSubmitInfo.commandBufferCount = 0;
+		emptyWaitSubmitInfo.pCommandBuffers = nullptr;
+		emptyWaitSubmitInfo.signalSemaphoreCount = 0;
+		emptyWaitSubmitInfo.pSignalSemaphores = nullptr;
+		NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptyWaitSubmitInfo, VK_NULL_HANDLE));
+	}
+
+	currentFrameInFlight = (currentFrameInFlight + 1) % m_framesInFlight;
 }
 
 void NutshellGraphicsModule::destroy() {
+	NTSH_VK_CHECK(vkQueueWaitIdle(m_graphicsQueue));
+
+	// Destroy sync objects
+	for (uint32_t i = 0; i < m_imageCount; i++) {
+		vkDestroySemaphore(m_device, m_renderFinishedSemaphores[i], nullptr);
+	}
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		vkDestroySemaphore(m_device, m_imageAvailableSemaphores[i], nullptr);
+
+		vkDestroyFence(m_device, m_fences[i], nullptr);
+
+		// Destroy rendering command pools
+		vkDestroyCommandPool(m_device, m_renderingCommandPools[i], nullptr);
+	}
+
 	// Destroy graphics pipeline
 	vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
 

@@ -79,4 +79,19 @@ private:
 	VkDeviceMemory m_drawImageMemory;
 
 	VkPipeline m_graphicsPipeline;
+
+	std::vector<VkCommandPool> m_renderingCommandPools;
+	std::vector<VkCommandBuffer> m_renderingCommandBuffers;
+
+	std::vector<VkFence> m_fences;
+	std::vector<VkSemaphore> m_imageAvailableSemaphores;
+	std::vector<VkSemaphore> m_renderFinishedSemaphores;
+
+	PFN_vkCmdBeginRenderingKHR m_vkCmdBeginRenderingKHR;
+	PFN_vkCmdEndRenderingKHR m_vkCmdEndRenderingKHR;
+	PFN_vkCmdPipelineBarrier2KHR m_vkCmdPipelineBarrier2KHR;
+
+	uint32_t m_imageCount;
+	uint32_t m_framesInFlight;
+	uint32_t currentFrameInFlight;
 };
