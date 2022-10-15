@@ -204,9 +204,14 @@ void NutshellGraphicsModule::init() {
 	deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
 
 	// Enable features
+	VkPhysicalDeviceMaintenance4Features physicalDeviceMaintenance4Features = {};
+	physicalDeviceMaintenance4Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_FEATURES;
+	physicalDeviceMaintenance4Features.pNext = nullptr;
+	physicalDeviceMaintenance4Features.maintenance4 = VK_TRUE;
+
 	VkPhysicalDeviceDynamicRenderingFeatures physicalDeviceDynamicRenderingFeatures = {};
 	physicalDeviceDynamicRenderingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
-	physicalDeviceDynamicRenderingFeatures.pNext = nullptr;
+	physicalDeviceDynamicRenderingFeatures.pNext = &physicalDeviceMaintenance4Features;
 	physicalDeviceDynamicRenderingFeatures.dynamicRendering = VK_TRUE;
 
 	VkPhysicalDeviceSynchronization2Features physicalDeviceSynchronization2Features = {};
