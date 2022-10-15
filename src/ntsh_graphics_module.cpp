@@ -173,12 +173,21 @@ void NutshellGraphicsModule::init() {
 	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyPropertyCount, nullptr);
 	std::vector<VkQueueFamilyProperties> queueFamilyProperties(queueFamilyPropertyCount);
 	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyPropertyCount, queueFamilyProperties.data());
-	uint32_t graphicsQueueIndex = 0;
+	m_graphicsQueueIndex = 0;
 	for (const VkQueueFamilyProperties& queueFamilyProperty : queueFamilyProperties) {
 		if (queueFamilyProperty.queueCount > 0 && queueFamilyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-			break;
+			if (m_windowModule) {
+				VkBool32 presentSupport;
+				vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsQueueIndex, m_surface, &presentSupport);
+				if (presentSupport) {
+					break;
+				}
+			}
+			else {
+				break;
+			}
 		}
-		graphicsQueueIndex++;
+		m_graphicsQueueIndex++;
 	}
 
 	// Create a queue supporting graphics
@@ -187,7 +196,7 @@ void NutshellGraphicsModule::init() {
 	deviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 	deviceQueueCreateInfo.pNext = nullptr;
 	deviceQueueCreateInfo.flags = 0;
-	deviceQueueCreateInfo.queueFamilyIndex = graphicsQueueIndex;
+	deviceQueueCreateInfo.queueFamilyIndex = m_graphicsQueueIndex;
 	deviceQueueCreateInfo.queueCount = 1;
 	deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
 	
@@ -222,7 +231,90 @@ void NutshellGraphicsModule::init() {
 	deviceCreateInfo.pEnabledFeatures = nullptr;
 	NTSH_VK_CHECK(vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device));
 
-	vkGetDeviceQueue(m_device, graphicsQueueIndex, 0, &m_graphicsQueue);
+	vkGetDeviceQueue(m_device, m_graphicsQueueIndex, 0, &m_graphicsQueue);
+
+	// Create the swapchain
+	if (m_windowModule) {
+		VkSurfaceCapabilitiesKHR surfaceCapabilities = getSurfaceCapabilities();
+		uint32_t minImageCount = surfaceCapabilities.minImageCount + 1;
+		if (surfaceCapabilities.maxImageCount > 0 && minImageCount > surfaceCapabilities.maxImageCount) {
+			minImageCount = surfaceCapabilities.maxImageCount;
+		}
+
+		std::vector<VkSurfaceFormatKHR> surfaceFormats = getSurfaceFormats();
+		VkFormat swapchainFormat = surfaceFormats[0].format;
+		VkColorSpaceKHR swapchainColorSpace = surfaceFormats[0].colorSpace;
+		for (const VkSurfaceFormatKHR& surfaceFormat : surfaceFormats) {
+			if (surfaceFormat.format == VK_FORMAT_B8G8R8A8_SRGB && surfaceFormat.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR) {
+				swapchainFormat = surfaceFormat.format;
+				swapchainColorSpace = surfaceFormat.colorSpace;
+				break;
+			}
+		}
+
+		std::vector<VkPresentModeKHR> presentModes = getSurfacePresentModes();
+		VkPresentModeKHR swapchainPresentMode = VK_PRESENT_MODE_FIFO_KHR;
+		for (const VkPresentModeKHR& presentMode : presentModes) {
+			if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+				swapchainPresentMode = presentMode;
+				break;
+			}
+			else if (presentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
+				swapchainPresentMode = presentMode;
+			}
+		}
+
+		VkExtent2D swapchainExtent = {};
+		swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWindowWidth());
+		swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getWindowHeight());
+
+		VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
+		swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+		swapchainCreateInfo.pNext = nullptr;
+		swapchainCreateInfo.flags = 0;
+		swapchainCreateInfo.surface = m_surface;
+		swapchainCreateInfo.minImageCount = minImageCount;
+		swapchainCreateInfo.imageFormat = swapchainFormat;
+		swapchainCreateInfo.imageColorSpace = swapchainColorSpace;
+		swapchainCreateInfo.imageExtent = swapchainExtent;
+		swapchainCreateInfo.imageArrayLayers = 1;
+		swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		swapchainCreateInfo.queueFamilyIndexCount = 0;
+		swapchainCreateInfo.pQueueFamilyIndices = nullptr;
+		swapchainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
+		swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+		swapchainCreateInfo.presentMode = swapchainPresentMode;
+		swapchainCreateInfo.clipped = VK_TRUE;
+		swapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
+		NTSH_VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_swapchain));
+
+		uint32_t swapchainImagesCount;
+		NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &swapchainImagesCount, nullptr));
+		m_swapchainImages.resize(swapchainImagesCount);
+		NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &swapchainImagesCount, m_swapchainImages.data()));
+
+		m_swapchainImageViews.resize(swapchainImagesCount);
+		for (uint32_t i = 0; i < swapchainImagesCount; i++) {
+			VkImageViewCreateInfo imageViewCreateInfo = {};
+			imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			imageViewCreateInfo.pNext = nullptr;
+			imageViewCreateInfo.flags = 0;
+			imageViewCreateInfo.image = m_swapchainImages[i];
+			imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			imageViewCreateInfo.format = swapchainFormat;
+			imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+			imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+			imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+			imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+			imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+			imageViewCreateInfo.subresourceRange.levelCount = 1;
+			imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+			imageViewCreateInfo.subresourceRange.layerCount = 1;
+			NTSH_VK_CHECK(vkCreateImageView(m_device, &imageViewCreateInfo, nullptr, &m_swapchainImageViews[i]));
+		}
+	}
 }
 
 void NutshellGraphicsModule::update(double dt) {
@@ -231,20 +323,60 @@ void NutshellGraphicsModule::update(double dt) {
 }
 
 void NutshellGraphicsModule::destroy() {
+	// Destroy swapchain
+	if (m_windowModule) {
+		for (VkImageView& swapchainImageView : m_swapchainImageViews) {
+			vkDestroyImageView(m_device, swapchainImageView, nullptr);
+		}
+		vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
+	}
+
+	// Destroy device
 	vkDestroyDevice(m_device, nullptr);
 
-	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+	// Destroy surface
+	if (m_windowModule) {
+		vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+	}
 
 #ifdef NTSH_OS_LINUX
+	// Close X display
 	XCloseDisplay(m_display);
 #endif
 
 #ifdef NTSH_DEBUG
+	// Destroy debug messenger
 	auto destroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT");
 	destroyDebugUtilsMessengerEXT(m_instance, m_debugMessenger, nullptr);
 #endif
 
+	// Destroy instance
 	vkDestroyInstance(m_instance, nullptr);
+}
+
+VkSurfaceCapabilitiesKHR NutshellGraphicsModule::getSurfaceCapabilities() {
+	VkSurfaceCapabilitiesKHR surfaceCapabilities;
+	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physicalDevice, m_surface, &surfaceCapabilities));
+
+	return surfaceCapabilities;
+}
+
+std::vector<VkSurfaceFormatKHR> NutshellGraphicsModule::getSurfaceFormats() {
+	uint32_t surfaceFormatsCount;
+	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &surfaceFormatsCount, nullptr));
+	std::vector<VkSurfaceFormatKHR> surfaceFormats(surfaceFormatsCount);
+	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &surfaceFormatsCount, surfaceFormats.data()));
+
+	return surfaceFormats;
+}
+
+std::vector<VkPresentModeKHR> NutshellGraphicsModule::getSurfacePresentModes() {
+	uint32_t presentModesCount;
+	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &presentModesCount, nullptr));
+	std::vector<VkPresentModeKHR> presentModes(presentModesCount);
+	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &presentModesCount, presentModes.data()));
+
+	return presentModes;
 }
 
 extern "C" NTSH_MODULE_API NutshellGraphicsModuleInterface* createModule() {

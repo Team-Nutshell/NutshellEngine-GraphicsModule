@@ -9,6 +9,7 @@
 #define VK_USE_PLATFORM_XLIB_KHR
 #endif
 #include "vulkan/vulkan.h"
+#include <vector>
 
 #define NTSH_VK_CHECK(f) \
 	do { \
@@ -35,11 +36,17 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBits
 
 class NutshellGraphicsModule : public NutshellGraphicsModuleInterface {
 public:
-	NutshellGraphicsModule() : NutshellGraphicsModuleInterface("Nutshell Graphics Test Module") {}
+	NutshellGraphicsModule() : NutshellGraphicsModuleInterface("Nutshell Graphics Vulkan Triangle Module") {}
 
 	void init();
 	void update(double dt);
 	void destroy();
+
+private:
+	// Surface-related functions
+	VkSurfaceCapabilitiesKHR getSurfaceCapabilities();
+	std::vector<VkSurfaceFormatKHR> getSurfaceFormats();
+	std::vector<VkPresentModeKHR> getSurfacePresentModes();
 
 private:
 	VkInstance m_instance;
@@ -53,6 +60,11 @@ private:
 	VkSurfaceKHR m_surface;
 
 	VkPhysicalDevice m_physicalDevice;
+	uint32_t m_graphicsQueueIndex;
 	VkQueue m_graphicsQueue;
 	VkDevice m_device;
+
+	VkSwapchainKHR m_swapchain;
+	std::vector<VkImage> m_swapchainImages;
+	std::vector<VkImageView> m_swapchainImageViews;
 };
