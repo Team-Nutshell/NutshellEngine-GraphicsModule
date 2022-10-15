@@ -66,11 +66,17 @@ private:
 	VkQueue m_graphicsQueue;
 	VkDevice m_device;
 
+	VkViewport m_viewport;
+	VkRect2D m_scissor;
+
 	VkSwapchainKHR m_swapchain;
 	std::vector<VkImage> m_swapchainImages;
 	std::vector<VkImageView> m_swapchainImageViews;
+	VkFormat m_swapchainFormat;
 
 	VkImage m_drawImage;
 	VkImageView m_drawImageView;
 	VkDeviceMemory m_drawImageMemory;
+
+	VkPipeline m_graphicsPipeline;
 };
