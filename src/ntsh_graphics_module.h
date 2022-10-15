@@ -48,6 +48,8 @@ private:
 	std::vector<VkSurfaceFormatKHR> getSurfaceFormats();
 	std::vector<VkPresentModeKHR> getSurfacePresentModes();
 
+	VkPhysicalDeviceMemoryProperties getMemoryProperties();
+
 private:
 	VkInstance m_instance;
 #ifdef NTSH_DEBUG
@@ -67,4 +69,8 @@ private:
 	VkSwapchainKHR m_swapchain;
 	std::vector<VkImage> m_swapchainImages;
 	std::vector<VkImageView> m_swapchainImageViews;
+
+	VkImage m_drawImage;
+	VkImageView m_drawImageView;
+	VkDeviceMemory m_drawImageMemory;
 };

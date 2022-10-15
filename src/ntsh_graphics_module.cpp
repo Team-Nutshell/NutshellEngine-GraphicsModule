@@ -21,12 +21,12 @@ void NutshellGraphicsModule::init() {
 #ifdef NTSH_DEBUG
 	std::array<const char*, 1> explicitLayers = { "VK_LAYER_KHRONOS_validation" };
 	bool foundValidationLayer = false;
-	uint32_t propertyCount;
-	NTSH_VK_CHECK(vkEnumerateInstanceLayerProperties(&propertyCount, nullptr));
-	std::vector<VkLayerProperties> properties(propertyCount);
-	NTSH_VK_CHECK(vkEnumerateInstanceLayerProperties(&propertyCount, properties.data()));
+	uint32_t instanceLayerPropertyCount;
+	NTSH_VK_CHECK(vkEnumerateInstanceLayerProperties(&instanceLayerPropertyCount, nullptr));
+	std::vector<VkLayerProperties> instanceLayerProperties(instanceLayerPropertyCount);
+	NTSH_VK_CHECK(vkEnumerateInstanceLayerProperties(&instanceLayerPropertyCount, instanceLayerProperties.data()));
 
-	for (const VkLayerProperties& availableLayer : properties) {
+	for (const VkLayerProperties& availableLayer : instanceLayerProperties) {
 		if (strcmp(availableLayer.layerName, "VK_LAYER_KHRONOS_validation") == 0) {
 			foundValidationLayer = true;
 			break;
@@ -46,23 +46,24 @@ void NutshellGraphicsModule::init() {
 	instanceCreateInfo.enabledLayerCount = 0;
 	instanceCreateInfo.ppEnabledLayerNames = nullptr;
 #endif
-	std::vector<const char*> extensions;
+	std::vector<const char*> instanceExtensions;
 #if NTSH_DEBUG
-	extensions.push_back("VK_EXT_debug_utils");
+	instanceExtensions.push_back("VK_EXT_debug_utils");
 #endif
 	if (m_windowModule) {
-		extensions.push_back("VK_KHR_surface");
+		instanceExtensions.push_back("VK_KHR_surface");
+		instanceExtensions.push_back("VK_KHR_get_surface_capabilities2");
 #ifdef NTSH_OS_WINDOWS
-		extensions.push_back("VK_KHR_win32_surface");
+		instanceExtensions.push_back("VK_KHR_win32_surface");
 #elif NTSH_OS_LINUX
-		extensions.push_back("VK_KHR_xlib_surface");
+		instanceExtensions.push_back("VK_KHR_xlib_surface");
 #endif
-		instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-		instanceCreateInfo.ppEnabledExtensionNames = extensions.data();
+		instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(instanceExtensions.size());
+		instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions.data();
 	}
 	else {
-		instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-		instanceCreateInfo.ppEnabledExtensionNames = extensions.data();
+		instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(instanceExtensions.size());
+		instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions.data();
 	}
 	NTSH_VK_CHECK(vkCreateInstance(&instanceCreateInfo, nullptr, &m_instance));
 
@@ -199,11 +200,17 @@ void NutshellGraphicsModule::init() {
 	deviceQueueCreateInfo.queueFamilyIndex = m_graphicsQueueIndex;
 	deviceQueueCreateInfo.queueCount = 1;
 	deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
+
+	// Enable features
+	VkPhysicalDeviceSynchronization2Features physicalDeviceSynchronization2Features = {};
+	physicalDeviceSynchronization2Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
+	physicalDeviceSynchronization2Features.pNext = nullptr;
+	physicalDeviceSynchronization2Features.synchronization2 = VK_TRUE;
 	
 	// Create the logical device
 	VkDeviceCreateInfo deviceCreateInfo = {};
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	deviceCreateInfo.pNext = nullptr;
+	deviceCreateInfo.pNext = &physicalDeviceSynchronization2Features;
 	deviceCreateInfo.queueCreateInfoCount = 1;
 	deviceCreateInfo.pQueueCreateInfos = &deviceQueueCreateInfo;
 #ifdef NTSH_DEBUG
@@ -219,14 +226,15 @@ void NutshellGraphicsModule::init() {
 	deviceCreateInfo.enabledLayerCount = 0;
 	deviceCreateInfo.ppEnabledLayerNames = nullptr;
 #endif
-	std::array<const char*, 1> deviceExtensions = { "VK_KHR_swapchain" };
+	std::array<const char*, 2> deviceExtensionsWindow = { "VK_KHR_swapchain", "VK_KHR_synchronization2" };
+	std::array<const char*, 1> deviceExtensionsNoWindow = { "VK_KHR_synchronization2" };
 	if (m_windowModule) {
-		deviceCreateInfo.enabledExtensionCount = 1;
-		deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
+		deviceCreateInfo.enabledExtensionCount = 2;
+		deviceCreateInfo.ppEnabledExtensionNames = deviceExtensionsWindow.data();
 	}
 	else {
-		deviceCreateInfo.enabledExtensionCount = 0;
-		deviceCreateInfo.ppEnabledExtensionNames = nullptr;
+		deviceCreateInfo.enabledExtensionCount = 1;
+		deviceCreateInfo.ppEnabledExtensionNames = deviceExtensionsNoWindow.data();
 	}
 	deviceCreateInfo.pEnabledFeatures = nullptr;
 	NTSH_VK_CHECK(vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device));
@@ -294,26 +302,186 @@ void NutshellGraphicsModule::init() {
 		m_swapchainImages.resize(swapchainImagesCount);
 		NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &swapchainImagesCount, m_swapchainImages.data()));
 
+		// Create the swapchain image views
 		m_swapchainImageViews.resize(swapchainImagesCount);
 		for (uint32_t i = 0; i < swapchainImagesCount; i++) {
-			VkImageViewCreateInfo imageViewCreateInfo = {};
-			imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			imageViewCreateInfo.pNext = nullptr;
-			imageViewCreateInfo.flags = 0;
-			imageViewCreateInfo.image = m_swapchainImages[i];
-			imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			imageViewCreateInfo.format = swapchainFormat;
-			imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
-			imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
-			imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
-			imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
-			imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-			imageViewCreateInfo.subresourceRange.levelCount = 1;
-			imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-			imageViewCreateInfo.subresourceRange.layerCount = 1;
-			NTSH_VK_CHECK(vkCreateImageView(m_device, &imageViewCreateInfo, nullptr, &m_swapchainImageViews[i]));
+			VkImageViewCreateInfo swapchainImageViewCreateInfo = {};
+			swapchainImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			swapchainImageViewCreateInfo.pNext = nullptr;
+			swapchainImageViewCreateInfo.flags = 0;
+			swapchainImageViewCreateInfo.image = m_swapchainImages[i];
+			swapchainImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			swapchainImageViewCreateInfo.format = swapchainFormat;
+			swapchainImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+			swapchainImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+			swapchainImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+			swapchainImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+			swapchainImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			swapchainImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+			swapchainImageViewCreateInfo.subresourceRange.levelCount = 1;
+			swapchainImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+			swapchainImageViewCreateInfo.subresourceRange.layerCount = 1;
+			NTSH_VK_CHECK(vkCreateImageView(m_device, &swapchainImageViewCreateInfo, nullptr, &m_swapchainImageViews[i]));
 		}
+	}
+	// Or create an image to draw on
+	else {
+		VkImageCreateInfo imageCreateInfo = {};
+		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		imageCreateInfo.pNext = nullptr;
+		imageCreateInfo.flags = 0;
+		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+		imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+		imageCreateInfo.extent.width = 1280;
+		imageCreateInfo.extent.height = 720;
+		imageCreateInfo.extent.depth = 1;
+		imageCreateInfo.mipLevels = 1;
+		imageCreateInfo.arrayLayers = 1;
+		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+		imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		imageCreateInfo.queueFamilyIndexCount = 0;
+		imageCreateInfo.pQueueFamilyIndices = nullptr;
+		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		NTSH_VK_CHECK(vkCreateImage(m_device, &imageCreateInfo, nullptr, &m_drawImage));
+
+		// Allocate memory for the image
+		VkMemoryRequirements memoryRequirements;
+		vkGetImageMemoryRequirements(m_device, m_drawImage, &memoryRequirements);
+
+		VkPhysicalDeviceMemoryProperties memoryProperties = getMemoryProperties();
+		uint32_t memoryTypeIndex = memoryProperties.memoryTypeCount;
+		for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++) {
+			uint32_t memoryTypeBits = (1 << i);
+			bool isRequiredMemoryType = memoryRequirements.memoryTypeBits & memoryTypeBits;
+
+			VkMemoryPropertyFlags properties = memoryProperties.memoryTypes[i].propertyFlags;
+			bool hasRequiredProperties = (properties & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+			if (isRequiredMemoryType && hasRequiredProperties) {
+				memoryTypeIndex = i;
+			}
+		}
+		NTSH_ASSERT(memoryTypeIndex < memoryProperties.memoryTypeCount);
+
+		VkMemoryAllocateInfo memoryAllocateInfo = {};
+		memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		memoryAllocateInfo.pNext = nullptr;
+		memoryAllocateInfo.allocationSize = memoryRequirements.size;
+		memoryAllocateInfo.memoryTypeIndex = memoryTypeIndex;
+		NTSH_VK_CHECK(vkAllocateMemory(m_device, &memoryAllocateInfo, nullptr, &m_drawImageMemory));
+
+		NTSH_VK_CHECK(vkBindImageMemory(m_device, m_drawImage, m_drawImageMemory, 0));
+
+		// Create the image view
+		VkImageViewCreateInfo imageViewCreateInfo = {};
+		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		imageViewCreateInfo.pNext = nullptr;
+		imageViewCreateInfo.flags = 0;
+		imageViewCreateInfo.image = m_drawImage;
+		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		imageViewCreateInfo.format = imageCreateInfo.format;
+		imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+		imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+		imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+		imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+		imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+		imageViewCreateInfo.subresourceRange.levelCount = 1;
+		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+		imageViewCreateInfo.subresourceRange.layerCount = 1;
+		NTSH_VK_CHECK(vkCreateImageView(m_device, &imageViewCreateInfo, nullptr, &m_drawImageView));
+		
+		// Transition the image layout from VK_IMAGE_LAYOUT_UNDEFINED to VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+		VkCommandPool commandPool;
+		VkCommandPoolCreateInfo commandPoolCreateInfo = {};
+		commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		commandPoolCreateInfo.pNext = nullptr;
+		commandPoolCreateInfo.flags = 0;
+		commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueIndex;
+		NTSH_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &commandPool));
+
+		VkCommandBuffer commandBuffer;
+		VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
+		commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		commandBufferAllocateInfo.pNext = nullptr;
+		commandBufferAllocateInfo.commandPool = commandPool;
+		commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		commandBufferAllocateInfo.commandBufferCount = 1;
+		NTSH_VK_CHECK(vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &commandBuffer));
+
+		VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+		commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		commandBufferBeginInfo.pNext = nullptr;
+		commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+		commandBufferBeginInfo.pInheritanceInfo = nullptr;
+		NTSH_VK_CHECK(vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo));
+
+		VkImageMemoryBarrier2 imageMemoryBarrier = {};
+		imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		imageMemoryBarrier.pNext = nullptr;
+		imageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+		imageMemoryBarrier.srcAccessMask = 0;
+		imageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		imageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		imageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueIndex;
+		imageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueIndex;
+		imageMemoryBarrier.image = m_drawImage;
+		imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+		imageMemoryBarrier.subresourceRange.levelCount = 1;
+		imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+		imageMemoryBarrier.subresourceRange.layerCount = 1;
+
+		VkDependencyInfo dependencyInfo = {};
+		dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		dependencyInfo.pNext = nullptr;
+		dependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+		dependencyInfo.memoryBarrierCount = 0;
+		dependencyInfo.pMemoryBarriers = nullptr;
+		dependencyInfo.bufferMemoryBarrierCount = 0;
+		dependencyInfo.pBufferMemoryBarriers = nullptr;
+		dependencyInfo.imageMemoryBarrierCount = 1;
+		dependencyInfo.pImageMemoryBarriers = &imageMemoryBarrier;
+
+		auto cmdPipelineBarrier2KHR = (PFN_vkCmdPipelineBarrier2KHR)vkGetInstanceProcAddr(m_instance, "vkCmdPipelineBarrier2KHR");
+		cmdPipelineBarrier2KHR(commandBuffer, &dependencyInfo);
+
+		NTSH_VK_CHECK(vkEndCommandBuffer(commandBuffer));
+
+		VkCommandBufferSubmitInfo commandBufferSubmitInfo = {};
+		commandBufferSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+		commandBufferSubmitInfo.pNext = nullptr;
+		commandBufferSubmitInfo.commandBuffer = commandBuffer;
+		commandBufferSubmitInfo.deviceMask = 0;
+
+		VkFence fence;
+		VkFenceCreateInfo fenceCreateInfo = {};
+		fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+		fenceCreateInfo.pNext = nullptr;
+		fenceCreateInfo.flags = 0;
+		NTSH_VK_CHECK(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &fence));
+
+		VkSubmitInfo2 submitInfo = {};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+		submitInfo.pNext = nullptr;
+		submitInfo.flags = 0;
+		submitInfo.waitSemaphoreInfoCount = 0;
+		submitInfo.pWaitSemaphoreInfos = nullptr;
+		submitInfo.commandBufferInfoCount = 1;
+		submitInfo.pCommandBufferInfos = &commandBufferSubmitInfo;
+		submitInfo.signalSemaphoreInfoCount = 0;
+		submitInfo.pSignalSemaphoreInfos = nullptr;
+
+		auto queueSubmit2KHR = (PFN_vkQueueSubmit2KHR)vkGetInstanceProcAddr(m_instance, "vkQueueSubmit2KHR");
+		NTSH_VK_CHECK(queueSubmit2KHR(m_graphicsQueue, 1, &submitInfo, fence));
+		NTSH_VK_CHECK(vkWaitForFences(m_device, 1, &fence, VK_TRUE, 100000000000));
+
+		vkDestroyFence(m_device, fence, nullptr);
+		vkDestroyCommandPool(m_device, commandPool, nullptr);
 	}
 }
 
@@ -329,6 +497,12 @@ void NutshellGraphicsModule::destroy() {
 			vkDestroyImageView(m_device, swapchainImageView, nullptr);
 		}
 		vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
+	}
+	// Or destroy the image
+	else {
+		vkDestroyImageView(m_device, m_drawImageView, nullptr);
+		vkDestroyImage(m_device, m_drawImage, nullptr);
+		vkFreeMemory(m_device, m_drawImageMemory, nullptr);
 	}
 
 	// Destroy device
@@ -355,17 +529,38 @@ void NutshellGraphicsModule::destroy() {
 }
 
 VkSurfaceCapabilitiesKHR NutshellGraphicsModule::getSurfaceCapabilities() {
-	VkSurfaceCapabilitiesKHR surfaceCapabilities;
-	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physicalDevice, m_surface, &surfaceCapabilities));
+	VkPhysicalDeviceSurfaceInfo2KHR surfaceInfo = {};
+	surfaceInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR;
+	surfaceInfo.pNext = nullptr;
+	surfaceInfo.surface = m_surface;
 
-	return surfaceCapabilities;
+	VkSurfaceCapabilities2KHR surfaceCapabilities;
+	surfaceCapabilities.sType = VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR;
+	surfaceCapabilities.pNext = nullptr;
+	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilities2KHR(m_physicalDevice, &surfaceInfo, &surfaceCapabilities));
+
+	return surfaceCapabilities.surfaceCapabilities;
 }
 
 std::vector<VkSurfaceFormatKHR> NutshellGraphicsModule::getSurfaceFormats() {
+	VkPhysicalDeviceSurfaceInfo2KHR surfaceInfo = {};
+	surfaceInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR;
+	surfaceInfo.pNext = nullptr;
+	surfaceInfo.surface = m_surface;
+
 	uint32_t surfaceFormatsCount;
-	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &surfaceFormatsCount, nullptr));
-	std::vector<VkSurfaceFormatKHR> surfaceFormats(surfaceFormatsCount);
-	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &surfaceFormatsCount, surfaceFormats.data()));
+	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfaceFormats2KHR(m_physicalDevice, &surfaceInfo, &surfaceFormatsCount, nullptr));
+	std::vector<VkSurfaceFormat2KHR> surfaceFormats2(surfaceFormatsCount);
+	for (VkSurfaceFormat2KHR& surfaceFormat2 : surfaceFormats2) {
+		surfaceFormat2.sType = VK_STRUCTURE_TYPE_SURFACE_FORMAT_2_KHR;
+		surfaceFormat2.pNext = nullptr;
+	}
+	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfaceFormats2KHR(m_physicalDevice, &surfaceInfo, &surfaceFormatsCount, surfaceFormats2.data()));
+	
+	std::vector<VkSurfaceFormatKHR> surfaceFormats;
+	for (const VkSurfaceFormat2KHR surfaceFormat2 : surfaceFormats2) {
+		surfaceFormats.push_back(surfaceFormat2.surfaceFormat);
+	}
 
 	return surfaceFormats;
 }
@@ -377,6 +572,15 @@ std::vector<VkPresentModeKHR> NutshellGraphicsModule::getSurfacePresentModes() {
 	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &presentModesCount, presentModes.data()));
 
 	return presentModes;
+}
+
+VkPhysicalDeviceMemoryProperties NutshellGraphicsModule::getMemoryProperties() {
+	VkPhysicalDeviceMemoryProperties2 memoryProperties = {};
+	memoryProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+	memoryProperties.pNext = nullptr;
+	vkGetPhysicalDeviceMemoryProperties2(m_physicalDevice, &memoryProperties);
+
+	return memoryProperties.memoryProperties;
 }
 
 extern "C" NTSH_MODULE_API NutshellGraphicsModuleInterface* createModule() {
