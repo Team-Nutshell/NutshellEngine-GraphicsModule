@@ -839,7 +839,13 @@ void NutshellGraphicsModule::update(double dt) {
 
 	uint32_t imageIndex = m_imageCount - 1;
 	if (m_windowModule) {
-		NTSH_VK_CHECK(vkAcquireNextImageKHR(m_device, m_swapchain, std::numeric_limits<uint64_t>::max(), m_imageAvailableSemaphores[currentFrameInFlight], VK_NULL_HANDLE, &imageIndex));
+		VkResult acquireNextImageResult = vkAcquireNextImageKHR(m_device, m_swapchain, std::numeric_limits<uint64_t>::max(), m_imageAvailableSemaphores[currentFrameInFlight], VK_NULL_HANDLE, &imageIndex);
+		if (acquireNextImageResult == VK_ERROR_OUT_OF_DATE_KHR) {
+			resize();
+		}
+		else if (acquireNextImageResult != VK_SUCCESS || acquireNextImageResult != VK_SUBOPTIMAL_KHR) {
+			NTSH_MODULE_ERROR("Next swapchain image acquire failed.", NTSH_RESULT_MODULE_ERROR);
+		}
 	}
 	else {
 		VkSubmitInfo emptySignalSubmitInfo = {};
@@ -1136,6 +1142,10 @@ VkPhysicalDeviceMemoryProperties NutshellGraphicsModule::getMemoryProperties() {
 	vkGetPhysicalDeviceMemoryProperties2(m_physicalDevice, &memoryProperties);
 
 	return memoryProperties.memoryProperties;
+}
+
+void NutshellGraphicsModule::resize() {
+
 }
 
 extern "C" NTSH_MODULE_API NutshellGraphicsModuleInterface* createModule() {

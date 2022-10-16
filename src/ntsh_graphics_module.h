@@ -50,6 +50,9 @@ private:
 
 	VkPhysicalDeviceMemoryProperties getMemoryProperties();
 
+	// On window resize
+	void resize();
+
 private:
 	VkInstance m_instance;
 #ifdef NTSH_DEBUG
