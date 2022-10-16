@@ -102,7 +102,7 @@ void NutshellGraphicsModule::init() {
 	// Create surface
 	if (m_windowModule) {
 #ifdef NTSH_OS_WINDOWS
-		HWND windowHandle = m_windowModule->getWindowHandle();
+		HWND windowHandle = m_windowModule->getNativeHandle();
 		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.pNext = nullptr;
@@ -113,7 +113,7 @@ void NutshellGraphicsModule::init() {
 		NTSH_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
 #elif NTSH_OS_LINUX
 		m_display = XOpenDisplay(NULL);
-		Window windowHandle = m_windowModule->getWindowHandle();
+		Window windowHandle = m_windowModule->getNativeHandle();
 		VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.pNext = nullptr;
@@ -301,8 +301,8 @@ void NutshellGraphicsModule::init() {
 		}
 
 		VkExtent2D swapchainExtent = {};
-		swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWindowWidth());
-		swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getWindowHeight());
+		swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth());
+		swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight());
 
 		m_viewport.x = 0.0f;
 		m_viewport.y = 0.0f;
@@ -421,7 +421,7 @@ void NutshellGraphicsModule::init() {
 		VkMemoryAllocateInfo memoryAllocateInfo = {};
 		memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		memoryAllocateInfo.pNext = nullptr;
-		memoryAllocateInfo.allocationSize = memoryRequirements.size;
+		memoryAllocateInfo.allocationSize = 268435456;
 		memoryAllocateInfo.memoryTypeIndex = memoryTypeIndex;
 		NTSH_VK_CHECK(vkAllocateMemory(m_device, &memoryAllocateInfo, nullptr, &m_drawImageMemory));
 
@@ -445,94 +445,6 @@ void NutshellGraphicsModule::init() {
 		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 		imageViewCreateInfo.subresourceRange.layerCount = 1;
 		NTSH_VK_CHECK(vkCreateImageView(m_device, &imageViewCreateInfo, nullptr, &m_drawImageView));
-		
-		// Transition the image layout from VK_IMAGE_LAYOUT_UNDEFINED to VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-		VkCommandPool commandPool;
-		VkCommandPoolCreateInfo commandPoolCreateInfo = {};
-		commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-		commandPoolCreateInfo.pNext = nullptr;
-		commandPoolCreateInfo.flags = 0;
-		commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueIndex;
-		NTSH_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &commandPool));
-
-		VkCommandBuffer commandBuffer;
-		VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-		commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		commandBufferAllocateInfo.pNext = nullptr;
-		commandBufferAllocateInfo.commandPool = commandPool;
-		commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		commandBufferAllocateInfo.commandBufferCount = 1;
-		NTSH_VK_CHECK(vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &commandBuffer));
-
-		VkCommandBufferBeginInfo commandBufferBeginInfo = {};
-		commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		commandBufferBeginInfo.pNext = nullptr;
-		commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-		commandBufferBeginInfo.pInheritanceInfo = nullptr;
-		NTSH_VK_CHECK(vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo));
-
-		VkImageMemoryBarrier2 imageMemoryBarrier = {};
-		imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-		imageMemoryBarrier.pNext = nullptr;
-		imageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
-		imageMemoryBarrier.srcAccessMask = 0;
-		imageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-		imageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-		imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		imageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueIndex;
-		imageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueIndex;
-		imageMemoryBarrier.image = m_drawImage;
-		imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
-		imageMemoryBarrier.subresourceRange.levelCount = 1;
-		imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-		imageMemoryBarrier.subresourceRange.layerCount = 1;
-
-		VkDependencyInfo dependencyInfo = {};
-		dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-		dependencyInfo.pNext = nullptr;
-		dependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-		dependencyInfo.memoryBarrierCount = 0;
-		dependencyInfo.pMemoryBarriers = nullptr;
-		dependencyInfo.bufferMemoryBarrierCount = 0;
-		dependencyInfo.pBufferMemoryBarriers = nullptr;
-		dependencyInfo.imageMemoryBarrierCount = 1;
-		dependencyInfo.pImageMemoryBarriers = &imageMemoryBarrier;
-
-		m_vkCmdPipelineBarrier2KHR(commandBuffer, &dependencyInfo);
-
-		NTSH_VK_CHECK(vkEndCommandBuffer(commandBuffer));
-
-		VkCommandBufferSubmitInfo commandBufferSubmitInfo = {};
-		commandBufferSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
-		commandBufferSubmitInfo.pNext = nullptr;
-		commandBufferSubmitInfo.commandBuffer = commandBuffer;
-		commandBufferSubmitInfo.deviceMask = 0;
-
-		VkFence fence;
-		VkFenceCreateInfo fenceCreateInfo = {};
-		fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-		fenceCreateInfo.pNext = nullptr;
-		fenceCreateInfo.flags = 0;
-		NTSH_VK_CHECK(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &fence));
-
-		VkSubmitInfo submitInfo = {};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.pNext = nullptr;
-		submitInfo.waitSemaphoreCount = 0;
-		submitInfo.pWaitSemaphores = nullptr;
-		submitInfo.pWaitDstStageMask = nullptr;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &commandBuffer;
-		submitInfo.signalSemaphoreCount = 0;
-		submitInfo.pSignalSemaphores = nullptr;
-		NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, fence));
-
-		NTSH_VK_CHECK(vkWaitForFences(m_device, 1, &fence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
-
-		vkDestroyFence(m_device, fence, nullptr);
-		vkDestroyCommandPool(m_device, commandPool, nullptr);
 	}
 
 	// Create graphics pipeline
@@ -843,7 +755,7 @@ void NutshellGraphicsModule::update(double dt) {
 		if (acquireNextImageResult == VK_ERROR_OUT_OF_DATE_KHR) {
 			resize();
 		}
-		else if (acquireNextImageResult != VK_SUCCESS || acquireNextImageResult != VK_SUBOPTIMAL_KHR) {
+		else if (acquireNextImageResult != VK_SUCCESS && acquireNextImageResult != VK_SUBOPTIMAL_KHR) {
 			NTSH_MODULE_ERROR("Next swapchain image acquire failed.", NTSH_RESULT_MODULE_ERROR);
 		}
 	}
@@ -1013,7 +925,13 @@ void NutshellGraphicsModule::update(double dt) {
 		presentInfo.pSwapchains = &m_swapchain;
 		presentInfo.pImageIndices = &imageIndex;
 		presentInfo.pResults = nullptr;
-		NTSH_VK_CHECK(vkQueuePresentKHR(m_graphicsQueue, &presentInfo));
+		VkResult queuePresentResult = vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
+		if (queuePresentResult == VK_ERROR_OUT_OF_DATE_KHR || queuePresentResult == VK_SUBOPTIMAL_KHR) {
+			resize();
+		}
+		else if (queuePresentResult != VK_SUCCESS) {
+			NTSH_MODULE_ERROR("Queue present swapchain image failed.", NTSH_RESULT_MODULE_ERROR);
+		}
 	}
 	else {
 		VkPipelineStageFlags emptyWaitDstStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
@@ -1145,7 +1063,112 @@ VkPhysicalDeviceMemoryProperties NutshellGraphicsModule::getMemoryProperties() {
 }
 
 void NutshellGraphicsModule::resize() {
+	if (m_windowModule) {
+		while (m_windowModule->getWidth() == 0 || m_windowModule->getHeight() == 0) {
+			m_windowModule->pollEvents();
+		}
 
+		NTSH_VK_CHECK(vkQueueWaitIdle(m_graphicsQueue));
+
+		// Destroy swapchain image views
+		for (VkImageView& swapchainImageView : m_swapchainImageViews) {
+			vkDestroyImageView(m_device, swapchainImageView, nullptr);
+		}
+
+		// Recreate the swapchain
+		VkSurfaceCapabilitiesKHR surfaceCapabilities = getSurfaceCapabilities();
+		uint32_t minImageCount = surfaceCapabilities.minImageCount + 1;
+		if (surfaceCapabilities.maxImageCount > 0 && minImageCount > surfaceCapabilities.maxImageCount) {
+			minImageCount = surfaceCapabilities.maxImageCount;
+		}
+
+		std::vector<VkSurfaceFormatKHR> surfaceFormats = getSurfaceFormats();
+		m_swapchainFormat = surfaceFormats[0].format;
+		VkColorSpaceKHR swapchainColorSpace = surfaceFormats[0].colorSpace;
+		for (const VkSurfaceFormatKHR& surfaceFormat : surfaceFormats) {
+			if (surfaceFormat.format == VK_FORMAT_B8G8R8A8_SRGB && surfaceFormat.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR) {
+				m_swapchainFormat = surfaceFormat.format;
+				swapchainColorSpace = surfaceFormat.colorSpace;
+				break;
+			}
+		}
+
+		std::vector<VkPresentModeKHR> presentModes = getSurfacePresentModes();
+		VkPresentModeKHR swapchainPresentMode = VK_PRESENT_MODE_FIFO_KHR;
+		for (const VkPresentModeKHR& presentMode : presentModes) {
+			if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+				swapchainPresentMode = presentMode;
+				break;
+			}
+			else if (presentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
+				swapchainPresentMode = presentMode;
+			}
+		}
+
+		VkExtent2D swapchainExtent = {};
+		swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth());
+		swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight());
+
+		m_viewport.x = 0.0f;
+		m_viewport.y = 0.0f;
+		m_viewport.width = static_cast<float>(swapchainExtent.width);
+		m_viewport.height = static_cast<float>(swapchainExtent.height);
+		m_viewport.minDepth = 0.0f;
+		m_viewport.maxDepth = 1.0f;
+
+		m_scissor.offset.x = 0;
+		m_scissor.offset.y = 0;
+		m_scissor.extent.width = swapchainExtent.width;
+		m_scissor.extent.height = swapchainExtent.height;
+
+		VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
+		swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+		swapchainCreateInfo.pNext = nullptr;
+		swapchainCreateInfo.flags = 0;
+		swapchainCreateInfo.surface = m_surface;
+		swapchainCreateInfo.minImageCount = minImageCount;
+		swapchainCreateInfo.imageFormat = m_swapchainFormat;
+		swapchainCreateInfo.imageColorSpace = swapchainColorSpace;
+		swapchainCreateInfo.imageExtent = swapchainExtent;
+		swapchainCreateInfo.imageArrayLayers = 1;
+		swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		swapchainCreateInfo.queueFamilyIndexCount = 0;
+		swapchainCreateInfo.pQueueFamilyIndices = nullptr;
+		swapchainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
+		swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+		swapchainCreateInfo.presentMode = swapchainPresentMode;
+		swapchainCreateInfo.clipped = VK_TRUE;
+		VkSwapchainKHR oldSwapchain = m_swapchain;
+		swapchainCreateInfo.oldSwapchain = oldSwapchain;
+		NTSH_VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_swapchain));
+
+		NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, nullptr));
+		m_swapchainImages.resize(m_imageCount);
+		NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, m_swapchainImages.data()));
+
+		// Create the swapchain image views
+		m_swapchainImageViews.resize(m_imageCount);
+		for (uint32_t i = 0; i < m_imageCount; i++) {
+			VkImageViewCreateInfo swapchainImageViewCreateInfo = {};
+			swapchainImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			swapchainImageViewCreateInfo.pNext = nullptr;
+			swapchainImageViewCreateInfo.flags = 0;
+			swapchainImageViewCreateInfo.image = m_swapchainImages[i];
+			swapchainImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			swapchainImageViewCreateInfo.format = m_swapchainFormat;
+			swapchainImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+			swapchainImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+			swapchainImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+			swapchainImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+			swapchainImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			swapchainImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+			swapchainImageViewCreateInfo.subresourceRange.levelCount = 1;
+			swapchainImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+			swapchainImageViewCreateInfo.subresourceRange.layerCount = 1;
+			NTSH_VK_CHECK(vkCreateImageView(m_device, &swapchainImageViewCreateInfo, nullptr, &m_swapchainImageViews[i]));
+		}
+	}
 }
 
 extern "C" NTSH_MODULE_API NutshellGraphicsModuleInterface* createModule() {
