@@ -261,7 +261,7 @@ void NutshellGraphicsModule::update(double dt) {
 	m_commandQueue->ExecuteCommandLists(1, commandLists);
 
 	// Present
-	NTSH_DX12_CHECK(m_swapchain->Present(1, 0));
+	NTSH_DX12_CHECK(m_swapchain->Present(0, 0));
 
 	// Sync
 	uint64_t currentFenceValue = m_fenceValues[m_frameIndex];
