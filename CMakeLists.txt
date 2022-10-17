@@ -17,12 +17,15 @@ set(MODULE_SOURCES
 set(MODULE_HEADERS
 	src/ntsh_graphics_module.h)
 
+set(EXTERNAL_HEADERS
+	external/d3dx12/d3dx12.h)
+
 set(SOURCES ${MODULE_SOURCES})
-set(HEADERS ${MODULE_HEADERS})
+set(HEADERS ${MODULE_HEADERS} ${EXTERNAL_HEADERS})
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES} ${HEADERS})
 
-target_link_libraries(${PROJECT_NAME} PRIVATE NutshellEngine::Module NutshellEngine::Common)
+target_link_libraries(${PROJECT_NAME} PRIVATE NutshellEngine::Module NutshellEngine::Common d3d12.lib dxgi.lib d3dcompiler.lib)
 
 target_compile_options(${PROJECT_NAME} PRIVATE
 	$<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
