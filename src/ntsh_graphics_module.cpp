@@ -39,7 +39,7 @@ void NutshellGraphicsModule::init() {
 	NTSH_DX12_CHECK(m_device->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&m_commandQueue)));
 
 	if (m_windowModule) {
-		m_swapchainSize = 2;
+		m_imageCount = 2;
 
 		m_viewport.TopLeftX = 0.0f;
 		m_viewport.TopLeftY = 0.0f;
@@ -66,7 +66,7 @@ void NutshellGraphicsModule::init() {
 		swapchainDesc.SampleDesc.Count = 1;
 		swapchainDesc.SampleDesc.Quality = 0;
 		swapchainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-		swapchainDesc.BufferCount = m_swapchainSize;
+		swapchainDesc.BufferCount = m_imageCount;
 		swapchainDesc.Scaling = DXGI_SCALING_NONE;
 		swapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 		swapchainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
@@ -75,11 +75,47 @@ void NutshellGraphicsModule::init() {
 		NTSH_DX12_CHECK(swapchain.As(&m_swapchain));
 		m_frameIndex = m_swapchain->GetCurrentBackBufferIndex();
 	}
+	else {
+		m_imageCount = 1;
+
+		D3D12_HEAP_PROPERTIES heapProperties = {};
+		heapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;
+		heapProperties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+		heapProperties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+		heapProperties.CreationNodeMask = 1;
+		heapProperties.VisibleNodeMask = 1;
+
+		D3D12_RESOURCE_DESC resourceDesc = {};
+		resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		resourceDesc.Alignment = 0;
+		resourceDesc.Width = 1280;
+		resourceDesc.Height = 720;
+		resourceDesc.DepthOrArraySize = 1;
+		resourceDesc.MipLevels = 1;
+		resourceDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		resourceDesc.SampleDesc.Count = 1;
+		resourceDesc.SampleDesc.Quality = 0;
+		resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+		resourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+		D3D12_CLEAR_VALUE clearValue = {};
+		clearValue.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		clearValue.Color[0] = 0.0f;
+		clearValue.Color[1] = 0.0f;
+		clearValue.Color[2] = 0.0f;
+		clearValue.Color[3] = 0.0f;
+		clearValue.DepthStencil.Depth = 0.0f;
+		clearValue.DepthStencil.Stencil = 0;
+
+		NTSH_DX12_CHECK(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc, D3D12_RESOURCE_STATE_RENDER_TARGET, &clearValue, IID_PPV_ARGS(&m_drawImage)));
+
+		m_frameIndex = 0;
+	}
 
 	// Create descriptor heap
 	D3D12_DESCRIPTOR_HEAP_DESC descriptorHeapDesc = {};
 	descriptorHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-	descriptorHeapDesc.NumDescriptors = m_swapchainSize;
+	descriptorHeapDesc.NumDescriptors = m_imageCount;
 	descriptorHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	descriptorHeapDesc.NodeMask = 0;
 	NTSH_DX12_CHECK(m_device->CreateDescriptorHeap(&descriptorHeapDesc, IID_PPV_ARGS(&m_descriptorHeap)));
@@ -89,10 +125,15 @@ void NutshellGraphicsModule::init() {
 	// Create frame resource
 	CD3DX12_CPU_DESCRIPTOR_HANDLE descriptorHandle(m_descriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-	m_renderTargets.resize(m_swapchainSize);
-	m_commandAllocators.resize(m_swapchainSize);
-	for (uint32_t i = 0; i < m_swapchainSize; i++) {
-		NTSH_DX12_CHECK(m_swapchain->GetBuffer(i, IID_PPV_ARGS(&m_renderTargets[i])));
+	m_renderTargets.resize(m_imageCount);
+	m_commandAllocators.resize(m_imageCount);
+	for (uint32_t i = 0; i < m_imageCount; i++) {
+		if (m_windowModule) {
+			NTSH_DX12_CHECK(m_swapchain->GetBuffer(i, IID_PPV_ARGS(&m_renderTargets[i])));
+		}
+		else {
+			m_drawImage.As(&m_renderTargets[i]);
+		}
 		m_device->CreateRenderTargetView(m_renderTargets[i].Get(), nullptr, descriptorHandle);
 		descriptorHandle.Offset(1, m_descriptorHeapSize);
 
@@ -201,7 +242,7 @@ void NutshellGraphicsModule::init() {
 	NTSH_DX12_CHECK(m_commandList->Close());
 
 	// Create sync objects
-	m_fenceValues.resize(m_swapchainSize);
+	m_fenceValues.resize(m_imageCount);
 	std::fill(m_fenceValues.begin(), m_fenceValues.end(), 0);
 	NTSH_DX12_CHECK(m_device->CreateFence(m_fenceValues[m_frameIndex], D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
 	m_fenceValues[m_frameIndex]++;
@@ -215,9 +256,11 @@ void NutshellGraphicsModule::init() {
 void NutshellGraphicsModule::update(double dt) {
 	NTSH_UNUSED(dt);
 
-	// Check for window resize
-	if (m_windowModule->getWidth() != m_savedWidth || m_windowModule->getHeight() != m_savedHeight) {
-		resize();
+	if (m_windowModule) {
+		// Check for window resize
+		if (m_windowModule->getWidth() != m_savedWidth || m_windowModule->getHeight() != m_savedHeight) {
+			resize();
+		}
 	}
 	
 	// Record commands
@@ -229,14 +272,16 @@ void NutshellGraphicsModule::update(double dt) {
 	m_commandList->RSSetViewports(1, &m_viewport);
 	m_commandList->RSSetScissorRects(1, &m_scissor);
 
-	m_presentToRenderTargetBarrier = {};
-	m_presentToRenderTargetBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	m_presentToRenderTargetBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-	m_presentToRenderTargetBarrier.Transition.pResource = m_renderTargets[m_frameIndex].Get();
-	m_presentToRenderTargetBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-	m_presentToRenderTargetBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-	m_presentToRenderTargetBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-	m_commandList->ResourceBarrier(1, &m_presentToRenderTargetBarrier);
+	if (m_windowModule) {
+		m_presentToRenderTargetBarrier = {};
+		m_presentToRenderTargetBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+		m_presentToRenderTargetBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+		m_presentToRenderTargetBarrier.Transition.pResource = m_renderTargets[m_frameIndex].Get();
+		m_presentToRenderTargetBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+		m_presentToRenderTargetBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+		m_presentToRenderTargetBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		m_commandList->ResourceBarrier(1, &m_presentToRenderTargetBarrier);
+	}
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE descriptorHandle(m_descriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_descriptorHeapSize);
 	m_commandList->OMSetRenderTargets(1, &descriptorHandle, FALSE, nullptr);
@@ -245,14 +290,16 @@ void NutshellGraphicsModule::update(double dt) {
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	m_commandList->DrawInstanced(3, 1, 0, 0);
 
-	m_renderTargetToPresentBarrier = {};
-	m_renderTargetToPresentBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	m_renderTargetToPresentBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-	m_renderTargetToPresentBarrier.Transition.pResource = m_renderTargets[m_frameIndex].Get();
-	m_renderTargetToPresentBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-	m_renderTargetToPresentBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-	m_renderTargetToPresentBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-	m_commandList->ResourceBarrier(1, &m_renderTargetToPresentBarrier);
+	if (m_windowModule) {
+		m_renderTargetToPresentBarrier = {};
+		m_renderTargetToPresentBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+		m_renderTargetToPresentBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+		m_renderTargetToPresentBarrier.Transition.pResource = m_renderTargets[m_frameIndex].Get();
+		m_renderTargetToPresentBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+		m_renderTargetToPresentBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		m_renderTargetToPresentBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+		m_commandList->ResourceBarrier(1, &m_renderTargetToPresentBarrier);
+	}
 
 	NTSH_DX12_CHECK(m_commandList->Close());
 
@@ -261,13 +308,17 @@ void NutshellGraphicsModule::update(double dt) {
 	m_commandQueue->ExecuteCommandLists(1, commandLists);
 
 	// Present
-	NTSH_DX12_CHECK(m_swapchain->Present(0, 0));
+	if (m_windowModule) {
+		NTSH_DX12_CHECK(m_swapchain->Present(0, 0));
+	}
 
 	// Sync
 	uint64_t currentFenceValue = m_fenceValues[m_frameIndex];
 	NTSH_DX12_CHECK(m_commandQueue->Signal(m_fence.Get(), currentFenceValue));
 
-	m_frameIndex = m_swapchain->GetCurrentBackBufferIndex();
+	if (m_windowModule) {
+		m_frameIndex = m_swapchain->GetCurrentBackBufferIndex();
+	}
 
 	if (m_fence->GetCompletedValue() < m_fenceValues[m_frameIndex]) {
 		NTSH_DX12_CHECK(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent));
@@ -342,7 +393,7 @@ void NutshellGraphicsModule::resize() {
 
 		waitForGPUIdle();
 		
-		for (uint32_t i = 0; i < m_swapchainSize; i++) {
+		for (uint32_t i = 0; i < m_imageCount; i++) {
 			m_renderTargets[i].Reset();
 			m_fenceValues[i] = m_frameIndex;
 		}
@@ -366,7 +417,7 @@ void NutshellGraphicsModule::resize() {
 
 		CD3DX12_CPU_DESCRIPTOR_HANDLE descriptorHandle(m_descriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-		for (uint32_t i = 0; i < m_swapchainSize; i++) {
+		for (uint32_t i = 0; i < m_imageCount; i++) {
 			NTSH_DX12_CHECK(m_swapchain->GetBuffer(i, IID_PPV_ARGS(&m_renderTargets[i])));
 			m_device->CreateRenderTargetView(m_renderTargets[i].Get(), nullptr, descriptorHandle);
 			descriptorHandle.Offset(1, m_descriptorHeapSize);
