@@ -31,7 +31,12 @@ private:
 	
 	void waitForGPUIdle();
 
+	// On window resize
+	void resize();
+
 private:
+	ComPtr<IDXGIFactory4> m_factory;
+
 	ComPtr<ID3D12Device> m_device;
 
 	ComPtr<ID3D12CommandQueue> m_commandQueue;
@@ -59,4 +64,6 @@ private:
 	HANDLE m_fenceEvent;
 
 	const float m_clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	int m_savedWidth;
+	int m_savedHeight;
 };
