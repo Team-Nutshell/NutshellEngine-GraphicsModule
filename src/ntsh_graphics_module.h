@@ -12,7 +12,9 @@ using Microsoft::WRL::ComPtr;
 	do { \
 		HRESULT check = f; \
 		if (FAILED(check)) { \
-			NTSH_MODULE_ERROR("DirectX 12 Error.\nError code: " + std::to_string(check) + "\nFile: " + std::string(__FILE__) + "\nFunction: " + #f + "\nLine: " + std::to_string(__LINE__), NTSH_RESULT_UNKNOWN_ERROR); \
+			char str[64] = {}; \
+			sprintf_s(str, "0x%08X", static_cast<uint32_t>(check)); \
+			NTSH_MODULE_ERROR("DirectX 12 Error.\nError code: " + std::string(str) + "\nFile: " + std::string(__FILE__) + "\nFunction: " + #f + "\nLine: " + std::to_string(__LINE__), NTSH_RESULT_UNKNOWN_ERROR); \
 		} \
 	} while(0)
 
@@ -26,6 +28,8 @@ public:
 
 private:
 	void getHardwareAdapter(IDXGIFactory1* factory, IDXGIAdapter1** hardwareAdapter);
+	
+	void waitForGPUIdle();
 
 private:
 	ComPtr<ID3D12Device> m_device;
@@ -41,4 +45,18 @@ private:
 	std::vector<ComPtr<ID3D12Resource>> m_renderTargets;
 
 	std::vector<ComPtr<ID3D12CommandAllocator>> m_commandAllocators;
+	ComPtr<ID3D12GraphicsCommandList> m_commandList;
+	D3D12_RESOURCE_BARRIER m_presentToRenderTargetBarrier;
+	D3D12_RESOURCE_BARRIER m_renderTargetToPresentBarrier;
+
+	ComPtr<ID3D12RootSignature> m_rootSignature;
+	ComPtr<ID3D12PipelineState> m_graphicsPipeline;
+	D3D12_VIEWPORT m_viewport;
+	D3D12_RECT m_scissor;
+
+	ComPtr<ID3D12Fence> m_fence;
+	std::vector<uint64_t> m_fenceValues;
+	HANDLE m_fenceEvent;
+
+	const float m_clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 };
