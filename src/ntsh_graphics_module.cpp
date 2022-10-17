@@ -122,7 +122,7 @@ void NutshellGraphicsModule::init() {
 		\n \
 		VSOut main(uint vertexID : SV_VertexID) {\n \
 			VSOut vsOut;\n \
-			vsOut.position = float4(positions[vertexID], 0.0, 0.0);\n \
+			vsOut.position = float4(positions[vertexID], 0.0, 1.0);\n \
 			vsOut.color = colors[vertexID];\n \
 		\n \
 			return vsOut;\n \
@@ -141,7 +141,7 @@ void NutshellGraphicsModule::init() {
 		};\n \
 		\n \
 		float4 main(PSIn psIn) : SV_TARGET {\n \
-			return float4(psIn.color, 1.0);\n \
+			return float4(pow(psIn.color, 1.0/2.2), 1.0);\n \
 		}";
 	ComPtr<ID3DBlob> pixelShader;
 	ComPtr<ID3DBlob> pixelShaderError;
@@ -157,7 +157,7 @@ void NutshellGraphicsModule::init() {
 	rasterizerDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
 	rasterizerDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
 	rasterizerDesc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
-	rasterizerDesc.DepthClipEnable = FALSE;
+	rasterizerDesc.DepthClipEnable = TRUE;
 	rasterizerDesc.MultisampleEnable = FALSE;
 	rasterizerDesc.AntialiasedLineEnable = FALSE;
 	rasterizerDesc.ForcedSampleCount = 0;
