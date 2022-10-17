@@ -5,6 +5,7 @@
 #include "../external/Common/ntsh_engine_enums.h"
 #include "../external/Common/module_interfaces/ntsh_window_module_interface.h"
 #include "../external/d3dx12/d3dx12.h"
+#include <algorithm>
 
 void NutshellGraphicsModule::init() {
 	uint32_t factoryFlags = 0;
@@ -47,7 +48,7 @@ void NutshellGraphicsModule::init() {
 		swapchainDesc.Width = 0;
 		swapchainDesc.Height = 0;
 		swapchainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		swapchainDesc.Stereo = false;
+		swapchainDesc.Stereo = FALSE;
 		swapchainDesc.SampleDesc.Count = 1;
 		swapchainDesc.SampleDesc.Quality = 0;
 		swapchainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -88,24 +89,190 @@ void NutshellGraphicsModule::init() {
 
 	// Create empty root signature
 	CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
-	rootSignatureDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+	rootSignatureDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_NONE);
 
 	ComPtr<ID3DBlob> signature;
 	ComPtr<ID3DBlob> error;
 	NTSH_DX12_CHECK(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
+	NTSH_DX12_CHECK(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
 
 	// Create pipeline state
+	uint32_t shaderCompileFlags = 0;
+#ifdef NTSH_DEBUG
+	shaderCompileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+#endif
+
+	const std::string vertexShaderCode = 
+		"static const float2 positions[3] = {\n \
+			float2(0.0, 0.5),\n \
+			float2(-0.5, -0.5),\n \
+			float2(0.5, -0.5)\n \
+		};\n \
+		\n \
+		static const float3 colors[3] = {\n \
+			float3(1.0, 0.0, 0.0),\n \
+			float3(0.0, 0.0, 1.0),\n \
+			float3(0.0, 1.0, 0.0)\n \
+		};\n \
+		\n \
+		struct VSOut {\n \
+			float4 position : SV_POSITION;\n \
+			float3 color : COLOR;\n \
+		};\n \
+		\n \
+		VSOut main(uint vertexID : SV_VertexID) {\n \
+			VSOut vsOut;\n \
+			vsOut.position = float4(positions[vertexID], 0.0, 0.0);\n \
+			vsOut.color = colors[vertexID];\n \
+		\n \
+			return vsOut;\n \
+		}";
 	ComPtr<ID3DBlob> vertexShader;
-	ComPtr<ID3DBlob> fragmentShader;
+	ComPtr<ID3DBlob> vertexShaderError;
+	if (FAILED(D3DCompile(vertexShaderCode.c_str(), vertexShaderCode.size(), nullptr, nullptr, nullptr, "main", "vs_5_0", shaderCompileFlags, 0, &vertexShader, &vertexShaderError))) {
+		std::string shaderCompilationError(reinterpret_cast<const char*>(vertexShaderError->GetBufferPointer()), vertexShaderError->GetBufferSize());
+		NTSH_MODULE_ERROR("Vertex shader compilation failed:\n" + shaderCompilationError, NTSH_RESULT_MODULE_ERROR);
+	}
+
+	const std::string pixelShaderCode =
+		"struct PSIn {\n \
+			float4 position : SV_POSITION;\n \
+			float3 color : COLOR;\n \
+		};\n \
+		\n \
+		float4 main(PSIn psIn) : SV_TARGET {\n \
+			return float4(psIn.color, 1.0);\n \
+		}";
+	ComPtr<ID3DBlob> pixelShader;
+	ComPtr<ID3DBlob> pixelShaderError;
+	if (FAILED(D3DCompile(pixelShaderCode.c_str(), pixelShaderCode.size(), nullptr, nullptr, nullptr, "main", "ps_5_0", shaderCompileFlags, 0, &pixelShader, &pixelShaderError))) {
+		std::string shaderCompilationError(reinterpret_cast<const char*>(pixelShaderError->GetBufferPointer()), pixelShaderError->GetBufferSize());
+		NTSH_MODULE_ERROR("Pixel shader compilation failed:\n" + shaderCompilationError, NTSH_RESULT_MODULE_ERROR);
+	}
+
+	D3D12_RASTERIZER_DESC rasterizerDesc = {};
+	rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
+	rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
+	rasterizerDesc.FrontCounterClockwise = TRUE;
+	rasterizerDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
+	rasterizerDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
+	rasterizerDesc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
+	rasterizerDesc.DepthClipEnable = FALSE;
+	rasterizerDesc.MultisampleEnable = FALSE;
+	rasterizerDesc.AntialiasedLineEnable = FALSE;
+	rasterizerDesc.ForcedSampleCount = 0;
+	rasterizerDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC graphicsPipelineStateDesc = {};
+	graphicsPipelineStateDesc.pRootSignature = m_rootSignature.Get();
+	graphicsPipelineStateDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.Get());
+	graphicsPipelineStateDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.Get());
+	graphicsPipelineStateDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	graphicsPipelineStateDesc.SampleMask = UINT_MAX;
+	graphicsPipelineStateDesc.RasterizerState = rasterizerDesc;
+	graphicsPipelineStateDesc.DepthStencilState.DepthEnable = FALSE;
+	graphicsPipelineStateDesc.DepthStencilState.StencilEnable = FALSE;
+	graphicsPipelineStateDesc.InputLayout.pInputElementDescs = nullptr;
+	graphicsPipelineStateDesc.InputLayout.NumElements = 0;
+	graphicsPipelineStateDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	graphicsPipelineStateDesc.NumRenderTargets = 1;
+	graphicsPipelineStateDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	graphicsPipelineStateDesc.SampleDesc.Count = 1;
+	graphicsPipelineStateDesc.SampleDesc.Quality = 0;
+	NTSH_DX12_CHECK(m_device->CreateGraphicsPipelineState(&graphicsPipelineStateDesc, IID_PPV_ARGS(&m_graphicsPipeline)));
+
+	m_viewport.TopLeftX = 0.0f;
+	m_viewport.TopLeftY = 0.0f;
+	m_viewport.Width = static_cast<float>(m_windowModule->getWidth());
+	m_viewport.Height = static_cast<float>(m_windowModule->getHeight());
+	m_viewport.MinDepth = D3D12_MIN_DEPTH;
+	m_viewport.MaxDepth = D3D12_MAX_DEPTH;
+
+	m_scissor.left = 0;
+	m_scissor.top = 0;
+	m_scissor.right = m_windowModule->getWidth();
+	m_scissor.bottom = m_windowModule->getHeight();
+
+	// Create command list
+	NTSH_DX12_CHECK(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_frameIndex].Get(), m_graphicsPipeline.Get(), IID_PPV_ARGS(&m_commandList)));
+	NTSH_DX12_CHECK(m_commandList->Close());
+
+	// Create sync objects
+	m_fenceValues.resize(m_swapchainSize);
+	std::fill(m_fenceValues.begin(), m_fenceValues.end(), 0);
+	NTSH_DX12_CHECK(m_device->CreateFence(m_fenceValues[m_frameIndex], D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
+	m_fenceValues[m_frameIndex]++;
+
+	m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+	NTSH_ASSERT(m_fenceEvent != nullptr);
+
+	waitForGPUIdle();
 }
 
 void NutshellGraphicsModule::update(double dt) {
 	NTSH_UNUSED(dt);
-	NTSH_MODULE_FUNCTION_NOT_IMPLEMENTED();
+	
+	// Record commands
+	NTSH_DX12_CHECK(m_commandAllocators[m_frameIndex]->Reset());
+
+	NTSH_DX12_CHECK(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), m_graphicsPipeline.Get()));
+
+	m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
+	m_commandList->RSSetViewports(1, &m_viewport);
+	m_commandList->RSSetScissorRects(1, &m_scissor);
+
+	m_presentToRenderTargetBarrier = {};
+	m_presentToRenderTargetBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	m_presentToRenderTargetBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	m_presentToRenderTargetBarrier.Transition.pResource = m_renderTargets[m_frameIndex].Get();
+	m_presentToRenderTargetBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	m_presentToRenderTargetBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+	m_presentToRenderTargetBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	m_commandList->ResourceBarrier(1, &m_presentToRenderTargetBarrier);
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE descriptorHandle(m_descriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_descriptorHeapSize);
+	m_commandList->OMSetRenderTargets(1, &descriptorHandle, FALSE, nullptr);
+
+	m_commandList->ClearRenderTargetView(descriptorHandle, m_clearColor, 0, nullptr);
+	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	m_commandList->DrawInstanced(3, 1, 0, 0);
+
+	m_renderTargetToPresentBarrier = {};
+	m_renderTargetToPresentBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	m_renderTargetToPresentBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	m_renderTargetToPresentBarrier.Transition.pResource = m_renderTargets[m_frameIndex].Get();
+	m_renderTargetToPresentBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	m_renderTargetToPresentBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+	m_renderTargetToPresentBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+	m_commandList->ResourceBarrier(1, &m_renderTargetToPresentBarrier);
+
+	NTSH_DX12_CHECK(m_commandList->Close());
+
+	// Execute command list
+	ID3D12CommandList* commandLists[] = { m_commandList.Get() };
+	m_commandQueue->ExecuteCommandLists(1, commandLists);
+
+	// Present
+	NTSH_DX12_CHECK(m_swapchain->Present(1, 0));
+
+	// Sync
+	uint64_t currentFenceValue = m_fenceValues[m_frameIndex];
+	NTSH_DX12_CHECK(m_commandQueue->Signal(m_fence.Get(), currentFenceValue));
+
+	m_frameIndex = m_swapchain->GetCurrentBackBufferIndex();
+
+	if (m_fence->GetCompletedValue() < m_fenceValues[m_frameIndex]) {
+		NTSH_DX12_CHECK(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent));
+		WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
+	}
+
+	m_fenceValues[m_frameIndex] = currentFenceValue + 1;
 }
 
 void NutshellGraphicsModule::destroy() {
-	NTSH_MODULE_FUNCTION_NOT_IMPLEMENTED();
+	waitForGPUIdle();
+
+	CloseHandle(m_fenceEvent);
 }
 
 void NutshellGraphicsModule::getHardwareAdapter(IDXGIFactory1* factory, IDXGIAdapter1** hardwareAdapter) {
@@ -148,6 +315,15 @@ void NutshellGraphicsModule::getHardwareAdapter(IDXGIFactory1* factory, IDXGIAda
 	NTSH_ASSERT(adapter.Get() != nullptr);
 
 	*hardwareAdapter = adapter.Detach();
+}
+
+void NutshellGraphicsModule::waitForGPUIdle() {
+	NTSH_DX12_CHECK(m_commandQueue->Signal(m_fence.Get(), m_fenceValues[m_frameIndex]));
+
+	NTSH_DX12_CHECK(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent));
+	WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
+
+	m_fenceValues[m_frameIndex]++;
 }
 
 extern "C" NTSH_MODULE_API NutshellGraphicsModuleInterface* createModule() {
