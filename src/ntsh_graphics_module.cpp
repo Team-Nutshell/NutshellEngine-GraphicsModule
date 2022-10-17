@@ -115,31 +115,32 @@ void NutshellGraphicsModule::init() {
 	shaderCompileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif
 
-	const std::string vertexShaderCode = 
-		"static const float2 positions[3] = {\n \
-			float2(0.0, 0.5),\n \
-			float2(-0.5, -0.5),\n \
-			float2(0.5, -0.5)\n \
-		};\n \
-		\n \
-		static const float3 colors[3] = {\n \
-			float3(1.0, 0.0, 0.0),\n \
-			float3(0.0, 0.0, 1.0),\n \
-			float3(0.0, 1.0, 0.0)\n \
-		};\n \
-		\n \
-		struct VSOut {\n \
-			float4 position : SV_POSITION;\n \
-			float3 color : COLOR;\n \
-		};\n \
-		\n \
-		VSOut main(uint vertexID : SV_VertexID) {\n \
-			VSOut vsOut;\n \
-			vsOut.position = float4(positions[vertexID], 0.0, 1.0);\n \
-			vsOut.color = colors[vertexID];\n \
-		\n \
-			return vsOut;\n \
-		}";
+	const std::string vertexShaderCode = R"HLSL(
+		static const float2 positions[3] = {
+			float2(0.0, 0.5),
+			float2(-0.5, -0.5),
+			float2(0.5, -0.5)
+		};
+		
+		static const float3 colors[3] = {
+			float3(1.0, 0.0, 0.0),
+			float3(0.0, 0.0, 1.0),
+			float3(0.0, 1.0, 0.0)
+		};
+		
+		struct VSOut {
+			float4 position : SV_POSITION;
+			float3 color : COLOR;
+		};
+		
+		VSOut main(uint vertexID : SV_VertexID) {
+			VSOut vsOut;
+			vsOut.position = float4(positions[vertexID], 0.0, 1.0);
+			vsOut.color = colors[vertexID];
+			
+			return vsOut;
+		}
+		)HLSL";
 	ComPtr<ID3DBlob> vertexShader;
 	ComPtr<ID3DBlob> vertexShaderError;
 	if (FAILED(D3DCompile(vertexShaderCode.c_str(), vertexShaderCode.size(), nullptr, nullptr, nullptr, "main", "vs_5_0", shaderCompileFlags, 0, &vertexShader, &vertexShaderError))) {
@@ -147,15 +148,16 @@ void NutshellGraphicsModule::init() {
 		NTSH_MODULE_ERROR("Vertex shader compilation failed:\n" + shaderCompilationError, NTSH_RESULT_MODULE_ERROR);
 	}
 
-	const std::string pixelShaderCode =
-		"struct PSIn {\n \
-			float4 position : SV_POSITION;\n \
-			float3 color : COLOR;\n \
-		};\n \
-		\n \
-		float4 main(PSIn psIn) : SV_TARGET {\n \
-			return float4(pow(psIn.color, 1.0/2.2), 1.0);\n \
-		}";
+	const std::string pixelShaderCode = R"HLSL(
+		struct PSIn {
+			float4 position : SV_POSITION;
+			float3 color : COLOR;
+		};
+		
+		float4 main(PSIn psIn) : SV_TARGET {
+			return float4(pow(psIn.color, 1.0/2.2), 1.0);
+		}
+		)HLSL";
 	ComPtr<ID3DBlob> pixelShader;
 	ComPtr<ID3DBlob> pixelShaderError;
 	if (FAILED(D3DCompile(pixelShaderCode.c_str(), pixelShaderCode.size(), nullptr, nullptr, nullptr, "main", "ps_5_0", shaderCompileFlags, 0, &pixelShader, &pixelShaderError))) {
