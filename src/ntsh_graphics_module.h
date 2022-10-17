@@ -42,8 +42,9 @@ private:
 	ComPtr<ID3D12CommandQueue> m_commandQueue;
 
 	ComPtr<IDXGISwapChain3> m_swapchain;
-	uint32_t m_swapchainSize;
 	uint32_t m_frameIndex;
+
+	ComPtr<ID3D12Resource> m_drawImage;
 
 	ComPtr<ID3D12DescriptorHeap> m_descriptorHeap;
 	uint32_t m_descriptorHeapSize;
@@ -62,6 +63,8 @@ private:
 	ComPtr<ID3D12Fence> m_fence;
 	std::vector<uint64_t> m_fenceValues;
 	HANDLE m_fenceEvent;
+
+	uint32_t m_imageCount;
 
 	const float m_clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	int m_savedWidth;
