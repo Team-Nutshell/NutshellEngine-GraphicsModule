@@ -23,12 +23,11 @@ void NutshellGraphicsModule::init() {
 #endif
 
 	// Create factory
-	ComPtr<IDXGIFactory4> factory;
-	NTSH_DX12_CHECK(CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&factory)));
+	NTSH_DX12_CHECK(CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&m_factory)));
 
 	// Pick a hardware adapter and create a device
 	ComPtr<IDXGIAdapter1> hardwareAdapter;
-	getHardwareAdapter(factory.Get(), &hardwareAdapter);
+	getHardwareAdapter(m_factory.Get(), &hardwareAdapter);
 	NTSH_DX12_CHECK(D3D12CreateDevice(hardwareAdapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&m_device)));
 
 	// Create command queue
@@ -41,6 +40,21 @@ void NutshellGraphicsModule::init() {
 
 	if (m_windowModule) {
 		m_swapchainSize = 2;
+
+		m_viewport.TopLeftX = 0.0f;
+		m_viewport.TopLeftY = 0.0f;
+		m_viewport.Width = static_cast<float>(m_windowModule->getWidth());
+		m_viewport.Height = static_cast<float>(m_windowModule->getHeight());
+		m_viewport.MinDepth = D3D12_MIN_DEPTH;
+		m_viewport.MaxDepth = D3D12_MAX_DEPTH;
+
+		m_scissor.left = 0;
+		m_scissor.top = 0;
+		m_scissor.right = m_windowModule->getWidth();
+		m_scissor.bottom = m_windowModule->getHeight();
+
+		m_savedWidth = m_windowModule->getWidth();
+		m_savedHeight = m_windowModule->getHeight();
 
 		// Create swapchain
 		ComPtr<IDXGISwapChain1> swapchain;
@@ -56,9 +70,8 @@ void NutshellGraphicsModule::init() {
 		swapchainDesc.Scaling = DXGI_SCALING_NONE;
 		swapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 		swapchainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-		NTSH_DX12_CHECK(factory->CreateSwapChainForHwnd(m_commandQueue.Get(), m_windowModule->getNativeHandle(), &swapchainDesc, nullptr, nullptr, &swapchain));
+		NTSH_DX12_CHECK(m_factory->CreateSwapChainForHwnd(m_commandQueue.Get(), m_windowModule->getNativeHandle(), &swapchainDesc, nullptr, nullptr, &swapchain));
 
-		NTSH_DX12_CHECK(factory->MakeWindowAssociation(m_windowModule->getNativeHandle(), DXGI_MWA_NO_ALT_ENTER));
 		NTSH_DX12_CHECK(swapchain.As(&m_swapchain));
 		m_frameIndex = m_swapchain->GetCurrentBackBufferIndex();
 	}
@@ -181,18 +194,6 @@ void NutshellGraphicsModule::init() {
 	graphicsPipelineStateDesc.SampleDesc.Quality = 0;
 	NTSH_DX12_CHECK(m_device->CreateGraphicsPipelineState(&graphicsPipelineStateDesc, IID_PPV_ARGS(&m_graphicsPipeline)));
 
-	m_viewport.TopLeftX = 0.0f;
-	m_viewport.TopLeftY = 0.0f;
-	m_viewport.Width = static_cast<float>(m_windowModule->getWidth());
-	m_viewport.Height = static_cast<float>(m_windowModule->getHeight());
-	m_viewport.MinDepth = D3D12_MIN_DEPTH;
-	m_viewport.MaxDepth = D3D12_MAX_DEPTH;
-
-	m_scissor.left = 0;
-	m_scissor.top = 0;
-	m_scissor.right = m_windowModule->getWidth();
-	m_scissor.bottom = m_windowModule->getHeight();
-
 	// Create command list
 	NTSH_DX12_CHECK(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_frameIndex].Get(), m_graphicsPipeline.Get(), IID_PPV_ARGS(&m_commandList)));
 	NTSH_DX12_CHECK(m_commandList->Close());
@@ -211,6 +212,11 @@ void NutshellGraphicsModule::init() {
 
 void NutshellGraphicsModule::update(double dt) {
 	NTSH_UNUSED(dt);
+
+	// Check for window resize
+	if (m_windowModule->getWidth() != m_savedWidth || m_windowModule->getHeight() != m_savedHeight) {
+		resize();
+	}
 	
 	// Record commands
 	NTSH_DX12_CHECK(m_commandAllocators[m_frameIndex]->Reset());
@@ -324,6 +330,48 @@ void NutshellGraphicsModule::waitForGPUIdle() {
 	WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
 
 	m_fenceValues[m_frameIndex]++;
+}
+
+void NutshellGraphicsModule::resize() {
+	if (m_windowModule) {
+		while (m_windowModule->getWidth() == 0 || m_windowModule->getHeight() == 0) {
+			m_windowModule->pollEvents();
+		}
+
+		waitForGPUIdle();
+		
+		for (uint32_t i = 0; i < m_swapchainSize; i++) {
+			m_renderTargets[i].Reset();
+			m_fenceValues[i] = m_frameIndex;
+		}
+
+		m_viewport.TopLeftX = 0.0f;
+		m_viewport.TopLeftY = 0.0f;
+		m_viewport.Width = static_cast<float>(m_windowModule->getWidth());
+		m_viewport.Height = static_cast<float>(m_windowModule->getHeight());
+		m_viewport.MinDepth = D3D12_MIN_DEPTH;
+		m_viewport.MaxDepth = D3D12_MAX_DEPTH;
+
+		m_scissor.left = 0;
+		m_scissor.top = 0;
+		m_scissor.right = m_windowModule->getWidth();
+		m_scissor.bottom = m_windowModule->getHeight();
+
+		m_savedWidth = m_windowModule->getWidth();
+		m_savedHeight = m_windowModule->getHeight();
+
+		NTSH_DX12_CHECK(m_swapchain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
+
+		CD3DX12_CPU_DESCRIPTOR_HANDLE descriptorHandle(m_descriptorHeap->GetCPUDescriptorHandleForHeapStart());
+
+		for (uint32_t i = 0; i < m_swapchainSize; i++) {
+			NTSH_DX12_CHECK(m_swapchain->GetBuffer(i, IID_PPV_ARGS(&m_renderTargets[i])));
+			m_device->CreateRenderTargetView(m_renderTargets[i].Get(), nullptr, descriptorHandle);
+			descriptorHandle.Offset(1, m_descriptorHeapSize);
+		}
+
+		m_frameIndex = m_swapchain->GetCurrentBackBufferIndex();
+	}
 }
 
 extern "C" NTSH_MODULE_API NutshellGraphicsModuleInterface* createModule() {
