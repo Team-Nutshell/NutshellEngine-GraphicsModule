@@ -834,7 +834,7 @@ void NutshellGraphicsModule::update(double dt) {
 	renderingAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
 	renderingAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
 	renderingAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	renderingAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	renderingAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	renderingAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	renderingAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
 	renderingAttachmentInfo.clearValue.depthStencil = { 0.0f, 0 };
