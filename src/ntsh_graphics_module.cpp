@@ -206,26 +206,13 @@ void NutshellGraphicsModule::init() {
 		NTSH_MODULE_ERROR("Pixel shader compilation failed:\n" + shaderCompilationError, NTSH_RESULT_MODULE_ERROR);
 	}
 
-	D3D12_RASTERIZER_DESC rasterizerDesc = {};
-	rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
-	rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
-	rasterizerDesc.FrontCounterClockwise = TRUE;
-	rasterizerDesc.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
-	rasterizerDesc.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
-	rasterizerDesc.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
-	rasterizerDesc.DepthClipEnable = TRUE;
-	rasterizerDesc.MultisampleEnable = FALSE;
-	rasterizerDesc.AntialiasedLineEnable = FALSE;
-	rasterizerDesc.ForcedSampleCount = 0;
-	rasterizerDesc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
-
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC graphicsPipelineStateDesc = {};
 	graphicsPipelineStateDesc.pRootSignature = m_rootSignature.Get();
 	graphicsPipelineStateDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.Get());
 	graphicsPipelineStateDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.Get());
 	graphicsPipelineStateDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	graphicsPipelineStateDesc.SampleMask = UINT_MAX;
-	graphicsPipelineStateDesc.RasterizerState = rasterizerDesc;
+	graphicsPipelineStateDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_FILL_MODE_SOLID, D3D12_CULL_MODE_BACK, TRUE, D3D12_DEFAULT_DEPTH_BIAS, D3D12_DEFAULT_DEPTH_BIAS_CLAMP, D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS, TRUE, FALSE, FALSE, 0, D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF);
 	graphicsPipelineStateDesc.DepthStencilState.DepthEnable = FALSE;
 	graphicsPipelineStateDesc.DepthStencilState.StencilEnable = FALSE;
 	graphicsPipelineStateDesc.InputLayout.pInputElementDescs = nullptr;
