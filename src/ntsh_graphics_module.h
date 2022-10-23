@@ -1,8 +1,8 @@
 #pragma once
 #include "../external/Common/module_interfaces/ntsh_graphics_module_interface.h"
-#include "../external/Common/ntsh_engine_defines.h"
-#include "../external/Common/ntsh_engine_enums.h"
-#include "../external/Module/ntsh_module_defines.h"
+#include "../external/Common/utils/ntsh_engine_defines.h"
+#include "../external/Common/utils/ntsh_engine_enums.h"
+#include "../external/Module/utils/ntsh_module_defines.h"
 #ifdef NTSH_OS_WINDOWS
 #define VK_USE_PLATFORM_WIN32_KHR
 #elif NTSH_OS_LINUX
