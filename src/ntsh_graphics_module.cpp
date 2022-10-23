@@ -1,8 +1,8 @@
 #include "ntsh_graphics_module.h"
-#include "../external/Module/ntsh_module_defines.h"
-#include "../external/Module/ntsh_dynamic_library.h"
-#include "../external/Common/ntsh_engine_defines.h"
-#include "../external/Common/ntsh_engine_enums.h"
+#include "../external/Module/utils/ntsh_module_defines.h"
+#include "../external/Module/utils/ntsh_dynamic_library.h"
+#include "../external/Common/utils/ntsh_engine_defines.h"
+#include "../external/Common/utils/ntsh_engine_enums.h"
 
 void NutshellGraphicsModule::init() {
 	NTSH_MODULE_FUNCTION_NOT_IMPLEMENTED();
