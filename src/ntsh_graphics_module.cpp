@@ -67,13 +67,9 @@ void NutshellGraphicsModule::init() {
 #elif NTSH_OS_LINUX
 		instanceExtensions.push_back("VK_KHR_xlib_surface");
 #endif
-		instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(instanceExtensions.size());
-		instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions.data();
 	}
-	else {
-		instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(instanceExtensions.size());
-		instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions.data();
-	}
+	instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(instanceExtensions.size());
+	instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions.data();
 	NTSH_VK_CHECK(vkCreateInstance(&instanceCreateInfo, nullptr, &m_instance));
 
 #ifdef NTSH_DEBUG
@@ -257,13 +253,9 @@ void NutshellGraphicsModule::init() {
 		"VK_KHR_maintenance4" };
 	if (m_windowModule) {
 		deviceExtensions.push_back("VK_KHR_swapchain");
-		deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
-		deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
 	}
-	else {
-		deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
-		deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
-	}
+	deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+	deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
 	deviceCreateInfo.pEnabledFeatures = nullptr;
 	NTSH_VK_CHECK(vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device));
 
