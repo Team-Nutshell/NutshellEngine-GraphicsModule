@@ -63,12 +63,39 @@ float noise(vec2 seed, float freq) {
 	return mix(x1, x2, xy.y);
 }
 
+// Shapes
+float shSphere(vec3 p, float r) {
+	return length(p) - r;
+}
+
+float shPlane(vec3 p, vec3 n, float dist) {
+	return dot(p, n) + dist;
+}
+
+// Operations
+float opUnion(float a, float b) {
+	return min(a, b);
+}
+
+float opIntersection(float a, float b) {
+	return max(a, b);
+}
+
+float opDifference(float a, float b) {
+	return max(a, -b);
+}
+
 // Raymarching hit
 float intersect(vec3 p) {
 	float dist = 0.0;
-	dist += length(p) - 0.25;
+	dist += opUnion(shPlane(p, vec3(0.0, 1.0, 0.0), 0.075), shSphere(p, 0.15));
 
 	return dist;
+}
+
+// Raymarching no-hit
+float no_intersect(vec3 p) {
+	return 1.0;
 }
 
 // Compute normal
@@ -181,10 +208,10 @@ void main() {
 	const vec3 right = normalize(cross(up, forward));
 	const vec3 realUp = cross(forward, right);
 
-	const mat3 camera = mat3(right, realUp, forward);
+	const mat3 camera = mat3(right, -realUp, forward);
 
 	const float timeAttenuation = 1000.0;
-	const vec3 lightPos = vec3(-1.0, -1.0, 0.0);
+	const vec3 lightPos = vec3(1.0, 1.0, 0.0);
 	const vec3 lightColor = vec3(1.0, 1.0, 1.0);
 
 	const vec2 dim = vec2(pC.width, pC.height);
@@ -192,11 +219,14 @@ void main() {
 	vec3 d = camera * normalize(vec3(newUv, 2.0));
 
 	float dist = raymarch(from, d);
+	const vec3 p = from + dist * d;
 
 	vec3 color = vec3(0.0, 0.0, 0.0);
 	if (dist <= MAX_DISTANCE) {
-		const vec3 p = from + dist * d;
-		color = shade(p, d, lightPos, lightColor, vec3(1.0, 1.0, 1.0), 1.0, 1.0);
+		color = shade(p, d, lightPos, lightColor, vec3(1.0), 1.0, 1.0);
+	}
+	else {
+		color = vec3(no_intersect(p));
 	}
 	outColor = vec4(color, 1.0);
 }
