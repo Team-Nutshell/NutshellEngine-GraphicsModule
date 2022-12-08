@@ -491,7 +491,7 @@ void NutshellGraphicsModule::init() {
 	VkPushConstantRange fragmentShaderPushConstantRange = {};
 	fragmentShaderPushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	fragmentShaderPushConstantRange.offset = 0;
-	fragmentShaderPushConstantRange.size = static_cast<uint32_t>(3 * sizeof(uint32_t));
+	fragmentShaderPushConstantRange.size = sizeof(PushConstants);
 
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -503,6 +503,10 @@ void NutshellGraphicsModule::init() {
 	pipelineLayoutCreateInfo.pPushConstantRanges = &fragmentShaderPushConstantRange;
 	NTSH_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_graphicsPipelineLayout));
 
+	if (!std::filesystem::exists(m_fragmentShaderName)) {
+		const std::filesystem::path absolutePath = std::filesystem::absolute(std::filesystem::current_path());
+		NTSH_MODULE_ERROR("Fragment shader raymarching.frag does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NTSH_RESULT_MODULE_ERROR);
+	}
 	m_fragmentShaderLastModified = std::filesystem::last_write_time(m_fragmentShaderName);
 	recreateGraphicsPipeline();
 
@@ -680,8 +684,8 @@ void NutshellGraphicsModule::update(double dt) {
 	vkCmdSetScissor(m_renderingCommandBuffers[currentFrameInFlight], 0, 1, &m_scissor);
 
 	// Push time constant
-	uint32_t pushConstants[3] = { static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()), m_scissor.extent.width, m_scissor.extent.height };
-	vkCmdPushConstants(m_renderingCommandBuffers[currentFrameInFlight], m_graphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, static_cast<uint32_t>(3 * sizeof(uint32_t)), &pushConstants);
+	PushConstants pushConstants = { static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()) / 1000.0f, m_scissor.extent.width, m_scissor.extent.height };
+	vkCmdPushConstants(m_renderingCommandBuffers[currentFrameInFlight], m_graphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
 
 	// Draw
 	vkCmdDraw(m_renderingCommandBuffers[currentFrameInFlight], 3, 1, 0, 0);
@@ -1036,15 +1040,15 @@ std::vector<uint32_t> NutshellGraphicsModule::compileFragmentShader() {
 			/* .generalConstantMatrixVectorIndexing = */ 1,
 		} };
 	DirStackFileIncluder includer;
-	includer.pushExternalLocalDirectory("raymarching.frag");
+	includer.pushExternalLocalDirectory(m_fragmentShaderName);
 	std::string preprocess;
 	if (!shader.preprocess(&defaultTBuiltInResource, defaultVersion, ENoProfile, false, false, messages, &preprocess, includer)) {
 		if (m_fragmentShaderModule == VK_NULL_HANDLE) {
 			// If the first fragment shader compilation fails, close the application
-			NTSH_MODULE_ERROR("Shader preprocessing failed.\n" + std::string(shader.getInfoLog()) + "\n" + shader.getInfoDebugLog(), NTSH_RESULT_MODULE_ERROR);
+			NTSH_MODULE_ERROR("Shader preprocessing failed.\n" + std::string(shader.getInfoLog()), NTSH_RESULT_MODULE_ERROR);
 		}
 		else {
-			NTSH_MODULE_WARNING("Shader preprocessing failed.\n" + std::string(shader.getInfoLog()) + "\n" + shader.getInfoDebugLog());
+			NTSH_MODULE_WARNING("Shader preprocessing failed.\n" + std::string(shader.getInfoLog()));
 			return spvCode;
 		}
 	}
@@ -1055,10 +1059,10 @@ std::vector<uint32_t> NutshellGraphicsModule::compileFragmentShader() {
 	if (!shader.parse(&defaultTBuiltInResource, defaultVersion, false, messages)) {
 		if (m_fragmentShaderModule == VK_NULL_HANDLE) {
 			// If the first fragment shader compilation fails, close the application
-			NTSH_MODULE_ERROR("Shader parsing failed.\n" + std::string(shader.getInfoLog()) + "\n" + shader.getInfoDebugLog(), NTSH_RESULT_MODULE_ERROR);
+			NTSH_MODULE_ERROR("Shader parsing failed.\n" + std::string(shader.getInfoLog()) + "\n", NTSH_RESULT_MODULE_ERROR);
 		}
 		else {
-			NTSH_MODULE_WARNING("Shader parsing failed.\n" + std::string(shader.getInfoLog()) + "\n" + shader.getInfoDebugLog());
+			NTSH_MODULE_WARNING("Shader parsing failed.\n" + std::string(shader.getInfoLog()) + "\n");
 			return spvCode;
 		}
 	}

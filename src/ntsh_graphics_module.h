@@ -38,6 +38,12 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBits
 	return VK_FALSE;
 }
 
+struct PushConstants {
+	float time;
+	uint32_t width;
+	uint32_t height;
+};
+
 class NutshellGraphicsModule : public NutshellGraphicsModuleInterface {
 public:
 	NutshellGraphicsModule() : NutshellGraphicsModuleInterface("Nutshell Graphics Vulkan Raymarching Module") {}
