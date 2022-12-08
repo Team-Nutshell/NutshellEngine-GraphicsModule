@@ -1,6 +1,8 @@
-# NutshellEngine-GraphicsModule
-NutshellEngine's Graphics Module resources.
+# NutshellEngine-GraphicsModule - Vulkan Raymarching
+![Vulkan Raymarching](https://i.imgur.com/SyuBJuS.png)
 
-## Available Modules
-- [vulkan-triangle](https://github.com/Team-Nutshell/NutshellEngine-GraphicsModule/tree/module/vulkan-triangle): Draw a triangle with Vulkan. Requires the Vulkan SDK.
-- [directx12-triangle](https://github.com/Team-Nutshell/NutshellEngine-GraphicsModule/tree/module/directx12-triangle): Draw a triangle with Direct3D 12.
+NutshellEngine Graphics Module using raymarching to draw.
+
+Place ``raymarching.frag`` near NutshellEngine's executable to use and edit it.
+
+``raymarching.frag`` can be edited in real-time and saving the changes will automatically recompile the shader and the pipeline. Compilation errors are written in the console.
