@@ -10,6 +10,16 @@ set(NTSH_DEFINES "")
 add_subdirectory(external/Module)
 add_subdirectory(external/Common)
 
+add_subdirectory(external/glslang)
+
+if (NOT CMAKE_VERSION VERSION_LESS 3.7.0)
+	find_package(Vulkan)
+endif()
+
+if (NOT Vulkan_FOUND)
+	message(FATAL_ERROR "Could not find Vulkan library. Please install Vulkan SDK or check your install")
+endif()
+
 list(APPEND NTSH_DEFINES NTSH_CURRENT_MODULE_GRAPHICS)
 
 set(MODULE_SOURCES
@@ -22,7 +32,9 @@ set(HEADERS ${MODULE_HEADERS})
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES} ${HEADERS})
 
-target_link_libraries(${PROJECT_NAME} PRIVATE NutshellEngine::Module NutshellEngine::Common)
+target_include_directories(${PROJECT_NAME} PUBLIC external/glslang)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE NutshellEngine::Module NutshellEngine::Common glslang SPIRV Vulkan::Vulkan)
 
 target_compile_options(${PROJECT_NAME} PRIVATE
 	$<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
