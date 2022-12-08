@@ -14,7 +14,17 @@ layout(push_constant) uniform PushConstants {
 
 const float MAX_STEPS = 300.0;
 const float MAX_DISTANCE = 1000.0;
-const float EPSILON = 0.001;
+const float EPSILON = 0.0001;
+
+struct Object {
+	float dist;
+	float matId;
+};
+
+struct Material {
+	vec3 diffuse;
+	vec2 metallicRoughness;
+};
 
 // Random functions
 float rand(float seed) {
@@ -73,35 +83,36 @@ float shPlane(vec3 p, vec3 n, float dist) {
 }
 
 // Operations
-float opUnion(float a, float b) {
-	return min(a, b);
+Object opUnion(Object a, Object b) {
+	return a.dist < b.dist ? a : b;
 }
 
-float opIntersection(float a, float b) {
-	return max(a, b);
+Object opIntersection(Object a, Object b) {
+	return a.dist > b.dist ? a : b;
 }
 
-float opDifference(float a, float b) {
-	return max(a, -b);
+Object opDifference(Object a, Object b) {
+	return a.dist > -b.dist ? a : Object(-b.dist, b.matId);
 }
 
 // Raymarching hit
-float intersect(vec3 p) {
-	float dist = 0.0;
-	dist += opUnion(shPlane(p, vec3(0.0, 1.0, 0.0), 0.075), shSphere(p, 0.15));
+Object intersect(vec3 p) {
+	Object plane = Object(shPlane(p, vec3(0.0, 1.0, 0.0), 0.075), 1.0);
+	Object sphere = Object(shSphere(p, 0.15), 2.0);
+	Object object = opUnion(plane, sphere);
 
-	return dist;
+	return object;
 }
 
 // Raymarching no-hit
-float no_intersect(vec3 p) {
-	return 1.0;
+vec3 no_intersect(vec3 p) {
+	return vec3(0.5, 0.5, 1.0);
 }
 
 // Compute normal
 vec3 normal(vec3 p) {
 	vec2 e = vec2(EPSILON, 0.0);
-	vec3 n = vec3(intersect(p)) - vec3(intersect(p - e.xyy), intersect(p - e.yxy), intersect(p - e.yyx));
+	vec3 n = vec3(intersect(p).dist) - vec3(intersect(p - e.xyy).dist, intersect(p - e.yxy).dist, intersect(p - e.yyx).dist);
 
 	return normalize(n);
 }
@@ -118,10 +129,6 @@ float distribution(float NdotH, float roughness) {
 
 vec3 fresnel(float cosTheta, vec3 f0) {
 	return f0 + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);
-}
-
-vec3 fresnelRoughness(float cosTheta, vec3 f0, float roughness) {
-	return f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(1.0 - cosTheta, 5.0);
 }
 
 float g(float NdotV, float roughness) {
@@ -179,28 +186,57 @@ vec3 shade(vec3 p, vec3 d, vec3 lightPos, vec3 lightColor, vec3 diffuse, float m
 	return lightColor * brdf * LdotN;
 }
 
+// Object material
+Material getMaterial(vec3 p, float id) {
+	Material material;
+
+	switch (int(id)) {
+		case 0:
+		material.diffuse = vec3(1.0);
+		material.metallicRoughness = vec2(1.0);
+		break;
+
+		case 1:
+		material.diffuse = vec3(0.2 + 0.5 * mod(floor(p.x) + floor(p.z), 2.0));
+		material.metallicRoughness = vec2(0.5, 1.0);
+		break;
+
+		case 2:
+		material.diffuse = vec3(0.2, 1.0, 1.0);
+		material.metallicRoughness = vec2(0.05, 0.0);
+		break;
+
+		default:
+		material.diffuse = vec3(1.0);
+		material.metallicRoughness = vec2(1.0);
+	}
+
+	return material;
+}
+
 // Raymarching
-float raymarch(vec3 o, vec3 d) {
-	float dist = 0.0;
+Object raymarch(vec3 o, vec3 d) {
+	Object object = Object(0.0, 0.0);
 	for (int i = 0; i < MAX_STEPS; i++) {
-		vec3 p = o + dist * d;
-		float hit = intersect(p);
-		if (abs(hit) < EPSILON) {
+		vec3 p = o + object.dist * d;
+		Object objectHit = intersect(p);
+		if (abs(objectHit.dist) < EPSILON) {
 			break;
 		}
-		dist += hit;
-		if (dist > MAX_DISTANCE) {
+		object.dist += objectHit.dist;
+		object.matId = objectHit.matId;
+		if (object.dist > MAX_DISTANCE) {
 			break;
 		}
 	}
 
-	return dist;
+	return object;
 }
 
 void main() {
 	const float time = mod(float(pC.time / 1000.0), 1.0);
 
-	const vec3 from = vec3(0.0, 0.0, -1.0);
+	const vec3 from = vec3(0.0, 1.0, -2.0);
 	const vec3 to = vec3(0.0, 0.0, 0.0);
 	const vec3 up = vec3(0.0, 1.0, 0.0);
 
@@ -211,22 +247,30 @@ void main() {
 	const mat3 camera = mat3(right, -realUp, forward);
 
 	const float timeAttenuation = 1000.0;
-	const vec3 lightPos = vec3(1.0, 1.0, 0.0);
+	vec3 lightPos = vec3(cos(pC.time / 200.0), 1.0, sin(pC.time / 200.0));
 	const vec3 lightColor = vec3(1.0, 1.0, 1.0);
+
+	vec3 fogColor = vec3(1.0, 1.0, 1.0);
+	const float fogDensity = 0.0008;
 
 	const vec2 dim = vec2(pC.width, pC.height);
 	const vec2 newUv = (2.0 * (uv * dim) - dim) / pC.height;
 	vec3 d = camera * normalize(vec3(newUv, 2.0));
 
-	float dist = raymarch(from, d);
-	const vec3 p = from + dist * d;
+	const Object object = raymarch(from, d);
+	const vec3 p = from + object.dist * d;
 
 	vec3 color = vec3(0.0, 0.0, 0.0);
-	if (dist <= MAX_DISTANCE) {
-		color = shade(p, d, lightPos, lightColor, vec3(1.0), 1.0, 1.0);
+	if (object.dist <= MAX_DISTANCE) {
+		const Material mat = getMaterial(p, object.matId);
+		const float metallic = mat.metallicRoughness.x;
+		const float roughness = mat.metallicRoughness.y;
+		color = shade(p, d, lightPos, lightColor, mat.diffuse, metallic, roughness);
+		fogColor = no_intersect(p);
+		color = mix(color, fogColor, 1.0 - exp(-fogDensity * object.dist * object.dist));
 	}
 	else {
-		color = vec3(no_intersect(p));
+		color = no_intersect(p);
 	}
 	outColor = vec4(color, 1.0);
 }
