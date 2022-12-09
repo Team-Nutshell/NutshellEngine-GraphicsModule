@@ -59,7 +59,7 @@ Material getMaterial(vec3 p, float id) {
 }
 
 // Camera
-vec3 from = vec3(cos(pC.time), 1.0, sin(pC.time));
+vec3 from = vec3(0.0, 1.0, -2.0);
 vec3 to = vec3(0.0, 0.0, 0.0);
 vec3 up = vec3(0.0, 1.0, 0.0);
 
@@ -69,4 +69,14 @@ mat3 camera() {
 	const vec3 realUp = cross(forward, right);
 
 	return mat3(right, -realUp, forward);
+}
+
+#define LIGHTS_COUNT 2
+// Light
+Light[LIGHTS_COUNT] lights() {
+	Light l[LIGHTS_COUNT];
+	l[0] = Light(vec3(sin(pC.time), 1.0, cos(pC.time)), vec3(1.0, 1.0, 1.0));
+	l[1] = Light(vec3(cos(pC.time), 1.0, sin(pC.time)), vec3(1.0, 1.0, 1.0));
+
+	return l;
 }

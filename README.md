@@ -1,5 +1,5 @@
 # NutshellEngine-GraphicsModule - Vulkan Raymarching
-![Vulkan Raymarching](https://i.imgur.com/Nl8WA33.png)
+![Vulkan Raymarching](https://i.imgur.com/5jqmSOz.png)
 
 NutshellEngine Graphics Module using raymarching to draw.
 
@@ -9,6 +9,6 @@ Place ``raymarching.frag``, ``raymarching_helper.glsl`` and ``scene.glsl``, foun
 
 - ``raymarching.frag`` is the fragment shader and contains the ``main`` function, the description of the scene and the ``raymarch`` function.
 - ``raymarching_helper.glsl`` is included by ``raymarching.frag`` and contains some random and noise functions, basic shape functions, combination operators and values that can be used in the raymarching.
-- ``scene.glsl`` is included by ``raymarching.frag`` and contains the scene, with objects, materials and camera, used to draw.
+- ``scene.glsl`` is included by ``raymarching.frag`` and contains the scene, with objects, materials, camera and lights, used to draw.
 
 Compilation errors are written in the console.

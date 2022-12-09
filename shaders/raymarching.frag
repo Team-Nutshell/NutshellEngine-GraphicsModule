@@ -111,21 +111,39 @@ vec3 shade(vec3 p, vec3 d, vec3 n, vec3 lightPos, vec3 lightColor, vec3 diffuse,
 
 // Shadows
 float shadows(vec3 p, vec3 n, vec3 lightPos) {
-	const vec3 d = normalize(lightPos - p);
-	const Object object = raymarch(p + n * (0.001), d);
-	if (object.dist <= length(d)) {
-		return 0.0;
+	float res = 1.0;
+	float dist = 0.01;
+	float lightSize = 0.15;
+	for (int i = 0; i < MAX_STEPS; i++) {
+		float hit = scene(p + lightPos * dist).dist;
+		res = min(res, hit / (dist * lightSize));
+		dist += hit;
+		if (hit < EPSILON || dist > 60.0) {
+			break;
+		}
 	}
-	
-	return 1.0;
+
+	return clamp(res, 0.0, 1.0);
+}
+
+// Ambient Occlusion
+float ambientOcclusion(vec3 p, vec3 n) {
+	float ao = 0.0;
+	float weight = 1.0;
+	for (int i = 0; i < 8; i++) {
+		float len = 0.01 + 0.02 * float(i * i);
+		float dist = scene(p + n * len).dist;
+		ao += (len - dist) * weight;
+		weight *= 0.85;
+	}
+
+	return 1.0 - clamp(0.6 * ao, 0.0, 1.0);
 }
 
 void main() {
 	const mat3 cameraMatrix = camera();
 
 	const float timeAttenuation = 1000.0;
-	vec3 lightPos = vec3(sin(pC.time), 1.0, cos(pC.time));
-	const vec3 lightColor = vec3(1.0, 1.0, 1.0);
 
 	vec3 fogColor = vec3(1.0, 1.0, 1.0);
 	const float fogDensity = 0.0008;
@@ -133,6 +151,8 @@ void main() {
 	const vec2 dim = vec2(pC.width, pC.height);
 	const vec2 newUv = (2.0 * (uv * dim) - dim) / pC.height;
 	vec3 d = cameraMatrix * normalize(vec3(newUv, 2.0));
+
+	Light l[LIGHTS_COUNT] = lights();
 
 	const Object object = raymarch(from, d);
 	const vec3 p = from + object.dist * d;
@@ -143,8 +163,11 @@ void main() {
 		const Material mat = getMaterial(p, object.matId);
 		const float metallic = mat.metallicRoughness.x;
 		const float roughness = mat.metallicRoughness.y;
-		color = shade(p, d, n, lightPos, lightColor, mat.diffuse, metallic, roughness);
-		color *= shadows(p, n, lightPos);
+		const float ao = ambientOcclusion(p, n);
+		for (int i = 0; i < LIGHTS_COUNT; i++) {
+			color += shade(p, d, n, l[i].position, l[i].color, mat.diffuse, metallic, roughness) * shadows(p, n, l[i].position);
+		}
+		color *= ao;
 		fogColor = background(p);
 		color = mix(color, fogColor, 1.0 - exp(-fogDensity * object.dist * object.dist));
 	}
