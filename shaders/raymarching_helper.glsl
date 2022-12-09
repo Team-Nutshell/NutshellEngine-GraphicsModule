@@ -1,6 +1,6 @@
 #define M_PI 3.1415926535897932384626433832795
 
-const float MAX_STEPS = 300.0;
+const uint MAX_STEPS = 256;
 const float MAX_DISTANCE = 1000.0;
 const float EPSILON = 0.0001;
 
@@ -12,6 +12,11 @@ struct Object {
 struct Material {
 	vec3 diffuse;
 	vec2 metallicRoughness;
+};
+
+struct Light {
+	vec3 position;
+	vec3 color;
 };
 
 // Random functions
