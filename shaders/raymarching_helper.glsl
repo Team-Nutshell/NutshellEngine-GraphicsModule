@@ -49,8 +49,8 @@ float noise(vec2 seed) {
 	return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
 }
 
-float noise(vec2 seed, float width, float freq) {
-	const float unit = width / freq;
+float noise(vec2 seed, float freq) {
+	const float unit = pC.width / freq;
 	const vec2 ij = floor(seed / unit);
 	vec2 xy = mod(seed, unit) / unit;
 	xy = 0.5 * (1.0 - cos(M_PI * xy));
@@ -109,4 +109,9 @@ Object opIntersection(Object a, Object b) {
 
 Object opDifference(Object a, Object b) {
 	return a.dist > -b.dist ? a : Object(-b.dist, b.matId);
+}
+
+// Ray mod
+vec3 rayMod(vec3 p, float n) {
+	return mod(p, n) - (n / 2.0);
 }
