@@ -96,7 +96,11 @@ private:
 
 	bool m_glslangInitialized = false;
 	const std::string m_fragmentShaderName = "raymarching.frag";
+	const std::string m_raymarchingHelperFileName = "raymarching_helper.glsl";
+	const std::string m_sceneFileName = "scene.glsl";
 	std::filesystem::file_time_type m_fragmentShaderLastModified;
+	std::filesystem::file_time_type m_raymarchingHelperLastModified;
+	std::filesystem::file_time_type m_sceneLastModified;
 	VkShaderModule m_vertexShaderModule;
 	VkShaderModule m_fragmentShaderModule = VK_NULL_HANDLE;
 	VkPipeline m_graphicsPipeline = VK_NULL_HANDLE;
