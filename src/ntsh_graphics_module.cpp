@@ -503,11 +503,19 @@ void NutshellGraphicsModule::init() {
 	pipelineLayoutCreateInfo.pPushConstantRanges = &fragmentShaderPushConstantRange;
 	NTSH_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_graphicsPipelineLayout));
 
-	if (!std::filesystem::exists(m_fragmentShaderName)) {
-		const std::filesystem::path absolutePath = std::filesystem::absolute(std::filesystem::current_path());
-		NTSH_MODULE_ERROR("Fragment shader raymarching.frag does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NTSH_RESULT_MODULE_ERROR);
+	if (std::filesystem::exists(m_fragmentShaderName)) {
+		m_fragmentShaderLastModified = std::filesystem::last_write_time(m_fragmentShaderName);
 	}
-	m_fragmentShaderLastModified = std::filesystem::last_write_time(m_fragmentShaderName);
+	else {
+		const std::filesystem::path absolutePath = std::filesystem::absolute(std::filesystem::current_path());
+		NTSH_MODULE_ERROR("Fragment shader \"raymarching.frag\" does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NTSH_RESULT_MODULE_ERROR);
+	}
+	if (std::filesystem::exists(m_raymarchingHelperFileName)) {
+		m_raymarchingHelperLastModified = std::filesystem::last_write_time(m_raymarchingHelperFileName);
+	}
+	if (std::filesystem::exists(m_sceneFileName)) {
+		m_sceneLastModified = std::filesystem::last_write_time(m_sceneFileName);
+	}
 	recreateGraphicsPipeline();
 
 	// Resize buffers according to number of frames in flight and swapchain size
@@ -564,13 +572,40 @@ void NutshellGraphicsModule::update(double dt) {
 
 	NTSH_VK_CHECK(vkWaitForFences(m_device, 1, &m_fences[currentFrameInFlight], VK_TRUE, std::numeric_limits<uint64_t>::max()));
 
-	const std::filesystem::file_time_type fragmentShaderLastModified = std::filesystem::last_write_time(m_fragmentShaderName);
+	// Check for any file modification
+	bool shaderModified = false;
 	const std::filesystem::file_time_type timeNow = std::filesystem::_File_time_clock::now();
-	if ((fragmentShaderLastModified > m_fragmentShaderLastModified) && (timeNow > (fragmentShaderLastModified + std::chrono::milliseconds(250)))) {
+	std::filesystem::file_time_type fileLastModified;
+	if (std::filesystem::exists(m_fragmentShaderName)) {
+		fileLastModified = std::filesystem::last_write_time(m_fragmentShaderName);
+		if ((fileLastModified > m_fragmentShaderLastModified) && (timeNow > (fileLastModified + std::chrono::milliseconds(250)))) {
+			shaderModified = true;
+			m_fragmentShaderLastModified = fileLastModified;
+		}
+	}
+	else {
+		const std::filesystem::path absolutePath = std::filesystem::absolute(std::filesystem::current_path());
+		NTSH_MODULE_ERROR("Fragment shader \"raymarching.frag\" does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NTSH_RESULT_MODULE_ERROR);
+	}
+	if (std::filesystem::exists(m_raymarchingHelperFileName)) {
+		fileLastModified = std::filesystem::last_write_time(m_raymarchingHelperFileName);
+		if ((fileLastModified > m_raymarchingHelperLastModified) && (timeNow > (fileLastModified + std::chrono::milliseconds(250)))) {
+			shaderModified = true;
+			m_raymarchingHelperLastModified = fileLastModified;
+		}
+	}
+	if (std::filesystem::exists(m_sceneFileName)) {
+		fileLastModified = std::filesystem::last_write_time(m_sceneFileName);
+		if ((fileLastModified > m_sceneLastModified) && (timeNow > (fileLastModified + std::chrono::milliseconds(250)))) {
+			shaderModified = true;
+			m_sceneLastModified = fileLastModified;
+		}
+	}
+
+	if (shaderModified) {
 		NTSH_VK_CHECK(vkQueueWaitIdle(m_graphicsQueue));
 
 		recreateGraphicsPipeline();
-		m_fragmentShaderLastModified = std::filesystem::last_write_time(m_fragmentShaderName);
 
 		NTSH_MODULE_INFO("Fragment shader reloaded.");
 	}
