@@ -4,14 +4,14 @@ const uint MAX_STEPS = 256;
 const float MAX_DISTANCE = 1000.0;
 const float EPSILON = 0.0001;
 
-struct Object {
-	float dist;
-	float matId;
-};
-
 struct Material {
 	vec3 diffuse;
 	vec2 metallicRoughness;
+};
+
+struct Object {
+	float dist;
+	Material mat;
 };
 
 struct Light {
@@ -210,9 +210,13 @@ Object opUnion(Object a, Object b) {
 Object opSmoothUnion(Object a, Object b, float k) {
 	const float h = max(k - abs(a.dist - b.dist), 0.0);
 	const float newDist = min(a.dist, b.dist) - h * h * 0.25 / k;
-	const float newMatId = abs(newDist - a.dist) < abs(newDist - b.dist) ? a.matId : b.matId;
 
-	return Object(newDist, newMatId);
+	const float bf = (h / k) * (h / k) * 0.5;
+	const float blendFactor = (a.dist < b.dist) ? bf : (1.0 - bf);
+
+	const Material newMat = Material(mix(a.mat.diffuse, b.mat.diffuse, blendFactor), mix(a.mat.metallicRoughness, b.mat.metallicRoughness, blendFactor));
+
+	return Object(newDist, newMat);
 }
 
 Object opIntersection(Object a, Object b) {
@@ -220,37 +224,37 @@ Object opIntersection(Object a, Object b) {
 }
 
 Object opSmoothIntersection(Object a, Object b, float k) {
-	const float newDist = -opSmoothUnion(Object(-a.dist, a.matId), Object(-b.dist, b.matId), k).dist;
-	const float newMatId = abs(newDist - a.dist) < abs(newDist - b.dist) ? a.matId : b.matId;
+	Object object = opSmoothUnion(Object(-a.dist, a.mat), Object(-b.dist, b.mat), k);
+	object.dist *= -1.0;
 
-	return Object(newDist, newMatId);
+	return object;
 }
 
 Object opDifference(Object a, Object b) {
-	return a.dist > -b.dist ? a : Object(-b.dist, b.matId);
+	return a.dist > -b.dist ? a : Object(-b.dist, b.mat);
 }
 
 Object opSmoothDifference(Object a, Object b, float k) {
-	const float newDist = -opSmoothUnion(b, Object(-a.dist, a.matId), k).dist;
-	const float newMatId = abs(newDist - a.dist) < abs(newDist - b.dist) ? a.matId : b.matId;
+	Object object = opSmoothUnion(b, Object(-a.dist, a.mat), k);
+	object.dist *= -1.0;
 
-	return Object(newDist, newMatId);
+	return object;
 }
 
 Object opMin(Object o, float x) {
-	return Object(min(o.dist, x), o.matId);
+	return Object(min(o.dist, x), o.mat);
 }
 
 Object opMax(Object o, float x) {
-	return Object(max(o.dist, x), o.matId);
+	return Object(max(o.dist, x), o.mat);
 }
 
 Object opRound(Object o, float r) {
-	return Object(o.dist - r, o.matId);
+	return Object(o.dist - r, o.mat);
 }
 
 Object opOnion(Object o, float t) {
-	return Object(abs(o.dist) - t, o.matId);
+	return Object(abs(o.dist) - t, o.mat);
 }
 
 // Ray Infinite Repeat

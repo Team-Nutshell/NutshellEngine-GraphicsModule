@@ -16,7 +16,7 @@ layout(push_constant) uniform PushConstants {
 
 // Raymarching
 Object raymarch(vec3 o, vec3 d) {
-	Object object = Object(0.0, 0.0);
+	Object object = Object(0.0, Material(vec3(0.0), vec2(0.0)));
 	for (int i = 0; i < MAX_STEPS; i++) {
 		vec3 p = o + object.dist * d;
 		Object objectHit = scene(p);
@@ -24,7 +24,7 @@ Object raymarch(vec3 o, vec3 d) {
 			break;
 		}
 		object.dist += objectHit.dist;
-		object.matId = objectHit.matId;
+		object.mat = objectHit.mat;
 		if (object.dist > MAX_DISTANCE) {
 			break;
 		}
@@ -160,12 +160,11 @@ void main() {
 	vec3 color = vec3(0.0, 0.0, 0.0);
 	if (object.dist <= MAX_DISTANCE) {
 		const vec3 n = normal(p);
-		const Material mat = getMaterial(p, object.matId);
-		const float metallic = mat.metallicRoughness.x;
-		const float roughness = mat.metallicRoughness.y;
+		const float metallic = object.mat.metallicRoughness.x;
+		const float roughness = object.mat.metallicRoughness.y;
 		const float ao = ambientOcclusion(p, n);
 		for (int i = 0; i < LIGHTS_COUNT; i++) {
-			color += shade(p, d, n, l[i].position, l[i].color, mat.diffuse, metallic, roughness) * shadows(p, n, l[i].position);
+			color += shade(p, d, n, l[i].position, l[i].color, object.mat.diffuse, metallic, roughness) * shadows(p, n, l[i].position);
 		}
 		color *= ao;
 		fogColor = background(p);
