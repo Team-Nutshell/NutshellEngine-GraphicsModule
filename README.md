@@ -1,5 +1,5 @@
 # NutshellEngine-GraphicsModule - Vulkan Raymarching
-![Vulkan Raymarching](https://i.imgur.com/wjiMFJH.png)
+![Vulkan Raymarching](https://i.imgur.com/7JPWwwL.png)
 
 NutshellEngine Graphics Module using raymarching to draw.
 

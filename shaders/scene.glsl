@@ -1,10 +1,10 @@
 // Scene
 Object scene(vec3 p) {
-	Object plane = Object(shPlane(p, vec3(0.0, 1.0, 0.0), 0.15), Material(vec3(0.2 + 0.5 * mod(floor(p.x) + floor(p.z), 2.0)), vec2(0.5, 1.0)));
+	Object plane = Object(shPlane(p, vec3(0.0, 1.0, 0.0), 0.15), Material(vec3(0.2 + 0.5 * mod(floor(p.x) + floor(p.z), 2.0)), vec2(0.0, 0.2)));
 
-	Object sphere = Object(shSphere(p, 0.25), Material(vec3(1.0, 0.0, 0.0), vec2(1.0, 0.5)));
+	Object sphere = Object(shSphere(p, 0.25), Material(vec3(1.0, 0.0, 0.0), vec2(0.1, 0.5)));
 
-	Object torus = Object(shTorus(p, 0.2, 0.75), Material(vec3(0.0, 0.0, 1.0), vec2(0.35, 1.0)));
+	Object torus = Object(shTorus(p, 0.2, 0.75), Material(vec3(0.0, 0.0, 1.0), vec2(0.05, 1.0)));
 
 	Object cylinder = Object(shCylinder(p, 0.1, 0.3), Material(vec3(0.0, 1.0, 0.0), vec2(0.05, 0.5)));
 
