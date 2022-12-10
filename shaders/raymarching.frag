@@ -140,38 +140,62 @@ float ambientOcclusion(vec3 p, vec3 n) {
 	return 1.0 - clamp(0.6 * ao, 0.0, 1.0);
 }
 
+// Render
+vec3 render(vec3 o, vec3 d) {
+	Light l[LIGHTS_COUNT] = lights();
+	const float fogDensity = 0.0008;
+
+	float frac = 1.0;
+	vec3 color = vec3(0.0, 0.0, 0.0);
+	for (uint depth = 0; depth < MAX_BOUNCES; depth++) {
+		vec3 localColor = vec3(0.0, 0.0, 0.0);
+
+		// Raymarch
+		const Object object = raymarch(o, d);
+		const vec3 p = o + object.dist * d;
+		
+		const vec3 n = normal(p);
+		const float metallic = object.mat.metallicRoughness.x;
+		if (object.dist <= MAX_DISTANCE) {
+			// Object properties
+			const vec3 diffuse = object.mat.diffuse;
+			const float roughness = object.mat.metallicRoughness.y;
+			const float ao = ambientOcclusion(p, n);
+
+			// Local color
+			for (int i = 0; i < LIGHTS_COUNT; i++) {
+				localColor += shade(p, d, n, l[i].position, l[i].color, diffuse, metallic, roughness) * shadows(p, n, l[i].position);
+			}
+			localColor *= ao;
+			localColor = mix(localColor, background(p), 1.0 - exp(-fogDensity * object.dist * object.dist));
+		}
+		else {
+			localColor = background(p);
+		}
+
+		color += localColor * frac;
+		frac *= metallic;
+
+		// Early stop as the impact on the final color will not be consequent
+		if (frac < 0.05) {
+			break;
+		}
+
+		o = p + (n * EPSILON);
+		d = reflect(d, n);
+	}
+
+	return color;
+}
+
 void main() {
 	const mat3 cameraMatrix = camera();
-
-	const float timeAttenuation = 1000.0;
-
-	vec3 fogColor = vec3(1.0, 1.0, 1.0);
-	const float fogDensity = 0.0008;
 
 	const vec2 dim = vec2(pC.width, pC.height);
 	const vec2 newUv = (2.0 * (uv * dim) - dim) / pC.height;
 	vec3 d = cameraMatrix * normalize(vec3(newUv, 2.0));
 
-	Light l[LIGHTS_COUNT] = lights();
-
-	const Object object = raymarch(from, d);
-	const vec3 p = from + object.dist * d;
-
-	vec3 color = vec3(0.0, 0.0, 0.0);
-	if (object.dist <= MAX_DISTANCE) {
-		const vec3 n = normal(p);
-		const float metallic = object.mat.metallicRoughness.x;
-		const float roughness = object.mat.metallicRoughness.y;
-		const float ao = ambientOcclusion(p, n);
-		for (int i = 0; i < LIGHTS_COUNT; i++) {
-			color += shade(p, d, n, l[i].position, l[i].color, object.mat.diffuse, metallic, roughness) * shadows(p, n, l[i].position);
-		}
-		color *= ao;
-		fogColor = background(p);
-		color = mix(color, fogColor, 1.0 - exp(-fogDensity * object.dist * object.dist));
-	}
-	else {
-		color = background(p);
-	}
+	vec3 color = render(from, d);
+	
 	outColor = vec4(color, 1.0);
 }
