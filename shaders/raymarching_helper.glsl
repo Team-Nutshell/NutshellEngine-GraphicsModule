@@ -208,7 +208,7 @@ Object opUnion(Object a, Object b) {
 }
 
 Object opSmoothUnion(Object a, Object b, float k) {
-	const float h = max(k - abs(b.dist - a.dist), 0.0);
+	const float h = max(k - abs(a.dist - b.dist), 0.0);
 	const float newDist = min(a.dist, b.dist) - h * h * 0.25 / k;
 	const float newMatId = abs(newDist - a.dist) < abs(newDist - b.dist) ? a.matId : b.matId;
 
@@ -231,7 +231,7 @@ Object opDifference(Object a, Object b) {
 }
 
 Object opSmoothDifference(Object a, Object b, float k) {
-	const float newDist = -opSmoothUnion(a, Object(-b.dist, b.matId), k).dist;
+	const float newDist = -opSmoothUnion(b, Object(-a.dist, a.matId), k).dist;
 	const float newMatId = abs(newDist - a.dist) < abs(newDist - b.dist) ? a.matId : b.matId;
 
 	return Object(newDist, newMatId);
