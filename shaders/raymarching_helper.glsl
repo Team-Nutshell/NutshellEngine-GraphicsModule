@@ -67,6 +67,20 @@ float noise(vec2 seed, float freq) {
 	return mix(x1, x2, xy.y);
 }
 
+float fbm(vec2 seed, float H, uint numIters) {
+	float g = exp2(-H);
+	float f = 1.0;
+	float a = -1.0;
+	float t = 0.0;
+	for (uint i = 0; i < numIters; i++) {
+		t += a * noise(f * seed);
+		f *= 2.0;
+		a *= g;
+	}
+
+	return t;
+}
+
 // Shapes
 // Sphere
 // r = radius
