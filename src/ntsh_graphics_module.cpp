@@ -710,9 +710,12 @@ void NutshellGraphicsModule::update(double dt) {
 	if (shaderModified) {
 		NTSH_VK_CHECK(vkQueueWaitIdle(m_graphicsQueue));
 
-		recreateGraphicsPipeline();
-
-		NTSH_MODULE_INFO("Fragment shader reloaded.");
+		if (recreateGraphicsPipeline()) {
+			NTSH_MODULE_INFO("Fragment shader reloaded.");
+		}
+		else {
+			NTSH_MODULE_WARNING("Fragment shader could not be reloaded.");
+		}
 	}
 
 	uint32_t imageIndex = m_imageCount - 1;
@@ -818,17 +821,19 @@ void NutshellGraphicsModule::update(double dt) {
 	renderingInfo.pStencilAttachment = nullptr;
 	m_vkCmdBeginRenderingKHR(m_renderingCommandBuffers[currentFrameInFlight], &renderingInfo);
 
-	// Bind graphics pipeline
-	vkCmdBindPipeline(m_renderingCommandBuffers[currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
-	vkCmdSetViewport(m_renderingCommandBuffers[currentFrameInFlight], 0, 1, &m_viewport);
-	vkCmdSetScissor(m_renderingCommandBuffers[currentFrameInFlight], 0, 1, &m_scissor);
+	if (m_graphicsPipeline != VK_NULL_HANDLE) {
+		// Bind graphics pipeline
+		vkCmdBindPipeline(m_renderingCommandBuffers[currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+		vkCmdSetViewport(m_renderingCommandBuffers[currentFrameInFlight], 0, 1, &m_viewport);
+		vkCmdSetScissor(m_renderingCommandBuffers[currentFrameInFlight], 0, 1, &m_scissor);
 
-	// Push time constant
-	PushConstants pushConstants = { static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()) / 1000.0f, m_scissor.extent.width, m_scissor.extent.height };
-	vkCmdPushConstants(m_renderingCommandBuffers[currentFrameInFlight], m_graphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
+		// Push time constant
+		PushConstants pushConstants = { static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()) / 1000.0f, m_scissor.extent.width, m_scissor.extent.height };
+		vkCmdPushConstants(m_renderingCommandBuffers[currentFrameInFlight], m_graphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
 
-	// Draw
-	vkCmdDraw(m_renderingCommandBuffers[currentFrameInFlight], 3, 1, 0, 0);
+		// Draw
+		vkCmdDraw(m_renderingCommandBuffers[currentFrameInFlight], 3, 1, 0, 0);
+	}
 
 	// End rendering
 	m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[currentFrameInFlight]);
@@ -939,9 +944,13 @@ void NutshellGraphicsModule::destroy() {
 
 	// Destroy graphics pipeline
 	vkDestroyShaderModule(m_device, m_vertexShaderModule, nullptr);
-	vkDestroyShaderModule(m_device, m_fragmentShaderModule, nullptr);
+	if (m_fragmentShaderModule != VK_NULL_HANDLE) {
+		vkDestroyShaderModule(m_device, m_fragmentShaderModule, nullptr);
+	}
 	vkDestroyPipelineLayout(m_device, m_graphicsPipelineLayout, nullptr);
-	vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
+	if (m_graphicsPipeline != VK_NULL_HANDLE) {
+		vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
+	}
 
 	// Destroy swapchain
 	if (m_windowModule) {
@@ -1183,42 +1192,24 @@ std::vector<uint32_t> NutshellGraphicsModule::compileFragmentShader() {
 	includer.pushExternalLocalDirectory(m_fragmentShaderName);
 	std::string preprocess;
 	if (!shader.preprocess(&defaultTBuiltInResource, defaultVersion, ENoProfile, false, false, messages, &preprocess, includer)) {
-		if (m_fragmentShaderModule == VK_NULL_HANDLE) {
-			// If the first fragment shader compilation fails, close the application
-			NTSH_MODULE_ERROR("Shader preprocessing failed.\n" + std::string(shader.getInfoLog()), NTSH_RESULT_MODULE_ERROR);
-		}
-		else {
-			NTSH_MODULE_WARNING("Shader preprocessing failed.\n" + std::string(shader.getInfoLog()));
-			return spvCode;
-		}
+		NTSH_MODULE_WARNING("Shader preprocessing failed.\n" + std::string(shader.getInfoLog()));
+		return spvCode;
 	}
 
 	// Parse
 	const char* preprocessCharPtr = preprocess.c_str();
 	shader.setStrings(&preprocessCharPtr, 1);
 	if (!shader.parse(&defaultTBuiltInResource, defaultVersion, false, messages)) {
-		if (m_fragmentShaderModule == VK_NULL_HANDLE) {
-			// If the first fragment shader compilation fails, close the application
-			NTSH_MODULE_ERROR("Shader parsing failed.\n" + std::string(shader.getInfoLog()) + "\n", NTSH_RESULT_MODULE_ERROR);
-		}
-		else {
-			NTSH_MODULE_WARNING("Shader parsing failed.\n" + std::string(shader.getInfoLog()) + "\n");
-			return spvCode;
-		}
+		NTSH_MODULE_WARNING("Shader parsing failed.\n" + std::string(shader.getInfoLog()));
+		return spvCode;
 	}
 
 	// Link
 	glslang::TProgram program;
 	program.addShader(&shader);
 	if (!program.link(messages)) {
-		if (m_fragmentShaderModule == VK_NULL_HANDLE) {
-			// If the first fragment shader compilation fails, close the application
-			NTSH_MODULE_ERROR("Shader linking failed.", NTSH_RESULT_MODULE_ERROR);
-		}
-		else {
-			NTSH_MODULE_WARNING("Shader linking failed.");
-			return spvCode;
-		}
+		NTSH_MODULE_WARNING("Shader linking failed.");
+		return spvCode;
 	}
 
 	// Compile
@@ -1229,7 +1220,7 @@ std::vector<uint32_t> NutshellGraphicsModule::compileFragmentShader() {
 	return spvCode;
 }
 
-void NutshellGraphicsModule::recreateGraphicsPipeline() {
+bool NutshellGraphicsModule::recreateGraphicsPipeline() {
 	const std::vector<uint32_t> fragmentShaderCode = compileFragmentShader();
 	if (fragmentShaderCode.size() != 0) {
 		// Destroy fragment shader module and graphics pipeline if the fragment shader compilation succeeded
@@ -1242,7 +1233,7 @@ void NutshellGraphicsModule::recreateGraphicsPipeline() {
 	}
 	else {
 		// Don't recreate the pipeline if the fragment shader compilation failed
-		return;
+		return false;
 	}
 
 	VkShaderModuleCreateInfo fragmentShaderModuleCreateInfo = {};
@@ -1285,6 +1276,8 @@ void NutshellGraphicsModule::recreateGraphicsPipeline() {
 	graphicsPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
 	graphicsPipelineCreateInfo.basePipelineIndex = 0;
 	NTSH_VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_graphicsPipeline));
+
+	return true;
 }
 
 void NutshellGraphicsModule::resize() {

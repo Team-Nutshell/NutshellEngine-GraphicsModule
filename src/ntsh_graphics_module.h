@@ -61,7 +61,7 @@ private:
 	VkPhysicalDeviceMemoryProperties getMemoryProperties();
 
 	std::vector<uint32_t> compileFragmentShader();
-	void recreateGraphicsPipeline();
+	bool recreateGraphicsPipeline();
 
 	// On window resize
 	void resize();
