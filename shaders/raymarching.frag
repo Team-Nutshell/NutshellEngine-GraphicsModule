@@ -170,7 +170,8 @@ vec3 render(vec3 o, vec3 d) {
 			localColor = mix(localColor, background(p), 1.0 - exp(-fogDensity * object.dist * object.dist));
 		}
 		else {
-			localColor = background(p);
+			color += background(p) * frac;
+			return color;
 		}
 
 		color += localColor * frac;
