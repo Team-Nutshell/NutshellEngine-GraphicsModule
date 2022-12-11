@@ -101,8 +101,21 @@ private:
 	std::filesystem::file_time_type m_fragmentShaderLastModified;
 	std::filesystem::file_time_type m_raymarchingHelperLastModified;
 	std::filesystem::file_time_type m_sceneLastModified;
+	VkFormat m_pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
+	VkPipelineRenderingCreateInfo m_pipelineRenderingCreateInfo{};
 	VkShaderModule m_vertexShaderModule;
+	VkPipelineShaderStageCreateInfo m_vertexShaderStageCreateInfo{};
 	VkShaderModule m_fragmentShaderModule = VK_NULL_HANDLE;
+	VkPipelineVertexInputStateCreateInfo m_vertexInputStateCreateInfo{};
+	VkPipelineInputAssemblyStateCreateInfo m_inputAssemblyStateCreateInfo{};
+	VkPipelineViewportStateCreateInfo m_viewportStateCreateInfo{};
+	VkPipelineRasterizationStateCreateInfo m_rasterizationStateCreateInfo{};
+	VkPipelineMultisampleStateCreateInfo m_multisampleStateCreateInfo{};
+	VkPipelineDepthStencilStateCreateInfo m_depthStencilStateCreateInfo{};
+	VkPipelineColorBlendAttachmentState m_colorBlendAttachmentState{};
+	VkPipelineColorBlendStateCreateInfo m_colorBlendStateCreateInfo{};
+	std::array<VkDynamicState, 2> m_dynamicStates = { VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_VIEWPORT };
+	VkPipelineDynamicStateCreateInfo m_dynamicStateCreateInfo{};
 	VkPipeline m_graphicsPipeline = VK_NULL_HANDLE;
 	VkPipelineLayout m_graphicsPipelineLayout;
 
