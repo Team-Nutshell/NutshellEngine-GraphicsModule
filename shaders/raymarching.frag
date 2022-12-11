@@ -35,8 +35,8 @@ Object raymarch(vec3 o, vec3 d) {
 
 // Compute normal
 vec3 normal(vec3 p) {
-	vec2 e = vec2(EPSILON, 0.0);
-	vec3 n = vec3(scene(p).dist) - vec3(scene(p - e.xyy).dist, scene(p - e.yxy).dist, scene(p - e.yyx).dist);
+	const vec2 e = vec2(EPSILON, 0.0);
+	const vec3 n = vec3(scene(p).dist) - vec3(scene(p - e.xyy).dist, scene(p - e.yxy).dist, scene(p - e.yyx).dist);
 
 	return normalize(n);
 }
