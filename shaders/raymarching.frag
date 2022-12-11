@@ -147,7 +147,7 @@ vec3 render(vec3 o, vec3 d) {
 
 	float frac = 1.0;
 	vec3 color = vec3(0.0, 0.0, 0.0);
-	for (uint depth = 0; depth < MAX_BOUNCES; depth++) {
+	for (uint depth = 0; depth < MAX_BOUNCES + 1; depth++) {
 		vec3 localColor = vec3(0.0, 0.0, 0.0);
 
 		// Raymarch
