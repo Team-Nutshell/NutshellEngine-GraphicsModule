@@ -3,7 +3,7 @@
 const uint MAX_STEPS = 256;
 const float MAX_DISTANCE = 1000.0;
 const float EPSILON = 0.0001;
-const uint MAX_BOUNCES = 3;
+const uint MAX_BOUNCES = 2;
 
 struct Material {
 	vec3 diffuse;
