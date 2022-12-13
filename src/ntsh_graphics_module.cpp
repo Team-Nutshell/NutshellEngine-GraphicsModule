@@ -5,6 +5,8 @@
 #include <limits>
 #include <array>
 #include <chrono>
+#include <algorithm>
+#include <cmath>
 
 void NutshellGraphicsModule::init() {
 	if (m_windowModule) {
@@ -673,7 +675,75 @@ void NutshellGraphicsModule::init() {
 }
 
 void NutshellGraphicsModule::update(double dt) {
-	NTSH_UNUSED(dt);
+	if (m_windowModule) {
+		// Update camera
+		if (m_windowModule->getKeyState(NtshInputKeyboardKey::R) == NtshInputState::Pressed) {
+			m_mouseMiddleMode = !m_mouseMiddleMode;
+		}
+
+		if (m_mouseMiddleMode) {
+			m_prevMouseX = m_windowModule->getWidth() / 2;
+			m_prevMouseY = m_windowModule->getHeight() / 2;
+			m_windowModule->setMousePosition(m_prevMouseX, m_prevMouseY);
+
+			const int mouseX = m_windowModule->getMouseXPosition();
+			const int mouseY = m_windowModule->getMouseYPosition();
+			const float xOffset = (mouseX - m_prevMouseX) * m_mouseSensitivity;
+			const float yOffset = (mouseY - m_prevMouseY) * m_mouseSensitivity;
+
+			m_prevMouseX = mouseX;
+			m_prevMouseY = mouseY;
+
+			m_yaw = std::fmod(m_yaw + xOffset, 360.0f);
+			m_pitch = std::max(-89.0f, std::min(89.0f, m_pitch + yOffset));
+
+			float yawRad = -m_yaw * toRad;
+			float pitchRad = m_pitch * toRad;
+
+			m_cameraDirection[0] = std::cos(pitchRad) * std::cos(yawRad);
+			m_cameraDirection[1] = -std::sin(pitchRad);
+			m_cameraDirection[2] = std::cos(pitchRad) * std::sin(yawRad);
+			const float cameraDirectionLength = std::sqrt(m_cameraDirection[0] * m_cameraDirection[0] + m_cameraDirection[1] * m_cameraDirection[1] + m_cameraDirection[2] * m_cameraDirection[2]);
+			m_cameraDirection[0] /= cameraDirectionLength;
+			m_cameraDirection[1] /= cameraDirectionLength;
+			m_cameraDirection[2] /= cameraDirectionLength;
+		}
+
+		float cameraSpeed = m_cameraSpeed * static_cast<float>(dt);
+
+		if (m_windowModule->getKeyState(NtshInputKeyboardKey::W) == NtshInputState::Held) {
+			m_cameraPosition[0] += m_cameraDirection[0] * cameraSpeed;
+			m_cameraPosition[1] += m_cameraDirection[1] * cameraSpeed;
+			m_cameraPosition[2] += m_cameraDirection[2] * cameraSpeed;
+		}
+		if (m_windowModule->getKeyState(NtshInputKeyboardKey::S) == NtshInputState::Held) {
+			m_cameraPosition[0] -= m_cameraDirection[0] * cameraSpeed;
+			m_cameraPosition[1] -= m_cameraDirection[1] * cameraSpeed;
+			m_cameraPosition[2] -= m_cameraDirection[2] * cameraSpeed;
+		}
+		if (m_windowModule->getKeyState(NtshInputKeyboardKey::A) == NtshInputState::Held) {
+			float t[3] = { -m_cameraDirection[2], 0.0, m_cameraDirection[0] };
+			const float tLength = std::sqrt(t[0] * t[0] + t[2] * t[2]);
+			t[0] /= tLength;
+			t[2] /= tLength;
+			m_cameraPosition[0] += t[0] * cameraSpeed;
+			m_cameraPosition[2] += t[2] * cameraSpeed;
+		}
+		if (m_windowModule->getKeyState(NtshInputKeyboardKey::D) == NtshInputState::Held) {
+			float t[3] = { -m_cameraDirection[2], 0.0, m_cameraDirection[0] };
+			const float tLength = std::sqrt(t[0] * t[0] + t[2] * t[2]);
+			t[0] /= tLength;
+			t[2] /= tLength;
+			m_cameraPosition[0] -= t[0] * cameraSpeed;
+			m_cameraPosition[2] -= t[2] * cameraSpeed;
+		}
+		if (m_windowModule->getKeyState(NtshInputKeyboardKey::Space) == NtshInputState::Held) {
+			m_cameraPosition[1] += cameraSpeed;
+		}
+		if (m_windowModule->getKeyState(NtshInputKeyboardKey::Shift) == NtshInputState::Held) {
+			m_cameraPosition[1] -= cameraSpeed;
+		}
+	}
 
 	NTSH_VK_CHECK(vkWaitForFences(m_device, 1, &m_fences[currentFrameInFlight], VK_TRUE, std::numeric_limits<uint64_t>::max()));
 
@@ -828,7 +898,7 @@ void NutshellGraphicsModule::update(double dt) {
 		vkCmdSetScissor(m_renderingCommandBuffers[currentFrameInFlight], 0, 1, &m_scissor);
 
 		// Push time constant
-		PushConstants pushConstants = { static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()) / 1000.0f, m_scissor.extent.width, m_scissor.extent.height };
+		PushConstants pushConstants = { static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()) / 1000.0f, m_scissor.extent.width, m_scissor.extent.height, 0.0f, { m_cameraPosition[0], m_cameraPosition[1], m_cameraPosition[2], 0.0f }, { m_cameraDirection[0], m_cameraDirection[1], m_cameraDirection[2], 0.0f } };
 		vkCmdPushConstants(m_renderingCommandBuffers[currentFrameInFlight], m_graphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
 
 		// Draw

@@ -38,10 +38,15 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBits
 	return VK_FALSE;
 }
 
+const float toRad = 3.1415926535897932384626433832795f / 180.0f;
+
 struct PushConstants {
 	float time;
 	uint32_t width;
 	uint32_t height;
+	float padding;
+	float cameraPosition[4];
+	float cameraDirection[4];
 };
 
 class NutshellGraphicsModule : public NutshellGraphicsModuleInterface {
@@ -133,4 +138,15 @@ private:
 	uint32_t m_imageCount;
 	uint32_t m_framesInFlight;
 	uint32_t currentFrameInFlight;
+
+	bool m_mouseMiddleMode = false;
+	const float m_cameraSpeed = 0.0015f;
+	const float m_mouseSensitivity = 0.12f;
+	int m_prevMouseX = 0;
+	int m_prevMouseY = 0;
+	float m_yaw = 0.0f;
+	float m_pitch = 0.0f;
+
+	float m_cameraPosition[3] = {0.0f, 1.0f, -2.0f};
+	float m_cameraDirection[3] = {0.0f, 0.0f, 0.0f};
 };
