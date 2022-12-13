@@ -679,15 +679,16 @@ void NutshellGraphicsModule::update(double dt) {
 		// Update camera
 		if (m_windowModule->getKeyState(NtshInputKeyboardKey::R) == NtshInputState::Pressed) {
 			m_mouseMiddleMode = !m_mouseMiddleMode;
+			m_windowModule->setCursorVisibility(!m_windowModule->isCursorVisible());
 		}
 
 		if (m_mouseMiddleMode) {
 			m_prevMouseX = m_windowModule->getWidth() / 2;
 			m_prevMouseY = m_windowModule->getHeight() / 2;
-			m_windowModule->setMousePosition(m_prevMouseX, m_prevMouseY);
+			m_windowModule->setCursorPosition(m_prevMouseX, m_prevMouseY);
 
-			const int mouseX = m_windowModule->getMouseXPosition();
-			const int mouseY = m_windowModule->getMouseYPosition();
+			const int mouseX = m_windowModule->getCursorXPosition();
+			const int mouseY = m_windowModule->getCursorYPosition();
 			const float xOffset = (mouseX - m_prevMouseX) * m_mouseSensitivity;
 			const float yOffset = (mouseY - m_prevMouseY) * m_mouseSensitivity;
 
