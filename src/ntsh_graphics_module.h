@@ -139,7 +139,7 @@ private:
 	uint32_t m_framesInFlight;
 	uint32_t currentFrameInFlight;
 
-	bool m_mouseMiddleMode = false;
+	bool m_mouseMiddleMode = true;
 	const float m_cameraSpeed = 0.0015f;
 	const float m_mouseSensitivity = 0.12f;
 	int m_prevMouseX = 0;
@@ -148,5 +148,5 @@ private:
 	float m_pitch = 0.0f;
 
 	float m_cameraPosition[3] = {0.0f, 1.0f, -2.0f};
-	float m_cameraDirection[3] = {0.0f, 0.0f, 0.0f};
+	float m_cameraDirection[3] = {0.0f, 0.0f, 1.0f};
 };

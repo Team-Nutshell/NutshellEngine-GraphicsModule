@@ -358,6 +358,11 @@ void NutshellGraphicsModule::init() {
 			swapchainImageViewCreateInfo.subresourceRange.layerCount = 1;
 			NTSH_VK_CHECK(vkCreateImageView(m_device, &swapchainImageViewCreateInfo, nullptr, &m_swapchainImageViews[i]));
 		}
+
+		m_prevMouseX = m_windowModule->getWidth() / 2;
+		m_prevMouseY = m_windowModule->getHeight() / 2;
+		m_windowModule->setCursorPosition(m_prevMouseX, m_prevMouseY);
+		m_windowModule->setCursorVisibility(!m_mouseMiddleMode);
 	}
 	// Or create an image to draw on
 	else {
@@ -680,15 +685,21 @@ void NutshellGraphicsModule::update(double dt) {
 		if (m_windowModule->getKeyState(NtshInputKeyboardKey::R) == NtshInputState::Pressed) {
 			m_mouseMiddleMode = !m_mouseMiddleMode;
 			m_windowModule->setCursorVisibility(!m_windowModule->isCursorVisible());
+			if (m_mouseMiddleMode) {
+				m_prevMouseX = m_windowModule->getWidth() / 2;
+				m_prevMouseY = m_windowModule->getHeight() / 2;
+				m_windowModule->setCursorPosition(m_prevMouseX, m_prevMouseY);
+			}
 		}
 
 		if (m_mouseMiddleMode) {
+			const int mouseX = m_windowModule->getCursorXPosition();
+			const int mouseY = m_windowModule->getCursorYPosition();
+
 			m_prevMouseX = m_windowModule->getWidth() / 2;
 			m_prevMouseY = m_windowModule->getHeight() / 2;
 			m_windowModule->setCursorPosition(m_prevMouseX, m_prevMouseY);
 
-			const int mouseX = m_windowModule->getCursorXPosition();
-			const int mouseY = m_windowModule->getCursorYPosition();
 			const float xOffset = (mouseX - m_prevMouseX) * m_mouseSensitivity;
 			const float yOffset = (mouseY - m_prevMouseY) * m_mouseSensitivity;
 
