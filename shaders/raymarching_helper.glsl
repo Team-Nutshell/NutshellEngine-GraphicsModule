@@ -164,6 +164,12 @@ float shTriangle(vec3 p, vec3 a, vec3 b, vec3 c) {
 		ndotpa * ndotpa / dot(n, n));
 }
 
+// Triangular Prism
+float shTriangularPrism(vec3 p, vec2 h) {
+	const vec3 q = abs(p);
+	return max(q.z - h.y, max(q.x * 0.866025 + p.y * 0.5, -p.y) - h.x * 0.5);
+}
+
 // Cone
 // sc = (sin of the angle, cos of the angle)
 // h = height
@@ -270,6 +276,12 @@ Object opRound(Object o, float r) {
 
 Object opOnion(Object o, float t) {
 	return Object(abs(o.dist) - t, o.mat);
+}
+
+// Transform
+
+vec2 rotate(vec2 p, float angle) {
+	return cos(angle) * p + sin(angle) * vec2(p.y, -p.x);
 }
 
 // Ray Infinite Repeat
