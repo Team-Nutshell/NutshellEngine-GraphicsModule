@@ -9,6 +9,8 @@ layout(push_constant) uniform PushConstants {
 	float time;
 	uint width;
 	uint height;
+	vec3 cameraPosition;
+	vec3 cameraDirection;
 } pC;
 
 #include "raymarching_helper.glsl"
@@ -196,7 +198,7 @@ void main() {
 	const vec2 newUv = (2.0 * (uv * dim) - dim) / pC.height;
 	vec3 d = cameraMatrix * normalize(vec3(newUv, 2.0));
 
-	vec3 color = render(from, d);
+	vec3 color = render(pC.cameraPosition, d);
 	
 	outColor = vec4(color, 1.0);
 }

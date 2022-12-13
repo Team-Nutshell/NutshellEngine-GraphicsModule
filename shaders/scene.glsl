@@ -21,12 +21,10 @@ vec3 background(vec3 p) {
 }
 
 // Camera
-vec3 from = vec3(0.0, 1.0, -2.0);
-vec3 to = vec3(0.0, 0.0, 0.0);
 vec3 up = vec3(0.0, 1.0, 0.0);
 
 mat3 camera() {
-	const vec3 forward = normalize(to - from);
+	const vec3 forward = normalize(pC.cameraDirection);
 	const vec3 right = normalize(cross(up, forward));
 	const vec3 realUp = cross(forward, right);
 
