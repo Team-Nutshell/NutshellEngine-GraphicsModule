@@ -31,7 +31,7 @@ void NutshellGraphicsModule::init() {
 	instanceCreateInfo.pNext = nullptr;
 	instanceCreateInfo.flags = 0;
 	instanceCreateInfo.pApplicationInfo = &applicationInfo;
-#ifdef NTSH_DEBUG
+#if defined(NTSH_DEBUG)
 	std::array<const char*, 1> explicitLayers = { "VK_LAYER_KHRONOS_validation" };
 	bool foundValidationLayer = false;
 	uint32_t instanceLayerPropertyCount;
@@ -60,13 +60,13 @@ void NutshellGraphicsModule::init() {
 	instanceCreateInfo.ppEnabledLayerNames = nullptr;
 #endif
 	std::vector<const char*> instanceExtensions;
-#if NTSH_DEBUG
+#if defined(NTSH_DEBUG)
 	instanceExtensions.push_back("VK_EXT_debug_utils");
 #endif
 	if (m_windowModule) {
 		instanceExtensions.push_back("VK_KHR_surface");
 		instanceExtensions.push_back("VK_KHR_get_surface_capabilities2");
-#ifdef NTSH_OS_WINDOWS
+#if defined(NTSH_OS_WINDOWS)
 		instanceExtensions.push_back("VK_KHR_win32_surface");
 #elif defined(NTSH_OS_LINUX)
 		instanceExtensions.push_back("VK_KHR_xlib_surface");
@@ -76,7 +76,7 @@ void NutshellGraphicsModule::init() {
 	instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions.data();
 	NTSH_VK_CHECK(vkCreateInstance(&instanceCreateInfo, nullptr, &m_instance));
 
-#ifdef NTSH_DEBUG
+#if defined(NTSH_DEBUG)
 	// Create debug messenger
 	VkDebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo = {};
 	debugMessengerCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -101,7 +101,7 @@ void NutshellGraphicsModule::init() {
 
 	// Create surface
 	if (m_windowModule) {
-#ifdef NTSH_OS_WINDOWS
+#if defined(NTSH_OS_WINDOWS)
 		HWND windowHandle = m_windowModule->getNativeHandle();
 		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
@@ -168,7 +168,7 @@ void NutshellGraphicsModule::init() {
 		uint32_t patch = (physicalDeviceProperties2.properties.driverVersion >> 6) & 0x0ff;
 		driverVersion = std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch);
 	}
-#ifdef NTSH_OS_WINDOWS
+#if defined(NTSH_OS_WINDOWS)
 	else if (physicalDeviceProperties2.properties.vendorID == 0x8086) { // Intel
 		uint32_t major = (physicalDeviceProperties2.properties.driverVersion >> 14);
 		uint32_t minor = (physicalDeviceProperties2.properties.driverVersion) & 0x3fff;
@@ -237,7 +237,7 @@ void NutshellGraphicsModule::init() {
 	deviceCreateInfo.pNext = &physicalDeviceSynchronization2Features;
 	deviceCreateInfo.queueCreateInfoCount = 1;
 	deviceCreateInfo.pQueueCreateInfos = &deviceQueueCreateInfo;
-#ifdef NTSH_DEBUG
+#if defined(NTSH_DEBUG)
 	if (foundValidationLayer) {
 		deviceCreateInfo.enabledLayerCount = 1;
 		deviceCreateInfo.ppEnabledLayerNames = explicitLayers.data();
@@ -1056,12 +1056,12 @@ void NutshellGraphicsModule::destroy() {
 		vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
 	}
 
-#ifdef NTSH_OS_LINUX
+#if defined(NTSH_OS_LINUX)
 	// Close X display
 	XCloseDisplay(m_display);
 #endif
 
-#ifdef NTSH_DEBUG
+#if defined(NTSH_DEBUG)
 	// Destroy debug messenger
 	auto destroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT");
 	destroyDebugUtilsMessengerEXT(m_instance, m_debugMessenger, nullptr);

@@ -6,7 +6,7 @@
 #include "../external/glslang/glslang/Include/ShHandle.h"
 #include "../external/glslang/SPIRV/GlslangToSpv.h"
 #include "../external/glslang/StandAlone/DirStackFileIncluder.h"
-#ifdef NTSH_OS_WINDOWS
+#if defined(NTSH_OS_WINDOWS)
 #define VK_USE_PLATFORM_WIN32_KHR
 #elif defined(NTSH_OS_LINUX)
 #define VK_USE_PLATFORM_XLIB_KHR
@@ -73,11 +73,11 @@ private:
 
 private:
 	VkInstance m_instance;
-#ifdef NTSH_DEBUG
+#if defined(NTSH_DEBUG)
 	VkDebugUtilsMessengerEXT m_debugMessenger;
 #endif
 
-#ifdef NTSH_OS_LINUX
+#if defined(NTSH_OS_LINUX)
 	Display* m_display = nullptr;
 #endif
 	VkSurfaceKHR m_surface;
