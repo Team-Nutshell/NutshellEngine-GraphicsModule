@@ -68,7 +68,7 @@ void NutshellGraphicsModule::init() {
 		instanceExtensions.push_back("VK_KHR_get_surface_capabilities2");
 #ifdef NTSH_OS_WINDOWS
 		instanceExtensions.push_back("VK_KHR_win32_surface");
-#elif NTSH_OS_LINUX
+#elif defined(NTSH_OS_LINUX)
 		instanceExtensions.push_back("VK_KHR_xlib_surface");
 #endif
 	}
@@ -111,7 +111,7 @@ void NutshellGraphicsModule::init() {
 		surfaceCreateInfo.hwnd = windowHandle;
 		auto createWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateWin32SurfaceKHR");
 		NTSH_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
-#elif NTSH_OS_LINUX
+#elif defined(NTSH_OS_LINUX)
 		m_display = XOpenDisplay(NULL);
 		Window windowHandle = m_windowModule->getNativeHandle();
 		VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
