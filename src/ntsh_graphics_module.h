@@ -5,7 +5,7 @@
 #include "../external/Module/utils/ntsh_module_defines.h"
 #ifdef NTSH_OS_WINDOWS
 #define VK_USE_PLATFORM_WIN32_KHR
-#elif NTSH_OS_LINUX
+#elif defined(NTSH_OS_LINUX)
 #define VK_USE_PLATFORM_XLIB_KHR
 #endif
 #include "vulkan/vulkan.h"
