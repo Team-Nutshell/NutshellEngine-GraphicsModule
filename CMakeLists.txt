@@ -12,11 +12,11 @@ add_subdirectory(external/Common)
 
 add_subdirectory(external/glslang)
 
-if (NOT CMAKE_VERSION VERSION_LESS 3.7.0)
+if(NOT CMAKE_VERSION VERSION_LESS 3.7.0)
 	find_package(Vulkan)
 endif()
 
-if (NOT Vulkan_FOUND)
+if(NOT Vulkan_FOUND)
 	message(FATAL_ERROR "Could not find Vulkan library. Please install Vulkan SDK or check your install")
 endif()
 
