@@ -9,7 +9,7 @@
 
 void NutshellGraphicsModule::init() {
 	uint32_t factoryFlags = 0;
-#ifdef NTSH_DEBUG
+#if defined(NTSH_DEBUG)
 	// Enable the debug layer
 	ComPtr<ID3D12Debug> debugLayer;
 	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugLayer)))) {
@@ -152,7 +152,7 @@ void NutshellGraphicsModule::init() {
 
 	// Create pipeline state
 	uint32_t shaderCompileFlags = 0;
-#ifdef NTSH_DEBUG
+#if defined(NTSH_DEBUG)
 	shaderCompileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif
 
