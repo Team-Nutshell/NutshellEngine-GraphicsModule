@@ -43,18 +43,18 @@ void NutshellGraphicsModule::init() {
 
 		m_viewport.TopLeftX = 0.0f;
 		m_viewport.TopLeftY = 0.0f;
-		m_viewport.Width = static_cast<float>(m_windowModule->getWidth());
-		m_viewport.Height = static_cast<float>(m_windowModule->getHeight());
+		m_viewport.Width = static_cast<float>(m_windowModule->getWidth(NTSH_MAIN_WINDOW));
+		m_viewport.Height = static_cast<float>(m_windowModule->getHeight(NTSH_MAIN_WINDOW));
 		m_viewport.MinDepth = D3D12_MIN_DEPTH;
 		m_viewport.MaxDepth = D3D12_MAX_DEPTH;
 
 		m_scissor.left = 0;
 		m_scissor.top = 0;
-		m_scissor.right = m_windowModule->getWidth();
-		m_scissor.bottom = m_windowModule->getHeight();
+		m_scissor.right = m_windowModule->getWidth(NTSH_MAIN_WINDOW);
+		m_scissor.bottom = m_windowModule->getHeight(NTSH_MAIN_WINDOW);
 
-		m_savedWidth = m_windowModule->getWidth();
-		m_savedHeight = m_windowModule->getHeight();
+		m_savedWidth = m_windowModule->getWidth(NTSH_MAIN_WINDOW);
+		m_savedHeight = m_windowModule->getHeight(NTSH_MAIN_WINDOW);
 
 		// Create swapchain
 		ComPtr<IDXGISwapChain1> swapchain;
@@ -70,7 +70,7 @@ void NutshellGraphicsModule::init() {
 		swapchainDesc.Scaling = DXGI_SCALING_NONE;
 		swapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 		swapchainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-		NTSH_DX12_CHECK(m_factory->CreateSwapChainForHwnd(m_commandQueue.Get(), m_windowModule->getNativeHandle(), &swapchainDesc, nullptr, nullptr, &swapchain));
+		NTSH_DX12_CHECK(m_factory->CreateSwapChainForHwnd(m_commandQueue.Get(), m_windowModule->getNativeHandle(NTSH_MAIN_WINDOW), &swapchainDesc, nullptr, nullptr, &swapchain));
 
 		NTSH_DX12_CHECK(swapchain.As(&m_swapchain));
 		m_frameIndex = m_swapchain->GetCurrentBackBufferIndex();
@@ -245,7 +245,7 @@ void NutshellGraphicsModule::update(double dt) {
 
 	if (m_windowModule) {
 		// Check for window resize
-		if (m_windowModule->getWidth() != m_savedWidth || m_windowModule->getHeight() != m_savedHeight) {
+		if (m_windowModule->getWidth(NTSH_MAIN_WINDOW) != m_savedWidth || m_windowModule->getHeight(NTSH_MAIN_WINDOW) != m_savedHeight) {
 			resize();
 		}
 	}
@@ -374,7 +374,7 @@ void NutshellGraphicsModule::waitForGPUIdle() {
 
 void NutshellGraphicsModule::resize() {
 	if (m_windowModule) {
-		while (m_windowModule->getWidth() == 0 || m_windowModule->getHeight() == 0) {
+		while (m_windowModule->getWidth(NTSH_MAIN_WINDOW) == 0 || m_windowModule->getHeight(NTSH_MAIN_WINDOW) == 0) {
 			m_windowModule->pollEvents();
 		}
 
@@ -387,18 +387,18 @@ void NutshellGraphicsModule::resize() {
 
 		m_viewport.TopLeftX = 0.0f;
 		m_viewport.TopLeftY = 0.0f;
-		m_viewport.Width = static_cast<float>(m_windowModule->getWidth());
-		m_viewport.Height = static_cast<float>(m_windowModule->getHeight());
+		m_viewport.Width = static_cast<float>(m_windowModule->getWidth(NTSH_MAIN_WINDOW));
+		m_viewport.Height = static_cast<float>(m_windowModule->getHeight(NTSH_MAIN_WINDOW));
 		m_viewport.MinDepth = D3D12_MIN_DEPTH;
 		m_viewport.MaxDepth = D3D12_MAX_DEPTH;
 
 		m_scissor.left = 0;
 		m_scissor.top = 0;
-		m_scissor.right = m_windowModule->getWidth();
-		m_scissor.bottom = m_windowModule->getHeight();
+		m_scissor.right = m_windowModule->getWidth(NTSH_MAIN_WINDOW);
+		m_scissor.bottom = m_windowModule->getHeight(NTSH_MAIN_WINDOW);
 
-		m_savedWidth = m_windowModule->getWidth();
-		m_savedHeight = m_windowModule->getHeight();
+		m_savedWidth = m_windowModule->getWidth(NTSH_MAIN_WINDOW);
+		m_savedHeight = m_windowModule->getHeight(NTSH_MAIN_WINDOW);
 
 		NTSH_DX12_CHECK(m_swapchain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
 
