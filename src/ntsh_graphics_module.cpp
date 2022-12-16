@@ -102,7 +102,7 @@ void NutshellGraphicsModule::init() {
 	// Create surface
 	if (m_windowModule) {
 #if defined(NTSH_OS_WINDOWS)
-		HWND windowHandle = m_windowModule->getNativeHandle();
+		HWND windowHandle = m_windowModule->getNativeHandle(NTSH_MAIN_WINDOW);
 		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.pNext = nullptr;
@@ -297,8 +297,8 @@ void NutshellGraphicsModule::init() {
 		}
 
 		VkExtent2D swapchainExtent = {};
-		swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth());
-		swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight());
+		swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSH_MAIN_WINDOW));
+		swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSH_MAIN_WINDOW));
 
 		m_viewport.x = 0.0f;
 		m_viewport.y = 0.0f;
@@ -359,10 +359,10 @@ void NutshellGraphicsModule::init() {
 			NTSH_VK_CHECK(vkCreateImageView(m_device, &swapchainImageViewCreateInfo, nullptr, &m_swapchainImageViews[i]));
 		}
 
-		m_prevMouseX = m_windowModule->getWidth() / 2;
-		m_prevMouseY = m_windowModule->getHeight() / 2;
-		m_windowModule->setCursorPosition(m_prevMouseX, m_prevMouseY);
-		m_windowModule->setCursorVisibility(!m_mouseMiddleMode);
+		m_prevMouseX = m_windowModule->getWidth(NTSH_MAIN_WINDOW) / 2;
+		m_prevMouseY = m_windowModule->getHeight(NTSH_MAIN_WINDOW) / 2;
+		m_windowModule->setCursorPosition(NTSH_MAIN_WINDOW, m_prevMouseX, m_prevMouseY);
+		m_windowModule->setCursorVisibility(NTSH_MAIN_WINDOW, !m_mouseMiddleMode);
 	}
 	// Or create an image to draw on
 	else {
@@ -682,23 +682,23 @@ void NutshellGraphicsModule::init() {
 void NutshellGraphicsModule::update(double dt) {
 	if (m_windowModule) {
 		// Update camera
-		if (m_windowModule->getKeyState(NtshInputKeyboardKey::R) == NtshInputState::Pressed) {
+		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, NtshInputKeyboardKey::R) == NtshInputState::Pressed) {
 			m_mouseMiddleMode = !m_mouseMiddleMode;
-			m_windowModule->setCursorVisibility(!m_windowModule->isCursorVisible());
+			m_windowModule->setCursorVisibility(NTSH_MAIN_WINDOW, !m_windowModule->isCursorVisible(NTSH_MAIN_WINDOW));
 			if (m_mouseMiddleMode) {
-				m_prevMouseX = m_windowModule->getWidth() / 2;
-				m_prevMouseY = m_windowModule->getHeight() / 2;
-				m_windowModule->setCursorPosition(m_prevMouseX, m_prevMouseY);
+				m_prevMouseX = m_windowModule->getWidth(NTSH_MAIN_WINDOW) / 2;
+				m_prevMouseY = m_windowModule->getHeight(NTSH_MAIN_WINDOW) / 2;
+				m_windowModule->setCursorPosition(NTSH_MAIN_WINDOW, m_prevMouseX, m_prevMouseY);
 			}
 		}
 
 		if (m_mouseMiddleMode) {
-			const int mouseX = m_windowModule->getCursorXPosition();
-			const int mouseY = m_windowModule->getCursorYPosition();
+			const int mouseX = m_windowModule->getCursorPositionX(NTSH_MAIN_WINDOW);
+			const int mouseY = m_windowModule->getCursorPositionY(NTSH_MAIN_WINDOW);
 
-			m_prevMouseX = m_windowModule->getWidth() / 2;
-			m_prevMouseY = m_windowModule->getHeight() / 2;
-			m_windowModule->setCursorPosition(m_prevMouseX, m_prevMouseY);
+			m_prevMouseX = m_windowModule->getWidth(NTSH_MAIN_WINDOW) / 2;
+			m_prevMouseY = m_windowModule->getHeight(NTSH_MAIN_WINDOW) / 2;
+			m_windowModule->setCursorPosition(NTSH_MAIN_WINDOW, m_prevMouseX, m_prevMouseY);
 
 			const float xOffset = (mouseX - m_prevMouseX) * m_mouseSensitivity;
 			const float yOffset = (mouseY - m_prevMouseY) * m_mouseSensitivity;
@@ -723,17 +723,17 @@ void NutshellGraphicsModule::update(double dt) {
 
 		float cameraSpeed = m_cameraSpeed * static_cast<float>(dt);
 
-		if (m_windowModule->getKeyState(NtshInputKeyboardKey::W) == NtshInputState::Held) {
+		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, NtshInputKeyboardKey::W) == NtshInputState::Held) {
 			m_cameraPosition[0] += m_cameraDirection[0] * cameraSpeed;
 			m_cameraPosition[1] += m_cameraDirection[1] * cameraSpeed;
 			m_cameraPosition[2] += m_cameraDirection[2] * cameraSpeed;
 		}
-		if (m_windowModule->getKeyState(NtshInputKeyboardKey::S) == NtshInputState::Held) {
+		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, NtshInputKeyboardKey::S) == NtshInputState::Held) {
 			m_cameraPosition[0] -= m_cameraDirection[0] * cameraSpeed;
 			m_cameraPosition[1] -= m_cameraDirection[1] * cameraSpeed;
 			m_cameraPosition[2] -= m_cameraDirection[2] * cameraSpeed;
 		}
-		if (m_windowModule->getKeyState(NtshInputKeyboardKey::A) == NtshInputState::Held) {
+		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, NtshInputKeyboardKey::A) == NtshInputState::Held) {
 			float t[3] = { -m_cameraDirection[2], 0.0, m_cameraDirection[0] };
 			const float tLength = std::sqrt(t[0] * t[0] + t[2] * t[2]);
 			t[0] /= tLength;
@@ -741,7 +741,7 @@ void NutshellGraphicsModule::update(double dt) {
 			m_cameraPosition[0] += t[0] * cameraSpeed;
 			m_cameraPosition[2] += t[2] * cameraSpeed;
 		}
-		if (m_windowModule->getKeyState(NtshInputKeyboardKey::D) == NtshInputState::Held) {
+		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, NtshInputKeyboardKey::D) == NtshInputState::Held) {
 			float t[3] = { -m_cameraDirection[2], 0.0, m_cameraDirection[0] };
 			const float tLength = std::sqrt(t[0] * t[0] + t[2] * t[2]);
 			t[0] /= tLength;
@@ -749,10 +749,10 @@ void NutshellGraphicsModule::update(double dt) {
 			m_cameraPosition[0] -= t[0] * cameraSpeed;
 			m_cameraPosition[2] -= t[2] * cameraSpeed;
 		}
-		if (m_windowModule->getKeyState(NtshInputKeyboardKey::Space) == NtshInputState::Held) {
+		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, NtshInputKeyboardKey::Space) == NtshInputState::Held) {
 			m_cameraPosition[1] += cameraSpeed;
 		}
-		if (m_windowModule->getKeyState(NtshInputKeyboardKey::Shift) == NtshInputState::Held) {
+		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, NtshInputKeyboardKey::Shift) == NtshInputState::Held) {
 			m_cameraPosition[1] -= cameraSpeed;
 		}
 	}
@@ -1364,7 +1364,7 @@ bool NutshellGraphicsModule::recreateGraphicsPipeline() {
 
 void NutshellGraphicsModule::resize() {
 	if (m_windowModule) {
-		while (m_windowModule->getWidth() == 0 || m_windowModule->getHeight() == 0) {
+		while (m_windowModule->getWidth(NTSH_MAIN_WINDOW) == 0 || m_windowModule->getHeight(NTSH_MAIN_WINDOW) == 0) {
 			m_windowModule->pollEvents();
 		}
 
@@ -1406,8 +1406,8 @@ void NutshellGraphicsModule::resize() {
 		}
 
 		VkExtent2D swapchainExtent = {};
-		swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth());
-		swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight());
+		swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSH_MAIN_WINDOW));
+		swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSH_MAIN_WINDOW));
 
 		m_viewport.x = 0.0f;
 		m_viewport.y = 0.0f;
@@ -1471,10 +1471,10 @@ void NutshellGraphicsModule::resize() {
 	}
 }
 
-extern "C" NTSH_MODULE_API NutshellGraphicsModuleInterface * createModule() {
+extern "C" NTSH_MODULE_API NutshellGraphicsModuleInterface* createModule() {
 	return new NutshellGraphicsModule;
 }
 
-extern "C" NTSH_MODULE_API void destroyModule(NutshellGraphicsModuleInterface * m) {
+extern "C" NTSH_MODULE_API void destroyModule(NutshellGraphicsModuleInterface* m) {
 	delete m;
 }
