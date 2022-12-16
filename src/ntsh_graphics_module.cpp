@@ -98,7 +98,7 @@ void NutshellGraphicsModule::init() {
 	// Create surface
 	if (m_windowModule) {
 #if defined(NTSH_OS_WINDOWS)
-		HWND windowHandle = m_windowModule->getNativeHandle();
+		HWND windowHandle = m_windowModule->getNativeHandle(NTSH_MAIN_WINDOW);
 		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.pNext = nullptr;
@@ -293,8 +293,8 @@ void NutshellGraphicsModule::init() {
 		}
 
 		VkExtent2D swapchainExtent = {};
-		swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth());
-		swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight());
+		swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSH_MAIN_WINDOW));
+		swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSH_MAIN_WINDOW));
 
 		m_viewport.x = 0.0f;
 		m_viewport.y = 0.0f;
@@ -1056,7 +1056,7 @@ VkPhysicalDeviceMemoryProperties NutshellGraphicsModule::getMemoryProperties() {
 
 void NutshellGraphicsModule::resize() {
 	if (m_windowModule) {
-		while (m_windowModule->getWidth() == 0 || m_windowModule->getHeight() == 0) {
+		while (m_windowModule->getWidth(NTSH_MAIN_WINDOW) == 0 || m_windowModule->getHeight(NTSH_MAIN_WINDOW) == 0) {
 			m_windowModule->pollEvents();
 		}
 
@@ -1098,8 +1098,8 @@ void NutshellGraphicsModule::resize() {
 		}
 
 		VkExtent2D swapchainExtent = {};
-		swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth());
-		swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight());
+		swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSH_MAIN_WINDOW));
+		swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSH_MAIN_WINDOW));
 
 		m_viewport.x = 0.0f;
 		m_viewport.y = 0.0f;
