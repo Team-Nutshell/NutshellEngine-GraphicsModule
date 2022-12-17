@@ -38,7 +38,7 @@ void NutshellGraphicsModule::init() {
 	commandQueueDesc.NodeMask = 0;
 	NTSH_DX12_CHECK(m_device->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&m_commandQueue)));
 
-	if (m_windowModule) {
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		m_imageCount = 2;
 
 		m_viewport.TopLeftX = 0.0f;
@@ -128,7 +128,7 @@ void NutshellGraphicsModule::init() {
 	m_renderTargets.resize(m_imageCount);
 	m_commandAllocators.resize(m_imageCount);
 	for (uint32_t i = 0; i < m_imageCount; i++) {
-		if (m_windowModule) {
+		if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 			NTSH_DX12_CHECK(m_swapchain->GetBuffer(i, IID_PPV_ARGS(&m_renderTargets[i])));
 		}
 		else {
@@ -243,7 +243,12 @@ void NutshellGraphicsModule::init() {
 void NutshellGraphicsModule::update(double dt) {
 	NTSH_UNUSED(dt);
 
-	if (m_windowModule) {
+	if (m_windowModule && !m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+		// Do not update if the main window got closed
+		return;
+	}
+
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		// Check for window resize
 		if (m_windowModule->getWidth(NTSH_MAIN_WINDOW) != m_savedWidth || m_windowModule->getHeight(NTSH_MAIN_WINDOW) != m_savedHeight) {
 			resize();
@@ -259,7 +264,7 @@ void NutshellGraphicsModule::update(double dt) {
 	m_commandList->RSSetViewports(1, &m_viewport);
 	m_commandList->RSSetScissorRects(1, &m_scissor);
 
-	if (m_windowModule) {
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		m_presentToRenderTargetBarrier = {};
 		m_presentToRenderTargetBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 		m_presentToRenderTargetBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -277,7 +282,7 @@ void NutshellGraphicsModule::update(double dt) {
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	m_commandList->DrawInstanced(3, 1, 0, 0);
 
-	if (m_windowModule) {
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		m_renderTargetToPresentBarrier = {};
 		m_renderTargetToPresentBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 		m_renderTargetToPresentBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -295,7 +300,7 @@ void NutshellGraphicsModule::update(double dt) {
 	m_commandQueue->ExecuteCommandLists(1, commandLists);
 
 	// Present
-	if (m_windowModule) {
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		NTSH_DX12_CHECK(m_swapchain->Present(0, 0));
 	}
 
@@ -303,7 +308,7 @@ void NutshellGraphicsModule::update(double dt) {
 	uint64_t currentFenceValue = m_fenceValues[m_frameIndex];
 	NTSH_DX12_CHECK(m_commandQueue->Signal(m_fence.Get(), currentFenceValue));
 
-	if (m_windowModule) {
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		m_frameIndex = m_swapchain->GetCurrentBackBufferIndex();
 	}
 
@@ -373,7 +378,7 @@ void NutshellGraphicsModule::waitForGPUIdle() {
 }
 
 void NutshellGraphicsModule::resize() {
-	if (m_windowModule) {
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		while (m_windowModule->getWidth(NTSH_MAIN_WINDOW) == 0 || m_windowModule->getHeight(NTSH_MAIN_WINDOW) == 0) {
 			m_windowModule->pollEvents();
 		}
