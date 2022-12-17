@@ -1040,7 +1040,7 @@ void NutshellGraphicsModule::destroy() {
 	}
 
 	// Destroy swapchain
-	if (m_windowModule) {
+	if (m_swapchain != VK_NULL_HANDLE) {
 		for (VkImageView& swapchainImageView : m_swapchainImageViews) {
 			vkDestroyImageView(m_device, swapchainImageView, nullptr);
 		}
@@ -1057,7 +1057,7 @@ void NutshellGraphicsModule::destroy() {
 	vkDestroyDevice(m_device, nullptr);
 
 	// Destroy surface
-	if (m_windowModule) {
+	if (m_surface != VK_NULL_HANDLE) {
 		vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
 	}
 

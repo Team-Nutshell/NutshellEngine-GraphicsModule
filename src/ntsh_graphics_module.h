@@ -80,7 +80,7 @@ private:
 #if defined(NTSH_OS_LINUX)
 	Display* m_display = nullptr;
 #endif
-	VkSurfaceKHR m_surface;
+	VkSurfaceKHR m_surface = VK_NULL_HANDLE;
 
 	VkPhysicalDevice m_physicalDevice;
 	uint32_t m_graphicsQueueIndex;
@@ -90,7 +90,7 @@ private:
 	VkViewport m_viewport;
 	VkRect2D m_scissor;
 
-	VkSwapchainKHR m_swapchain;
+	VkSwapchainKHR m_swapchain = VK_NULL_HANDLE;
 	std::vector<VkImage> m_swapchainImages;
 	std::vector<VkImageView> m_swapchainImageViews;
 	VkFormat m_swapchainFormat;
