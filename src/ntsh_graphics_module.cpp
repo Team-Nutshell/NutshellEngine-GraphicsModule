@@ -9,7 +9,7 @@
 #include <cmath>
 
 void NutshellGraphicsModule::init() {
-	if (m_windowModule) {
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		m_framesInFlight = 2;
 	}
 	else {
@@ -63,7 +63,7 @@ void NutshellGraphicsModule::init() {
 #if defined(NTSH_DEBUG)
 	instanceExtensions.push_back("VK_EXT_debug_utils");
 #endif
-	if (m_windowModule) {
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		instanceExtensions.push_back("VK_KHR_surface");
 		instanceExtensions.push_back("VK_KHR_get_surface_capabilities2");
 #if defined(NTSH_OS_WINDOWS)
@@ -100,7 +100,7 @@ void NutshellGraphicsModule::init() {
 	m_vkCmdEndRenderingKHR = (PFN_vkCmdEndRenderingKHR)vkGetInstanceProcAddr(m_instance, "vkCmdEndRenderingKHR");
 
 	// Create surface
-	if (m_windowModule) {
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 #if defined(NTSH_OS_WINDOWS)
 		HWND windowHandle = m_windowModule->getNativeHandle(NTSH_MAIN_WINDOW);
 		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
@@ -191,7 +191,7 @@ void NutshellGraphicsModule::init() {
 	m_graphicsQueueIndex = 0;
 	for (const VkQueueFamilyProperties& queueFamilyProperty : queueFamilyProperties) {
 		if (queueFamilyProperty.queueCount > 0 && queueFamilyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-			if (m_windowModule) {
+			if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 				VkBool32 presentSupport;
 				vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsQueueIndex, m_surface, &presentSupport);
 				if (presentSupport) {
@@ -255,7 +255,7 @@ void NutshellGraphicsModule::init() {
 		"VK_KHR_depth_stencil_resolve",
 		"VK_KHR_dynamic_rendering",
 		"VK_KHR_maintenance4" };
-	if (m_windowModule) {
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		deviceExtensions.push_back("VK_KHR_swapchain");
 	}
 	deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
@@ -266,7 +266,7 @@ void NutshellGraphicsModule::init() {
 	vkGetDeviceQueue(m_device, m_graphicsQueueIndex, 0, &m_graphicsQueue);
 
 	// Create the swapchain
-	if (m_windowModule) {
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		VkSurfaceCapabilitiesKHR surfaceCapabilities = getSurfaceCapabilities();
 		uint32_t minImageCount = surfaceCapabilities.minImageCount + 1;
 		if (surfaceCapabilities.maxImageCount > 0 && minImageCount > surfaceCapabilities.maxImageCount) {
@@ -487,7 +487,7 @@ void NutshellGraphicsModule::init() {
 	0x00000027,0x00000028,0x00000025,0x00000026,0x00050041,0x0000002a,0x0000002b,0x0000001d,
 	0x0000001e,0x0003003e,0x0000002b,0x00000029,0x000100fd,0x00010038 };
 
-	if (m_windowModule) {
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		m_pipelineRenderingColorFormat = m_swapchainFormat;
 	}
 
@@ -680,7 +680,12 @@ void NutshellGraphicsModule::init() {
 }
 
 void NutshellGraphicsModule::update(double dt) {
-	if (m_windowModule) {
+	if (m_windowModule && !m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+		// Do not update if the main window got closed
+		return;
+	}
+
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		// Update camera
 		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, NtshInputKeyboardKey::R) == NtshInputState::Pressed) {
 			m_mouseMiddleMode = !m_mouseMiddleMode;
@@ -801,7 +806,7 @@ void NutshellGraphicsModule::update(double dt) {
 	}
 
 	uint32_t imageIndex = m_imageCount - 1;
-	if (m_windowModule) {
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		VkResult acquireNextImageResult = vkAcquireNextImageKHR(m_device, m_swapchain, std::numeric_limits<uint64_t>::max(), m_imageAvailableSemaphores[currentFrameInFlight], VK_NULL_HANDLE, &imageIndex);
 		if (acquireNextImageResult == VK_ERROR_OUT_OF_DATE_KHR) {
 			resize();
@@ -846,7 +851,7 @@ void NutshellGraphicsModule::update(double dt) {
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueIndex;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueIndex;
-	if (m_windowModule) {
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		undefinedToColorAttachmentOptimalImageMemoryBarrier.image = m_swapchainImages[imageIndex];
 	}
 	else {
@@ -875,7 +880,7 @@ void NutshellGraphicsModule::update(double dt) {
 	VkRenderingAttachmentInfo renderingAttachmentInfo = {};
 	renderingAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	renderingAttachmentInfo.pNext = nullptr;
-	if (m_windowModule) {
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		renderingAttachmentInfo.imageView = m_swapchainImageViews[imageIndex];
 	}
 	else {
@@ -921,7 +926,7 @@ void NutshellGraphicsModule::update(double dt) {
 	m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[currentFrameInFlight]);
 
 	// Layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-	if (m_windowModule) {
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		VkImageMemoryBarrier2 colorAttachmentOptimalToPresentSrcImageMemoryBarrier = {};
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.pNext = nullptr;
@@ -972,7 +977,7 @@ void NutshellGraphicsModule::update(double dt) {
 	submitInfo.pSignalSemaphores = &m_renderFinishedSemaphores[imageIndex];
 	NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fences[currentFrameInFlight]));
 
-	if (m_windowModule) {
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		VkPresentInfoKHR presentInfo = {};
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		presentInfo.pNext = nullptr;
@@ -1363,7 +1368,7 @@ bool NutshellGraphicsModule::recreateGraphicsPipeline() {
 }
 
 void NutshellGraphicsModule::resize() {
-	if (m_windowModule) {
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		while (m_windowModule->getWidth(NTSH_MAIN_WINDOW) == 0 || m_windowModule->getHeight(NTSH_MAIN_WINDOW) == 0) {
 			m_windowModule->pollEvents();
 		}
