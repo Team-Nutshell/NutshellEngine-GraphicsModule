@@ -1019,8 +1019,8 @@ void NutshellGraphicsModule::resize(size_t index) {
 	}
 
 	std::vector<VkSurfaceFormatKHR> surfaceFormats = getSurfaceFormats(index);
-	m_swapchainFormat = surfaceFormats[index].format;
-	VkColorSpaceKHR swapchainColorSpace = surfaceFormats[index].colorSpace;
+	m_swapchainFormat = surfaceFormats[0].format;
+	VkColorSpaceKHR swapchainColorSpace = surfaceFormats[0].colorSpace;
 	for (const VkSurfaceFormatKHR& surfaceFormat : surfaceFormats) {
 		if (surfaceFormat.format == VK_FORMAT_B8G8R8A8_SRGB && surfaceFormat.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR) {
 			m_swapchainFormat = surfaceFormat.format;
