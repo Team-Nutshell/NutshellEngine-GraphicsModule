@@ -109,7 +109,7 @@ void NutshellGraphicsModule::init() {
 		NTSH_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
 #elif defined(NTSH_OS_LINUX)
 		m_display = XOpenDisplay(NULL);
-		Window windowHandle = m_windowModule->getNativeHandle();
+		Window windowHandle = m_windowModule->getNativeHandle(NTSH_MAIN_WINDOW);
 		VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.pNext = nullptr;
