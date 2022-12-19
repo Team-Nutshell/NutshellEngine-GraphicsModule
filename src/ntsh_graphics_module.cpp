@@ -6,21 +6,6 @@
 void NutshellGraphicsModule::init() {
 	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		m_framesInFlight = 2;
-
-		m_windowIds.resize(2);
-		m_windowIds[0] = NTSH_MAIN_WINDOW;
-		m_windowIds[1] = m_windowModule->open(300, 300, "Secondary Window");
-
-		m_surfaces.resize(2);
-		m_surfaces[0] = VK_NULL_HANDLE;
-		m_surfaces[1] = VK_NULL_HANDLE;
-
-		m_swapchains.resize(2);
-		m_swapchains[0] = VK_NULL_HANDLE;
-		m_swapchains[1] = VK_NULL_HANDLE;
-
-		m_swapchainsImages.resize(2);
-		m_swapchainsImageViews.resize(2);
 	}
 	else {
 		NTSH_MODULE_ERROR(m_name + " requires a window module and at least one open window.", NtshResult::ModuleError);
@@ -107,23 +92,26 @@ void NutshellGraphicsModule::init() {
 	m_vkCmdBeginRenderingKHR = (PFN_vkCmdBeginRenderingKHR)vkGetInstanceProcAddr(m_instance, "vkCmdBeginRenderingKHR");
 	m_vkCmdEndRenderingKHR = (PFN_vkCmdEndRenderingKHR)vkGetInstanceProcAddr(m_instance, "vkCmdEndRenderingKHR");
 
-	// Create surface
+	// Add the main window to the window resources
+	PerWindowResources mainWindowResources;
+	mainWindowResources.windowId = NTSH_MAIN_WINDOW;
+	m_perWindowResources.push_back(mainWindowResources);
+
+	// Create surface for the initial logical device creation
 #if defined(NTSH_OS_WINDOWS)
-	for (size_t i = 0; i < m_windowIds.size(); i++) {
-		HWND windowHandle = m_windowModule->getNativeHandle(m_windowIds[i]);
-		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
-		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-		surfaceCreateInfo.pNext = nullptr;
-		surfaceCreateInfo.flags = 0;
-		surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(GetWindowLongPtr(windowHandle, GWLP_HINSTANCE));
-		surfaceCreateInfo.hwnd = windowHandle;
-		auto createWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateWin32SurfaceKHR");
-		NTSH_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surfaces[i]));
-	}
+	HWND windowHandle = m_windowModule->getNativeHandle(m_perWindowResources[0].windowId);
+	VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
+	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+	surfaceCreateInfo.pNext = nullptr;
+	surfaceCreateInfo.flags = 0;
+	surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(GetWindowLongPtr(windowHandle, GWLP_HINSTANCE));
+	surfaceCreateInfo.hwnd = windowHandle;
+	auto createWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateWin32SurfaceKHR");
+	NTSH_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_perWindowResources[0].surface));
 #elif defined(NTSH_OS_LINUX)
 	for (size_t i = 0; i < m_windowIds.size(); i++) {
 		m_display = XOpenDisplay(NULL);
-		Window windowHandle = m_windowModule->getNativeHandle(m_windowIds[i]);
+		Window windowHandle = m_windowModule->getNativeHandle(m_perWindowResources[0].windowId);
 		VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.pNext = nullptr;
@@ -131,7 +119,7 @@ void NutshellGraphicsModule::init() {
 		surfaceCreateInfo.dpy = m_display;
 		surfaceCreateInfo.window = windowHandle;
 		auto createXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateXlibSurfaceKHR");
-		NTSH_VK_CHECK(createXlibSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surfaces[i]));
+		NTSH_VK_CHECK(createXlibSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_perWindowResources[index].surface));
 	}
 #endif
 
@@ -202,7 +190,7 @@ void NutshellGraphicsModule::init() {
 	for (const VkQueueFamilyProperties& queueFamilyProperty : queueFamilyProperties) {
 		if (queueFamilyProperty.queueCount > 0 && queueFamilyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
 			VkBool32 presentSupport;
-			vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsQueueIndex, m_surfaces[0], &presentSupport);
+			vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsQueueIndex, m_perWindowResources[0].surface, &presentSupport);
 			if (presentSupport) {
 				break;
 			}
@@ -268,105 +256,8 @@ void NutshellGraphicsModule::init() {
 
 	vkGetDeviceQueue(m_device, m_graphicsQueueIndex, 0, &m_graphicsQueue);
 
-	// Create the swapchains
-	for (size_t i = 0; i < m_windowIds.size(); i++) {
-		VkSurfaceCapabilitiesKHR surfaceCapabilities = getSurfaceCapabilities(i);
-		uint32_t minImageCount = surfaceCapabilities.minImageCount + 1;
-		if (surfaceCapabilities.maxImageCount > 0 && minImageCount > surfaceCapabilities.maxImageCount) {
-			minImageCount = surfaceCapabilities.maxImageCount;
-		}
-
-		std::vector<VkSurfaceFormatKHR> surfaceFormats = getSurfaceFormats(i);
-		m_swapchainFormat = surfaceFormats[i].format;
-		VkColorSpaceKHR swapchainColorSpace = surfaceFormats[i].colorSpace;
-		for (const VkSurfaceFormatKHR& surfaceFormat : surfaceFormats) {
-			if (surfaceFormat.format == VK_FORMAT_B8G8R8A8_SRGB && surfaceFormat.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR) {
-				m_swapchainFormat = surfaceFormat.format;
-				swapchainColorSpace = surfaceFormat.colorSpace;
-				break;
-			}
-		}
-
-		std::vector<VkPresentModeKHR> presentModes = getSurfacePresentModes(i);
-		VkPresentModeKHR swapchainPresentMode = VK_PRESENT_MODE_FIFO_KHR;
-		for (const VkPresentModeKHR& presentMode : presentModes) {
-			if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-				swapchainPresentMode = presentMode;
-				break;
-			}
-			else if (presentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
-				swapchainPresentMode = presentMode;
-			}
-		}
-
-		VkExtent2D swapchainExtent = {};
-		swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth(m_windowIds[i]));
-		swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight(m_windowIds[i]));
-
-		VkViewport viewport;
-		viewport.x = 0.0f;
-		viewport.y = 0.0f;
-		viewport.width = static_cast<float>(swapchainExtent.width);
-		viewport.height = static_cast<float>(swapchainExtent.height);
-		viewport.minDepth = 0.0f;
-		viewport.maxDepth = 1.0f;
-		m_viewports.push_back(viewport);
-
-		VkRect2D scissor;
-		scissor.offset.x = 0;
-		scissor.offset.y = 0;
-		scissor.extent.width = swapchainExtent.width;
-		scissor.extent.height = swapchainExtent.height;
-		m_scissors.push_back(scissor);
-
-		VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
-		swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-		swapchainCreateInfo.pNext = nullptr;
-		swapchainCreateInfo.flags = 0;
-		swapchainCreateInfo.surface = m_surfaces[i];
-		swapchainCreateInfo.minImageCount = minImageCount;
-		swapchainCreateInfo.imageFormat = m_swapchainFormat;
-		swapchainCreateInfo.imageColorSpace = swapchainColorSpace;
-		swapchainCreateInfo.imageExtent = swapchainExtent;
-		swapchainCreateInfo.imageArrayLayers = 1;
-		swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-		swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		swapchainCreateInfo.queueFamilyIndexCount = 0;
-		swapchainCreateInfo.pQueueFamilyIndices = nullptr;
-		swapchainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
-		swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-		swapchainCreateInfo.presentMode = swapchainPresentMode;
-		swapchainCreateInfo.clipped = VK_TRUE;
-		swapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
-		NTSH_VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_swapchains[i]));
-
-		NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchains[i], &m_imageCount, nullptr));
-		m_swapchainsImages[i].resize(m_imageCount);
-		NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchains[i], &m_imageCount, m_swapchainsImages[i].data()));
-
-		// Create the swapchain image views
-		m_swapchainsImageViews[i].resize(m_imageCount);
-		for (uint32_t j = 0; j < m_imageCount; j++) {
-			VkImageViewCreateInfo swapchainImageViewCreateInfo = {};
-			swapchainImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			swapchainImageViewCreateInfo.pNext = nullptr;
-			swapchainImageViewCreateInfo.flags = 0;
-			swapchainImageViewCreateInfo.image = m_swapchainsImages[i][j];
-			swapchainImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			swapchainImageViewCreateInfo.format = m_swapchainFormat;
-			swapchainImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
-			swapchainImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
-			swapchainImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
-			swapchainImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
-			swapchainImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			swapchainImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-			swapchainImageViewCreateInfo.subresourceRange.levelCount = 1;
-			swapchainImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-			swapchainImageViewCreateInfo.subresourceRange.layerCount = 1;
-			NTSH_VK_CHECK(vkCreateImageView(m_device, &swapchainImageViewCreateInfo, nullptr, &m_swapchainsImageViews[i][j]));
-		}
-	}
-	
+	// Create the per window resources for the main window
+	createWindowResources(NTSH_MAIN_WINDOW);
 
 	// Create graphics pipeline
 	VkFormat pipelineRenderingColorFormat = m_swapchainFormat;
@@ -502,9 +393,9 @@ void NutshellGraphicsModule::init() {
 	viewportStateCreateInfo.pNext = nullptr;
 	viewportStateCreateInfo.flags = 0;
 	viewportStateCreateInfo.viewportCount = 1;
-	viewportStateCreateInfo.pViewports = &m_viewports[0];
+	viewportStateCreateInfo.pViewports = &m_perWindowResources[0].viewport; // Use the main window's viewport by default as it will be overwritten
 	viewportStateCreateInfo.scissorCount = 1;
-	viewportStateCreateInfo.pScissors = &m_scissors[0];
+	viewportStateCreateInfo.pScissors = &m_perWindowResources[0].scissor; // Use the main window's scissor by default as it will be overwritten
 
 	VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo = {};
 	rasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -618,10 +509,6 @@ void NutshellGraphicsModule::init() {
 	m_renderingCommandBuffers.resize(m_framesInFlight);
 
 	m_fences.resize(m_framesInFlight);
-	m_imageAvailableSemaphores.resize(2);
-	m_imageAvailableSemaphores[0].resize(m_framesInFlight);
-	m_imageAvailableSemaphores[1].resize(m_framesInFlight);
-	m_renderFinishedSemaphores.resize(m_imageCount);
 
 	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
 	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -653,13 +540,6 @@ void NutshellGraphicsModule::init() {
 
 		// Create sync objects
 		NTSH_VK_CHECK(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_fences[i]));
-
-		for (size_t j = 0; j < 2; j++) {
-			NTSH_VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_imageAvailableSemaphores[j][i]));
-		}
-	}
-	for (uint32_t i = 0; i < m_imageCount; i++) {
-		NTSH_VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_renderFinishedSemaphores[i]));
 	}
 
 	// Set current frame-in-flight to 0
@@ -674,9 +554,16 @@ void NutshellGraphicsModule::update(double dt) {
 		return;
 	}
 
-	for (size_t i = 1; i < m_windowIds.size(); i++) {
-		if (!m_windowModule->isOpen(m_windowIds[i])) {
-			destroyWindowResources(i);
+	if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, NtshInputKeyboardKey::Enter) == NtshInputState::Pressed) {
+		createWindowResources(m_windowModule->open(300, 300, "New Window"));
+	}
+
+	for (auto it = m_perWindowResources.begin(); it != m_perWindowResources.end(); ) {
+		if (!m_windowModule->isOpen(it->windowId)) {
+			it = destroyWindowResources(it);
+		}
+		else {
+			it++;
 		}
 	}
 
@@ -693,11 +580,11 @@ void NutshellGraphicsModule::update(double dt) {
 	NTSH_VK_CHECK(vkBeginCommandBuffer(m_renderingCommandBuffers[currentFrameInFlight], &commandBufferBeginInfo));
 
 	std::vector<uint32_t> imageIndices;
-	for (size_t i = 0; i < m_windowIds.size(); i++) {
-		imageIndices.push_back(m_imageCount - 1);
-		VkResult acquireNextImageResult = vkAcquireNextImageKHR(m_device, m_swapchains[i], std::numeric_limits<uint64_t>::max(), m_imageAvailableSemaphores[i][currentFrameInFlight], VK_NULL_HANDLE, &imageIndices[i]);
+	for (size_t i = 0; i < m_perWindowResources.size(); i++) {
+		imageIndices.push_back(m_perWindowResources[i].swapchainImageCount - 1);
+		VkResult acquireNextImageResult = vkAcquireNextImageKHR(m_device, m_perWindowResources[i].swapchain, std::numeric_limits<uint64_t>::max(), m_perWindowResources[i].imageAvailableSemaphores[currentFrameInFlight], VK_NULL_HANDLE, &imageIndices[i]);
 		if (acquireNextImageResult == VK_ERROR_OUT_OF_DATE_KHR) {
-			resize(m_windowIds[i]);
+			resize(i);
 		}
 		else if (acquireNextImageResult != VK_SUCCESS && acquireNextImageResult != VK_SUBOPTIMAL_KHR) {
 			NTSH_MODULE_ERROR("Next swapchain image acquire failed.", NTSH_RESULT_MODULE_ERROR);
@@ -715,7 +602,7 @@ void NutshellGraphicsModule::update(double dt) {
 		undefinedToColorAttachmentOptimalImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		undefinedToColorAttachmentOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueIndex;
 		undefinedToColorAttachmentOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueIndex;
-		undefinedToColorAttachmentOptimalImageMemoryBarrier.image = m_swapchainsImages[i][imageIndices[i]];
+		undefinedToColorAttachmentOptimalImageMemoryBarrier.image = m_perWindowResources[i].swapchainImages[imageIndices[i]];
 		undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
 		undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.levelCount = 1;
@@ -739,7 +626,7 @@ void NutshellGraphicsModule::update(double dt) {
 		VkRenderingAttachmentInfo renderingAttachmentInfo = {};
 		renderingAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 		renderingAttachmentInfo.pNext = nullptr;
-		renderingAttachmentInfo.imageView = m_swapchainsImageViews[i][imageIndices[i]];
+		renderingAttachmentInfo.imageView = m_perWindowResources[i].swapchainImageViews[imageIndices[i]];
 		renderingAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		renderingAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
 		renderingAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
@@ -753,7 +640,7 @@ void NutshellGraphicsModule::update(double dt) {
 		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
 		renderingInfo.pNext = nullptr;
 		renderingInfo.flags = 0;
-		renderingInfo.renderArea = m_scissors[i];
+		renderingInfo.renderArea = m_perWindowResources[i].scissor;
 		renderingInfo.layerCount = 1;
 		renderingInfo.viewMask = 0;
 		renderingInfo.colorAttachmentCount = 1;
@@ -764,8 +651,8 @@ void NutshellGraphicsModule::update(double dt) {
 
 		// Bind graphics pipeline
 		vkCmdBindPipeline(m_renderingCommandBuffers[currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
-		vkCmdSetViewport(m_renderingCommandBuffers[currentFrameInFlight], 0, 1, &m_viewports[i]);
-		vkCmdSetScissor(m_renderingCommandBuffers[currentFrameInFlight], 0, 1, &m_scissors[i]);
+		vkCmdSetViewport(m_renderingCommandBuffers[currentFrameInFlight], 0, 1, &m_perWindowResources[i].viewport);
+		vkCmdSetScissor(m_renderingCommandBuffers[currentFrameInFlight], 0, 1, &m_perWindowResources[i].scissor);
 
 		// Draw
 		vkCmdDraw(m_renderingCommandBuffers[currentFrameInFlight], 3, 1, 0, 0);
@@ -785,7 +672,7 @@ void NutshellGraphicsModule::update(double dt) {
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueIndex;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueIndex;
-		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.image = m_swapchainsImages[i][imageIndices[i]];
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.image = m_perWindowResources[i].swapchainImages[imageIndices[i]];
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.subresourceRange.levelCount = 1;
@@ -813,37 +700,42 @@ void NutshellGraphicsModule::update(double dt) {
 
 	std::vector<VkPipelineStageFlags> waitDstStageMasks;
 	std::vector<VkSemaphore> imageAvailableSemaphores;
-	for (size_t i = 0; i < m_windowIds.size(); i++) {
+	std::vector<VkSemaphore> renderFinishedSemaphores;
+	std::vector<VkSwapchainKHR> swapchains;
+	for (size_t i = 0; i < m_perWindowResources.size(); i++) {
 		waitDstStageMasks.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-		imageAvailableSemaphores.push_back(m_imageAvailableSemaphores[i][currentFrameInFlight]);
+		imageAvailableSemaphores.push_back(m_perWindowResources[i].imageAvailableSemaphores[currentFrameInFlight]);
+		renderFinishedSemaphores.push_back(m_perWindowResources[i].renderFinishedSemaphores[imageIndices[i]]);
+		swapchains.push_back(m_perWindowResources[i].swapchain);
 	};
+
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.pNext = nullptr;
-	submitInfo.waitSemaphoreCount = static_cast<uint32_t>(m_windowIds.size());
+	submitInfo.waitSemaphoreCount = static_cast<uint32_t>(m_perWindowResources.size());
 	submitInfo.pWaitSemaphores = imageAvailableSemaphores.data();
 	submitInfo.pWaitDstStageMask = waitDstStageMasks.data();
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &m_renderingCommandBuffers[currentFrameInFlight];
-	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = &m_renderFinishedSemaphores[imageIndices[0]];
+	submitInfo.signalSemaphoreCount = static_cast<uint32_t>(m_perWindowResources.size());
+	submitInfo.pSignalSemaphores = renderFinishedSemaphores.data();
 	NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fences[currentFrameInFlight]));
 
 	std::vector<VkResult> presentResults;
-	presentResults.resize(m_windowIds.size());
+	presentResults.resize(m_perWindowResources.size());
 	VkPresentInfoKHR presentInfo = {};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.pNext = nullptr;
-	presentInfo.waitSemaphoreCount = 1;
-	presentInfo.pWaitSemaphores = &m_renderFinishedSemaphores[imageIndices[0]];
-	presentInfo.swapchainCount = static_cast<uint32_t>(m_swapchains.size());
-	presentInfo.pSwapchains = m_swapchains.data();
+	presentInfo.waitSemaphoreCount = static_cast<uint32_t>(m_perWindowResources.size());
+	presentInfo.pWaitSemaphores = renderFinishedSemaphores.data();
+	presentInfo.swapchainCount = static_cast<uint32_t>(m_perWindowResources.size());
+	presentInfo.pSwapchains = swapchains.data();
 	presentInfo.pImageIndices = imageIndices.data();
 	presentInfo.pResults = presentResults.data();
 	vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
-	for (size_t i = 0; i < m_windowIds.size(); i++) {
+	for (size_t i = 0; i < m_perWindowResources.size(); i++) {
 		if (presentResults[i] == VK_ERROR_OUT_OF_DATE_KHR || presentResults[i] == VK_SUBOPTIMAL_KHR) {
-			resize(m_windowIds[i]);
+			resize(i);
 		}
 		else if (presentResults[i] != VK_SUCCESS) {
 			NTSH_MODULE_ERROR("Queue present swapchain image failed.", NTSH_RESULT_MODULE_ERROR);
@@ -855,16 +747,9 @@ void NutshellGraphicsModule::update(double dt) {
 
 void NutshellGraphicsModule::destroy() {
 	NTSH_VK_CHECK(vkQueueWaitIdle(m_graphicsQueue));
-
-	// Destroy sync objects
-	for (uint32_t i = 0; i < m_imageCount; i++) {
-		vkDestroySemaphore(m_device, m_renderFinishedSemaphores[i], nullptr);
-	}
+	
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		for (size_t j = 0; j < m_windowIds.size(); j++) {
-			vkDestroySemaphore(m_device, m_imageAvailableSemaphores[j][i], nullptr);
-		}
-
+		// Destroy sync objects
 		vkDestroyFence(m_device, m_fences[i], nullptr);
 
 		// Destroy rendering command pools
@@ -874,31 +759,12 @@ void NutshellGraphicsModule::destroy() {
 	// Destroy graphics pipeline
 	vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
 
-	for (size_t i = 0; i < m_windowIds.size(); i++) {
-		// Destroy swapchain
-		if (m_swapchains[i] != VK_NULL_HANDLE) {
-			for (VkImageView& swapchainImageView : m_swapchainsImageViews[i]) {
-				vkDestroyImageView(m_device, swapchainImageView, nullptr);
-			}
-			vkDestroySwapchainKHR(m_device, m_swapchains[i], nullptr);
-		}
-		// Or destroy the image
-		else {
-			vkDestroyImageView(m_device, m_drawImageView, nullptr);
-			vkDestroyImage(m_device, m_drawImage, nullptr);
-			vkFreeMemory(m_device, m_drawImageMemory, nullptr);
-		}
+	for (auto it = m_perWindowResources.begin(); it != m_perWindowResources.end(); ) {
+		it = destroyWindowResources(it);
 	}
 
 	// Destroy device
 	vkDestroyDevice(m_device, nullptr);
-
-	// Destroy surface
-	for (size_t i = 0; i < m_windowIds.size(); i++) {
-		if (m_surfaces[i] != VK_NULL_HANDLE) {
-			vkDestroySurfaceKHR(m_instance, m_surfaces[i], nullptr);
-		}
-	}
 
 #if defined(NTSH_OS_LINUX)
 	// Close X display
@@ -919,7 +785,7 @@ VkSurfaceCapabilitiesKHR NutshellGraphicsModule::getSurfaceCapabilities(size_t i
 	VkPhysicalDeviceSurfaceInfo2KHR surfaceInfo = {};
 	surfaceInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR;
 	surfaceInfo.pNext = nullptr;
-	surfaceInfo.surface = m_surfaces[index];
+	surfaceInfo.surface = m_perWindowResources[index].surface;
 
 	VkSurfaceCapabilities2KHR surfaceCapabilities;
 	surfaceCapabilities.sType = VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR;
@@ -933,7 +799,7 @@ std::vector<VkSurfaceFormatKHR> NutshellGraphicsModule::getSurfaceFormats(size_t
 	VkPhysicalDeviceSurfaceInfo2KHR surfaceInfo = {};
 	surfaceInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR;
 	surfaceInfo.pNext = nullptr;
-	surfaceInfo.surface = m_surfaces[index];
+	surfaceInfo.surface = m_perWindowResources[index].surface;
 
 	uint32_t surfaceFormatsCount;
 	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfaceFormats2KHR(m_physicalDevice, &surfaceInfo, &surfaceFormatsCount, nullptr));
@@ -954,9 +820,9 @@ std::vector<VkSurfaceFormatKHR> NutshellGraphicsModule::getSurfaceFormats(size_t
 
 std::vector<VkPresentModeKHR> NutshellGraphicsModule::getSurfacePresentModes(size_t index) {
 	uint32_t presentModesCount;
-	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surfaces[index], &presentModesCount, nullptr));
+	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_perWindowResources[index].surface, &presentModesCount, nullptr));
 	std::vector<VkPresentModeKHR> presentModes(presentModesCount);
-	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surfaces[index], &presentModesCount, presentModes.data()));
+	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_perWindowResources[index].surface, &presentModesCount, presentModes.data()));
 
 	return presentModes;
 }
@@ -970,15 +836,178 @@ VkPhysicalDeviceMemoryProperties NutshellGraphicsModule::getMemoryProperties() {
 	return memoryProperties.memoryProperties;
 }
 
+void NutshellGraphicsModule::createWindowResources(NtshWindowId windowId) {
+	size_t index = 0;
+	if (windowId != NTSH_MAIN_WINDOW) {
+		PerWindowResources newWindowResources;
+		newWindowResources.windowId = windowId;
+		m_perWindowResources.push_back(newWindowResources);
+		index = (m_perWindowResources.size() - 1);
+
+		// Create surface
+#if defined(NTSH_OS_WINDOWS)
+		HWND windowHandle = m_windowModule->getNativeHandle(m_perWindowResources[index].windowId);
+		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
+		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+		surfaceCreateInfo.pNext = nullptr;
+		surfaceCreateInfo.flags = 0;
+		surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(GetWindowLongPtr(windowHandle, GWLP_HINSTANCE));
+		surfaceCreateInfo.hwnd = windowHandle;
+		auto createWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateWin32SurfaceKHR");
+		NTSH_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_perWindowResources[index].surface));
+#elif defined(NTSH_OS_LINUX)
+		for (size_t i = 0; i < m_windowIds.size(); i++) {
+			m_display = XOpenDisplay(NULL);
+			Window windowHandle = m_windowModule->getNativeHandle(m_perWindowResources[index].windowId);
+			VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
+			surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
+			surfaceCreateInfo.pNext = nullptr;
+			surfaceCreateInfo.flags = 0;
+			surfaceCreateInfo.dpy = m_display;
+			surfaceCreateInfo.window = windowHandle;
+			auto createXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateXlibSurfaceKHR");
+			NTSH_VK_CHECK(createXlibSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_perWindowResources[index].surface));
+		}
+#endif
+	}
+
+	VkSurfaceCapabilitiesKHR surfaceCapabilities = getSurfaceCapabilities(index);
+	uint32_t minImageCount = surfaceCapabilities.minImageCount + 1;
+	if (surfaceCapabilities.maxImageCount > 0 && minImageCount > surfaceCapabilities.maxImageCount) {
+		minImageCount = surfaceCapabilities.maxImageCount;
+	}
+
+	std::vector<VkSurfaceFormatKHR> surfaceFormats = getSurfaceFormats(index);
+	m_swapchainFormat = surfaceFormats[0].format;
+	VkColorSpaceKHR swapchainColorSpace = surfaceFormats[0].colorSpace;
+	for (const VkSurfaceFormatKHR& surfaceFormat : surfaceFormats) {
+		if (surfaceFormat.format == VK_FORMAT_B8G8R8A8_SRGB && surfaceFormat.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR) {
+			m_swapchainFormat = surfaceFormat.format;
+			swapchainColorSpace = surfaceFormat.colorSpace;
+			break;
+		}
+	}
+
+	std::vector<VkPresentModeKHR> presentModes = getSurfacePresentModes(index);
+	VkPresentModeKHR swapchainPresentMode = VK_PRESENT_MODE_FIFO_KHR;
+	for (const VkPresentModeKHR& presentMode : presentModes) {
+		if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+			swapchainPresentMode = presentMode;
+			break;
+		}
+		else if (presentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
+			swapchainPresentMode = presentMode;
+		}
+	}
+
+	VkExtent2D swapchainExtent = {};
+	swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth(m_perWindowResources[index].windowId));
+	swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight(m_perWindowResources[index].windowId));
+
+	m_perWindowResources[index].viewport.x = 0.0f;
+	m_perWindowResources[index].viewport.y = 0.0f;
+	m_perWindowResources[index].viewport.width = static_cast<float>(swapchainExtent.width);
+	m_perWindowResources[index].viewport.height = static_cast<float>(swapchainExtent.height);
+	m_perWindowResources[index].viewport.minDepth = 0.0f;
+	m_perWindowResources[index].viewport.maxDepth = 1.0f;
+
+	m_perWindowResources[index].scissor.offset.x = 0;
+	m_perWindowResources[index].scissor.offset.y = 0;
+	m_perWindowResources[index].scissor.extent.width = swapchainExtent.width;
+	m_perWindowResources[index].scissor.extent.height = swapchainExtent.height;
+
+	// Create the swapchain
+	VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
+	swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	swapchainCreateInfo.pNext = nullptr;
+	swapchainCreateInfo.flags = 0;
+	swapchainCreateInfo.surface = m_perWindowResources[index].surface;
+	swapchainCreateInfo.minImageCount = minImageCount;
+	swapchainCreateInfo.imageFormat = m_swapchainFormat;
+	swapchainCreateInfo.imageColorSpace = swapchainColorSpace;
+	swapchainCreateInfo.imageExtent = swapchainExtent;
+	swapchainCreateInfo.imageArrayLayers = 1;
+	swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	swapchainCreateInfo.queueFamilyIndexCount = 0;
+	swapchainCreateInfo.pQueueFamilyIndices = nullptr;
+	swapchainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
+	swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	swapchainCreateInfo.presentMode = swapchainPresentMode;
+	swapchainCreateInfo.clipped = VK_TRUE;
+	swapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
+	NTSH_VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_perWindowResources[index].swapchain));
+
+	NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_perWindowResources[index].swapchain, &m_perWindowResources[index].swapchainImageCount, nullptr));
+	m_perWindowResources[index].swapchainImages.resize(m_perWindowResources[index].swapchainImageCount);
+	NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_perWindowResources[index].swapchain, &m_perWindowResources[index].swapchainImageCount, m_perWindowResources[index].swapchainImages.data()));
+
+	// Create the swapchain image views
+	m_perWindowResources[index].swapchainImageViews.resize(m_perWindowResources[index].swapchainImageCount);
+	for (uint32_t j = 0; j < m_perWindowResources[index].swapchainImageCount; j++) {
+		VkImageViewCreateInfo swapchainImageViewCreateInfo = {};
+		swapchainImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		swapchainImageViewCreateInfo.pNext = nullptr;
+		swapchainImageViewCreateInfo.flags = 0;
+		swapchainImageViewCreateInfo.image = m_perWindowResources[index].swapchainImages[j];
+		swapchainImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		swapchainImageViewCreateInfo.format = m_swapchainFormat;
+		swapchainImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+		swapchainImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+		swapchainImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+		swapchainImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+		swapchainImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		swapchainImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+		swapchainImageViewCreateInfo.subresourceRange.levelCount = 1;
+		swapchainImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+		swapchainImageViewCreateInfo.subresourceRange.layerCount = 1;
+		NTSH_VK_CHECK(vkCreateImageView(m_device, &swapchainImageViewCreateInfo, nullptr, &m_perWindowResources[index].swapchainImageViews[j]));
+	}
+
+	// Create the swapchain image available semaphores
+	VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+	semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	semaphoreCreateInfo.pNext = nullptr;
+	semaphoreCreateInfo.flags = 0;
+	m_perWindowResources[index].imageAvailableSemaphores.resize(m_framesInFlight);
+	m_perWindowResources[index].renderFinishedSemaphores.resize(m_perWindowResources[index].swapchainImageCount);
+	for (size_t i = 0; i < m_framesInFlight; i++) {
+		NTSH_VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_perWindowResources[index].imageAvailableSemaphores[i]));
+	}
+	for (uint32_t i = 0; i < m_perWindowResources[index].swapchainImageCount; i++) {
+		NTSH_VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_perWindowResources[index].renderFinishedSemaphores[i]));
+	}
+}
+
+std::vector<PerWindowResources>::iterator NutshellGraphicsModule::destroyWindowResources(const std::vector<PerWindowResources>::iterator perWindowResources) {
+	NTSH_VK_CHECK(vkQueueWaitIdle(m_graphicsQueue));
+
+	for (uint32_t i = 0; i < perWindowResources->swapchainImageCount; i++) {
+		vkDestroySemaphore(m_device, perWindowResources->renderFinishedSemaphores[i], nullptr);
+	}
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		vkDestroySemaphore(m_device, perWindowResources->imageAvailableSemaphores[i], nullptr);
+	}
+
+	for (VkImageView& swapchainImageView : perWindowResources->swapchainImageViews) {
+		vkDestroyImageView(m_device, swapchainImageView, nullptr);
+	}
+	vkDestroySwapchainKHR(m_device, perWindowResources->swapchain, nullptr);
+
+	vkDestroySurfaceKHR(m_instance, perWindowResources->surface, nullptr);
+
+	return m_perWindowResources.erase(perWindowResources);
+}
+
 void NutshellGraphicsModule::resize(size_t index) {
-	while (m_windowModule->getWidth(m_windowIds[index]) == 0 || m_windowModule->getHeight(m_windowIds[index]) == 0) {
+	while (m_windowModule->getWidth(m_perWindowResources[index].windowId) == 0 || m_windowModule->getHeight(m_perWindowResources[index].windowId) == 0) {
 		m_windowModule->pollEvents();
 	}
 
 	NTSH_VK_CHECK(vkQueueWaitIdle(m_graphicsQueue));
 
 	// Destroy swapchain image views
-	for (VkImageView& swapchainImageView : m_swapchainsImageViews[index]) {
+	for (VkImageView& swapchainImageView : m_perWindowResources[index].swapchainImageViews) {
 		vkDestroyImageView(m_device, swapchainImageView, nullptr);
 	}
 
@@ -1013,26 +1042,26 @@ void NutshellGraphicsModule::resize(size_t index) {
 	}
 
 	VkExtent2D swapchainExtent = {};
-	swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth(m_windowIds[index]));
-	swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight(m_windowIds[index]));
+	swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth(m_perWindowResources[index].windowId));
+	swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight(m_perWindowResources[index].windowId));
 
-	m_viewports[index].x = 0.0f;
-	m_viewports[index].y = 0.0f;
-	m_viewports[index].width = static_cast<float>(swapchainExtent.width);
-	m_viewports[index].height = static_cast<float>(swapchainExtent.height);
-	m_viewports[index].minDepth = 0.0f;
-	m_viewports[index].maxDepth = 1.0f;
+	m_perWindowResources[index].viewport.x = 0.0f;
+	m_perWindowResources[index].viewport.y = 0.0f;
+	m_perWindowResources[index].viewport.width = static_cast<float>(swapchainExtent.width);
+	m_perWindowResources[index].viewport.height = static_cast<float>(swapchainExtent.height);
+	m_perWindowResources[index].viewport.minDepth = 0.0f;
+	m_perWindowResources[index].viewport.maxDepth = 1.0f;
 
-	m_scissors[index].offset.x = 0;
-	m_scissors[index].offset.y = 0;
-	m_scissors[index].extent.width = swapchainExtent.width;
-	m_scissors[index].extent.height = swapchainExtent.height;
+	m_perWindowResources[index].scissor.offset.x = 0;
+	m_perWindowResources[index].scissor.offset.y = 0;
+	m_perWindowResources[index].scissor.extent.width = swapchainExtent.width;
+	m_perWindowResources[index].scissor.extent.height = swapchainExtent.height;
 
 	VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
 	swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	swapchainCreateInfo.pNext = nullptr;
 	swapchainCreateInfo.flags = 0;
-	swapchainCreateInfo.surface = m_surfaces[index];
+	swapchainCreateInfo.surface = m_perWindowResources[index].surface;
 	swapchainCreateInfo.minImageCount = minImageCount;
 	swapchainCreateInfo.imageFormat = m_swapchainFormat;
 	swapchainCreateInfo.imageColorSpace = swapchainColorSpace;
@@ -1046,22 +1075,22 @@ void NutshellGraphicsModule::resize(size_t index) {
 	swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 	swapchainCreateInfo.presentMode = swapchainPresentMode;
 	swapchainCreateInfo.clipped = VK_TRUE;
-	VkSwapchainKHR oldSwapchain = m_swapchains[index];
+	VkSwapchainKHR oldSwapchain = m_perWindowResources[index].swapchain;
 	swapchainCreateInfo.oldSwapchain = oldSwapchain;
-	NTSH_VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_swapchains[index]));
+	NTSH_VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_perWindowResources[index].swapchain));
 
-	NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchains[index], &m_imageCount, nullptr));
-	m_swapchainsImages.resize(m_imageCount);
-	NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchains[index], &m_imageCount, m_swapchainsImages[index].data()));
+	NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_perWindowResources[index].swapchain, &m_perWindowResources[index].swapchainImageCount, nullptr));
+	m_perWindowResources[index].swapchainImages.resize(m_perWindowResources[index].swapchainImageCount);
+	NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_perWindowResources[index].swapchain, &m_perWindowResources[index].swapchainImageCount, m_perWindowResources[index].swapchainImages.data()));
 
 	// Create the swapchain image views
-	m_swapchainsImageViews[index].resize(m_imageCount);
-	for (uint32_t i = 0; i < m_imageCount; i++) {
+	m_perWindowResources[index].swapchainImageViews.resize(m_perWindowResources[index].swapchainImageCount);
+	for (uint32_t i = 0; i < m_perWindowResources[index].swapchainImageCount; i++) {
 		VkImageViewCreateInfo swapchainImageViewCreateInfo = {};
 		swapchainImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		swapchainImageViewCreateInfo.pNext = nullptr;
 		swapchainImageViewCreateInfo.flags = 0;
-		swapchainImageViewCreateInfo.image = m_swapchainsImages[index][i];
+		swapchainImageViewCreateInfo.image = m_perWindowResources[index].swapchainImages[i];
 		swapchainImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 		swapchainImageViewCreateInfo.format = m_swapchainFormat;
 		swapchainImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
@@ -1073,28 +1102,8 @@ void NutshellGraphicsModule::resize(size_t index) {
 		swapchainImageViewCreateInfo.subresourceRange.levelCount = 1;
 		swapchainImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 		swapchainImageViewCreateInfo.subresourceRange.layerCount = 1;
-		NTSH_VK_CHECK(vkCreateImageView(m_device, &swapchainImageViewCreateInfo, nullptr, &m_swapchainsImageViews[index][i]));
+		NTSH_VK_CHECK(vkCreateImageView(m_device, &swapchainImageViewCreateInfo, nullptr, &m_perWindowResources[index].swapchainImageViews[i]));
 	}
-}
-
-void NutshellGraphicsModule::destroyWindowResources(size_t index) {
-	NTSH_VK_CHECK(vkQueueWaitIdle(m_graphicsQueue));
-
-	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		vkDestroySemaphore(m_device, m_imageAvailableSemaphores[index][i], nullptr);
-	}
-
-	for (VkImageView& swapchainImageView : m_swapchainsImageViews[index]) {
-		vkDestroyImageView(m_device, swapchainImageView, nullptr);
-	}
-	vkDestroySwapchainKHR(m_device, m_swapchains[index], nullptr);
-
-	vkDestroySurfaceKHR(m_instance, m_surfaces[index], nullptr);
-
-	m_windowIds.erase(m_windowIds.begin() + index);
-	m_swapchainsImageViews.erase(m_swapchainsImageViews.begin() + index);
-	m_swapchains.erase(m_swapchains.begin() + index);
-	m_surfaces.erase(m_surfaces.begin() + index);
 }
 
 extern "C" NTSH_MODULE_API NutshellGraphicsModuleInterface * createModule() {
