@@ -554,7 +554,7 @@ void NutshellGraphicsModule::update(double dt) {
 		return;
 	}
 
-	if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, NtshInputKeyboardKey::Enter) == NtshInputState::Pressed) {
+	if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, NtshInputKeyboardKey::Space) == NtshInputState::Pressed) {
 		createWindowResources(m_windowModule->open(300, 300, "New Window"));
 	}
 
