@@ -303,17 +303,21 @@ void NutshellGraphicsModule::init() {
 		swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth(m_windowIds[i]));
 		swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight(m_windowIds[i]));
 
-		m_viewport.x = 0.0f;
-		m_viewport.y = 0.0f;
-		m_viewport.width = static_cast<float>(swapchainExtent.width);
-		m_viewport.height = static_cast<float>(swapchainExtent.height);
-		m_viewport.minDepth = 0.0f;
-		m_viewport.maxDepth = 1.0f;
+		VkViewport viewport;
+		viewport.x = 0.0f;
+		viewport.y = 0.0f;
+		viewport.width = static_cast<float>(swapchainExtent.width);
+		viewport.height = static_cast<float>(swapchainExtent.height);
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+		m_viewports.push_back(viewport);
 
-		m_scissor.offset.x = 0;
-		m_scissor.offset.y = 0;
-		m_scissor.extent.width = swapchainExtent.width;
-		m_scissor.extent.height = swapchainExtent.height;
+		VkRect2D scissor;
+		scissor.offset.x = 0;
+		scissor.offset.y = 0;
+		scissor.extent.width = swapchainExtent.width;
+		scissor.extent.height = swapchainExtent.height;
+		m_scissors.push_back(scissor);
 
 		VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
 		swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -498,9 +502,9 @@ void NutshellGraphicsModule::init() {
 	viewportStateCreateInfo.pNext = nullptr;
 	viewportStateCreateInfo.flags = 0;
 	viewportStateCreateInfo.viewportCount = 1;
-	viewportStateCreateInfo.pViewports = &m_viewport;
+	viewportStateCreateInfo.pViewports = &m_viewports[0];
 	viewportStateCreateInfo.scissorCount = 1;
-	viewportStateCreateInfo.pScissors = &m_scissor;
+	viewportStateCreateInfo.pScissors = &m_scissors[0];
 
 	VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo = {};
 	rasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -614,7 +618,9 @@ void NutshellGraphicsModule::init() {
 	m_renderingCommandBuffers.resize(m_framesInFlight);
 
 	m_fences.resize(m_framesInFlight);
-	m_imageAvailableSemaphores.resize(m_framesInFlight);
+	m_imageAvailableSemaphores.resize(2);
+	m_imageAvailableSemaphores[0].resize(m_framesInFlight);
+	m_imageAvailableSemaphores[1].resize(m_framesInFlight);
 	m_renderFinishedSemaphores.resize(m_imageCount);
 
 	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
@@ -648,7 +654,9 @@ void NutshellGraphicsModule::init() {
 		// Create sync objects
 		NTSH_VK_CHECK(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_fences[i]));
 
-		NTSH_VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_imageAvailableSemaphores[i]));
+		for (size_t j = 0; j < 2; j++) {
+			NTSH_VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_imageAvailableSemaphores[j][i]));
+		}
 	}
 	for (uint32_t i = 0; i < m_imageCount; i++) {
 		NTSH_VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_renderFinishedSemaphores[i]));
@@ -687,7 +695,7 @@ void NutshellGraphicsModule::update(double dt) {
 	std::vector<uint32_t> imageIndices;
 	for (size_t i = 0; i < m_windowIds.size(); i++) {
 		imageIndices.push_back(m_imageCount - 1);
-		VkResult acquireNextImageResult = vkAcquireNextImageKHR(m_device, m_swapchains[i], std::numeric_limits<uint64_t>::max(), m_imageAvailableSemaphores[currentFrameInFlight], VK_NULL_HANDLE, &imageIndices[i]);
+		VkResult acquireNextImageResult = vkAcquireNextImageKHR(m_device, m_swapchains[i], std::numeric_limits<uint64_t>::max(), m_imageAvailableSemaphores[i][currentFrameInFlight], VK_NULL_HANDLE, &imageIndices[i]);
 		if (acquireNextImageResult == VK_ERROR_OUT_OF_DATE_KHR) {
 			resize(m_windowIds[i]);
 		}
@@ -745,7 +753,7 @@ void NutshellGraphicsModule::update(double dt) {
 		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
 		renderingInfo.pNext = nullptr;
 		renderingInfo.flags = 0;
-		renderingInfo.renderArea = m_scissor;
+		renderingInfo.renderArea = m_scissors[i];
 		renderingInfo.layerCount = 1;
 		renderingInfo.viewMask = 0;
 		renderingInfo.colorAttachmentCount = 1;
@@ -756,8 +764,8 @@ void NutshellGraphicsModule::update(double dt) {
 
 		// Bind graphics pipeline
 		vkCmdBindPipeline(m_renderingCommandBuffers[currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
-		vkCmdSetViewport(m_renderingCommandBuffers[currentFrameInFlight], 0, 1, &m_viewport);
-		vkCmdSetScissor(m_renderingCommandBuffers[currentFrameInFlight], 0, 1, &m_scissor);
+		vkCmdSetViewport(m_renderingCommandBuffers[currentFrameInFlight], 0, 1, &m_viewports[i]);
+		vkCmdSetScissor(m_renderingCommandBuffers[currentFrameInFlight], 0, 1, &m_scissors[i]);
 
 		// Draw
 		vkCmdDraw(m_renderingCommandBuffers[currentFrameInFlight], 3, 1, 0, 0);
@@ -796,26 +804,33 @@ void NutshellGraphicsModule::update(double dt) {
 		colorAttachmentOptimalToPresentSrcDependencyInfo.pImageMemoryBarriers = &colorAttachmentOptimalToPresentSrcImageMemoryBarrier;
 
 		m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[currentFrameInFlight], &colorAttachmentOptimalToPresentSrcDependencyInfo);
-
-		// End command buffer recording
-		NTSH_VK_CHECK(vkEndCommandBuffer(m_renderingCommandBuffers[currentFrameInFlight]));
 	}
+
+	// End command buffer recording
+	NTSH_VK_CHECK(vkEndCommandBuffer(m_renderingCommandBuffers[currentFrameInFlight]));
 
 	NTSH_VK_CHECK(vkResetFences(m_device, 1, &m_fences[currentFrameInFlight]));
 
-	VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	std::vector<VkPipelineStageFlags> waitDstStageMasks;
+	std::vector<VkSemaphore> imageAvailableSemaphores;
+	for (size_t i = 0; i < m_windowIds.size(); i++) {
+		waitDstStageMasks.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+		imageAvailableSemaphores.push_back(m_imageAvailableSemaphores[i][currentFrameInFlight]);
+	};
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.pNext = nullptr;
-	submitInfo.waitSemaphoreCount = 1;
-	submitInfo.pWaitSemaphores = &m_imageAvailableSemaphores[currentFrameInFlight];
-	submitInfo.pWaitDstStageMask = &waitDstStageMask;
+	submitInfo.waitSemaphoreCount = static_cast<uint32_t>(m_windowIds.size());
+	submitInfo.pWaitSemaphores = imageAvailableSemaphores.data();
+	submitInfo.pWaitDstStageMask = waitDstStageMasks.data();
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &m_renderingCommandBuffers[currentFrameInFlight];
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = &m_renderFinishedSemaphores[imageIndices[0]];
 	NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fences[currentFrameInFlight]));
 
+	std::vector<VkResult> presentResults;
+	presentResults.resize(m_windowIds.size());
 	VkPresentInfoKHR presentInfo = {};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.pNext = nullptr;
@@ -824,10 +839,15 @@ void NutshellGraphicsModule::update(double dt) {
 	presentInfo.swapchainCount = static_cast<uint32_t>(m_swapchains.size());
 	presentInfo.pSwapchains = m_swapchains.data();
 	presentInfo.pImageIndices = imageIndices.data();
-	presentInfo.pResults = nullptr;
-	VkResult queuePresentResult = vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
-	if (queuePresentResult != VK_SUCCESS) {
-		NTSH_MODULE_ERROR("Queue present swapchain image failed.", NTSH_RESULT_MODULE_ERROR);
+	presentInfo.pResults = presentResults.data();
+	vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
+	for (size_t i = 0; i < m_windowIds.size(); i++) {
+		if (presentResults[i] == VK_ERROR_OUT_OF_DATE_KHR || presentResults[i] == VK_SUBOPTIMAL_KHR) {
+			resize(m_windowIds[i]);
+		}
+		else if (presentResults[i] != VK_SUCCESS) {
+			NTSH_MODULE_ERROR("Queue present swapchain image failed.", NTSH_RESULT_MODULE_ERROR);
+		}
 	}
 
 	currentFrameInFlight = (currentFrameInFlight + 1) % m_framesInFlight;
@@ -841,7 +861,9 @@ void NutshellGraphicsModule::destroy() {
 		vkDestroySemaphore(m_device, m_renderFinishedSemaphores[i], nullptr);
 	}
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		vkDestroySemaphore(m_device, m_imageAvailableSemaphores[i], nullptr);
+		for (size_t j = 0; j < m_windowIds.size(); j++) {
+			vkDestroySemaphore(m_device, m_imageAvailableSemaphores[j][i], nullptr);
+		}
 
 		vkDestroyFence(m_device, m_fences[i], nullptr);
 
@@ -994,17 +1016,17 @@ void NutshellGraphicsModule::resize(size_t index) {
 	swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth(m_windowIds[index]));
 	swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight(m_windowIds[index]));
 
-	m_viewport.x = 0.0f;
-	m_viewport.y = 0.0f;
-	m_viewport.width = static_cast<float>(swapchainExtent.width);
-	m_viewport.height = static_cast<float>(swapchainExtent.height);
-	m_viewport.minDepth = 0.0f;
-	m_viewport.maxDepth = 1.0f;
+	m_viewports[index].x = 0.0f;
+	m_viewports[index].y = 0.0f;
+	m_viewports[index].width = static_cast<float>(swapchainExtent.width);
+	m_viewports[index].height = static_cast<float>(swapchainExtent.height);
+	m_viewports[index].minDepth = 0.0f;
+	m_viewports[index].maxDepth = 1.0f;
 
-	m_scissor.offset.x = 0;
-	m_scissor.offset.y = 0;
-	m_scissor.extent.width = swapchainExtent.width;
-	m_scissor.extent.height = swapchainExtent.height;
+	m_scissors[index].offset.x = 0;
+	m_scissors[index].offset.y = 0;
+	m_scissors[index].extent.width = swapchainExtent.width;
+	m_scissors[index].extent.height = swapchainExtent.height;
 
 	VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
 	swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -1057,6 +1079,10 @@ void NutshellGraphicsModule::resize(size_t index) {
 
 void NutshellGraphicsModule::destroyWindowResources(size_t index) {
 	NTSH_VK_CHECK(vkQueueWaitIdle(m_graphicsQueue));
+
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		vkDestroySemaphore(m_device, m_imageAvailableSemaphores[index][i], nullptr);
+	}
 
 	for (VkImageView& swapchainImageView : m_swapchainsImageViews[index]) {
 		vkDestroyImageView(m_device, swapchainImageView, nullptr);

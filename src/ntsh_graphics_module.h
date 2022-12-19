@@ -70,14 +70,15 @@ private:
 	VkQueue m_graphicsQueue;
 	VkDevice m_device;
 
-	VkViewport m_viewport;
-	VkRect2D m_scissor;
+	std::vector<VkViewport> m_viewports;
+	std::vector<VkRect2D> m_scissors;
 
 	std::vector<NtshWindowId> m_windowIds;
 	std::vector<VkSurfaceKHR> m_surfaces;
 	std::vector<VkSwapchainKHR> m_swapchains;
 	std::vector<std::vector<VkImage>> m_swapchainsImages;
 	std::vector<std::vector<VkImageView>> m_swapchainsImageViews;
+	std::vector<std::vector<VkSemaphore>> m_imageAvailableSemaphores;
 	VkFormat m_swapchainFormat;
 
 	VkImage m_drawImage;
@@ -90,7 +91,6 @@ private:
 	std::vector<VkCommandBuffer> m_renderingCommandBuffers;
 
 	std::vector<VkFence> m_fences;
-	std::vector<VkSemaphore> m_imageAvailableSemaphores;
 	std::vector<VkSemaphore> m_renderFinishedSemaphores;
 
 	PFN_vkCmdBeginRenderingKHR m_vkCmdBeginRenderingKHR;
