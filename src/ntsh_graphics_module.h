@@ -35,6 +35,19 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBits
 	return VK_FALSE;
 }
 
+struct PerWindowResources {
+	NtshWindowId windowId;
+	VkSurfaceKHR surface = VK_NULL_HANDLE;
+	VkSwapchainKHR swapchain = VK_NULL_HANDLE;
+	uint32_t swapchainImageCount;
+	std::vector<VkImage> swapchainImages;
+	std::vector<VkImageView> swapchainImageViews;
+	std::vector<VkSemaphore> renderFinishedSemaphores;
+	std::vector<VkSemaphore> imageAvailableSemaphores;
+	VkViewport viewport;
+	VkRect2D scissor;
+};
+
 class NutshellGraphicsModule : public NutshellGraphicsModuleInterface {
 public:
 	NutshellGraphicsModule() : NutshellGraphicsModuleInterface("Nutshell Graphics Vulkan Multi-Window Module") {}
@@ -51,9 +64,10 @@ private:
 
 	VkPhysicalDeviceMemoryProperties getMemoryProperties();
 
-	// On window resize
+	// Per window functions
+	void createWindowResources(NtshWindowId windowId);
+	std::vector<PerWindowResources>::iterator destroyWindowResources(const std::vector<PerWindowResources>::iterator perWindowResources);
 	void resize(size_t index);
-	void destroyWindowResources(size_t index);
 
 private:
 	VkInstance m_instance;
@@ -70,15 +84,7 @@ private:
 	VkQueue m_graphicsQueue;
 	VkDevice m_device;
 
-	std::vector<VkViewport> m_viewports;
-	std::vector<VkRect2D> m_scissors;
-
-	std::vector<NtshWindowId> m_windowIds;
-	std::vector<VkSurfaceKHR> m_surfaces;
-	std::vector<VkSwapchainKHR> m_swapchains;
-	std::vector<std::vector<VkImage>> m_swapchainsImages;
-	std::vector<std::vector<VkImageView>> m_swapchainsImageViews;
-	std::vector<std::vector<VkSemaphore>> m_imageAvailableSemaphores;
+	std::vector<PerWindowResources> m_perWindowResources;
 	VkFormat m_swapchainFormat;
 
 	VkImage m_drawImage;
@@ -91,13 +97,11 @@ private:
 	std::vector<VkCommandBuffer> m_renderingCommandBuffers;
 
 	std::vector<VkFence> m_fences;
-	std::vector<VkSemaphore> m_renderFinishedSemaphores;
 
 	PFN_vkCmdBeginRenderingKHR m_vkCmdBeginRenderingKHR;
 	PFN_vkCmdEndRenderingKHR m_vkCmdEndRenderingKHR;
 	PFN_vkCmdPipelineBarrier2KHR m_vkCmdPipelineBarrier2KHR;
-
-	uint32_t m_imageCount;
+	
 	uint32_t m_framesInFlight;
 	uint32_t currentFrameInFlight;
 };
