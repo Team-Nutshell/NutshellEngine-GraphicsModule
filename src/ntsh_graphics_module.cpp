@@ -1104,10 +1104,10 @@ void NutshellGraphicsModule::resize(size_t index) {
 	}
 }
 
-extern "C" NTSH_MODULE_API NutshellGraphicsModuleInterface * createModule() {
+extern "C" NTSH_MODULE_API NutshellGraphicsModuleInterface* createModule() {
 	return new NutshellGraphicsModule;
 }
 
-extern "C" NTSH_MODULE_API void destroyModule(NutshellGraphicsModuleInterface * m) {
+extern "C" NTSH_MODULE_API void destroyModule(NutshellGraphicsModuleInterface* m) {
 	delete m;
 }
