@@ -90,11 +90,6 @@ void NutshellGraphicsModule::init() {
 	NTSH_VK_CHECK(createDebugUtilsMessengerEXT(m_instance, &debugMessengerCreateInfo, nullptr, &m_debugMessenger));
 #endif
 
-	// Get functions
-	m_vkCmdPipelineBarrier2KHR = (PFN_vkCmdPipelineBarrier2KHR)vkGetInstanceProcAddr(m_instance, "vkCmdPipelineBarrier2KHR");
-	m_vkCmdBeginRenderingKHR = (PFN_vkCmdBeginRenderingKHR)vkGetInstanceProcAddr(m_instance, "vkCmdBeginRenderingKHR");
-	m_vkCmdEndRenderingKHR = (PFN_vkCmdEndRenderingKHR)vkGetInstanceProcAddr(m_instance, "vkCmdEndRenderingKHR");
-
 	// Create surface
 	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 #if defined(NTSH_OS_WINDOWS)
@@ -233,19 +228,8 @@ void NutshellGraphicsModule::init() {
 	deviceCreateInfo.pNext = &physicalDeviceSynchronization2Features;
 	deviceCreateInfo.queueCreateInfoCount = 1;
 	deviceCreateInfo.pQueueCreateInfos = &deviceQueueCreateInfo;
-#if defined(NTSH_DEBUG)
-	if (foundValidationLayer) {
-		deviceCreateInfo.enabledLayerCount = 1;
-		deviceCreateInfo.ppEnabledLayerNames = explicitLayers.data();
-	}
-	else {
-		deviceCreateInfo.enabledLayerCount = 0;
-		deviceCreateInfo.ppEnabledLayerNames = nullptr;
-	}
-#else
 	deviceCreateInfo.enabledLayerCount = 0;
 	deviceCreateInfo.ppEnabledLayerNames = nullptr;
-#endif
 	std::vector<const char*> deviceExtensions = { "VK_KHR_synchronization2",
 		"VK_KHR_create_renderpass2",
 		"VK_KHR_depth_stencil_resolve", 
@@ -260,6 +244,11 @@ void NutshellGraphicsModule::init() {
 	NTSH_VK_CHECK(vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device));
 
 	vkGetDeviceQueue(m_device, m_graphicsQueueIndex, 0, &m_graphicsQueue);
+
+	// Get functions
+	m_vkCmdPipelineBarrier2KHR = (PFN_vkCmdPipelineBarrier2KHR)vkGetDeviceProcAddr(m_device, "vkCmdPipelineBarrier2KHR");
+	m_vkCmdBeginRenderingKHR = (PFN_vkCmdBeginRenderingKHR)vkGetDeviceProcAddr(m_device, "vkCmdBeginRenderingKHR");
+	m_vkCmdEndRenderingKHR = (PFN_vkCmdEndRenderingKHR)vkGetDeviceProcAddr(m_device, "vkCmdEndRenderingKHR");
 
 	// Create the swapchain
 	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
