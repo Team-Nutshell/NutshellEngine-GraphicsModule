@@ -7,7 +7,7 @@ Place ``raymarching.frag``, ``raymarching_helper.glsl`` and ``scene.glsl``, foun
 
 ``raymarching.frag``, ``raymarching_helper.glsl`` and ``scene.glsl`` can be edited in real-time and saving one of them will automatically recompile the shader and the pipeline.
 
-- ``raymarching.frag`` is the fragment shader and contains the ``main`` function, the description of the scene and the ``raymarch`` function.
+- ``raymarching.frag`` is the fragment shader and contains the ``main`` function, the ``raymarch`` function and the lighting functions.
 - ``raymarching_helper.glsl`` is included by ``raymarching.frag`` and contains some random and noise functions, basic shape functions, combination operators and values that can be used in the raymarching.
 - ``scene.glsl`` is included by ``raymarching.frag`` and contains the scene, with objects, materials, camera and lights, used to draw.
 
