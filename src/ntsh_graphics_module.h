@@ -103,5 +103,5 @@ private:
 	PFN_vkCmdPipelineBarrier2KHR m_vkCmdPipelineBarrier2KHR;
 	
 	uint32_t m_framesInFlight;
-	uint32_t currentFrameInFlight;
+	uint32_t m_currentFrameInFlight;
 };
