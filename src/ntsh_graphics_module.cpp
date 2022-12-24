@@ -579,11 +579,11 @@ void NutshellGraphicsModule::init() {
 	m_depthStencilStateCreateInfo.maxDepthBounds = 1.0f;
 
 	m_colorBlendAttachmentState.blendEnable = VK_FALSE;
-	m_colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-	m_colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	m_colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	m_colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
 	m_colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
-	m_colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-	m_colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	m_colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	m_colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 	m_colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
 	m_colorBlendAttachmentState.colorWriteMask = { VK_COLOR_COMPONENT_R_BIT |
 		VK_COLOR_COMPONENT_G_BIT |
