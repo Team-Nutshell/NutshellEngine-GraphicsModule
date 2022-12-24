@@ -722,7 +722,7 @@ void NutshellGraphicsModule::init() {
 	}
 
 	// Set current frame-in-flight to 0
-	currentFrameInFlight = 0;
+	m_currentFrameInFlight = 0;
 }
 
 void NutshellGraphicsModule::update(double dt) {
@@ -733,11 +733,11 @@ void NutshellGraphicsModule::update(double dt) {
 		return;
 	}
 
-	NTSH_VK_CHECK(vkWaitForFences(m_device, 1, &m_fences[currentFrameInFlight], VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSH_VK_CHECK(vkWaitForFences(m_device, 1, &m_fences[m_currentFrameInFlight], VK_TRUE, std::numeric_limits<uint64_t>::max()));
 
 	uint32_t imageIndex = m_imageCount - 1;
 	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
-		VkResult acquireNextImageResult = vkAcquireNextImageKHR(m_device, m_swapchain, std::numeric_limits<uint64_t>::max(), m_imageAvailableSemaphores[currentFrameInFlight], VK_NULL_HANDLE, &imageIndex);
+		VkResult acquireNextImageResult = vkAcquireNextImageKHR(m_device, m_swapchain, std::numeric_limits<uint64_t>::max(), m_imageAvailableSemaphores[m_currentFrameInFlight], VK_NULL_HANDLE, &imageIndex);
 		if (acquireNextImageResult == VK_ERROR_OUT_OF_DATE_KHR) {
 			resize();
 		}
@@ -755,19 +755,19 @@ void NutshellGraphicsModule::update(double dt) {
 		emptySignalSubmitInfo.commandBufferCount = 0;
 		emptySignalSubmitInfo.pCommandBuffers = nullptr;
 		emptySignalSubmitInfo.signalSemaphoreCount = 1;
-		emptySignalSubmitInfo.pSignalSemaphores = &m_imageAvailableSemaphores[currentFrameInFlight];
+		emptySignalSubmitInfo.pSignalSemaphores = &m_imageAvailableSemaphores[m_currentFrameInFlight];
 		NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptySignalSubmitInfo, VK_NULL_HANDLE));
 	}
 
 	// Record rendering commands
-	NTSH_VK_CHECK(vkResetCommandPool(m_device, m_renderingCommandPools[currentFrameInFlight], 0));
+	NTSH_VK_CHECK(vkResetCommandPool(m_device, m_renderingCommandPools[m_currentFrameInFlight], 0));
 
 	// Begin command buffer recording
 	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
 	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	commandBufferBeginInfo.pNext = nullptr;
 	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-	NTSH_VK_CHECK(vkBeginCommandBuffer(m_renderingCommandBuffers[currentFrameInFlight], &commandBufferBeginInfo));
+	NTSH_VK_CHECK(vkBeginCommandBuffer(m_renderingCommandBuffers[m_currentFrameInFlight], &commandBufferBeginInfo));
 
 	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
 	VkImageMemoryBarrier2 undefinedToColorAttachmentOptimalImageMemoryBarrier = {};
@@ -804,7 +804,7 @@ void NutshellGraphicsModule::update(double dt) {
 	undefinedToColorAttachmentOptimalDependencyInfo.imageMemoryBarrierCount = 1;
 	undefinedToColorAttachmentOptimalDependencyInfo.pImageMemoryBarriers = &undefinedToColorAttachmentOptimalImageMemoryBarrier;
 
-	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[currentFrameInFlight], &undefinedToColorAttachmentOptimalDependencyInfo);
+	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &undefinedToColorAttachmentOptimalDependencyInfo);
 
 	// Begin rendering
 	VkRenderingAttachmentInfo renderingAttachmentInfo = {};
@@ -836,18 +836,18 @@ void NutshellGraphicsModule::update(double dt) {
 	renderingInfo.pColorAttachments = &renderingAttachmentInfo;
 	renderingInfo.pDepthAttachment = nullptr;
 	renderingInfo.pStencilAttachment = nullptr;
-	m_vkCmdBeginRenderingKHR(m_renderingCommandBuffers[currentFrameInFlight], &renderingInfo);
+	m_vkCmdBeginRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight], &renderingInfo);
 
 	// Bind graphics pipeline
-	vkCmdBindPipeline(m_renderingCommandBuffers[currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
-	vkCmdSetViewport(m_renderingCommandBuffers[currentFrameInFlight], 0, 1, &m_viewport);
-	vkCmdSetScissor(m_renderingCommandBuffers[currentFrameInFlight], 0, 1, &m_scissor);
+	vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+	vkCmdSetViewport(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_viewport);
+	vkCmdSetScissor(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_scissor);
 
 	// Draw
-	vkCmdDraw(m_renderingCommandBuffers[currentFrameInFlight], 3, 1, 0, 0);
+	vkCmdDraw(m_renderingCommandBuffers[m_currentFrameInFlight], 3, 1, 0, 0);
 
 	// End rendering
-	m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[currentFrameInFlight]);
+	m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight]);
 
 	// Layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
 	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
@@ -880,26 +880,26 @@ void NutshellGraphicsModule::update(double dt) {
 		colorAttachmentOptimalToPresentSrcDependencyInfo.imageMemoryBarrierCount = 1;
 		colorAttachmentOptimalToPresentSrcDependencyInfo.pImageMemoryBarriers = &colorAttachmentOptimalToPresentSrcImageMemoryBarrier;
 
-		m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[currentFrameInFlight], &colorAttachmentOptimalToPresentSrcDependencyInfo);
+		m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &colorAttachmentOptimalToPresentSrcDependencyInfo);
 	}
 
 	// End command buffer recording
-	NTSH_VK_CHECK(vkEndCommandBuffer(m_renderingCommandBuffers[currentFrameInFlight]));
+	NTSH_VK_CHECK(vkEndCommandBuffer(m_renderingCommandBuffers[m_currentFrameInFlight]));
 
-	NTSH_VK_CHECK(vkResetFences(m_device, 1, &m_fences[currentFrameInFlight]));
+	NTSH_VK_CHECK(vkResetFences(m_device, 1, &m_fences[m_currentFrameInFlight]));
 
 	VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.pNext = nullptr;
 	submitInfo.waitSemaphoreCount = 1;
-	submitInfo.pWaitSemaphores = &m_imageAvailableSemaphores[currentFrameInFlight];
+	submitInfo.pWaitSemaphores = &m_imageAvailableSemaphores[m_currentFrameInFlight];
 	submitInfo.pWaitDstStageMask = &waitDstStageMask;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &m_renderingCommandBuffers[currentFrameInFlight];
+	submitInfo.pCommandBuffers = &m_renderingCommandBuffers[m_currentFrameInFlight];
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = &m_renderFinishedSemaphores[imageIndex];
-	NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fences[currentFrameInFlight]));
+	NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fences[m_currentFrameInFlight]));
 
 	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		VkPresentInfoKHR presentInfo = {};
@@ -934,7 +934,7 @@ void NutshellGraphicsModule::update(double dt) {
 		NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptyWaitSubmitInfo, VK_NULL_HANDLE));
 	}
 
-	currentFrameInFlight = (currentFrameInFlight + 1) % m_framesInFlight;
+	m_currentFrameInFlight = (m_currentFrameInFlight + 1) % m_framesInFlight;
 }
 
 void NutshellGraphicsModule::destroy() {
