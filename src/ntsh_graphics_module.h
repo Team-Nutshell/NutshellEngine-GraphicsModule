@@ -137,7 +137,7 @@ private:
 
 	uint32_t m_imageCount;
 	uint32_t m_framesInFlight;
-	uint32_t currentFrameInFlight;
+	uint32_t m_currentFrameInFlight;
 
 	bool m_mouseMiddleMode = true;
 	const float m_cameraSpeed = 0.0015f;
