@@ -43,11 +43,12 @@ set_target_properties(${PROJECT_NAME}
 set(NTSH_ENGINE_MODULES_DIRECTORY "" CACHE PATH "Give the option to install the built module into NutshellEngine\'s modules directory.")
 if(EXISTS ${NTSH_ENGINE_MODULES_DIRECTORY})
 	message(STATUS "Found NutshellEngine\'s modules directory at ${NTSH_ENGINE_MODULES_DIRECTORY}.")
+	set(CMAKE_INSTALL_PREFIX ${NTSH_ENGINE_MODULES_DIRECTORY})
 	if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
 		install(TARGETS ${PROJECT_NAME}
 			RUNTIME
 			DESTINATION ${NTSH_ENGINE_MODULES_DIRECTORY})
-	else(CMAKE_SYSTEM_NAME)
+	else()
 		install(TARGETS ${PROJECT_NAME}
 			LIBRARY
 			DESTINATION ${NTSH_ENGINE_MODULES_DIRECTORY})
