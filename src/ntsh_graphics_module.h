@@ -1,8 +1,10 @@
 #pragma once
 #include "../external/Common/module_interfaces/ntsh_graphics_module_interface.h"
+#include "../external/Common/resources/ntsh_resources_graphics.h"
 #include "../external/Common/utils/ntsh_engine_defines.h"
 #include "../external/Common/utils/ntsh_engine_enums.h"
 #include "../external/Module/utils/ntsh_module_defines.h"
+#include "../external/nml/include/nml.h"
 #if defined(NTSH_OS_WINDOWS)
 #define VK_USE_PLATFORM_WIN32_KHR
 #elif defined(NTSH_OS_LINUX)
@@ -34,9 +36,11 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBits
 	return VK_FALSE;
 }
 
+const float toRad = 3.1415926535897932384626433832795f / 180.0f;
+
 class NutshellGraphicsModule : public NutshellGraphicsModuleInterface {
 public:
-	NutshellGraphicsModule() : NutshellGraphicsModuleInterface("Nutshell Graphics Vulkan Triangle Module") {}
+	NutshellGraphicsModule() : NutshellGraphicsModuleInterface("Nutshell Graphics Vulkan Model Module") {}
 
 	void init();
 	void update(double dt);
@@ -49,6 +53,15 @@ private:
 	std::vector<VkPresentModeKHR> getSurfacePresentModes();
 
 	VkPhysicalDeviceMemoryProperties getMemoryProperties();
+
+	// Vertex and index buffers creation
+	void createVertexAndIndexBuffers();
+
+	// Graphics pipeline creation
+	void createGraphicsPipeline();
+
+	// Descriptor sets creation
+	void createDescriptorSets();
 
 	// On window resize
 	void resize();
@@ -89,6 +102,11 @@ private:
 	VmaAllocation m_indexBufferAllocation;
 
 	VkPipeline m_graphicsPipeline;
+	VkPipelineLayout m_graphicsPipelineLayout;
+
+	VkDescriptorSetLayout m_descriptorSetLayout;
+	VkDescriptorPool m_descriptorPool;
+	std::vector<VkDescriptorSet> m_descriptorSets;
 
 	std::vector<VkCommandPool> m_renderingCommandPools;
 	std::vector<VkCommandBuffer> m_renderingCommandBuffers;
@@ -104,4 +122,11 @@ private:
 	uint32_t m_imageCount;
 	uint32_t m_framesInFlight;
 	uint32_t m_currentFrameInFlight;
+
+	nml::vec3 cameraPosition;
+	std::vector<VkBuffer> m_cameraBuffers;
+	std::vector<VmaAllocation> m_cameraBufferAllocations;
+
+	float m_cameraAngle = 0.0f;
+	float m_cameraRotationSpeed = 0.5f;
 };
