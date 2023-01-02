@@ -428,6 +428,39 @@ void NutshellGraphicsModule::init() {
 		NTSH_VK_CHECK(vkCreateImageView(m_device, &imageViewCreateInfo, nullptr, &m_drawImageView));
 	}
 
+	// Initialize VMA
+	VmaAllocatorCreateInfo vmaAllocatorCreateInfo = {};
+	vmaAllocatorCreateInfo.flags = 0;
+	vmaAllocatorCreateInfo.physicalDevice = m_physicalDevice;
+	vmaAllocatorCreateInfo.device = m_device;
+	vmaAllocatorCreateInfo.preferredLargeHeapBlockSize = 0;
+	vmaAllocatorCreateInfo.pAllocationCallbacks = nullptr;
+	vmaAllocatorCreateInfo.pDeviceMemoryCallbacks = nullptr;
+	vmaAllocatorCreateInfo.pHeapSizeLimit = nullptr;
+	vmaAllocatorCreateInfo.pVulkanFunctions = nullptr;
+	vmaAllocatorCreateInfo.instance = m_instance;
+	vmaAllocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_1;
+	NTSH_VK_CHECK(vmaCreateAllocator(&vmaAllocatorCreateInfo, &m_allocator));
+
+	// Vertex and index buffers
+	VkBufferCreateInfo vertexAndIndexBufferCreateInfo = {};
+	vertexAndIndexBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	vertexAndIndexBufferCreateInfo.pNext = nullptr;
+	vertexAndIndexBufferCreateInfo.flags = 0;
+	vertexAndIndexBufferCreateInfo.size = 65536;
+	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	vertexAndIndexBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	vertexAndIndexBufferCreateInfo.queueFamilyIndexCount = 1;
+	vertexAndIndexBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueIndex;
+
+	VmaAllocationCreateInfo vertexAndIndexBufferAllocationCreateInfo = {};
+	vertexAndIndexBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+	vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_vertexBuffer, &m_vertexBufferAllocation, nullptr);
+
+	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_indexBuffer, &m_indexBufferAllocation, nullptr);
+
 	// Create graphics pipeline
 	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
 	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
@@ -955,6 +988,13 @@ void NutshellGraphicsModule::destroy() {
 
 	// Destroy graphics pipeline
 	vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
+
+	// Destroy vertex and index buffers
+	vmaDestroyBuffer(m_allocator, m_indexBuffer, m_indexBufferAllocation);
+	vmaDestroyBuffer(m_allocator, m_vertexBuffer, m_vertexBufferAllocation);
+
+	// Destroy VMA Allocator
+	vmaDestroyAllocator(m_allocator);
 
 	// Destroy swapchain
 	if (m_swapchain != VK_NULL_HANDLE) {
