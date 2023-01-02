@@ -8,7 +8,7 @@
 #elif defined(NTSH_OS_LINUX)
 #define VK_USE_PLATFORM_XLIB_KHR
 #endif
-#include "vulkan/vulkan.h"
+#include "../external/VulkanMemoryAllocator/include/vk_mem_alloc.h"
 #include <vector>
 
 #define NTSH_VK_CHECK(f) \
@@ -80,6 +80,13 @@ private:
 	VkImage m_drawImage;
 	VkImageView m_drawImageView;
 	VkDeviceMemory m_drawImageMemory;
+
+	VmaAllocator m_allocator;
+
+	VkBuffer m_vertexBuffer;
+	VmaAllocation m_vertexBufferAllocation;
+	VkBuffer m_indexBuffer;
+	VmaAllocation m_indexBufferAllocation;
 
 	VkPipeline m_graphicsPipeline;
 
