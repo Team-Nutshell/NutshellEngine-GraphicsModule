@@ -62,6 +62,7 @@ void NutshellGraphicsModule::init() {
 	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		instanceExtensions.push_back("VK_KHR_surface");
 		instanceExtensions.push_back("VK_KHR_get_surface_capabilities2");
+		instanceExtensions.push_back("VK_KHR_get_physical_device_properties2");
 #if defined(NTSH_OS_WINDOWS)
 		instanceExtensions.push_back("VK_KHR_win32_surface");
 #elif defined(NTSH_OS_LINUX)
@@ -179,12 +180,12 @@ void NutshellGraphicsModule::init() {
 	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyPropertyCount, nullptr);
 	std::vector<VkQueueFamilyProperties> queueFamilyProperties(queueFamilyPropertyCount);
 	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyPropertyCount, queueFamilyProperties.data());
-	m_graphicsQueueIndex = 0;
+	m_graphicsQueueFamilyIndex = 0;
 	for (const VkQueueFamilyProperties& queueFamilyProperty : queueFamilyProperties) {
 		if (queueFamilyProperty.queueCount > 0 && queueFamilyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
 			if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 				VkBool32 presentSupport;
-				vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsQueueIndex, m_surface, &presentSupport);
+				vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsQueueFamilyIndex, m_surface, &presentSupport);
 				if (presentSupport) {
 					break;
 				}
@@ -193,7 +194,7 @@ void NutshellGraphicsModule::init() {
 				break;
 			}
 		}
-		m_graphicsQueueIndex++;
+		m_graphicsQueueFamilyIndex++;
 	}
 
 	// Create a queue supporting graphics
@@ -202,14 +203,22 @@ void NutshellGraphicsModule::init() {
 	deviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 	deviceQueueCreateInfo.pNext = nullptr;
 	deviceQueueCreateInfo.flags = 0;
-	deviceQueueCreateInfo.queueFamilyIndex = m_graphicsQueueIndex;
+	deviceQueueCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
 	deviceQueueCreateInfo.queueCount = 1;
 	deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
 
 	// Enable features
+	VkPhysicalDeviceDescriptorIndexingFeatures physicalDeviceDescriptorIndexingFeatures = {};
+	physicalDeviceDescriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+	physicalDeviceDescriptorIndexingFeatures.pNext = nullptr;
+	physicalDeviceDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+	physicalDeviceDescriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing = VK_TRUE;
+	physicalDeviceDescriptorIndexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
+	physicalDeviceDescriptorIndexingFeatures.runtimeDescriptorArray = VK_TRUE;
+
 	VkPhysicalDeviceDynamicRenderingFeatures physicalDeviceDynamicRenderingFeatures = {};
 	physicalDeviceDynamicRenderingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
-	physicalDeviceDynamicRenderingFeatures.pNext = nullptr;
+	physicalDeviceDynamicRenderingFeatures.pNext = &physicalDeviceDescriptorIndexingFeatures;
 	physicalDeviceDynamicRenderingFeatures.dynamicRendering = VK_TRUE;
 
 	VkPhysicalDeviceSynchronization2Features physicalDeviceSynchronization2Features = {};
@@ -228,7 +237,9 @@ void NutshellGraphicsModule::init() {
 	std::vector<const char*> deviceExtensions = { "VK_KHR_synchronization2",
 		"VK_KHR_create_renderpass2",
 		"VK_KHR_depth_stencil_resolve", 
-		"VK_KHR_dynamic_rendering" };
+		"VK_KHR_dynamic_rendering",
+		"VK_KHR_maintenance3",
+		"VK_EXT_descriptor_indexing" };
 	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		deviceExtensions.push_back("VK_KHR_swapchain");
 	}
@@ -237,7 +248,7 @@ void NutshellGraphicsModule::init() {
 	deviceCreateInfo.pEnabledFeatures = nullptr;
 	NTSH_VK_CHECK(vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device));
 
-	vkGetDeviceQueue(m_device, m_graphicsQueueIndex, 0, &m_graphicsQueue);
+	vkGetDeviceQueue(m_device, m_graphicsQueueFamilyIndex, 0, &m_graphicsQueue);
 
 	// Get functions
 	m_vkCmdPipelineBarrier2KHR = (PFN_vkCmdPipelineBarrier2KHR)vkGetDeviceProcAddr(m_device, "vkCmdPipelineBarrier2KHR");
@@ -246,97 +257,7 @@ void NutshellGraphicsModule::init() {
 
 	// Create the swapchain
 	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
-		VkSurfaceCapabilitiesKHR surfaceCapabilities = getSurfaceCapabilities();
-		uint32_t minImageCount = surfaceCapabilities.minImageCount + 1;
-		if (surfaceCapabilities.maxImageCount > 0 && minImageCount > surfaceCapabilities.maxImageCount) {
-			minImageCount = surfaceCapabilities.maxImageCount;
-		}
-
-		std::vector<VkSurfaceFormatKHR> surfaceFormats = getSurfaceFormats();
-		m_swapchainFormat = surfaceFormats[0].format;
-		VkColorSpaceKHR swapchainColorSpace = surfaceFormats[0].colorSpace;
-		for (const VkSurfaceFormatKHR& surfaceFormat : surfaceFormats) {
-			if (surfaceFormat.format == VK_FORMAT_B8G8R8A8_SRGB && surfaceFormat.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR) {
-				m_swapchainFormat = surfaceFormat.format;
-				swapchainColorSpace = surfaceFormat.colorSpace;
-				break;
-			}
-		}
-
-		std::vector<VkPresentModeKHR> presentModes = getSurfacePresentModes();
-		VkPresentModeKHR swapchainPresentMode = VK_PRESENT_MODE_FIFO_KHR;
-		for (const VkPresentModeKHR& presentMode : presentModes) {
-			if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-				swapchainPresentMode = presentMode;
-				break;
-			}
-			else if (presentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
-				swapchainPresentMode = presentMode;
-			}
-		}
-
-		VkExtent2D swapchainExtent = {};
-		swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSH_MAIN_WINDOW));
-		swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSH_MAIN_WINDOW));
-
-		m_viewport.x = 0.0f;
-		m_viewport.y = 0.0f;
-		m_viewport.width = static_cast<float>(swapchainExtent.width);
-		m_viewport.height = static_cast<float>(swapchainExtent.height);
-		m_viewport.minDepth = 0.0f;
-		m_viewport.maxDepth = 1.0f;
-
-		m_scissor.offset.x = 0;
-		m_scissor.offset.y = 0;
-		m_scissor.extent.width = swapchainExtent.width;
-		m_scissor.extent.height = swapchainExtent.height;
-
-		VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
-		swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-		swapchainCreateInfo.pNext = nullptr;
-		swapchainCreateInfo.flags = 0;
-		swapchainCreateInfo.surface = m_surface;
-		swapchainCreateInfo.minImageCount = minImageCount;
-		swapchainCreateInfo.imageFormat = m_swapchainFormat;
-		swapchainCreateInfo.imageColorSpace = swapchainColorSpace;
-		swapchainCreateInfo.imageExtent = swapchainExtent;
-		swapchainCreateInfo.imageArrayLayers = 1;
-		swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-		swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		swapchainCreateInfo.queueFamilyIndexCount = 0;
-		swapchainCreateInfo.pQueueFamilyIndices = nullptr;
-		swapchainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
-		swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-		swapchainCreateInfo.presentMode = swapchainPresentMode;
-		swapchainCreateInfo.clipped = VK_TRUE;
-		swapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
-		NTSH_VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_swapchain));
-
-		NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, nullptr));
-		m_swapchainImages.resize(m_imageCount);
-		NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, m_swapchainImages.data()));
-
-		// Create the swapchain image views
-		m_swapchainImageViews.resize(m_imageCount);
-		for (uint32_t i = 0; i < m_imageCount; i++) {
-			VkImageViewCreateInfo swapchainImageViewCreateInfo = {};
-			swapchainImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			swapchainImageViewCreateInfo.pNext = nullptr;
-			swapchainImageViewCreateInfo.flags = 0;
-			swapchainImageViewCreateInfo.image = m_swapchainImages[i];
-			swapchainImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			swapchainImageViewCreateInfo.format = m_swapchainFormat;
-			swapchainImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
-			swapchainImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
-			swapchainImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
-			swapchainImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
-			swapchainImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			swapchainImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-			swapchainImageViewCreateInfo.subresourceRange.levelCount = 1;
-			swapchainImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-			swapchainImageViewCreateInfo.subresourceRange.layerCount = 1;
-			NTSH_VK_CHECK(vkCreateImageView(m_device, &swapchainImageViewCreateInfo, nullptr, &m_swapchainImageViews[i]));
-		}
+		createSwapchain(VK_NULL_HANDLE);
 	}
 	// Or create an image to draw on
 	else {
@@ -372,35 +293,11 @@ void NutshellGraphicsModule::init() {
 		imageCreateInfo.queueFamilyIndexCount = 0;
 		imageCreateInfo.pQueueFamilyIndices = nullptr;
 		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		NTSH_VK_CHECK(vkCreateImage(m_device, &imageCreateInfo, nullptr, &m_drawImage));
 
-		// Allocate memory for the image
-		VkMemoryRequirements memoryRequirements;
-		vkGetImageMemoryRequirements(m_device, m_drawImage, &memoryRequirements);
+		VmaAllocationCreateInfo imageAllocationCreateInfo = {};
+		imageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-		VkPhysicalDeviceMemoryProperties memoryProperties = getMemoryProperties();
-		uint32_t memoryTypeIndex = memoryProperties.memoryTypeCount;
-		for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++) {
-			uint32_t memoryTypeBits = (1 << i);
-			bool isRequiredMemoryType = memoryRequirements.memoryTypeBits & memoryTypeBits;
-
-			VkMemoryPropertyFlags properties = memoryProperties.memoryTypes[i].propertyFlags;
-			bool hasRequiredProperties = (properties & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-
-			if (isRequiredMemoryType && hasRequiredProperties) {
-				memoryTypeIndex = i;
-			}
-		}
-		NTSH_ASSERT(memoryTypeIndex < memoryProperties.memoryTypeCount);
-
-		VkMemoryAllocateInfo memoryAllocateInfo = {};
-		memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		memoryAllocateInfo.pNext = nullptr;
-		memoryAllocateInfo.allocationSize = 268435456;
-		memoryAllocateInfo.memoryTypeIndex = memoryTypeIndex;
-		NTSH_VK_CHECK(vkAllocateMemory(m_device, &memoryAllocateInfo, nullptr, &m_drawImageMemory));
-
-		NTSH_VK_CHECK(vkBindImageMemory(m_device, m_drawImage, m_drawImageMemory, 0));
+		vmaCreateImage(m_allocator, &imageCreateInfo, &imageAllocationCreateInfo, &m_drawImage, &m_drawImageAllocation, nullptr);
 
 		// Create the image view
 		VkImageViewCreateInfo imageViewCreateInfo = {};
@@ -438,6 +335,8 @@ void NutshellGraphicsModule::init() {
 
 	createVertexAndIndexBuffers();
 
+	createDepthImage();
+
 	createGraphicsPipeline();
 
 	createDescriptorSets();
@@ -454,7 +353,7 @@ void NutshellGraphicsModule::init() {
 	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	commandPoolCreateInfo.pNext = nullptr;
 	commandPoolCreateInfo.flags = 0;
-	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueIndex;
+	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
 
 	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
 	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -526,11 +425,9 @@ void NutshellGraphicsModule::update(double dt) {
 	}
 
 	// Update camera buffer
-	m_cameraAngle = std::fmodf(m_cameraAngle + (m_cameraRotationSpeed * static_cast<float>(dt)), 360.0f);
-
-	cameraPosition.x = std::cos(m_cameraAngle * toRad) * 5.0f;
+	cameraPosition.x = 0.0f;
 	cameraPosition.y = 3.0f;
-	cameraPosition.z = std::sin(m_cameraAngle * toRad) * 5.0f;
+	cameraPosition.z = -5.0f;
 	nml::mat4 cameraView = nml::lookAtRH(cameraPosition, nml::vec3(0.0f), nml::vec3(0.0f, 1.0f, 0.0));
 	nml::mat4 cameraProjection = nml::perspectiveRH(90.0f * toRad, m_viewport.width / m_viewport.height, 0.05f, 100.0f);
 	cameraProjection[1][1] *= -1.0f;
@@ -540,6 +437,18 @@ void NutshellGraphicsModule::update(double dt) {
 	vmaMapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight], &data);
 	memcpy(data, cameraMatrices.data(), sizeof(nml::mat4) * 2);
 	vmaUnmapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight]);
+
+	// Update objects buffer
+
+	for (size_t i = 0; i < m_objects.size(); i++) {
+		m_objectAngle = std::fmodf(m_objectAngle + (m_objectRotationSpeed * static_cast<float>(dt)), 360.0f);
+		m_objects[i].rotation.y = m_objectAngle * toRad;
+		nml::mat4 objectModel = nml::translate(m_objects[i].position) * nml::rotate(m_objects[i].rotation.x, nml::vec3(1.0f, 0.0f, 0.0f)) * nml::rotate(m_objects[i].rotation.y, nml::vec3(0.0f, 1.0f, 0.0f)) * nml::rotate(m_objects[i].rotation.z, nml::vec3(0.0f, 0.0f, 1.0f)) * nml::scale(m_objects[i].scale);
+
+		vmaMapMemory(m_allocator, m_objects[i].allocations[m_currentFrameInFlight], &data);
+		memcpy(data, objectModel.data(), sizeof(nml::mat4));
+		vmaUnmapMemory(m_allocator, m_objects[i].allocations[m_currentFrameInFlight]);
+	}
 
 	// Record rendering commands
 	NTSH_VK_CHECK(vkResetCommandPool(m_device, m_renderingCommandPools[m_currentFrameInFlight], 0));
@@ -561,8 +470,8 @@ void NutshellGraphicsModule::update(double dt) {
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueIndex;
-	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueIndex;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		undefinedToColorAttachmentOptimalImageMemoryBarrier.image = m_swapchainImages[imageIndex];
 	}
@@ -592,23 +501,36 @@ void NutshellGraphicsModule::update(double dt) {
 	vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipelineLayout, 0, 1, &m_descriptorSets[m_currentFrameInFlight], 0, nullptr);
 
 	// Begin rendering
-	VkRenderingAttachmentInfo renderingAttachmentInfo = {};
-	renderingAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	renderingAttachmentInfo.pNext = nullptr;
+	VkRenderingAttachmentInfo renderingSwapchainAttachmentInfo = {};
+	renderingSwapchainAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	renderingSwapchainAttachmentInfo.pNext = nullptr;
 	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
-		renderingAttachmentInfo.imageView = m_swapchainImageViews[imageIndex];
+		renderingSwapchainAttachmentInfo.imageView = m_swapchainImageViews[imageIndex];
 	}
 	else {
-		renderingAttachmentInfo.imageView = m_drawImageView;
+		renderingSwapchainAttachmentInfo.imageView = m_drawImageView;
 	}
-	renderingAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	renderingAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
-	renderingAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
-	renderingAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	renderingAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	renderingAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	renderingAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
-	renderingAttachmentInfo.clearValue.depthStencil = { 0.0f, 0 };
+	renderingSwapchainAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	renderingSwapchainAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+	renderingSwapchainAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
+	renderingSwapchainAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	renderingSwapchainAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	renderingSwapchainAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	renderingSwapchainAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
+	renderingSwapchainAttachmentInfo.clearValue.depthStencil = { 0.0f, 0 };
+
+	VkRenderingAttachmentInfo renderingDepthAttachmentInfo = {};
+	renderingDepthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	renderingDepthAttachmentInfo.pNext = nullptr;
+	renderingDepthAttachmentInfo.imageView = m_depthImageView;
+	renderingDepthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	renderingDepthAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+	renderingDepthAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
+	renderingDepthAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	renderingDepthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	renderingDepthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	renderingDepthAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
+	renderingDepthAttachmentInfo.clearValue.depthStencil = { 1.0f, 0 };
 
 	VkRenderingInfo renderingInfo = {};
 	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -618,8 +540,8 @@ void NutshellGraphicsModule::update(double dt) {
 	renderingInfo.layerCount = 1;
 	renderingInfo.viewMask = 0;
 	renderingInfo.colorAttachmentCount = 1;
-	renderingInfo.pColorAttachments = &renderingAttachmentInfo;
-	renderingInfo.pDepthAttachment = nullptr;
+	renderingInfo.pColorAttachments = &renderingSwapchainAttachmentInfo;
+	renderingInfo.pDepthAttachment = &renderingDepthAttachmentInfo;
 	renderingInfo.pStencilAttachment = nullptr;
 	m_vkCmdBeginRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight], &renderingInfo);
 
@@ -633,8 +555,13 @@ void NutshellGraphicsModule::update(double dt) {
 	vkCmdBindVertexBuffers(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_vertexBuffer, &vertexBufferOffset);
 	vkCmdBindIndexBuffer(m_renderingCommandBuffers[m_currentFrameInFlight], m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-	// Draw
-	vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], 36, 1, 0, 0, 0);
+	for (size_t i = 0; i < m_objects.size(); i++) {
+		// Object index as push constant
+		vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_graphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &m_objects[i].index);
+
+		// Draw
+		vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_objects[i].indexCount, 1, m_objects[i].firstIndex, m_objects[i].vertexOffset, 0);
+	}
 
 	// End rendering
 	m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight]);
@@ -650,8 +577,8 @@ void NutshellGraphicsModule::update(double dt) {
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.dstAccessMask = 0;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueIndex;
-		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueIndex;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.image = m_swapchainImages[imageIndex];
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -743,6 +670,13 @@ void NutshellGraphicsModule::destroy() {
 		vkDestroyCommandPool(m_device, m_renderingCommandPools[i], nullptr);
 	}
 
+	// Destroy objects buffers
+	for (uint32_t i = 0; i < m_objects.size(); i++) {
+		for (uint32_t j = 0; j < m_framesInFlight; j++) {
+			vmaDestroyBuffer(m_allocator, m_objects[i].buffers[j], m_objects[i].allocations[j]);
+		}
+	}
+
 	// Destroy camera buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		vmaDestroyBuffer(m_allocator, m_cameraBuffers[i], m_cameraBufferAllocations[i]);
@@ -759,6 +693,10 @@ void NutshellGraphicsModule::destroy() {
 
 	// Destroy descriptor set layout
 	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
+
+	// Destroy depth image and image view
+	vkDestroyImageView(m_device, m_depthImageView, nullptr);
+	vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
 
 	// Destroy vertex and index buffers
 	vmaDestroyBuffer(m_allocator, m_indexBuffer, m_indexBufferAllocation);
@@ -777,8 +715,7 @@ void NutshellGraphicsModule::destroy() {
 	// Or destroy the image
 	else {
 		vkDestroyImageView(m_device, m_drawImageView, nullptr);
-		vkDestroyImage(m_device, m_drawImage, nullptr);
-		vkFreeMemory(m_device, m_drawImageMemory, nullptr);
+		vmaDestroyImage(m_allocator, m_drawImage, m_drawImageAllocation);
 	}
 
 	// Destroy device
@@ -859,6 +796,100 @@ VkPhysicalDeviceMemoryProperties NutshellGraphicsModule::getMemoryProperties() {
 	return memoryProperties.memoryProperties;
 }
 
+void NutshellGraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
+	VkSurfaceCapabilitiesKHR surfaceCapabilities = getSurfaceCapabilities();
+	uint32_t minImageCount = surfaceCapabilities.minImageCount + 1;
+	if (surfaceCapabilities.maxImageCount > 0 && minImageCount > surfaceCapabilities.maxImageCount) {
+		minImageCount = surfaceCapabilities.maxImageCount;
+	}
+
+	std::vector<VkSurfaceFormatKHR> surfaceFormats = getSurfaceFormats();
+	m_swapchainFormat = surfaceFormats[0].format;
+	VkColorSpaceKHR swapchainColorSpace = surfaceFormats[0].colorSpace;
+	for (const VkSurfaceFormatKHR& surfaceFormat : surfaceFormats) {
+		if (surfaceFormat.format == VK_FORMAT_B8G8R8A8_SRGB && surfaceFormat.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR) {
+			m_swapchainFormat = surfaceFormat.format;
+			swapchainColorSpace = surfaceFormat.colorSpace;
+			break;
+		}
+	}
+
+	std::vector<VkPresentModeKHR> presentModes = getSurfacePresentModes();
+	VkPresentModeKHR swapchainPresentMode = VK_PRESENT_MODE_FIFO_KHR;
+	for (const VkPresentModeKHR& presentMode : presentModes) {
+		if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+			swapchainPresentMode = presentMode;
+			break;
+		}
+		else if (presentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
+			swapchainPresentMode = presentMode;
+		}
+	}
+
+	VkExtent2D swapchainExtent = {};
+	swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSH_MAIN_WINDOW));
+	swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSH_MAIN_WINDOW));
+
+	m_viewport.x = 0.0f;
+	m_viewport.y = 0.0f;
+	m_viewport.width = static_cast<float>(swapchainExtent.width);
+	m_viewport.height = static_cast<float>(swapchainExtent.height);
+	m_viewport.minDepth = 0.0f;
+	m_viewport.maxDepth = 1.0f;
+
+	m_scissor.offset.x = 0;
+	m_scissor.offset.y = 0;
+	m_scissor.extent.width = swapchainExtent.width;
+	m_scissor.extent.height = swapchainExtent.height;
+
+	VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
+	swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	swapchainCreateInfo.pNext = nullptr;
+	swapchainCreateInfo.flags = 0;
+	swapchainCreateInfo.surface = m_surface;
+	swapchainCreateInfo.minImageCount = minImageCount;
+	swapchainCreateInfo.imageFormat = m_swapchainFormat;
+	swapchainCreateInfo.imageColorSpace = swapchainColorSpace;
+	swapchainCreateInfo.imageExtent = swapchainExtent;
+	swapchainCreateInfo.imageArrayLayers = 1;
+	swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	swapchainCreateInfo.queueFamilyIndexCount = 0;
+	swapchainCreateInfo.pQueueFamilyIndices = nullptr;
+	swapchainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
+	swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	swapchainCreateInfo.presentMode = swapchainPresentMode;
+	swapchainCreateInfo.clipped = VK_TRUE;
+	swapchainCreateInfo.oldSwapchain = oldSwapchain;
+	NTSH_VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_swapchain));
+
+	NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, nullptr));
+	m_swapchainImages.resize(m_imageCount);
+	NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, m_swapchainImages.data()));
+
+	// Create the swapchain image views
+	m_swapchainImageViews.resize(m_imageCount);
+	for (uint32_t i = 0; i < m_imageCount; i++) {
+		VkImageViewCreateInfo swapchainImageViewCreateInfo = {};
+		swapchainImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		swapchainImageViewCreateInfo.pNext = nullptr;
+		swapchainImageViewCreateInfo.flags = 0;
+		swapchainImageViewCreateInfo.image = m_swapchainImages[i];
+		swapchainImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		swapchainImageViewCreateInfo.format = m_swapchainFormat;
+		swapchainImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+		swapchainImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+		swapchainImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+		swapchainImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+		swapchainImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		swapchainImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+		swapchainImageViewCreateInfo.subresourceRange.levelCount = 1;
+		swapchainImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+		swapchainImageViewCreateInfo.subresourceRange.layerCount = 1;
+		NTSH_VK_CHECK(vkCreateImageView(m_device, &swapchainImageViewCreateInfo, nullptr, &m_swapchainImageViews[i]));
+	}
+}
+
 void NutshellGraphicsModule::createVertexAndIndexBuffers() {
 	// Cube
 	NtshMesh cubeMesh;
@@ -926,6 +957,34 @@ void NutshellGraphicsModule::createVertexAndIndexBuffers() {
 		22,
 		23
 	};
+	
+	m_objects.resize(3);
+	m_objects[0].index = 0;
+	m_objects[0].indexCount = 36;
+	m_objects[0].firstIndex = 0;
+	m_objects[0].vertexOffset = 0;
+
+	m_objects[0].position = nml::vec3(0.0f, 0.0f, 0.0f);
+	m_objects[0].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
+	m_objects[0].scale = nml::vec3(0.5f, 2.0f, 0.5f);
+
+	m_objects[1].index = 1;
+	m_objects[1].indexCount = 36;
+	m_objects[1].firstIndex = 0;
+	m_objects[1].vertexOffset = 0;
+
+	m_objects[1].position = nml::vec3(0.0f, 2.0f, 0.0f);
+	m_objects[1].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
+	m_objects[1].scale = nml::vec3(0.5f, 1.0f, 2.5f);
+
+	m_objects[2].index = 2;
+	m_objects[2].indexCount = 36;
+	m_objects[2].firstIndex = 0;
+	m_objects[2].vertexOffset = 0;
+
+	m_objects[2].position = nml::vec3(0.0f, -2.0f, 0.0f);
+	m_objects[2].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
+	m_objects[2].scale = nml::vec3(0.5f, 1.0f, 2.5f);
 
 	// Vertex and index buffers
 	VkBufferCreateInfo vertexAndIndexBufferCreateInfo = {};
@@ -936,7 +995,7 @@ void NutshellGraphicsModule::createVertexAndIndexBuffers() {
 	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 	vertexAndIndexBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	vertexAndIndexBufferCreateInfo.queueFamilyIndexCount = 1;
-	vertexAndIndexBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueIndex;
+	vertexAndIndexBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
 	VmaAllocationCreateInfo vertexAndIndexBufferAllocationCreateInfo = {};
 	vertexAndIndexBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
@@ -960,7 +1019,7 @@ void NutshellGraphicsModule::createVertexAndIndexBuffers() {
 	vertexAndIndexStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	vertexAndIndexStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	vertexAndIndexStagingBufferCreateInfo.queueFamilyIndexCount = 1;
-	vertexAndIndexStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueIndex;
+	vertexAndIndexStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
 	VmaAllocationCreateInfo vertexAndIndexStagingBufferAllocationCreateInfo = {};
 	vertexAndIndexStagingBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
@@ -985,7 +1044,7 @@ void NutshellGraphicsModule::createVertexAndIndexBuffers() {
 	vertexAndIndexBuffersCopyCommandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	vertexAndIndexBuffersCopyCommandPoolCreateInfo.pNext = nullptr;
 	vertexAndIndexBuffersCopyCommandPoolCreateInfo.flags = 0;
-	vertexAndIndexBuffersCopyCommandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueIndex;
+	vertexAndIndexBuffersCopyCommandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
 	NTSH_VK_CHECK(vkCreateCommandPool(m_device, &vertexAndIndexBuffersCopyCommandPoolCreateInfo, nullptr, &vertexAndIndexBuffersCopyCommandPool));
 
 	VkCommandBuffer vertexAndIndexBuffersCopyCommandBuffer;
@@ -1046,6 +1105,140 @@ void NutshellGraphicsModule::createVertexAndIndexBuffers() {
 	vmaDestroyBuffer(m_allocator, indexStagingBuffer, indexStagingBufferAllocation);
 }
 
+void NutshellGraphicsModule::createDepthImage() {
+	VkImageCreateInfo depthImageCreateInfo = {};
+	depthImageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	depthImageCreateInfo.pNext = nullptr;
+	depthImageCreateInfo.flags = 0;
+	depthImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	depthImageCreateInfo.format = VK_FORMAT_D32_SFLOAT;
+	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+		depthImageCreateInfo.extent.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSH_MAIN_WINDOW));
+		depthImageCreateInfo.extent.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSH_MAIN_WINDOW));
+	}
+	else {
+		depthImageCreateInfo.extent.width = 1280;
+		depthImageCreateInfo.extent.height = 720;
+	}
+	depthImageCreateInfo.extent.depth = 1;
+	depthImageCreateInfo.mipLevels = 1;
+	depthImageCreateInfo.arrayLayers = 1;
+	depthImageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	depthImageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	depthImageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	depthImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	depthImageCreateInfo.queueFamilyIndexCount = 1;
+	depthImageCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	depthImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+	VmaAllocationCreateInfo depthImageAllocationCreateInfo = {};
+	depthImageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	NTSH_VK_CHECK(vmaCreateImage(m_allocator, &depthImageCreateInfo, &depthImageAllocationCreateInfo, &m_depthImage, &m_depthImageAllocation, nullptr));
+
+	VkImageViewCreateInfo depthImageViewCreateInfo = {};
+	depthImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	depthImageViewCreateInfo.pNext = nullptr;
+	depthImageViewCreateInfo.flags = 0;
+	depthImageViewCreateInfo.image = m_depthImage;
+	depthImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	depthImageViewCreateInfo.format = VK_FORMAT_D32_SFLOAT;
+	depthImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+	depthImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+	depthImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+	depthImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+	depthImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	depthImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+	depthImageViewCreateInfo.subresourceRange.levelCount = 1;
+	depthImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+	depthImageViewCreateInfo.subresourceRange.layerCount = 1;
+	NTSH_VK_CHECK(vkCreateImageView(m_device, &depthImageViewCreateInfo, nullptr, &m_depthImageView));
+
+	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+	VkCommandPool depthImageTransitionCommandPool;
+
+	VkCommandPoolCreateInfo depthImageTransitionCommandPoolCreateInfo = {};
+	depthImageTransitionCommandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	depthImageTransitionCommandPoolCreateInfo.pNext = nullptr;
+	depthImageTransitionCommandPoolCreateInfo.flags = 0;
+	depthImageTransitionCommandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
+	NTSH_VK_CHECK(vkCreateCommandPool(m_device, &depthImageTransitionCommandPoolCreateInfo, nullptr, &depthImageTransitionCommandPool));
+
+	VkCommandBuffer depthImageTransitionCommandBuffer;
+
+	VkCommandBufferAllocateInfo depthImageTransitionCommandBufferAllocateInfo = {};
+	depthImageTransitionCommandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	depthImageTransitionCommandBufferAllocateInfo.pNext = nullptr;
+	depthImageTransitionCommandBufferAllocateInfo.commandPool = depthImageTransitionCommandPool;
+	depthImageTransitionCommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	depthImageTransitionCommandBufferAllocateInfo.commandBufferCount = 1;
+	NTSH_VK_CHECK(vkAllocateCommandBuffers(m_device, &depthImageTransitionCommandBufferAllocateInfo, &depthImageTransitionCommandBuffer));
+
+	VkCommandBufferBeginInfo depthImageTransitionBeginInfo = {};
+	depthImageTransitionBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	depthImageTransitionBeginInfo.pNext = nullptr;
+	depthImageTransitionBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	depthImageTransitionBeginInfo.pInheritanceInfo = nullptr;
+	vkBeginCommandBuffer(depthImageTransitionCommandBuffer, &depthImageTransitionBeginInfo);
+
+	VkImageMemoryBarrier2 undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier = {};
+	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.pNext = nullptr;
+	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.srcAccessMask = 0;
+	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.image = m_depthImage;
+	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.subresourceRange.levelCount = 1;
+	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	VkDependencyInfo undefinedToDepthStencilAttachmentOptimalDependencyInfo = {};
+	undefinedToDepthStencilAttachmentOptimalDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	undefinedToDepthStencilAttachmentOptimalDependencyInfo.pNext = nullptr;
+	undefinedToDepthStencilAttachmentOptimalDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToDepthStencilAttachmentOptimalDependencyInfo.memoryBarrierCount = 0;
+	undefinedToDepthStencilAttachmentOptimalDependencyInfo.pMemoryBarriers = nullptr;
+	undefinedToDepthStencilAttachmentOptimalDependencyInfo.bufferMemoryBarrierCount = 0;
+	undefinedToDepthStencilAttachmentOptimalDependencyInfo.pBufferMemoryBarriers = nullptr;
+	undefinedToDepthStencilAttachmentOptimalDependencyInfo.imageMemoryBarrierCount = 1;
+	undefinedToDepthStencilAttachmentOptimalDependencyInfo.pImageMemoryBarriers = &undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier;
+
+	m_vkCmdPipelineBarrier2KHR(depthImageTransitionCommandBuffer, &undefinedToDepthStencilAttachmentOptimalDependencyInfo);
+
+	vkEndCommandBuffer(depthImageTransitionCommandBuffer);
+
+	VkFence depthImageTransitionFence;
+
+	VkFenceCreateInfo depthImageTransitionFenceCreateInfo = {};
+	depthImageTransitionFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	depthImageTransitionFenceCreateInfo.pNext = nullptr;
+	depthImageTransitionFenceCreateInfo.flags = 0;
+	NTSH_VK_CHECK(vkCreateFence(m_device, &depthImageTransitionFenceCreateInfo, nullptr, &depthImageTransitionFence));
+
+	VkSubmitInfo depthImageTransitionSubmitInfo = {};
+	depthImageTransitionSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	depthImageTransitionSubmitInfo.pNext = nullptr;
+	depthImageTransitionSubmitInfo.waitSemaphoreCount = 0;
+	depthImageTransitionSubmitInfo.pWaitSemaphores = nullptr;
+	depthImageTransitionSubmitInfo.pWaitDstStageMask = nullptr;
+	depthImageTransitionSubmitInfo.commandBufferCount = 1;
+	depthImageTransitionSubmitInfo.pCommandBuffers = &depthImageTransitionCommandBuffer;
+	depthImageTransitionSubmitInfo.signalSemaphoreCount = 0;
+	depthImageTransitionSubmitInfo.pSignalSemaphores = nullptr;
+	NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &depthImageTransitionSubmitInfo, depthImageTransitionFence));
+	NTSH_VK_CHECK(vkWaitForFences(m_device, 1, &depthImageTransitionFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+
+	vkDestroyFence(m_device, depthImageTransitionFence, nullptr);
+	vkDestroyCommandPool(m_device, depthImageTransitionCommandPool, nullptr);
+}
+
 void NutshellGraphicsModule::createGraphicsPipeline() {
 	// Create graphics pipeline
 	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
@@ -1059,60 +1252,77 @@ void NutshellGraphicsModule::createGraphicsPipeline() {
 	pipelineRenderingCreateInfo.viewMask = 0;
 	pipelineRenderingCreateInfo.colorAttachmentCount = 1;
 	pipelineRenderingCreateInfo.pColorAttachmentFormats = &pipelineRenderingColorFormat;
-	pipelineRenderingCreateInfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+	pipelineRenderingCreateInfo.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
 	pipelineRenderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 
-	const std::vector<uint32_t> vertexShaderCode = { 0x07230203,0x00010000,0x0008000a,0x00000031,0x00000000,0x00020011,0x00000001,0x0006000b,
-	0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
-	0x000c000f,0x00000000,0x00000004,0x6e69616d,0x00000000,0x00000009,0x0000000b,0x00000013,
-	0x00000021,0x0000002d,0x0000002e,0x00000030,0x00030003,0x00000002,0x000001cc,0x00040005,
-	0x00000004,0x6e69616d,0x00000000,0x00050005,0x00000009,0x4e74756f,0x616d726f,0x0000006c,
-	0x00040005,0x0000000b,0x6d726f6e,0x00006c61,0x00060005,0x00000011,0x505f6c67,0x65567265,
-	0x78657472,0x00000000,0x00060006,0x00000011,0x00000000,0x505f6c67,0x7469736f,0x006e6f69,
-	0x00070006,0x00000011,0x00000001,0x505f6c67,0x746e696f,0x657a6953,0x00000000,0x00070006,
-	0x00000011,0x00000002,0x435f6c67,0x4470696c,0x61747369,0x0065636e,0x00070006,0x00000011,
-	0x00000003,0x435f6c67,0x446c6c75,0x61747369,0x0065636e,0x00030005,0x00000013,0x00000000,
-	0x00040005,0x00000017,0x656d6143,0x00006172,0x00050006,0x00000017,0x00000000,0x77656976,
-	0x00000000,0x00060006,0x00000017,0x00000001,0x6a6f7270,0x69746365,0x00006e6f,0x00040005,
-	0x00000019,0x656d6163,0x00006172,0x00050005,0x00000021,0x69736f70,0x6e6f6974,0x00000000,
-	0x00030005,0x0000002d,0x00007675,0x00040005,0x0000002e,0x6f6c6f63,0x00000072,0x00040005,
-	0x00000030,0x676e6174,0x00746e65,0x00040047,0x00000009,0x0000001e,0x00000000,0x00040047,
-	0x0000000b,0x0000001e,0x00000001,0x00050048,0x00000011,0x00000000,0x0000000b,0x00000000,
-	0x00050048,0x00000011,0x00000001,0x0000000b,0x00000001,0x00050048,0x00000011,0x00000002,
-	0x0000000b,0x00000003,0x00050048,0x00000011,0x00000003,0x0000000b,0x00000004,0x00030047,
-	0x00000011,0x00000002,0x00040048,0x00000017,0x00000000,0x00000005,0x00050048,0x00000017,
-	0x00000000,0x00000023,0x00000000,0x00050048,0x00000017,0x00000000,0x00000007,0x00000010,
-	0x00040048,0x00000017,0x00000001,0x00000005,0x00050048,0x00000017,0x00000001,0x00000023,
-	0x00000040,0x00050048,0x00000017,0x00000001,0x00000007,0x00000010,0x00030047,0x00000017,
-	0x00000002,0x00040047,0x00000019,0x00000022,0x00000000,0x00040047,0x00000019,0x00000021,
-	0x00000000,0x00040047,0x00000021,0x0000001e,0x00000000,0x00040047,0x0000002d,0x0000001e,
-	0x00000002,0x00040047,0x0000002e,0x0000001e,0x00000003,0x00040047,0x00000030,0x0000001e,
-	0x00000004,0x00020013,0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,
-	0x00000020,0x00040017,0x00000007,0x00000006,0x00000003,0x00040020,0x00000008,0x00000003,
-	0x00000007,0x0004003b,0x00000008,0x00000009,0x00000003,0x00040020,0x0000000a,0x00000001,
-	0x00000007,0x0004003b,0x0000000a,0x0000000b,0x00000001,0x00040017,0x0000000d,0x00000006,
-	0x00000004,0x00040015,0x0000000e,0x00000020,0x00000000,0x0004002b,0x0000000e,0x0000000f,
-	0x00000001,0x0004001c,0x00000010,0x00000006,0x0000000f,0x0006001e,0x00000011,0x0000000d,
-	0x00000006,0x00000010,0x00000010,0x00040020,0x00000012,0x00000003,0x00000011,0x0004003b,
-	0x00000012,0x00000013,0x00000003,0x00040015,0x00000014,0x00000020,0x00000001,0x0004002b,
-	0x00000014,0x00000015,0x00000000,0x00040018,0x00000016,0x0000000d,0x00000004,0x0004001e,
-	0x00000017,0x00000016,0x00000016,0x00040020,0x00000018,0x00000002,0x00000017,0x0004003b,
-	0x00000018,0x00000019,0x00000002,0x0004002b,0x00000014,0x0000001a,0x00000001,0x00040020,
-	0x0000001b,0x00000002,0x00000016,0x0004003b,0x0000000a,0x00000021,0x00000001,0x0004002b,
-	0x00000006,0x00000023,0x3f800000,0x00040020,0x00000029,0x00000003,0x0000000d,0x00040017,
-	0x0000002b,0x00000006,0x00000002,0x00040020,0x0000002c,0x00000001,0x0000002b,0x0004003b,
-	0x0000002c,0x0000002d,0x00000001,0x0004003b,0x0000000a,0x0000002e,0x00000001,0x00040020,
-	0x0000002f,0x00000001,0x0000000d,0x0004003b,0x0000002f,0x00000030,0x00000001,0x00050036,
-	0x00000002,0x00000004,0x00000000,0x00000003,0x000200f8,0x00000005,0x0004003d,0x00000007,
-	0x0000000c,0x0000000b,0x0003003e,0x00000009,0x0000000c,0x00050041,0x0000001b,0x0000001c,
-	0x00000019,0x0000001a,0x0004003d,0x00000016,0x0000001d,0x0000001c,0x00050041,0x0000001b,
-	0x0000001e,0x00000019,0x00000015,0x0004003d,0x00000016,0x0000001f,0x0000001e,0x00050092,
-	0x00000016,0x00000020,0x0000001d,0x0000001f,0x0004003d,0x00000007,0x00000022,0x00000021,
-	0x00050051,0x00000006,0x00000024,0x00000022,0x00000000,0x00050051,0x00000006,0x00000025,
-	0x00000022,0x00000001,0x00050051,0x00000006,0x00000026,0x00000022,0x00000002,0x00070050,
-	0x0000000d,0x00000027,0x00000024,0x00000025,0x00000026,0x00000023,0x00050091,0x0000000d,
-	0x00000028,0x00000020,0x00000027,0x00050041,0x00000029,0x0000002a,0x00000013,0x00000015,
-	0x0003003e,0x0000002a,0x00000028,0x000100fd,0x00010038 };
+	const std::vector<uint32_t> vertexShaderCode = { 0x07230203,0x00010000,0x0008000a,0x0000003e,0x00000000,0x00020011,0x00000001,0x00020011,
+	0x000014b6,0x0008000a,0x5f565053,0x5f545845,0x63736564,0x74706972,0x695f726f,0x7865646e,
+	0x00676e69,0x0006000b,0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,
+	0x00000000,0x00000001,0x000c000f,0x00000000,0x00000004,0x6e69616d,0x00000000,0x00000009,
+	0x0000000b,0x00000013,0x0000002e,0x0000003a,0x0000003b,0x0000003d,0x00030003,0x00000002,
+	0x000001cc,0x00080004,0x455f4c47,0x6e5f5458,0x6e756e6f,0x726f6669,0x75715f6d,0x66696c61,
+	0x00726569,0x00040005,0x00000004,0x6e69616d,0x00000000,0x00050005,0x00000009,0x4e74756f,
+	0x616d726f,0x0000006c,0x00040005,0x0000000b,0x6d726f6e,0x00006c61,0x00060005,0x00000011,
+	0x505f6c67,0x65567265,0x78657472,0x00000000,0x00060006,0x00000011,0x00000000,0x505f6c67,
+	0x7469736f,0x006e6f69,0x00070006,0x00000011,0x00000001,0x505f6c67,0x746e696f,0x657a6953,
+	0x00000000,0x00070006,0x00000011,0x00000002,0x435f6c67,0x4470696c,0x61747369,0x0065636e,
+	0x00070006,0x00000011,0x00000003,0x435f6c67,0x446c6c75,0x61747369,0x0065636e,0x00030005,
+	0x00000013,0x00000000,0x00040005,0x00000017,0x656d6143,0x00006172,0x00050006,0x00000017,
+	0x00000000,0x77656976,0x00000000,0x00060006,0x00000017,0x00000001,0x6a6f7270,0x69746365,
+	0x00006e6f,0x00040005,0x00000019,0x656d6163,0x00006172,0x00040005,0x00000021,0x656a624f,
+	0x00737463,0x00050006,0x00000021,0x00000000,0x65646f6d,0x0000006c,0x00040005,0x00000024,
+	0x656a626f,0x00737463,0x00050005,0x00000025,0x656a624f,0x44497463,0x00000000,0x00060006,
+	0x00000025,0x00000000,0x656a626f,0x44497463,0x00000000,0x00030005,0x00000027,0x0044496f,
+	0x00050005,0x0000002e,0x69736f70,0x6e6f6974,0x00000000,0x00030005,0x0000003a,0x00007675,
+	0x00040005,0x0000003b,0x6f6c6f63,0x00000072,0x00040005,0x0000003d,0x676e6174,0x00746e65,
+	0x00040047,0x00000009,0x0000001e,0x00000000,0x00040047,0x0000000b,0x0000001e,0x00000001,
+	0x00050048,0x00000011,0x00000000,0x0000000b,0x00000000,0x00050048,0x00000011,0x00000001,
+	0x0000000b,0x00000001,0x00050048,0x00000011,0x00000002,0x0000000b,0x00000003,0x00050048,
+	0x00000011,0x00000003,0x0000000b,0x00000004,0x00030047,0x00000011,0x00000002,0x00040048,
+	0x00000017,0x00000000,0x00000005,0x00050048,0x00000017,0x00000000,0x00000023,0x00000000,
+	0x00050048,0x00000017,0x00000000,0x00000007,0x00000010,0x00040048,0x00000017,0x00000001,
+	0x00000005,0x00050048,0x00000017,0x00000001,0x00000023,0x00000040,0x00050048,0x00000017,
+	0x00000001,0x00000007,0x00000010,0x00030047,0x00000017,0x00000002,0x00040047,0x00000019,
+	0x00000022,0x00000000,0x00040047,0x00000019,0x00000021,0x00000000,0x00040048,0x00000021,
+	0x00000000,0x00000005,0x00040048,0x00000021,0x00000000,0x00000013,0x00040048,0x00000021,
+	0x00000000,0x00000018,0x00050048,0x00000021,0x00000000,0x00000023,0x00000000,0x00050048,
+	0x00000021,0x00000000,0x00000007,0x00000010,0x00030047,0x00000021,0x00000003,0x00040047,
+	0x00000024,0x00000022,0x00000000,0x00040047,0x00000024,0x00000021,0x00000001,0x00050048,
+	0x00000025,0x00000000,0x00000023,0x00000000,0x00030047,0x00000025,0x00000002,0x00040047,
+	0x0000002e,0x0000001e,0x00000000,0x00040047,0x0000003a,0x0000001e,0x00000002,0x00040047,
+	0x0000003b,0x0000001e,0x00000003,0x00040047,0x0000003d,0x0000001e,0x00000004,0x00020013,
+	0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,0x00040017,
+	0x00000007,0x00000006,0x00000003,0x00040020,0x00000008,0x00000003,0x00000007,0x0004003b,
+	0x00000008,0x00000009,0x00000003,0x00040020,0x0000000a,0x00000001,0x00000007,0x0004003b,
+	0x0000000a,0x0000000b,0x00000001,0x00040017,0x0000000d,0x00000006,0x00000004,0x00040015,
+	0x0000000e,0x00000020,0x00000000,0x0004002b,0x0000000e,0x0000000f,0x00000001,0x0004001c,
+	0x00000010,0x00000006,0x0000000f,0x0006001e,0x00000011,0x0000000d,0x00000006,0x00000010,
+	0x00000010,0x00040020,0x00000012,0x00000003,0x00000011,0x0004003b,0x00000012,0x00000013,
+	0x00000003,0x00040015,0x00000014,0x00000020,0x00000001,0x0004002b,0x00000014,0x00000015,
+	0x00000000,0x00040018,0x00000016,0x0000000d,0x00000004,0x0004001e,0x00000017,0x00000016,
+	0x00000016,0x00040020,0x00000018,0x00000002,0x00000017,0x0004003b,0x00000018,0x00000019,
+	0x00000002,0x0004002b,0x00000014,0x0000001a,0x00000001,0x00040020,0x0000001b,0x00000002,
+	0x00000016,0x0003001e,0x00000021,0x00000016,0x0003001d,0x00000022,0x00000021,0x00040020,
+	0x00000023,0x00000002,0x00000022,0x0004003b,0x00000023,0x00000024,0x00000002,0x0003001e,
+	0x00000025,0x0000000e,0x00040020,0x00000026,0x00000009,0x00000025,0x0004003b,0x00000026,
+	0x00000027,0x00000009,0x00040020,0x00000028,0x00000009,0x0000000e,0x0004003b,0x0000000a,
+	0x0000002e,0x00000001,0x0004002b,0x00000006,0x00000030,0x3f800000,0x00040020,0x00000036,
+	0x00000003,0x0000000d,0x00040017,0x00000038,0x00000006,0x00000002,0x00040020,0x00000039,
+	0x00000001,0x00000038,0x0004003b,0x00000039,0x0000003a,0x00000001,0x0004003b,0x0000000a,
+	0x0000003b,0x00000001,0x00040020,0x0000003c,0x00000001,0x0000000d,0x0004003b,0x0000003c,
+	0x0000003d,0x00000001,0x00050036,0x00000002,0x00000004,0x00000000,0x00000003,0x000200f8,
+	0x00000005,0x0004003d,0x00000007,0x0000000c,0x0000000b,0x0003003e,0x00000009,0x0000000c,
+	0x00050041,0x0000001b,0x0000001c,0x00000019,0x0000001a,0x0004003d,0x00000016,0x0000001d,
+	0x0000001c,0x00050041,0x0000001b,0x0000001e,0x00000019,0x00000015,0x0004003d,0x00000016,
+	0x0000001f,0x0000001e,0x00050092,0x00000016,0x00000020,0x0000001d,0x0000001f,0x00050041,
+	0x00000028,0x00000029,0x00000027,0x00000015,0x0004003d,0x0000000e,0x0000002a,0x00000029,
+	0x00060041,0x0000001b,0x0000002b,0x00000024,0x0000002a,0x00000015,0x0004003d,0x00000016,
+	0x0000002c,0x0000002b,0x00050092,0x00000016,0x0000002d,0x00000020,0x0000002c,0x0004003d,
+	0x00000007,0x0000002f,0x0000002e,0x00050051,0x00000006,0x00000031,0x0000002f,0x00000000,
+	0x00050051,0x00000006,0x00000032,0x0000002f,0x00000001,0x00050051,0x00000006,0x00000033,
+	0x0000002f,0x00000002,0x00070050,0x0000000d,0x00000034,0x00000031,0x00000032,0x00000033,
+	0x00000030,0x00050091,0x0000000d,0x00000035,0x0000002d,0x00000034,0x00050041,0x00000036,
+	0x00000037,0x00000013,0x00000015,0x0003003e,0x00000037,0x00000035,0x000100fd,0x00010038 };
 
 	VkShaderModule vertexShaderModule;
 	VkShaderModuleCreateInfo vertexShaderModuleCreateInfo = {};
@@ -1261,9 +1471,9 @@ void NutshellGraphicsModule::createGraphicsPipeline() {
 	depthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 	depthStencilStateCreateInfo.pNext = nullptr;
 	depthStencilStateCreateInfo.flags = 0;
-	depthStencilStateCreateInfo.depthTestEnable = VK_FALSE;
-	depthStencilStateCreateInfo.depthWriteEnable = VK_FALSE;
-	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_NEVER;
+	depthStencilStateCreateInfo.depthTestEnable = VK_TRUE;
+	depthStencilStateCreateInfo.depthWriteEnable = VK_TRUE;
+	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS;
 	depthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
 	depthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
 	depthStencilStateCreateInfo.front = {};
@@ -1308,13 +1518,33 @@ void NutshellGraphicsModule::createGraphicsPipeline() {
 	cameraDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	cameraDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
+	VkDescriptorSetLayoutBinding objectsDescriptorSetLayoutBinding = {};
+	objectsDescriptorSetLayoutBinding.binding = 1;
+	objectsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	objectsDescriptorSetLayoutBinding.descriptorCount = 524288;
+	objectsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	objectsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBindingFlagsCreateInfo descriptorSetLayoutBindingFlagsCreateInfo = {};
+	descriptorSetLayoutBindingFlagsCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+	descriptorSetLayoutBindingFlagsCreateInfo.pNext = nullptr;
+	descriptorSetLayoutBindingFlagsCreateInfo.bindingCount = 2;
+	std::array<VkDescriptorBindingFlags, 2> flags = { 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
+	descriptorSetLayoutBindingFlagsCreateInfo.pBindingFlags = flags.data();
+
+	std::array<VkDescriptorSetLayoutBinding, 2> descriptorSetLayoutBindings = { cameraDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
 	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	descriptorSetLayoutCreateInfo.pNext = nullptr;
+	descriptorSetLayoutCreateInfo.pNext = &descriptorSetLayoutBindingFlagsCreateInfo;
 	descriptorSetLayoutCreateInfo.flags = 0;
-	descriptorSetLayoutCreateInfo.bindingCount = 1;
-	descriptorSetLayoutCreateInfo.pBindings = &cameraDescriptorSetLayoutBinding;
+	descriptorSetLayoutCreateInfo.bindingCount = 2;
+	descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
 	NTSH_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_descriptorSetLayout));
+
+	VkPushConstantRange pushConstantRange = {};
+	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	pushConstantRange.offset = 0;
+	pushConstantRange.size = sizeof(uint32_t);
 
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -1322,8 +1552,8 @@ void NutshellGraphicsModule::createGraphicsPipeline() {
 	pipelineLayoutCreateInfo.flags = 0;
 	pipelineLayoutCreateInfo.setLayoutCount = 1;
 	pipelineLayoutCreateInfo.pSetLayouts = &m_descriptorSetLayout;
-	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
-	pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
+	pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+	pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
 	NTSH_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_graphicsPipelineLayout));
 
 	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};
@@ -1353,19 +1583,26 @@ void NutshellGraphicsModule::createGraphicsPipeline() {
 }
 
 void NutshellGraphicsModule::createDescriptorSets() {
-	VkDescriptorPoolSize uniformDescriptorPoolSize = {};
-	uniformDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	uniformDescriptorPoolSize.descriptorCount = 1;
+	// Create descriptor pool
+	VkDescriptorPoolSize cameraDescriptorPoolSize = {};
+	cameraDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	cameraDescriptorPoolSize.descriptorCount = 1;
 
+	VkDescriptorPoolSize objectsDescriptorPoolSize = {};
+	objectsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	objectsDescriptorPoolSize.descriptorCount = 524288;
+
+	std::array<VkDescriptorPoolSize, 2> descriptorPoolSizes = { cameraDescriptorPoolSize, objectsDescriptorPoolSize };
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.pNext = nullptr;
 	descriptorPoolCreateInfo.flags = 0;
 	descriptorPoolCreateInfo.maxSets = m_framesInFlight;
-	descriptorPoolCreateInfo.poolSizeCount = 1;
-	descriptorPoolCreateInfo.pPoolSizes = &uniformDescriptorPoolSize;
+	descriptorPoolCreateInfo.poolSizeCount = 2;
+	descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes.data();
 	NTSH_VK_CHECK(vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool));
 
+	// Allocate descriptor sets
 	m_descriptorSets.resize(m_framesInFlight);
 	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
 	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -1378,6 +1615,7 @@ void NutshellGraphicsModule::createDescriptorSets() {
 		NTSH_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_descriptorSets[i]));
 	}
 
+	// Create camera uniform buffer
 	m_cameraBuffers.resize(m_framesInFlight);
 	m_cameraBufferAllocations.resize(m_framesInFlight);
 	VkBufferCreateInfo cameraBufferCreateInfo = {};
@@ -1388,35 +1626,81 @@ void NutshellGraphicsModule::createDescriptorSets() {
 	cameraBufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 	cameraBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	cameraBufferCreateInfo.queueFamilyIndexCount = 1;
-	cameraBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueIndex;
+	cameraBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
-	VmaAllocationCreateInfo cameraBufferAllocationCreateInfo = {};
-	cameraBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-	cameraBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+	VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
+	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &cameraBufferCreateInfo, &cameraBufferAllocationCreateInfo, &m_cameraBuffers[i], &m_cameraBufferAllocations[i], nullptr));
+		NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &cameraBufferCreateInfo, &bufferAllocationCreateInfo, &m_cameraBuffers[i], &m_cameraBufferAllocations[i], nullptr));
 	}
 
-	std::vector<VkWriteDescriptorSet> writeDescriptorSets(m_framesInFlight);
-	std::vector<VkDescriptorBufferInfo> cameraDescriptorBufferInfos(m_framesInFlight);
+	// Create object storage buffer
+	for (size_t i = 0; i < m_objects.size(); i++) {
+		m_objects[i].buffers.resize(m_framesInFlight);
+		m_objects[i].allocations.resize(m_framesInFlight);
+		VkBufferCreateInfo objectBufferCreateInfo = {};
+		objectBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		objectBufferCreateInfo.pNext = nullptr;
+		objectBufferCreateInfo.flags = 0;
+		objectBufferCreateInfo.size = sizeof(nml::mat4);
+		objectBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+		objectBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		objectBufferCreateInfo.queueFamilyIndexCount = 1;
+		objectBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+
+		for (uint32_t j = 0; j < m_framesInFlight; j++) {
+			NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &objectBufferCreateInfo, &bufferAllocationCreateInfo, &m_objects[i].buffers[j], &m_objects[i].allocations[j], nullptr));
+		}
+	}
+
+	// Update descriptor sets
+	
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		cameraDescriptorBufferInfos[i].buffer = m_cameraBuffers[i];
-		cameraDescriptorBufferInfos[i].offset = 0;
-		cameraDescriptorBufferInfos[i].range = sizeof(nml::mat4) * 2;
+		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
+		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
+		std::vector<VkDescriptorBufferInfo> objectsDescriptorBufferInfos;
 
-		writeDescriptorSets[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		writeDescriptorSets[i].pNext = nullptr;
-		writeDescriptorSets[i].dstSet = m_descriptorSets[i];
-		writeDescriptorSets[i].dstBinding = 0;
-		writeDescriptorSets[i].dstArrayElement = 0;
-		writeDescriptorSets[i].descriptorCount = 1;
-		writeDescriptorSets[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		writeDescriptorSets[i].pImageInfo = nullptr;
-		writeDescriptorSets[i].pBufferInfo = &cameraDescriptorBufferInfos[i];
-		writeDescriptorSets[i].pTexelBufferView = nullptr;
+		cameraDescriptorBufferInfo.buffer = m_cameraBuffers[i];
+		cameraDescriptorBufferInfo.offset = 0;
+		cameraDescriptorBufferInfo.range = sizeof(nml::mat4) * 2;
+
+		VkWriteDescriptorSet cameraDescriptorWriteDescriptorSet = {};
+		cameraDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		cameraDescriptorWriteDescriptorSet.pNext = nullptr;
+		cameraDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		cameraDescriptorWriteDescriptorSet.dstBinding = 0;
+		cameraDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		cameraDescriptorWriteDescriptorSet.descriptorCount = 1;
+		cameraDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		cameraDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		cameraDescriptorWriteDescriptorSet.pBufferInfo = &cameraDescriptorBufferInfo;
+		cameraDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(cameraDescriptorWriteDescriptorSet);
+
+		objectsDescriptorBufferInfos.resize(m_objects.size());
+		for (size_t j = 0; j < objectsDescriptorBufferInfos.size(); j++) {
+			objectsDescriptorBufferInfos[j].buffer = m_objects[j].buffers[i];
+			objectsDescriptorBufferInfos[j].offset = 0;
+			objectsDescriptorBufferInfos[j].range = sizeof(nml::mat4);
+		}
+
+		VkWriteDescriptorSet objectsDescriptorWriteDescriptorSet = {};
+		objectsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		objectsDescriptorWriteDescriptorSet.pNext = nullptr;
+		objectsDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		objectsDescriptorWriteDescriptorSet.dstBinding = 1;
+		objectsDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		objectsDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(objectsDescriptorBufferInfos.size());
+		objectsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		objectsDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		objectsDescriptorWriteDescriptorSet.pBufferInfo = objectsDescriptorBufferInfos.data();
+		objectsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(objectsDescriptorWriteDescriptorSet);
+
+		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 	}
-	vkUpdateDescriptorSets(m_device, m_framesInFlight, writeDescriptorSets.data(), 0, nullptr);
 }
 
 void NutshellGraphicsModule::resize() {
@@ -1433,98 +1717,14 @@ void NutshellGraphicsModule::resize() {
 		}
 
 		// Recreate the swapchain
-		VkSurfaceCapabilitiesKHR surfaceCapabilities = getSurfaceCapabilities();
-		uint32_t minImageCount = surfaceCapabilities.minImageCount + 1;
-		if (surfaceCapabilities.maxImageCount > 0 && minImageCount > surfaceCapabilities.maxImageCount) {
-			minImageCount = surfaceCapabilities.maxImageCount;
-		}
+		createSwapchain(m_swapchain);
+		
+		// Destroy depth image and image view
+		vkDestroyImageView(m_device, m_depthImageView, nullptr);
+		vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
 
-		std::vector<VkSurfaceFormatKHR> surfaceFormats = getSurfaceFormats();
-		m_swapchainFormat = surfaceFormats[0].format;
-		VkColorSpaceKHR swapchainColorSpace = surfaceFormats[0].colorSpace;
-		for (const VkSurfaceFormatKHR& surfaceFormat : surfaceFormats) {
-			if (surfaceFormat.format == VK_FORMAT_B8G8R8A8_SRGB && surfaceFormat.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR) {
-				m_swapchainFormat = surfaceFormat.format;
-				swapchainColorSpace = surfaceFormat.colorSpace;
-				break;
-			}
-		}
-
-		std::vector<VkPresentModeKHR> presentModes = getSurfacePresentModes();
-		VkPresentModeKHR swapchainPresentMode = VK_PRESENT_MODE_FIFO_KHR;
-		for (const VkPresentModeKHR& presentMode : presentModes) {
-			if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-				swapchainPresentMode = presentMode;
-				break;
-			}
-			else if (presentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
-				swapchainPresentMode = presentMode;
-			}
-		}
-
-		VkExtent2D swapchainExtent = {};
-		swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSH_MAIN_WINDOW));
-		swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSH_MAIN_WINDOW));
-
-		m_viewport.x = 0.0f;
-		m_viewport.y = 0.0f;
-		m_viewport.width = static_cast<float>(swapchainExtent.width);
-		m_viewport.height = static_cast<float>(swapchainExtent.height);
-		m_viewport.minDepth = 0.0f;
-		m_viewport.maxDepth = 1.0f;
-
-		m_scissor.offset.x = 0;
-		m_scissor.offset.y = 0;
-		m_scissor.extent.width = swapchainExtent.width;
-		m_scissor.extent.height = swapchainExtent.height;
-
-		VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
-		swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-		swapchainCreateInfo.pNext = nullptr;
-		swapchainCreateInfo.flags = 0;
-		swapchainCreateInfo.surface = m_surface;
-		swapchainCreateInfo.minImageCount = minImageCount;
-		swapchainCreateInfo.imageFormat = m_swapchainFormat;
-		swapchainCreateInfo.imageColorSpace = swapchainColorSpace;
-		swapchainCreateInfo.imageExtent = swapchainExtent;
-		swapchainCreateInfo.imageArrayLayers = 1;
-		swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-		swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		swapchainCreateInfo.queueFamilyIndexCount = 0;
-		swapchainCreateInfo.pQueueFamilyIndices = nullptr;
-		swapchainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
-		swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-		swapchainCreateInfo.presentMode = swapchainPresentMode;
-		swapchainCreateInfo.clipped = VK_TRUE;
-		VkSwapchainKHR oldSwapchain = m_swapchain;
-		swapchainCreateInfo.oldSwapchain = oldSwapchain;
-		NTSH_VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_swapchain));
-
-		NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, nullptr));
-		m_swapchainImages.resize(m_imageCount);
-		NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, m_swapchainImages.data()));
-
-		// Create the swapchain image views
-		m_swapchainImageViews.resize(m_imageCount);
-		for (uint32_t i = 0; i < m_imageCount; i++) {
-			VkImageViewCreateInfo swapchainImageViewCreateInfo = {};
-			swapchainImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			swapchainImageViewCreateInfo.pNext = nullptr;
-			swapchainImageViewCreateInfo.flags = 0;
-			swapchainImageViewCreateInfo.image = m_swapchainImages[i];
-			swapchainImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			swapchainImageViewCreateInfo.format = m_swapchainFormat;
-			swapchainImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
-			swapchainImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
-			swapchainImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
-			swapchainImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
-			swapchainImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			swapchainImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-			swapchainImageViewCreateInfo.subresourceRange.levelCount = 1;
-			swapchainImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-			swapchainImageViewCreateInfo.subresourceRange.layerCount = 1;
-			NTSH_VK_CHECK(vkCreateImageView(m_device, &swapchainImageViewCreateInfo, nullptr, &m_swapchainImageViews[i]));
-		}
+		// Recreate depth image
+		createDepthImage();
 	}
 }
 

@@ -38,6 +38,21 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBits
 
 const float toRad = 3.1415926535897932384626433832795f / 180.0f;
 
+struct Object {
+	size_t index;
+
+	nml::vec3 position;
+	nml::vec3 rotation;
+	nml::vec3 scale;
+
+	uint32_t indexCount;
+	uint32_t firstIndex;
+	int32_t vertexOffset;
+
+	std::vector<VkBuffer> buffers;
+	std::vector<VmaAllocation> allocations;
+};
+
 class NutshellGraphicsModule : public NutshellGraphicsModuleInterface {
 public:
 	NutshellGraphicsModule() : NutshellGraphicsModuleInterface("Nutshell Graphics Vulkan Model Module") {}
@@ -54,8 +69,14 @@ private:
 
 	VkPhysicalDeviceMemoryProperties getMemoryProperties();
 
+	// Swapchain creation
+	void createSwapchain(VkSwapchainKHR oldSwapchain);
+
 	// Vertex and index buffers creation
 	void createVertexAndIndexBuffers();
+
+	// Depth image creation
+	void createDepthImage();
 
 	// Graphics pipeline creation
 	void createGraphicsPipeline();
@@ -78,7 +99,7 @@ private:
 	VkSurfaceKHR m_surface = VK_NULL_HANDLE;
 
 	VkPhysicalDevice m_physicalDevice;
-	uint32_t m_graphicsQueueIndex;
+	uint32_t m_graphicsQueueFamilyIndex;
 	VkQueue m_graphicsQueue;
 	VkDevice m_device;
 
@@ -91,8 +112,12 @@ private:
 	VkFormat m_swapchainFormat;
 
 	VkImage m_drawImage;
+	VmaAllocation m_drawImageAllocation;
 	VkImageView m_drawImageView;
-	VkDeviceMemory m_drawImageMemory;
+
+	VkImage m_depthImage;
+	VmaAllocation m_depthImageAllocation;
+	VkImageView m_depthImageView;
 
 	VmaAllocator m_allocator;
 
@@ -127,6 +152,7 @@ private:
 	std::vector<VkBuffer> m_cameraBuffers;
 	std::vector<VmaAllocation> m_cameraBufferAllocations;
 
-	float m_cameraAngle = 0.0f;
-	float m_cameraRotationSpeed = 0.5f;
+	std::vector<Object> m_objects;
+	float m_objectAngle = 0.0f;
+	float m_objectRotationSpeed = 0.12f;
 };
