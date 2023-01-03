@@ -335,6 +335,8 @@ void NutshellGraphicsModule::init() {
 
 	createVertexAndIndexBuffers();
 
+	loadCubeModel();
+
 	createDepthImage();
 
 	createGraphicsPipeline();
@@ -891,6 +893,27 @@ void NutshellGraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
 }
 
 void NutshellGraphicsModule::createVertexAndIndexBuffers() {
+	// Vertex and index buffers
+	VkBufferCreateInfo vertexAndIndexBufferCreateInfo = {};
+	vertexAndIndexBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	vertexAndIndexBufferCreateInfo.pNext = nullptr;
+	vertexAndIndexBufferCreateInfo.flags = 0;
+	vertexAndIndexBufferCreateInfo.size = 65536;
+	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	vertexAndIndexBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	vertexAndIndexBufferCreateInfo.queueFamilyIndexCount = 1;
+	vertexAndIndexBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+
+	VmaAllocationCreateInfo vertexAndIndexBufferAllocationCreateInfo = {};
+	vertexAndIndexBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_vertexBuffer, &m_vertexBufferAllocation, nullptr);
+
+	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_indexBuffer, &m_indexBufferAllocation, nullptr);
+}
+
+void NutshellGraphicsModule::loadCubeModel() {
 	// Cube
 	NtshMesh cubeMesh;
 	cubeMesh.vertices = {
@@ -957,7 +980,8 @@ void NutshellGraphicsModule::createVertexAndIndexBuffers() {
 		22,
 		23
 	};
-	
+	m_cube.primitives.push_back({ cubeMesh, NtshMaterial() });
+
 	m_objects.resize(3);
 	m_objects[0].index = 0;
 	m_objects[0].indexCount = 36;
@@ -985,25 +1009,6 @@ void NutshellGraphicsModule::createVertexAndIndexBuffers() {
 	m_objects[2].position = nml::vec3(0.0f, -2.0f, 0.0f);
 	m_objects[2].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
 	m_objects[2].scale = nml::vec3(0.5f, 1.0f, 2.5f);
-
-	// Vertex and index buffers
-	VkBufferCreateInfo vertexAndIndexBufferCreateInfo = {};
-	vertexAndIndexBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	vertexAndIndexBufferCreateInfo.pNext = nullptr;
-	vertexAndIndexBufferCreateInfo.flags = 0;
-	vertexAndIndexBufferCreateInfo.size = 65536;
-	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-	vertexAndIndexBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	vertexAndIndexBufferCreateInfo.queueFamilyIndexCount = 1;
-	vertexAndIndexBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
-
-	VmaAllocationCreateInfo vertexAndIndexBufferAllocationCreateInfo = {};
-	vertexAndIndexBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-
-	vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_vertexBuffer, &m_vertexBufferAllocation, nullptr);
-
-	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-	vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_indexBuffer, &m_indexBufferAllocation, nullptr);
 
 	// Staging buffer
 	VkBuffer vertexStagingBuffer;
