@@ -75,6 +75,9 @@ private:
 	// Vertex and index buffers creation
 	void createVertexAndIndexBuffers();
 
+	// Cube model
+	void loadCubeModel();
+
 	// Depth image creation
 	void createDepthImage();
 
@@ -152,6 +155,7 @@ private:
 	std::vector<VkBuffer> m_cameraBuffers;
 	std::vector<VmaAllocation> m_cameraBufferAllocations;
 
+	NtshModel m_cube;
 	std::vector<Object> m_objects;
 	float m_objectAngle = 0.0f;
 	float m_objectRotationSpeed = 0.12f;
