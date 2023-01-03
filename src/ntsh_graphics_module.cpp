@@ -225,6 +225,9 @@ void NutshellGraphicsModule::init() {
 	physicalDeviceSynchronization2Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
 	physicalDeviceSynchronization2Features.pNext = &physicalDeviceDynamicRenderingFeatures;
 	physicalDeviceSynchronization2Features.synchronization2 = VK_TRUE;
+
+	VkPhysicalDeviceFeatures physicalDeviceFeatures = {};
+	physicalDeviceFeatures.samplerAnisotropy = VK_TRUE;
 	
 	// Create the logical device
 	VkDeviceCreateInfo deviceCreateInfo = {};
@@ -245,7 +248,7 @@ void NutshellGraphicsModule::init() {
 	}
 	deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
 	deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
-	deviceCreateInfo.pEnabledFeatures = nullptr;
+	deviceCreateInfo.pEnabledFeatures = &physicalDeviceFeatures;
 	NTSH_VK_CHECK(vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device));
 
 	vkGetDeviceQueue(m_device, m_graphicsQueueFamilyIndex, 0, &m_graphicsQueue);
@@ -340,6 +343,69 @@ void NutshellGraphicsModule::init() {
 	createDepthImage();
 
 	createGraphicsPipeline();
+
+	// Create texture sampler
+	VkSamplerCreateInfo textureSamplerCreateInfo = {};
+	textureSamplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	textureSamplerCreateInfo.pNext = nullptr;
+	textureSamplerCreateInfo.flags = 0;
+	textureSamplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+	textureSamplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+	textureSamplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	textureSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	textureSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	textureSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	textureSamplerCreateInfo.mipLodBias = 0.0f;
+	textureSamplerCreateInfo.anisotropyEnable = VK_TRUE;
+	textureSamplerCreateInfo.maxAnisotropy = 16.0f;
+	textureSamplerCreateInfo.compareEnable = VK_TRUE;
+	textureSamplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+	textureSamplerCreateInfo.minLod = 0.0f;
+	textureSamplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
+	textureSamplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	textureSamplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+	NTSH_VK_CHECK(vkCreateSampler(m_device, &textureSamplerCreateInfo, nullptr, &m_textureSampler));
+
+
+	// Create camera uniform buffer
+	m_cameraBuffers.resize(m_framesInFlight);
+	m_cameraBufferAllocations.resize(m_framesInFlight);
+	VkBufferCreateInfo cameraBufferCreateInfo = {};
+	cameraBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	cameraBufferCreateInfo.pNext = nullptr;
+	cameraBufferCreateInfo.flags = 0;
+	cameraBufferCreateInfo.size = sizeof(nml::mat4) * 2;
+	cameraBufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+	cameraBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	cameraBufferCreateInfo.queueFamilyIndexCount = 1;
+	cameraBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+
+	VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
+	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &cameraBufferCreateInfo, &bufferAllocationCreateInfo, &m_cameraBuffers[i], &m_cameraBufferAllocations[i], nullptr));
+	}
+
+	// Create object storage buffer
+	for (size_t i = 0; i < m_objects.size(); i++) {
+		m_objects[i].buffers.resize(m_framesInFlight);
+		m_objects[i].allocations.resize(m_framesInFlight);
+		VkBufferCreateInfo objectBufferCreateInfo = {};
+		objectBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		objectBufferCreateInfo.pNext = nullptr;
+		objectBufferCreateInfo.flags = 0;
+		objectBufferCreateInfo.size = sizeof(nml::mat4) + sizeof(uint32_t);
+		objectBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+		objectBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		objectBufferCreateInfo.queueFamilyIndexCount = 1;
+		objectBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+
+		for (uint32_t j = 0; j < m_framesInFlight; j++) {
+			NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &objectBufferCreateInfo, &bufferAllocationCreateInfo, &m_objects[i].buffers[j], &m_objects[i].allocations[j], nullptr));
+		}
+	}
 
 	createDescriptorSets();
 
@@ -449,6 +515,7 @@ void NutshellGraphicsModule::update(double dt) {
 
 		vmaMapMemory(m_allocator, m_objects[i].allocations[m_currentFrameInFlight], &data);
 		memcpy(data, objectModel.data(), sizeof(nml::mat4));
+		memcpy(reinterpret_cast<char*>(data) + sizeof(nml::mat4), &m_objects[i].textureID, sizeof(uint32_t));
 		vmaUnmapMemory(m_allocator, m_objects[i].allocations[m_currentFrameInFlight]);
 	}
 
@@ -496,7 +563,6 @@ void NutshellGraphicsModule::update(double dt) {
 	undefinedToColorAttachmentOptimalDependencyInfo.pBufferMemoryBarriers = nullptr;
 	undefinedToColorAttachmentOptimalDependencyInfo.imageMemoryBarrierCount = 1;
 	undefinedToColorAttachmentOptimalDependencyInfo.pImageMemoryBarriers = &undefinedToColorAttachmentOptimalImageMemoryBarrier;
-
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &undefinedToColorAttachmentOptimalDependencyInfo);
 
 	// Bind descriptor set 0
@@ -598,7 +664,6 @@ void NutshellGraphicsModule::update(double dt) {
 		colorAttachmentOptimalToPresentSrcDependencyInfo.pBufferMemoryBarriers = nullptr;
 		colorAttachmentOptimalToPresentSrcDependencyInfo.imageMemoryBarrierCount = 1;
 		colorAttachmentOptimalToPresentSrcDependencyInfo.pImageMemoryBarriers = &colorAttachmentOptimalToPresentSrcImageMemoryBarrier;
-
 		m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &colorAttachmentOptimalToPresentSrcDependencyInfo);
 	}
 
@@ -700,9 +765,16 @@ void NutshellGraphicsModule::destroy() {
 	vkDestroyImageView(m_device, m_depthImageView, nullptr);
 	vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
 
+	// Destroy texture
+	vkDestroyImageView(m_device, m_cubeTextureImageView, nullptr);
+	vmaDestroyImage(m_allocator, m_cubeTextureImage, m_cubeTextureImageAllocation);
+
 	// Destroy vertex and index buffers
 	vmaDestroyBuffer(m_allocator, m_indexBuffer, m_indexBufferAllocation);
 	vmaDestroyBuffer(m_allocator, m_vertexBuffer, m_vertexBufferAllocation);
+
+	// Destroy texture sampler
+	vkDestroySampler(m_device, m_textureSampler, nullptr);
 
 	// Destroy VMA Allocator
 	vmaDestroyAllocator(m_allocator);
@@ -796,6 +868,10 @@ VkPhysicalDeviceMemoryProperties NutshellGraphicsModule::getMemoryProperties() {
 	vkGetPhysicalDeviceMemoryProperties2(m_physicalDevice, &memoryProperties);
 
 	return memoryProperties.memoryProperties;
+}
+
+uint32_t NutshellGraphicsModule::findMipLevels(uint32_t width, uint32_t height) {
+	return static_cast<uint32_t>(std::floor(std::log2(std::min(width, height)) + 1));
 }
 
 void NutshellGraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
@@ -980,7 +1056,17 @@ void NutshellGraphicsModule::loadCubeModel() {
 		22,
 		23
 	};
+
 	m_cube.primitives.push_back({ cubeMesh, NtshMaterial() });
+
+	std::array<unsigned char, 16 * 16 * 4> textureData;
+	for (size_t i = 0; i < 256; i++) {
+		size_t component = 0;
+		textureData[i * 4 + component++] = static_cast<unsigned char>(i % 256);
+		textureData[i * 4 + component++] = static_cast<unsigned char>(i % 64);
+		textureData[i * 4 + component++] = static_cast<unsigned char>(i % 128);
+		textureData[i * 4 + component] = static_cast<unsigned char>(255);
+	}
 
 	m_objects.resize(3);
 	m_objects[0].index = 0;
@@ -992,6 +1078,8 @@ void NutshellGraphicsModule::loadCubeModel() {
 	m_objects[0].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
 	m_objects[0].scale = nml::vec3(0.5f, 2.0f, 0.5f);
 
+	m_objects[0].textureID = 0;
+
 	m_objects[1].index = 1;
 	m_objects[1].indexCount = 36;
 	m_objects[1].firstIndex = 0;
@@ -1000,6 +1088,8 @@ void NutshellGraphicsModule::loadCubeModel() {
 	m_objects[1].position = nml::vec3(0.0f, 2.0f, 0.0f);
 	m_objects[1].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
 	m_objects[1].scale = nml::vec3(0.5f, 1.0f, 2.5f);
+
+	m_objects[1].textureID = 0;
 
 	m_objects[2].index = 2;
 	m_objects[2].indexCount = 36;
@@ -1010,7 +1100,9 @@ void NutshellGraphicsModule::loadCubeModel() {
 	m_objects[2].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
 	m_objects[2].scale = nml::vec3(0.5f, 1.0f, 2.5f);
 
-	// Staging buffer
+	m_objects[2].textureID = 0;
+
+	// Vertex and Index staging buffer
 	VkBuffer vertexStagingBuffer;
 	VkBuffer indexStagingBuffer;
 	VmaAllocation vertexStagingBufferAllocation;
@@ -1042,72 +1134,256 @@ void NutshellGraphicsModule::loadCubeModel() {
 	memcpy(data, cubeMesh.indices.data(), cubeMesh.indices.size() * sizeof(uint32_t));
 	vmaUnmapMemory(m_allocator, indexStagingBufferAllocation);
 
+	// Create texture
+	VkImageCreateInfo cubeTextureImageCreateInfo = {};
+	cubeTextureImageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	cubeTextureImageCreateInfo.pNext = nullptr;
+	cubeTextureImageCreateInfo.flags = 0;
+	cubeTextureImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	cubeTextureImageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+	cubeTextureImageCreateInfo.extent.width = 16;
+	cubeTextureImageCreateInfo.extent.height = 16;
+	cubeTextureImageCreateInfo.extent.depth = 1;
+	cubeTextureImageCreateInfo.mipLevels = findMipLevels(cubeTextureImageCreateInfo.extent.width, cubeTextureImageCreateInfo.extent.height);
+	cubeTextureImageCreateInfo.arrayLayers = 1;
+	cubeTextureImageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	cubeTextureImageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	cubeTextureImageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	cubeTextureImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	cubeTextureImageCreateInfo.queueFamilyIndexCount = 1;
+	cubeTextureImageCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	cubeTextureImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+	VmaAllocationCreateInfo cubeTextureImageAllocationCreateInfo = {};
+	cubeTextureImageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	NTSH_VK_CHECK(vmaCreateImage(m_allocator, &cubeTextureImageCreateInfo, &cubeTextureImageAllocationCreateInfo, &m_cubeTextureImage, &m_cubeTextureImageAllocation, nullptr));
+
+	VkImageViewCreateInfo cubeTextureImageViewCreateInfo = {};
+	cubeTextureImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	cubeTextureImageViewCreateInfo.pNext = nullptr;
+	cubeTextureImageViewCreateInfo.flags = 0;
+	cubeTextureImageViewCreateInfo.image = m_cubeTextureImage;
+	cubeTextureImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	cubeTextureImageViewCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+	cubeTextureImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+	cubeTextureImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+	cubeTextureImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+	cubeTextureImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+	cubeTextureImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	cubeTextureImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+	cubeTextureImageViewCreateInfo.subresourceRange.levelCount = cubeTextureImageCreateInfo.mipLevels;
+	cubeTextureImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+	cubeTextureImageViewCreateInfo.subresourceRange.layerCount = 1;
+	NTSH_VK_CHECK(vkCreateImageView(m_device, &cubeTextureImageViewCreateInfo, nullptr, &m_cubeTextureImageView));
+
+	// Create texture staging buffer
+	VkBuffer cubeTextureStagingBuffer;
+	VmaAllocation cubeTextureStagingBufferAllocation;
+
+	VkBufferCreateInfo cubeTextureStagingBufferCreateInfo = {};
+	cubeTextureStagingBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	cubeTextureStagingBufferCreateInfo.pNext = nullptr;
+	cubeTextureStagingBufferCreateInfo.flags = 0;
+	cubeTextureStagingBufferCreateInfo.size = 16 * 16 * 4;
+	cubeTextureStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	cubeTextureStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	cubeTextureStagingBufferCreateInfo.queueFamilyIndexCount = 1;
+	cubeTextureStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+
+	VmaAllocationCreateInfo cubeTextureStagingBufferAllocationCreateInfo = {};
+	cubeTextureStagingBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+	cubeTextureStagingBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+	NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &cubeTextureStagingBufferCreateInfo, &cubeTextureStagingBufferAllocationCreateInfo, &cubeTextureStagingBuffer, &cubeTextureStagingBufferAllocation, nullptr));
+
+	NTSH_VK_CHECK(vmaMapMemory(m_allocator, cubeTextureStagingBufferAllocation, &data));
+	memcpy(data, textureData.data(), 16 * 16 * 4);
+	vmaUnmapMemory(m_allocator, cubeTextureStagingBufferAllocation);
+
 	// Copy staging buffers
-	VkCommandPool vertexAndIndexBuffersCopyCommandPool;
+	VkCommandPool buffersCopyCommandPool;
 
-	VkCommandPoolCreateInfo vertexAndIndexBuffersCopyCommandPoolCreateInfo = {};
-	vertexAndIndexBuffersCopyCommandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	vertexAndIndexBuffersCopyCommandPoolCreateInfo.pNext = nullptr;
-	vertexAndIndexBuffersCopyCommandPoolCreateInfo.flags = 0;
-	vertexAndIndexBuffersCopyCommandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
-	NTSH_VK_CHECK(vkCreateCommandPool(m_device, &vertexAndIndexBuffersCopyCommandPoolCreateInfo, nullptr, &vertexAndIndexBuffersCopyCommandPool));
+	VkCommandPoolCreateInfo buffersCopyCommandPoolCreateInfo = {};
+	buffersCopyCommandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	buffersCopyCommandPoolCreateInfo.pNext = nullptr;
+	buffersCopyCommandPoolCreateInfo.flags = 0;
+	buffersCopyCommandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
+	NTSH_VK_CHECK(vkCreateCommandPool(m_device, &buffersCopyCommandPoolCreateInfo, nullptr, &buffersCopyCommandPool));
 
-	VkCommandBuffer vertexAndIndexBuffersCopyCommandBuffer;
+	VkCommandBuffer buffersCopyCommandBuffer;
 
-	VkCommandBufferAllocateInfo vertexAndIndexBuffersCopyCommandBufferAllocateInfo = {};
-	vertexAndIndexBuffersCopyCommandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	vertexAndIndexBuffersCopyCommandBufferAllocateInfo.pNext = nullptr;
-	vertexAndIndexBuffersCopyCommandBufferAllocateInfo.commandPool = vertexAndIndexBuffersCopyCommandPool;
-	vertexAndIndexBuffersCopyCommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	vertexAndIndexBuffersCopyCommandBufferAllocateInfo.commandBufferCount = 1;
-	NTSH_VK_CHECK(vkAllocateCommandBuffers(m_device, &vertexAndIndexBuffersCopyCommandBufferAllocateInfo, &vertexAndIndexBuffersCopyCommandBuffer));
+	VkCommandBufferAllocateInfo buffersCopyCommandBufferAllocateInfo = {};
+	buffersCopyCommandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	buffersCopyCommandBufferAllocateInfo.pNext = nullptr;
+	buffersCopyCommandBufferAllocateInfo.commandPool = buffersCopyCommandPool;
+	buffersCopyCommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	buffersCopyCommandBufferAllocateInfo.commandBufferCount = 1;
+	NTSH_VK_CHECK(vkAllocateCommandBuffers(m_device, &buffersCopyCommandBufferAllocateInfo, &buffersCopyCommandBuffer));
 
 	VkCommandBufferBeginInfo vertexAndIndexBuffersCopyBeginInfo = {};
 	vertexAndIndexBuffersCopyBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	vertexAndIndexBuffersCopyBeginInfo.pNext = nullptr;
 	vertexAndIndexBuffersCopyBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	vertexAndIndexBuffersCopyBeginInfo.pInheritanceInfo = nullptr;
-	vkBeginCommandBuffer(vertexAndIndexBuffersCopyCommandBuffer, &vertexAndIndexBuffersCopyBeginInfo);
+	vkBeginCommandBuffer(buffersCopyCommandBuffer, &vertexAndIndexBuffersCopyBeginInfo);
 
 	VkBufferCopy vertexBufferCopy = {};
 	vertexBufferCopy.srcOffset = 0;
 	vertexBufferCopy.dstOffset = 0;
 	vertexBufferCopy.size = cubeMesh.vertices.size() * sizeof(NtshVertex);
-	vkCmdCopyBuffer(vertexAndIndexBuffersCopyCommandBuffer, vertexStagingBuffer, m_vertexBuffer, 1, &vertexBufferCopy);
+	vkCmdCopyBuffer(buffersCopyCommandBuffer, vertexStagingBuffer, m_vertexBuffer, 1, &vertexBufferCopy);
 
 	VkBufferCopy indexBufferCopy = {};
 	indexBufferCopy.srcOffset = 0;
 	indexBufferCopy.dstOffset = 0;
 	indexBufferCopy.size = cubeMesh.indices.size() * sizeof(uint32_t);
-	vkCmdCopyBuffer(vertexAndIndexBuffersCopyCommandBuffer, indexStagingBuffer, m_indexBuffer, 1, &indexBufferCopy);
+	vkCmdCopyBuffer(buffersCopyCommandBuffer, indexStagingBuffer, m_indexBuffer, 1, &indexBufferCopy);
 
-	vkEndCommandBuffer(vertexAndIndexBuffersCopyCommandBuffer);
+	VkImageMemoryBarrier2 undefinedToTransferDstOptimalImageMemoryBarrier = {};
+	undefinedToTransferDstOptimalImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	undefinedToTransferDstOptimalImageMemoryBarrier.pNext = nullptr;
+	undefinedToTransferDstOptimalImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+	undefinedToTransferDstOptimalImageMemoryBarrier.srcAccessMask = 0;
+	undefinedToTransferDstOptimalImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+	undefinedToTransferDstOptimalImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+	undefinedToTransferDstOptimalImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	undefinedToTransferDstOptimalImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	undefinedToTransferDstOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToTransferDstOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToTransferDstOptimalImageMemoryBarrier.image = m_cubeTextureImage;
+	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.levelCount = cubeTextureImageCreateInfo.mipLevels;
+	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	VkFence vertexAndIndexBuffersCopyFence;
+	VkDependencyInfo undefinedToTransferDstOptimalDependencyInfo = {};
+	undefinedToTransferDstOptimalDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	undefinedToTransferDstOptimalDependencyInfo.pNext = nullptr;
+	undefinedToTransferDstOptimalDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToTransferDstOptimalDependencyInfo.memoryBarrierCount = 0;
+	undefinedToTransferDstOptimalDependencyInfo.pMemoryBarriers = nullptr;
+	undefinedToTransferDstOptimalDependencyInfo.bufferMemoryBarrierCount = 0;
+	undefinedToTransferDstOptimalDependencyInfo.pBufferMemoryBarriers = nullptr;
+	undefinedToTransferDstOptimalDependencyInfo.imageMemoryBarrierCount = 1;
+	undefinedToTransferDstOptimalDependencyInfo.pImageMemoryBarriers = &undefinedToTransferDstOptimalImageMemoryBarrier;
+	m_vkCmdPipelineBarrier2KHR(buffersCopyCommandBuffer, &undefinedToTransferDstOptimalDependencyInfo);
 
-	VkFenceCreateInfo vertexAndIndexBuffersCopyFenceCreateInfo = {};
-	vertexAndIndexBuffersCopyFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	vertexAndIndexBuffersCopyFenceCreateInfo.pNext = nullptr;
-	vertexAndIndexBuffersCopyFenceCreateInfo.flags = 0;
-	NTSH_VK_CHECK(vkCreateFence(m_device, &vertexAndIndexBuffersCopyFenceCreateInfo, nullptr, &vertexAndIndexBuffersCopyFence));
+	VkBufferImageCopy cubeTextureBufferCopy = {};
+	cubeTextureBufferCopy.bufferOffset = 0;
+	cubeTextureBufferCopy.bufferRowLength = 0;
+	cubeTextureBufferCopy.bufferImageHeight = 0;
+	cubeTextureBufferCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	cubeTextureBufferCopy.imageSubresource.mipLevel = 0;
+	cubeTextureBufferCopy.imageSubresource.baseArrayLayer = 0;
+	cubeTextureBufferCopy.imageSubresource.layerCount = 1;
+	cubeTextureBufferCopy.imageOffset.x = 0;
+	cubeTextureBufferCopy.imageOffset.y = 0;
+	cubeTextureBufferCopy.imageOffset.z = 0;
+	cubeTextureBufferCopy.imageExtent.width = 16;
+	cubeTextureBufferCopy.imageExtent.height = 16;
+	cubeTextureBufferCopy.imageExtent.depth = 1;
+	vkCmdCopyBufferToImage(buffersCopyCommandBuffer, cubeTextureStagingBuffer, m_cubeTextureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &cubeTextureBufferCopy);
 
-	VkSubmitInfo vertexAndIndexBuffersCopySubmitInfo = {};
-	vertexAndIndexBuffersCopySubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	vertexAndIndexBuffersCopySubmitInfo.pNext = nullptr;
-	vertexAndIndexBuffersCopySubmitInfo.waitSemaphoreCount = 0;
-	vertexAndIndexBuffersCopySubmitInfo.pWaitSemaphores = nullptr;
-	vertexAndIndexBuffersCopySubmitInfo.pWaitDstStageMask = nullptr;
-	vertexAndIndexBuffersCopySubmitInfo.commandBufferCount = 1;
-	vertexAndIndexBuffersCopySubmitInfo.pCommandBuffers = &vertexAndIndexBuffersCopyCommandBuffer;
-	vertexAndIndexBuffersCopySubmitInfo.signalSemaphoreCount = 0;
-	vertexAndIndexBuffersCopySubmitInfo.pSignalSemaphores = nullptr;
-	NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &vertexAndIndexBuffersCopySubmitInfo, vertexAndIndexBuffersCopyFence));
-	NTSH_VK_CHECK(vkWaitForFences(m_device, 1, &vertexAndIndexBuffersCopyFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	VkImageMemoryBarrier2 mipMapGenerationImageMemoryBarrier = {};
+	mipMapGenerationImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	mipMapGenerationImageMemoryBarrier.pNext = nullptr;
+	mipMapGenerationImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	mipMapGenerationImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	mipMapGenerationImageMemoryBarrier.image = m_cubeTextureImage;
+	mipMapGenerationImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	mipMapGenerationImageMemoryBarrier.subresourceRange.levelCount = 1;
+	mipMapGenerationImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	mipMapGenerationImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	vkDestroyFence(m_device, vertexAndIndexBuffersCopyFence, nullptr);
-	vkDestroyCommandPool(m_device, vertexAndIndexBuffersCopyCommandPool, nullptr);
+	uint32_t mipWidth = cubeTextureImageCreateInfo.extent.width;
+	uint32_t mipHeight = cubeTextureImageCreateInfo.extent.height;
+	for (size_t i = 1; i < cubeTextureImageCreateInfo.mipLevels; i++) {
+		mipMapGenerationImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		mipMapGenerationImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		mipMapGenerationImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		mipMapGenerationImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+		mipMapGenerationImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		mipMapGenerationImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		mipMapGenerationImageMemoryBarrier.subresourceRange.baseMipLevel = static_cast<uint32_t>(i) - 1;
+
+		VkDependencyInfo mipMapGenerationDependencyInfo = {};
+		mipMapGenerationDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		mipMapGenerationDependencyInfo.pNext = nullptr;
+		mipMapGenerationDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+		mipMapGenerationDependencyInfo.memoryBarrierCount = 0;
+		mipMapGenerationDependencyInfo.pMemoryBarriers = nullptr;
+		mipMapGenerationDependencyInfo.bufferMemoryBarrierCount = 0;
+		mipMapGenerationDependencyInfo.pBufferMemoryBarriers = nullptr;
+		mipMapGenerationDependencyInfo.imageMemoryBarrierCount = 1;
+		mipMapGenerationDependencyInfo.pImageMemoryBarriers = &mipMapGenerationImageMemoryBarrier;
+		m_vkCmdPipelineBarrier2KHR(buffersCopyCommandBuffer, &mipMapGenerationDependencyInfo);
+
+		VkImageBlit imageBlit = {};
+		imageBlit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageBlit.srcSubresource.mipLevel = static_cast<uint32_t>(i) - 1;
+		imageBlit.srcSubresource.baseArrayLayer = 0;
+		imageBlit.srcSubresource.layerCount = 1;
+		imageBlit.srcOffsets[0].x = 0;
+		imageBlit.srcOffsets[0].y = 0;
+		imageBlit.srcOffsets[0].z = 0;
+		imageBlit.srcOffsets[1].x = mipWidth;
+		imageBlit.srcOffsets[1].y = mipHeight;
+		imageBlit.srcOffsets[1].z = 1;
+		imageBlit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageBlit.dstSubresource.mipLevel = static_cast<uint32_t>(i);
+		imageBlit.dstSubresource.baseArrayLayer = 0;
+		imageBlit.dstSubresource.layerCount = 1;
+		imageBlit.dstOffsets[0].x = 0;
+		imageBlit.dstOffsets[0].y = 0;
+		imageBlit.dstOffsets[0].z = 0;
+		imageBlit.dstOffsets[1].x = mipWidth > 1 ? mipWidth / 2 : 1;
+		imageBlit.dstOffsets[1].y = mipHeight > 1 ? mipHeight / 2 : 1;
+		imageBlit.dstOffsets[1].z = 1;
+		vkCmdBlitImage(buffersCopyCommandBuffer, m_cubeTextureImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, m_cubeTextureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageBlit, VK_FILTER_LINEAR);
+
+		mipMapGenerationImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		mipMapGenerationImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+		mipMapGenerationImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		mipMapGenerationImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+		mipMapGenerationImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		mipMapGenerationImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		mipMapGenerationDependencyInfo.pImageMemoryBarriers = &mipMapGenerationImageMemoryBarrier;
+		m_vkCmdPipelineBarrier2KHR(buffersCopyCommandBuffer, &mipMapGenerationDependencyInfo);
+
+		mipWidth = mipWidth > 1 ? mipWidth / 2 : 1;
+		mipHeight = mipHeight > 1 ? mipHeight / 2 : 1;
+	}
+
+	vkEndCommandBuffer(buffersCopyCommandBuffer);
+
+	VkFence buffersCopyFence;
+
+	VkFenceCreateInfo buffersCopyFenceCreateInfo = {};
+	buffersCopyFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	buffersCopyFenceCreateInfo.pNext = nullptr;
+	buffersCopyFenceCreateInfo.flags = 0;
+	NTSH_VK_CHECK(vkCreateFence(m_device, &buffersCopyFenceCreateInfo, nullptr, &buffersCopyFence));
+
+	VkSubmitInfo buffersCopySubmitInfo = {};
+	buffersCopySubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	buffersCopySubmitInfo.pNext = nullptr;
+	buffersCopySubmitInfo.waitSemaphoreCount = 0;
+	buffersCopySubmitInfo.pWaitSemaphores = nullptr;
+	buffersCopySubmitInfo.pWaitDstStageMask = nullptr;
+	buffersCopySubmitInfo.commandBufferCount = 1;
+	buffersCopySubmitInfo.pCommandBuffers = &buffersCopyCommandBuffer;
+	buffersCopySubmitInfo.signalSemaphoreCount = 0;
+	buffersCopySubmitInfo.pSignalSemaphores = nullptr;
+	NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, buffersCopyFence));
+	NTSH_VK_CHECK(vkWaitForFences(m_device, 1, &buffersCopyFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+
+	vkDestroyFence(m_device, buffersCopyFence, nullptr);
+	vkDestroyCommandPool(m_device, buffersCopyCommandPool, nullptr);
 	vmaDestroyBuffer(m_allocator, vertexStagingBuffer, vertexStagingBufferAllocation);
 	vmaDestroyBuffer(m_allocator, indexStagingBuffer, indexStagingBufferAllocation);
+	vmaDestroyBuffer(m_allocator, cubeTextureStagingBuffer, cubeTextureStagingBufferAllocation);
 }
 
 void NutshellGraphicsModule::createDepthImage() {
@@ -1214,7 +1490,6 @@ void NutshellGraphicsModule::createDepthImage() {
 	undefinedToDepthStencilAttachmentOptimalDependencyInfo.pBufferMemoryBarriers = nullptr;
 	undefinedToDepthStencilAttachmentOptimalDependencyInfo.imageMemoryBarrierCount = 1;
 	undefinedToDepthStencilAttachmentOptimalDependencyInfo.pImageMemoryBarriers = &undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier;
-
 	m_vkCmdPipelineBarrier2KHR(depthImageTransitionCommandBuffer, &undefinedToDepthStencilAttachmentOptimalDependencyInfo);
 
 	vkEndCommandBuffer(depthImageTransitionCommandBuffer);
@@ -1260,74 +1535,86 @@ void NutshellGraphicsModule::createGraphicsPipeline() {
 	pipelineRenderingCreateInfo.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
 	pipelineRenderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 
-	const std::vector<uint32_t> vertexShaderCode = { 0x07230203,0x00010000,0x0008000a,0x0000003e,0x00000000,0x00020011,0x00000001,0x00020011,
+	const std::vector<uint32_t> vertexShaderCode = { 0x07230203,0x00010000,0x0008000a,0x00000048,0x00000000,0x00020011,0x00000001,0x00020011,
 	0x000014b6,0x0008000a,0x5f565053,0x5f545845,0x63736564,0x74706972,0x695f726f,0x7865646e,
 	0x00676e69,0x0006000b,0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,
-	0x00000000,0x00000001,0x000c000f,0x00000000,0x00000004,0x6e69616d,0x00000000,0x00000009,
-	0x0000000b,0x00000013,0x0000002e,0x0000003a,0x0000003b,0x0000003d,0x00030003,0x00000002,
-	0x000001cc,0x00080004,0x455f4c47,0x6e5f5458,0x6e756e6f,0x726f6669,0x75715f6d,0x66696c61,
-	0x00726569,0x00040005,0x00000004,0x6e69616d,0x00000000,0x00050005,0x00000009,0x4e74756f,
-	0x616d726f,0x0000006c,0x00040005,0x0000000b,0x6d726f6e,0x00006c61,0x00060005,0x00000011,
-	0x505f6c67,0x65567265,0x78657472,0x00000000,0x00060006,0x00000011,0x00000000,0x505f6c67,
-	0x7469736f,0x006e6f69,0x00070006,0x00000011,0x00000001,0x505f6c67,0x746e696f,0x657a6953,
-	0x00000000,0x00070006,0x00000011,0x00000002,0x435f6c67,0x4470696c,0x61747369,0x0065636e,
-	0x00070006,0x00000011,0x00000003,0x435f6c67,0x446c6c75,0x61747369,0x0065636e,0x00030005,
-	0x00000013,0x00000000,0x00040005,0x00000017,0x656d6143,0x00006172,0x00050006,0x00000017,
-	0x00000000,0x77656976,0x00000000,0x00060006,0x00000017,0x00000001,0x6a6f7270,0x69746365,
-	0x00006e6f,0x00040005,0x00000019,0x656d6163,0x00006172,0x00040005,0x00000021,0x656a624f,
-	0x00737463,0x00050006,0x00000021,0x00000000,0x65646f6d,0x0000006c,0x00040005,0x00000024,
-	0x656a626f,0x00737463,0x00050005,0x00000025,0x656a624f,0x44497463,0x00000000,0x00060006,
-	0x00000025,0x00000000,0x656a626f,0x44497463,0x00000000,0x00030005,0x00000027,0x0044496f,
-	0x00050005,0x0000002e,0x69736f70,0x6e6f6974,0x00000000,0x00030005,0x0000003a,0x00007675,
-	0x00040005,0x0000003b,0x6f6c6f63,0x00000072,0x00040005,0x0000003d,0x676e6174,0x00746e65,
-	0x00040047,0x00000009,0x0000001e,0x00000000,0x00040047,0x0000000b,0x0000001e,0x00000001,
-	0x00050048,0x00000011,0x00000000,0x0000000b,0x00000000,0x00050048,0x00000011,0x00000001,
-	0x0000000b,0x00000001,0x00050048,0x00000011,0x00000002,0x0000000b,0x00000003,0x00050048,
-	0x00000011,0x00000003,0x0000000b,0x00000004,0x00030047,0x00000011,0x00000002,0x00040048,
-	0x00000017,0x00000000,0x00000005,0x00050048,0x00000017,0x00000000,0x00000023,0x00000000,
-	0x00050048,0x00000017,0x00000000,0x00000007,0x00000010,0x00040048,0x00000017,0x00000001,
-	0x00000005,0x00050048,0x00000017,0x00000001,0x00000023,0x00000040,0x00050048,0x00000017,
-	0x00000001,0x00000007,0x00000010,0x00030047,0x00000017,0x00000002,0x00040047,0x00000019,
-	0x00000022,0x00000000,0x00040047,0x00000019,0x00000021,0x00000000,0x00040048,0x00000021,
-	0x00000000,0x00000005,0x00040048,0x00000021,0x00000000,0x00000013,0x00040048,0x00000021,
-	0x00000000,0x00000018,0x00050048,0x00000021,0x00000000,0x00000023,0x00000000,0x00050048,
-	0x00000021,0x00000000,0x00000007,0x00000010,0x00030047,0x00000021,0x00000003,0x00040047,
-	0x00000024,0x00000022,0x00000000,0x00040047,0x00000024,0x00000021,0x00000001,0x00050048,
-	0x00000025,0x00000000,0x00000023,0x00000000,0x00030047,0x00000025,0x00000002,0x00040047,
-	0x0000002e,0x0000001e,0x00000000,0x00040047,0x0000003a,0x0000001e,0x00000002,0x00040047,
-	0x0000003b,0x0000001e,0x00000003,0x00040047,0x0000003d,0x0000001e,0x00000004,0x00020013,
-	0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,0x00040017,
-	0x00000007,0x00000006,0x00000003,0x00040020,0x00000008,0x00000003,0x00000007,0x0004003b,
-	0x00000008,0x00000009,0x00000003,0x00040020,0x0000000a,0x00000001,0x00000007,0x0004003b,
-	0x0000000a,0x0000000b,0x00000001,0x00040017,0x0000000d,0x00000006,0x00000004,0x00040015,
-	0x0000000e,0x00000020,0x00000000,0x0004002b,0x0000000e,0x0000000f,0x00000001,0x0004001c,
-	0x00000010,0x00000006,0x0000000f,0x0006001e,0x00000011,0x0000000d,0x00000006,0x00000010,
-	0x00000010,0x00040020,0x00000012,0x00000003,0x00000011,0x0004003b,0x00000012,0x00000013,
-	0x00000003,0x00040015,0x00000014,0x00000020,0x00000001,0x0004002b,0x00000014,0x00000015,
-	0x00000000,0x00040018,0x00000016,0x0000000d,0x00000004,0x0004001e,0x00000017,0x00000016,
-	0x00000016,0x00040020,0x00000018,0x00000002,0x00000017,0x0004003b,0x00000018,0x00000019,
-	0x00000002,0x0004002b,0x00000014,0x0000001a,0x00000001,0x00040020,0x0000001b,0x00000002,
-	0x00000016,0x0003001e,0x00000021,0x00000016,0x0003001d,0x00000022,0x00000021,0x00040020,
-	0x00000023,0x00000002,0x00000022,0x0004003b,0x00000023,0x00000024,0x00000002,0x0003001e,
-	0x00000025,0x0000000e,0x00040020,0x00000026,0x00000009,0x00000025,0x0004003b,0x00000026,
-	0x00000027,0x00000009,0x00040020,0x00000028,0x00000009,0x0000000e,0x0004003b,0x0000000a,
-	0x0000002e,0x00000001,0x0004002b,0x00000006,0x00000030,0x3f800000,0x00040020,0x00000036,
-	0x00000003,0x0000000d,0x00040017,0x00000038,0x00000006,0x00000002,0x00040020,0x00000039,
-	0x00000001,0x00000038,0x0004003b,0x00000039,0x0000003a,0x00000001,0x0004003b,0x0000000a,
-	0x0000003b,0x00000001,0x00040020,0x0000003c,0x00000001,0x0000000d,0x0004003b,0x0000003c,
-	0x0000003d,0x00000001,0x00050036,0x00000002,0x00000004,0x00000000,0x00000003,0x000200f8,
-	0x00000005,0x0004003d,0x00000007,0x0000000c,0x0000000b,0x0003003e,0x00000009,0x0000000c,
-	0x00050041,0x0000001b,0x0000001c,0x00000019,0x0000001a,0x0004003d,0x00000016,0x0000001d,
-	0x0000001c,0x00050041,0x0000001b,0x0000001e,0x00000019,0x00000015,0x0004003d,0x00000016,
-	0x0000001f,0x0000001e,0x00050092,0x00000016,0x00000020,0x0000001d,0x0000001f,0x00050041,
-	0x00000028,0x00000029,0x00000027,0x00000015,0x0004003d,0x0000000e,0x0000002a,0x00000029,
-	0x00060041,0x0000001b,0x0000002b,0x00000024,0x0000002a,0x00000015,0x0004003d,0x00000016,
-	0x0000002c,0x0000002b,0x00050092,0x00000016,0x0000002d,0x00000020,0x0000002c,0x0004003d,
-	0x00000007,0x0000002f,0x0000002e,0x00050051,0x00000006,0x00000031,0x0000002f,0x00000000,
-	0x00050051,0x00000006,0x00000032,0x0000002f,0x00000001,0x00050051,0x00000006,0x00000033,
-	0x0000002f,0x00000002,0x00070050,0x0000000d,0x00000034,0x00000031,0x00000032,0x00000033,
-	0x00000030,0x00050091,0x0000000d,0x00000035,0x0000002d,0x00000034,0x00050041,0x00000036,
-	0x00000037,0x00000013,0x00000015,0x0003003e,0x00000037,0x00000035,0x000100fd,0x00010038 };
+	0x00000000,0x00000001,0x000e000f,0x00000000,0x00000004,0x6e69616d,0x00000000,0x00000009,
+	0x0000000b,0x0000000f,0x00000011,0x00000015,0x0000002c,0x0000003b,0x00000045,0x00000047,
+	0x00030003,0x00000002,0x000001cc,0x00080004,0x455f4c47,0x6e5f5458,0x6e756e6f,0x726f6669,
+	0x75715f6d,0x66696c61,0x00726569,0x00040005,0x00000004,0x6e69616d,0x00000000,0x00050005,
+	0x00000009,0x4e74756f,0x616d726f,0x0000006c,0x00040005,0x0000000b,0x6d726f6e,0x00006c61,
+	0x00040005,0x0000000f,0x5574756f,0x00000056,0x00030005,0x00000011,0x00007675,0x00060005,
+	0x00000015,0x5474756f,0x75747865,0x44496572,0x00000000,0x00040005,0x00000018,0x656a624f,
+	0x00737463,0x00050006,0x00000018,0x00000000,0x65646f6d,0x0000006c,0x00060006,0x00000018,
+	0x00000001,0x74786574,0x49657275,0x00000044,0x00040005,0x0000001b,0x656a626f,0x00737463,
+	0x00050005,0x0000001c,0x656a624f,0x44497463,0x00000000,0x00060006,0x0000001c,0x00000000,
+	0x656a626f,0x44497463,0x00000000,0x00030005,0x0000001e,0x0044496f,0x00060005,0x0000002a,
+	0x505f6c67,0x65567265,0x78657472,0x00000000,0x00060006,0x0000002a,0x00000000,0x505f6c67,
+	0x7469736f,0x006e6f69,0x00070006,0x0000002a,0x00000001,0x505f6c67,0x746e696f,0x657a6953,
+	0x00000000,0x00070006,0x0000002a,0x00000002,0x435f6c67,0x4470696c,0x61747369,0x0065636e,
+	0x00070006,0x0000002a,0x00000003,0x435f6c67,0x446c6c75,0x61747369,0x0065636e,0x00030005,
+	0x0000002c,0x00000000,0x00040005,0x0000002d,0x656d6143,0x00006172,0x00050006,0x0000002d,
+	0x00000000,0x77656976,0x00000000,0x00060006,0x0000002d,0x00000001,0x6a6f7270,0x69746365,
+	0x00006e6f,0x00040005,0x0000002f,0x656d6163,0x00006172,0x00050005,0x0000003b,0x69736f70,
+	0x6e6f6974,0x00000000,0x00040005,0x00000045,0x6f6c6f63,0x00000072,0x00040005,0x00000047,
+	0x676e6174,0x00746e65,0x00040047,0x00000009,0x0000001e,0x00000000,0x00040047,0x0000000b,
+	0x0000001e,0x00000001,0x00040047,0x0000000f,0x0000001e,0x00000001,0x00040047,0x00000011,
+	0x0000001e,0x00000002,0x00030047,0x00000015,0x0000000e,0x00040047,0x00000015,0x0000001e,
+	0x00000002,0x00040048,0x00000018,0x00000000,0x00000005,0x00040048,0x00000018,0x00000000,
+	0x00000013,0x00040048,0x00000018,0x00000000,0x00000018,0x00050048,0x00000018,0x00000000,
+	0x00000023,0x00000000,0x00050048,0x00000018,0x00000000,0x00000007,0x00000010,0x00040048,
+	0x00000018,0x00000001,0x00000013,0x00040048,0x00000018,0x00000001,0x00000018,0x00050048,
+	0x00000018,0x00000001,0x00000023,0x00000040,0x00030047,0x00000018,0x00000003,0x00040047,
+	0x0000001b,0x00000022,0x00000000,0x00040047,0x0000001b,0x00000021,0x00000001,0x00050048,
+	0x0000001c,0x00000000,0x00000023,0x00000000,0x00030047,0x0000001c,0x00000002,0x00050048,
+	0x0000002a,0x00000000,0x0000000b,0x00000000,0x00050048,0x0000002a,0x00000001,0x0000000b,
+	0x00000001,0x00050048,0x0000002a,0x00000002,0x0000000b,0x00000003,0x00050048,0x0000002a,
+	0x00000003,0x0000000b,0x00000004,0x00030047,0x0000002a,0x00000002,0x00040048,0x0000002d,
+	0x00000000,0x00000005,0x00050048,0x0000002d,0x00000000,0x00000023,0x00000000,0x00050048,
+	0x0000002d,0x00000000,0x00000007,0x00000010,0x00040048,0x0000002d,0x00000001,0x00000005,
+	0x00050048,0x0000002d,0x00000001,0x00000023,0x00000040,0x00050048,0x0000002d,0x00000001,
+	0x00000007,0x00000010,0x00030047,0x0000002d,0x00000002,0x00040047,0x0000002f,0x00000022,
+	0x00000000,0x00040047,0x0000002f,0x00000021,0x00000000,0x00040047,0x0000003b,0x0000001e,
+	0x00000000,0x00040047,0x00000045,0x0000001e,0x00000003,0x00040047,0x00000047,0x0000001e,
+	0x00000004,0x00020013,0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,
+	0x00000020,0x00040017,0x00000007,0x00000006,0x00000003,0x00040020,0x00000008,0x00000003,
+	0x00000007,0x0004003b,0x00000008,0x00000009,0x00000003,0x00040020,0x0000000a,0x00000001,
+	0x00000007,0x0004003b,0x0000000a,0x0000000b,0x00000001,0x00040017,0x0000000d,0x00000006,
+	0x00000002,0x00040020,0x0000000e,0x00000003,0x0000000d,0x0004003b,0x0000000e,0x0000000f,
+	0x00000003,0x00040020,0x00000010,0x00000001,0x0000000d,0x0004003b,0x00000010,0x00000011,
+	0x00000001,0x00040015,0x00000013,0x00000020,0x00000000,0x00040020,0x00000014,0x00000003,
+	0x00000013,0x0004003b,0x00000014,0x00000015,0x00000003,0x00040017,0x00000016,0x00000006,
+	0x00000004,0x00040018,0x00000017,0x00000016,0x00000004,0x0004001e,0x00000018,0x00000017,
+	0x00000013,0x0003001d,0x00000019,0x00000018,0x00040020,0x0000001a,0x00000002,0x00000019,
+	0x0004003b,0x0000001a,0x0000001b,0x00000002,0x0003001e,0x0000001c,0x00000013,0x00040020,
+	0x0000001d,0x00000009,0x0000001c,0x0004003b,0x0000001d,0x0000001e,0x00000009,0x00040015,
+	0x0000001f,0x00000020,0x00000001,0x0004002b,0x0000001f,0x00000020,0x00000000,0x00040020,
+	0x00000021,0x00000009,0x00000013,0x0004002b,0x0000001f,0x00000024,0x00000001,0x00040020,
+	0x00000025,0x00000002,0x00000013,0x0004002b,0x00000013,0x00000028,0x00000001,0x0004001c,
+	0x00000029,0x00000006,0x00000028,0x0006001e,0x0000002a,0x00000016,0x00000006,0x00000029,
+	0x00000029,0x00040020,0x0000002b,0x00000003,0x0000002a,0x0004003b,0x0000002b,0x0000002c,
+	0x00000003,0x0004001e,0x0000002d,0x00000017,0x00000017,0x00040020,0x0000002e,0x00000002,
+	0x0000002d,0x0004003b,0x0000002e,0x0000002f,0x00000002,0x00040020,0x00000030,0x00000002,
+	0x00000017,0x0004003b,0x0000000a,0x0000003b,0x00000001,0x0004002b,0x00000006,0x0000003d,
+	0x3f800000,0x00040020,0x00000043,0x00000003,0x00000016,0x0004003b,0x0000000a,0x00000045,
+	0x00000001,0x00040020,0x00000046,0x00000001,0x00000016,0x0004003b,0x00000046,0x00000047,
+	0x00000001,0x00050036,0x00000002,0x00000004,0x00000000,0x00000003,0x000200f8,0x00000005,
+	0x0004003d,0x00000007,0x0000000c,0x0000000b,0x0003003e,0x00000009,0x0000000c,0x0004003d,
+	0x0000000d,0x00000012,0x00000011,0x0003003e,0x0000000f,0x00000012,0x00050041,0x00000021,
+	0x00000022,0x0000001e,0x00000020,0x0004003d,0x00000013,0x00000023,0x00000022,0x00060041,
+	0x00000025,0x00000026,0x0000001b,0x00000023,0x00000024,0x0004003d,0x00000013,0x00000027,
+	0x00000026,0x0003003e,0x00000015,0x00000027,0x00050041,0x00000030,0x00000031,0x0000002f,
+	0x00000024,0x0004003d,0x00000017,0x00000032,0x00000031,0x00050041,0x00000030,0x00000033,
+	0x0000002f,0x00000020,0x0004003d,0x00000017,0x00000034,0x00000033,0x00050092,0x00000017,
+	0x00000035,0x00000032,0x00000034,0x00050041,0x00000021,0x00000036,0x0000001e,0x00000020,
+	0x0004003d,0x00000013,0x00000037,0x00000036,0x00060041,0x00000030,0x00000038,0x0000001b,
+	0x00000037,0x00000020,0x0004003d,0x00000017,0x00000039,0x00000038,0x00050092,0x00000017,
+	0x0000003a,0x00000035,0x00000039,0x0004003d,0x00000007,0x0000003c,0x0000003b,0x00050051,
+	0x00000006,0x0000003e,0x0000003c,0x00000000,0x00050051,0x00000006,0x0000003f,0x0000003c,
+	0x00000001,0x00050051,0x00000006,0x00000040,0x0000003c,0x00000002,0x00070050,0x00000016,
+	0x00000041,0x0000003e,0x0000003f,0x00000040,0x0000003d,0x00050091,0x00000016,0x00000042,
+	0x0000003a,0x00000041,0x00050041,0x00000043,0x00000044,0x0000002c,0x00000020,0x0003003e,
+	0x00000044,0x00000042,0x000100fd,0x00010038 };
 
 	VkShaderModule vertexShaderModule;
 	VkShaderModuleCreateInfo vertexShaderModuleCreateInfo = {};
@@ -1347,22 +1634,41 @@ void NutshellGraphicsModule::createGraphicsPipeline() {
 	vertexShaderStageCreateInfo.pName = "main";
 	vertexShaderStageCreateInfo.pSpecializationInfo = nullptr;
 
-	const std::vector<uint32_t> fragmentShaderCode = { 0x07230203,0x00010000,0x0008000a,0x00000013,0x00000000,0x00020011,0x00000001,0x0006000b,
-	0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
-	0x0007000f,0x00000004,0x00000004,0x6e69616d,0x00000000,0x00000009,0x0000000c,0x00030010,
-	0x00000004,0x00000007,0x00030003,0x00000002,0x000001cc,0x00040005,0x00000004,0x6e69616d,
-	0x00000000,0x00050005,0x00000009,0x4374756f,0x726f6c6f,0x00000000,0x00050005,0x0000000c,
-	0x6f4e6e69,0x6c616d72,0x00000000,0x00040047,0x00000009,0x0000001e,0x00000000,0x00040047,
-	0x0000000c,0x0000001e,0x00000000,0x00020013,0x00000002,0x00030021,0x00000003,0x00000002,
-	0x00030016,0x00000006,0x00000020,0x00040017,0x00000007,0x00000006,0x00000004,0x00040020,
-	0x00000008,0x00000003,0x00000007,0x0004003b,0x00000008,0x00000009,0x00000003,0x00040017,
-	0x0000000a,0x00000006,0x00000003,0x00040020,0x0000000b,0x00000001,0x0000000a,0x0004003b,
-	0x0000000b,0x0000000c,0x00000001,0x0004002b,0x00000006,0x0000000e,0x3f800000,0x00050036,
-	0x00000002,0x00000004,0x00000000,0x00000003,0x000200f8,0x00000005,0x0004003d,0x0000000a,
-	0x0000000d,0x0000000c,0x00050051,0x00000006,0x0000000f,0x0000000d,0x00000000,0x00050051,
-	0x00000006,0x00000010,0x0000000d,0x00000001,0x00050051,0x00000006,0x00000011,0x0000000d,
-	0x00000002,0x00070050,0x00000007,0x00000012,0x0000000f,0x00000010,0x00000011,0x0000000e,
-	0x0003003e,0x00000009,0x00000012,0x000100fd,0x00010038 };
+	const std::vector<uint32_t> fragmentShaderCode = { 0x07230203,0x00010000,0x0008000a,0x00000027,0x00000000,0x00020011,0x00000001,0x00020011,
+	0x000014b6,0x0008000a,0x5f565053,0x5f545845,0x63736564,0x74706972,0x695f726f,0x7865646e,
+	0x00676e69,0x0006000b,0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,
+	0x00000000,0x00000001,0x0009000f,0x00000004,0x00000004,0x6e69616d,0x00000000,0x00000011,
+	0x00000018,0x0000001c,0x00000026,0x00030010,0x00000004,0x00000007,0x00030003,0x00000002,
+	0x000001cc,0x00080004,0x455f4c47,0x6e5f5458,0x6e756e6f,0x726f6669,0x75715f6d,0x66696c61,
+	0x00726569,0x00040005,0x00000004,0x6e69616d,0x00000000,0x00060005,0x00000009,0x74786574,
+	0x43657275,0x726f6c6f,0x00000000,0x00050005,0x0000000e,0x74786574,0x73657275,0x00000000,
+	0x00050005,0x00000011,0x65546e69,0x72757478,0x00444965,0x00040005,0x00000018,0x56556e69,
+	0x00000000,0x00050005,0x0000001c,0x4374756f,0x726f6c6f,0x00000000,0x00050005,0x00000026,
+	0x6f4e6e69,0x6c616d72,0x00000000,0x00040047,0x0000000e,0x00000022,0x00000000,0x00040047,
+	0x0000000e,0x00000021,0x00000002,0x00030047,0x00000011,0x0000000e,0x00040047,0x00000011,
+	0x0000001e,0x00000002,0x00040047,0x00000018,0x0000001e,0x00000001,0x00040047,0x0000001c,
+	0x0000001e,0x00000000,0x00040047,0x00000026,0x0000001e,0x00000000,0x00020013,0x00000002,
+	0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,0x00040017,0x00000007,
+	0x00000006,0x00000004,0x00040020,0x00000008,0x00000007,0x00000007,0x00090019,0x0000000a,
+	0x00000006,0x00000001,0x00000000,0x00000000,0x00000000,0x00000001,0x00000000,0x0003001b,
+	0x0000000b,0x0000000a,0x0003001d,0x0000000c,0x0000000b,0x00040020,0x0000000d,0x00000000,
+	0x0000000c,0x0004003b,0x0000000d,0x0000000e,0x00000000,0x00040015,0x0000000f,0x00000020,
+	0x00000000,0x00040020,0x00000010,0x00000001,0x0000000f,0x0004003b,0x00000010,0x00000011,
+	0x00000001,0x00040020,0x00000013,0x00000000,0x0000000b,0x00040017,0x00000016,0x00000006,
+	0x00000002,0x00040020,0x00000017,0x00000001,0x00000016,0x0004003b,0x00000017,0x00000018,
+	0x00000001,0x00040020,0x0000001b,0x00000003,0x00000007,0x0004003b,0x0000001b,0x0000001c,
+	0x00000003,0x00040017,0x0000001d,0x00000006,0x00000003,0x0004002b,0x00000006,0x00000020,
+	0x3f800000,0x00040020,0x00000025,0x00000001,0x0000001d,0x0004003b,0x00000025,0x00000026,
+	0x00000001,0x00050036,0x00000002,0x00000004,0x00000000,0x00000003,0x000200f8,0x00000005,
+	0x0004003b,0x00000008,0x00000009,0x00000007,0x0004003d,0x0000000f,0x00000012,0x00000011,
+	0x00050041,0x00000013,0x00000014,0x0000000e,0x00000012,0x0004003d,0x0000000b,0x00000015,
+	0x00000014,0x0004003d,0x00000016,0x00000019,0x00000018,0x00050057,0x00000007,0x0000001a,
+	0x00000015,0x00000019,0x0003003e,0x00000009,0x0000001a,0x0004003d,0x00000007,0x0000001e,
+	0x00000009,0x0008004f,0x0000001d,0x0000001f,0x0000001e,0x0000001e,0x00000000,0x00000001,
+	0x00000002,0x00050051,0x00000006,0x00000021,0x0000001f,0x00000000,0x00050051,0x00000006,
+	0x00000022,0x0000001f,0x00000001,0x00050051,0x00000006,0x00000023,0x0000001f,0x00000002,
+	0x00070050,0x00000007,0x00000024,0x00000021,0x00000022,0x00000023,0x00000020,0x0003003e,
+	0x0000001c,0x00000024,0x000100fd,0x00010038 };
 
 	VkShaderModule fragmentShaderModule;
 	VkShaderModuleCreateInfo fragmentShaderModuleCreateInfo = {};
@@ -1530,19 +1836,26 @@ void NutshellGraphicsModule::createGraphicsPipeline() {
 	objectsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	objectsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
+	VkDescriptorSetLayoutBinding texturesDescriptorSetLayoutBinding = {};
+	texturesDescriptorSetLayoutBinding.binding = 2;
+	texturesDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	texturesDescriptorSetLayoutBinding.descriptorCount = 524288;
+	texturesDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	texturesDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	std::array<VkDescriptorBindingFlags, 3> descriptorBindingFlags = { 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
 	VkDescriptorSetLayoutBindingFlagsCreateInfo descriptorSetLayoutBindingFlagsCreateInfo = {};
 	descriptorSetLayoutBindingFlagsCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
 	descriptorSetLayoutBindingFlagsCreateInfo.pNext = nullptr;
-	descriptorSetLayoutBindingFlagsCreateInfo.bindingCount = 2;
-	std::array<VkDescriptorBindingFlags, 2> flags = { 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
-	descriptorSetLayoutBindingFlagsCreateInfo.pBindingFlags = flags.data();
+	descriptorSetLayoutBindingFlagsCreateInfo.bindingCount = static_cast<uint32_t>(descriptorBindingFlags.size());
+	descriptorSetLayoutBindingFlagsCreateInfo.pBindingFlags = descriptorBindingFlags.data();
 
-	std::array<VkDescriptorSetLayoutBinding, 2> descriptorSetLayoutBindings = { cameraDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding };
+	std::array<VkDescriptorSetLayoutBinding, 3> descriptorSetLayoutBindings = { cameraDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding, texturesDescriptorSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
 	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	descriptorSetLayoutCreateInfo.pNext = &descriptorSetLayoutBindingFlagsCreateInfo;
 	descriptorSetLayoutCreateInfo.flags = 0;
-	descriptorSetLayoutCreateInfo.bindingCount = 2;
+	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size());
 	descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
 	NTSH_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_descriptorSetLayout));
 
@@ -1597,13 +1910,17 @@ void NutshellGraphicsModule::createDescriptorSets() {
 	objectsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	objectsDescriptorPoolSize.descriptorCount = 524288;
 
-	std::array<VkDescriptorPoolSize, 2> descriptorPoolSizes = { cameraDescriptorPoolSize, objectsDescriptorPoolSize };
+	VkDescriptorPoolSize texturesDescriptorPoolSize = {};
+	texturesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	texturesDescriptorPoolSize.descriptorCount = 524288;
+
+	std::array<VkDescriptorPoolSize, 3> descriptorPoolSizes = { cameraDescriptorPoolSize, objectsDescriptorPoolSize, texturesDescriptorPoolSize };
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.pNext = nullptr;
 	descriptorPoolCreateInfo.flags = 0;
 	descriptorPoolCreateInfo.maxSets = m_framesInFlight;
-	descriptorPoolCreateInfo.poolSizeCount = 2;
+	descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(descriptorPoolSizes.size());
 	descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes.data();
 	NTSH_VK_CHECK(vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool));
 
@@ -1620,52 +1937,12 @@ void NutshellGraphicsModule::createDescriptorSets() {
 		NTSH_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_descriptorSets[i]));
 	}
 
-	// Create camera uniform buffer
-	m_cameraBuffers.resize(m_framesInFlight);
-	m_cameraBufferAllocations.resize(m_framesInFlight);
-	VkBufferCreateInfo cameraBufferCreateInfo = {};
-	cameraBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	cameraBufferCreateInfo.pNext = nullptr;
-	cameraBufferCreateInfo.flags = 0;
-	cameraBufferCreateInfo.size = sizeof(nml::mat4) * 2;
-	cameraBufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-	cameraBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	cameraBufferCreateInfo.queueFamilyIndexCount = 1;
-	cameraBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
-
-	VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
-	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-
-	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &cameraBufferCreateInfo, &bufferAllocationCreateInfo, &m_cameraBuffers[i], &m_cameraBufferAllocations[i], nullptr));
-	}
-
-	// Create object storage buffer
-	for (size_t i = 0; i < m_objects.size(); i++) {
-		m_objects[i].buffers.resize(m_framesInFlight);
-		m_objects[i].allocations.resize(m_framesInFlight);
-		VkBufferCreateInfo objectBufferCreateInfo = {};
-		objectBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		objectBufferCreateInfo.pNext = nullptr;
-		objectBufferCreateInfo.flags = 0;
-		objectBufferCreateInfo.size = sizeof(nml::mat4);
-		objectBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-		objectBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		objectBufferCreateInfo.queueFamilyIndexCount = 1;
-		objectBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
-
-		for (uint32_t j = 0; j < m_framesInFlight; j++) {
-			NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &objectBufferCreateInfo, &bufferAllocationCreateInfo, &m_objects[i].buffers[j], &m_objects[i].allocations[j], nullptr));
-		}
-	}
-
 	// Update descriptor sets
-	
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
 		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
 		std::vector<VkDescriptorBufferInfo> objectsDescriptorBufferInfos;
+		std::vector<VkDescriptorImageInfo> texturesDescriptorImageInfos;
 
 		cameraDescriptorBufferInfo.buffer = m_cameraBuffers[i];
 		cameraDescriptorBufferInfo.offset = 0;
@@ -1688,7 +1965,7 @@ void NutshellGraphicsModule::createDescriptorSets() {
 		for (size_t j = 0; j < objectsDescriptorBufferInfos.size(); j++) {
 			objectsDescriptorBufferInfos[j].buffer = m_objects[j].buffers[i];
 			objectsDescriptorBufferInfos[j].offset = 0;
-			objectsDescriptorBufferInfos[j].range = sizeof(nml::mat4);
+			objectsDescriptorBufferInfos[j].range = sizeof(nml::mat4) + sizeof(uint32_t);
 		}
 
 		VkWriteDescriptorSet objectsDescriptorWriteDescriptorSet = {};
@@ -1703,6 +1980,26 @@ void NutshellGraphicsModule::createDescriptorSets() {
 		objectsDescriptorWriteDescriptorSet.pBufferInfo = objectsDescriptorBufferInfos.data();
 		objectsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(objectsDescriptorWriteDescriptorSet);
+
+		texturesDescriptorImageInfos.resize(1);
+		for (size_t j = 0; j < texturesDescriptorImageInfos.size(); j++) {
+			texturesDescriptorImageInfos[j].sampler = m_textureSampler;
+			texturesDescriptorImageInfos[j].imageView = m_cubeTextureImageView;
+			texturesDescriptorImageInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		}
+
+		VkWriteDescriptorSet texturesDescriptorWriteDescriptorSet = {};
+		texturesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		texturesDescriptorWriteDescriptorSet.pNext = nullptr;
+		texturesDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		texturesDescriptorWriteDescriptorSet.dstBinding = 2;
+		texturesDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		texturesDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(texturesDescriptorImageInfos.size());
+		texturesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		texturesDescriptorWriteDescriptorSet.pImageInfo = texturesDescriptorImageInfos.data();
+		texturesDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
+		texturesDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(texturesDescriptorWriteDescriptorSet);
 
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 	}
