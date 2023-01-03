@@ -65,6 +65,7 @@ private:
 	VkPhysicalDeviceMemoryProperties getMemoryProperties();
 
 	// Per window functions
+	void createSwapchain(size_t index);
 	void createWindowResources(NtshWindowId windowId);
 	std::vector<PerWindowResources>::iterator destroyWindowResources(const std::vector<PerWindowResources>::iterator perWindowResources);
 	void resize(size_t index);
