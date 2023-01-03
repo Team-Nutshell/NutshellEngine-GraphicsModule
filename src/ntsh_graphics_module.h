@@ -49,6 +49,8 @@ struct Object {
 	uint32_t firstIndex;
 	int32_t vertexOffset;
 
+	uint32_t textureID;
+
 	std::vector<VkBuffer> buffers;
 	std::vector<VmaAllocation> allocations;
 };
@@ -68,6 +70,8 @@ private:
 	std::vector<VkPresentModeKHR> getSurfacePresentModes();
 
 	VkPhysicalDeviceMemoryProperties getMemoryProperties();
+
+	uint32_t findMipLevels(uint32_t width, uint32_t height);
 
 	// Swapchain creation
 	void createSwapchain(VkSwapchainKHR oldSwapchain);
@@ -156,6 +160,11 @@ private:
 	std::vector<VmaAllocation> m_cameraBufferAllocations;
 
 	NtshModel m_cube;
+	VkImage m_cubeTextureImage;
+	VmaAllocation m_cubeTextureImageAllocation;
+	VkImageView m_cubeTextureImageView;
+	VkSampler m_textureSampler;
+
 	std::vector<Object> m_objects;
 	float m_objectAngle = 0.0f;
 	float m_objectRotationSpeed = 0.12f;
