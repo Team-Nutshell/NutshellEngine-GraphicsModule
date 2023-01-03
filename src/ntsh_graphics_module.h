@@ -50,6 +50,9 @@ private:
 
 	VkPhysicalDeviceMemoryProperties getMemoryProperties();
 
+	// Create swapchain
+	void createSwapchain(VkSwapchainKHR oldSwapchain);
+
 	// On window resize
 	void resize();
 
@@ -65,7 +68,7 @@ private:
 	VkSurfaceKHR m_surface = VK_NULL_HANDLE;
 
 	VkPhysicalDevice m_physicalDevice;
-	uint32_t m_graphicsQueueIndex;
+	uint32_t m_graphicsQueueFamilyIndex;
 	VkQueue m_graphicsQueue;
 	VkDevice m_device;
 
