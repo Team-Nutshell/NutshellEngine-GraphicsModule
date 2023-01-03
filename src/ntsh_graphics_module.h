@@ -68,6 +68,9 @@ private:
 	std::vector<uint32_t> compileFragmentShader();
 	bool recreateGraphicsPipeline();
 
+	// Swapchain creation
+	void createSwapchain(VkSwapchainKHR oldSwapchain);
+
 	// On window resize
 	void resize();
 
