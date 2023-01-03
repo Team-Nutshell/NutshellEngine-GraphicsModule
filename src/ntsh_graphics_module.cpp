@@ -829,41 +829,7 @@ VkPhysicalDeviceMemoryProperties NutshellGraphicsModule::getMemoryProperties() {
 	return memoryProperties.memoryProperties;
 }
 
-void NutshellGraphicsModule::createWindowResources(NtshWindowId windowId) {
-	size_t index = 0;
-	if (windowId != NTSH_MAIN_WINDOW) {
-		PerWindowResources newWindowResources;
-		newWindowResources.windowId = windowId;
-		m_perWindowResources.push_back(newWindowResources);
-		index = (m_perWindowResources.size() - 1);
-
-		// Create surface
-#if defined(NTSH_OS_WINDOWS)
-		HWND windowHandle = m_windowModule->getNativeHandle(m_perWindowResources[index].windowId);
-		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
-		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-		surfaceCreateInfo.pNext = nullptr;
-		surfaceCreateInfo.flags = 0;
-		surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(GetWindowLongPtr(windowHandle, GWLP_HINSTANCE));
-		surfaceCreateInfo.hwnd = windowHandle;
-		auto createWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateWin32SurfaceKHR");
-		NTSH_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_perWindowResources[index].surface));
-#elif defined(NTSH_OS_LINUX)
-		for (size_t i = 0; i < m_windowIds.size(); i++) {
-			m_display = XOpenDisplay(NULL);
-			Window windowHandle = m_windowModule->getNativeHandle(m_perWindowResources[index].windowId);
-			VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
-			surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
-			surfaceCreateInfo.pNext = nullptr;
-			surfaceCreateInfo.flags = 0;
-			surfaceCreateInfo.dpy = m_display;
-			surfaceCreateInfo.window = windowHandle;
-			auto createXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateXlibSurfaceKHR");
-			NTSH_VK_CHECK(createXlibSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_perWindowResources[index].surface));
-		}
-#endif
-	}
-
+void NutshellGraphicsModule::createSwapchain(size_t index) {
 	VkSurfaceCapabilitiesKHR surfaceCapabilities = getSurfaceCapabilities(index);
 	uint32_t minImageCount = surfaceCapabilities.minImageCount + 1;
 	if (surfaceCapabilities.maxImageCount > 0 && minImageCount > surfaceCapabilities.maxImageCount) {
@@ -928,7 +894,7 @@ void NutshellGraphicsModule::createWindowResources(NtshWindowId windowId) {
 	swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 	swapchainCreateInfo.presentMode = swapchainPresentMode;
 	swapchainCreateInfo.clipped = VK_TRUE;
-	swapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
+	swapchainCreateInfo.oldSwapchain = m_perWindowResources[index].swapchain;
 	NTSH_VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_perWindowResources[index].swapchain));
 
 	NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_perWindowResources[index].swapchain, &m_perWindowResources[index].swapchainImageCount, nullptr));
@@ -956,6 +922,45 @@ void NutshellGraphicsModule::createWindowResources(NtshWindowId windowId) {
 		swapchainImageViewCreateInfo.subresourceRange.layerCount = 1;
 		NTSH_VK_CHECK(vkCreateImageView(m_device, &swapchainImageViewCreateInfo, nullptr, &m_perWindowResources[index].swapchainImageViews[j]));
 	}
+}
+
+void NutshellGraphicsModule::createWindowResources(NtshWindowId windowId) {
+	size_t index = 0;
+	if (windowId != NTSH_MAIN_WINDOW) {
+		PerWindowResources newWindowResources;
+		newWindowResources.windowId = windowId;
+		m_perWindowResources.push_back(newWindowResources);
+		index = (m_perWindowResources.size() - 1);
+
+		// Create surface
+#if defined(NTSH_OS_WINDOWS)
+		HWND windowHandle = m_windowModule->getNativeHandle(m_perWindowResources[index].windowId);
+		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
+		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+		surfaceCreateInfo.pNext = nullptr;
+		surfaceCreateInfo.flags = 0;
+		surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(GetWindowLongPtr(windowHandle, GWLP_HINSTANCE));
+		surfaceCreateInfo.hwnd = windowHandle;
+		auto createWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateWin32SurfaceKHR");
+		NTSH_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_perWindowResources[index].surface));
+#elif defined(NTSH_OS_LINUX)
+		for (size_t i = 0; i < m_windowIds.size(); i++) {
+			m_display = XOpenDisplay(NULL);
+			Window windowHandle = m_windowModule->getNativeHandle(m_perWindowResources[index].windowId);
+			VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
+			surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
+			surfaceCreateInfo.pNext = nullptr;
+			surfaceCreateInfo.flags = 0;
+			surfaceCreateInfo.dpy = m_display;
+			surfaceCreateInfo.window = windowHandle;
+			auto createXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateXlibSurfaceKHR");
+			NTSH_VK_CHECK(createXlibSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_perWindowResources[index].surface));
+		}
+#endif
+	}
+
+	// Create swapchain
+	createSwapchain(index);
 
 	// Create the swapchain image available semaphores
 	VkSemaphoreCreateInfo semaphoreCreateInfo = {};
@@ -1005,98 +1010,7 @@ void NutshellGraphicsModule::resize(size_t index) {
 	}
 
 	// Recreate the swapchain
-	VkSurfaceCapabilitiesKHR surfaceCapabilities = getSurfaceCapabilities(index);
-	uint32_t minImageCount = surfaceCapabilities.minImageCount + 1;
-	if (surfaceCapabilities.maxImageCount > 0 && minImageCount > surfaceCapabilities.maxImageCount) {
-		minImageCount = surfaceCapabilities.maxImageCount;
-	}
-
-	std::vector<VkSurfaceFormatKHR> surfaceFormats = getSurfaceFormats(index);
-	m_swapchainFormat = surfaceFormats[0].format;
-	VkColorSpaceKHR swapchainColorSpace = surfaceFormats[0].colorSpace;
-	for (const VkSurfaceFormatKHR& surfaceFormat : surfaceFormats) {
-		if (surfaceFormat.format == VK_FORMAT_B8G8R8A8_SRGB && surfaceFormat.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR) {
-			m_swapchainFormat = surfaceFormat.format;
-			swapchainColorSpace = surfaceFormat.colorSpace;
-			break;
-		}
-	}
-
-	std::vector<VkPresentModeKHR> presentModes = getSurfacePresentModes(index);
-	VkPresentModeKHR swapchainPresentMode = VK_PRESENT_MODE_FIFO_KHR;
-	for (const VkPresentModeKHR& presentMode : presentModes) {
-		if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-			swapchainPresentMode = presentMode;
-			break;
-		}
-		else if (presentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
-			swapchainPresentMode = presentMode;
-		}
-	}
-
-	VkExtent2D swapchainExtent = {};
-	swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth(m_perWindowResources[index].windowId));
-	swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight(m_perWindowResources[index].windowId));
-
-	m_perWindowResources[index].viewport.x = 0.0f;
-	m_perWindowResources[index].viewport.y = 0.0f;
-	m_perWindowResources[index].viewport.width = static_cast<float>(swapchainExtent.width);
-	m_perWindowResources[index].viewport.height = static_cast<float>(swapchainExtent.height);
-	m_perWindowResources[index].viewport.minDepth = 0.0f;
-	m_perWindowResources[index].viewport.maxDepth = 1.0f;
-
-	m_perWindowResources[index].scissor.offset.x = 0;
-	m_perWindowResources[index].scissor.offset.y = 0;
-	m_perWindowResources[index].scissor.extent.width = swapchainExtent.width;
-	m_perWindowResources[index].scissor.extent.height = swapchainExtent.height;
-
-	VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
-	swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	swapchainCreateInfo.pNext = nullptr;
-	swapchainCreateInfo.flags = 0;
-	swapchainCreateInfo.surface = m_perWindowResources[index].surface;
-	swapchainCreateInfo.minImageCount = minImageCount;
-	swapchainCreateInfo.imageFormat = m_swapchainFormat;
-	swapchainCreateInfo.imageColorSpace = swapchainColorSpace;
-	swapchainCreateInfo.imageExtent = swapchainExtent;
-	swapchainCreateInfo.imageArrayLayers = 1;
-	swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	swapchainCreateInfo.queueFamilyIndexCount = 0;
-	swapchainCreateInfo.pQueueFamilyIndices = nullptr;
-	swapchainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
-	swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-	swapchainCreateInfo.presentMode = swapchainPresentMode;
-	swapchainCreateInfo.clipped = VK_TRUE;
-	VkSwapchainKHR oldSwapchain = m_perWindowResources[index].swapchain;
-	swapchainCreateInfo.oldSwapchain = oldSwapchain;
-	NTSH_VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_perWindowResources[index].swapchain));
-
-	NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_perWindowResources[index].swapchain, &m_perWindowResources[index].swapchainImageCount, nullptr));
-	m_perWindowResources[index].swapchainImages.resize(m_perWindowResources[index].swapchainImageCount);
-	NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_perWindowResources[index].swapchain, &m_perWindowResources[index].swapchainImageCount, m_perWindowResources[index].swapchainImages.data()));
-
-	// Create the swapchain image views
-	m_perWindowResources[index].swapchainImageViews.resize(m_perWindowResources[index].swapchainImageCount);
-	for (uint32_t i = 0; i < m_perWindowResources[index].swapchainImageCount; i++) {
-		VkImageViewCreateInfo swapchainImageViewCreateInfo = {};
-		swapchainImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		swapchainImageViewCreateInfo.pNext = nullptr;
-		swapchainImageViewCreateInfo.flags = 0;
-		swapchainImageViewCreateInfo.image = m_perWindowResources[index].swapchainImages[i];
-		swapchainImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		swapchainImageViewCreateInfo.format = m_swapchainFormat;
-		swapchainImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
-		swapchainImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
-		swapchainImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
-		swapchainImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
-		swapchainImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		swapchainImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-		swapchainImageViewCreateInfo.subresourceRange.levelCount = 1;
-		swapchainImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-		swapchainImageViewCreateInfo.subresourceRange.layerCount = 1;
-		NTSH_VK_CHECK(vkCreateImageView(m_device, &swapchainImageViewCreateInfo, nullptr, &m_perWindowResources[index].swapchainImageViews[i]));
-	}
+	createSwapchain(index);
 }
 
 extern "C" NTSH_MODULE_API NutshellGraphicsModuleInterface* createModule() {
