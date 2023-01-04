@@ -511,7 +511,7 @@ void NutshellGraphicsModule::update(double dt) {
 		m_objects[i].rotation.y = m_objectAngle * toRad;
 		nml::mat4 objectModel = nml::translate(m_objects[i].position) * nml::rotate(m_objects[i].rotation.x, nml::vec3(1.0f, 0.0f, 0.0f)) * nml::rotate(m_objects[i].rotation.y, nml::vec3(0.0f, 1.0f, 0.0f)) * nml::rotate(m_objects[i].rotation.z, nml::vec3(0.0f, 0.0f, 1.0f)) * nml::scale(m_objects[i].scale);
 
-		size_t offset = (i * (sizeof(nml::mat4) + sizeof(nml::vec4)));
+		size_t offset = (i * (sizeof(nml::mat4) + sizeof(nml::vec4))); // vec4 is used here for padding
 
 		memcpy(reinterpret_cast<char*>(data) + offset, objectModel.data(), sizeof(nml::mat4));
 		memcpy(reinterpret_cast<char*>(data) + offset + sizeof(nml::mat4), &m_objects[i].textureID, sizeof(uint32_t));
