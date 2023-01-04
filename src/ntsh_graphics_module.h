@@ -50,9 +50,6 @@ struct Object {
 	int32_t vertexOffset;
 
 	uint32_t textureID;
-
-	std::vector<VkBuffer> buffers;
-	std::vector<VmaAllocation> allocations;
 };
 
 class NutshellGraphicsModule : public NutshellGraphicsModuleInterface {
@@ -158,6 +155,9 @@ private:
 	nml::vec3 cameraPosition;
 	std::vector<VkBuffer> m_cameraBuffers;
 	std::vector<VmaAllocation> m_cameraBufferAllocations;
+
+	std::vector<VkBuffer> m_objectBuffers;
+	std::vector<VmaAllocation> m_objectBufferAllocations;
 
 	NtshModel m_cube;
 	VkImage m_cubeTextureImage;
