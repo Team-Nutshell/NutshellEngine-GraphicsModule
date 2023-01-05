@@ -490,6 +490,8 @@ void NutshellGraphicsModule::init() {
 
 	// Set current frame-in-flight to 0
 	m_currentFrameInFlight = 0;
+
+	createScene();
 }
 
 void NutshellGraphicsModule::update(double dt) {
@@ -663,7 +665,7 @@ void NutshellGraphicsModule::update(double dt) {
 		vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_graphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &m_objects[i].index);
 
 		// Draw
-		vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_objects[i].indexCount, 1, m_objects[i].firstIndex, m_objects[i].vertexOffset, 0);
+		vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_meshes[m_objects[i].meshIndex].indexCount, 1, m_meshes[m_objects[i].meshIndex].firstIndex, m_meshes[m_objects[i].meshIndex].vertexOffset, 0);
 	}
 
 	// End rendering
@@ -1092,6 +1094,8 @@ void NutshellGraphicsModule::loadCubeModel() {
 
 	m_cube.primitives.push_back({ cubeMesh, NtshMaterial() });
 
+	m_meshes.push_back({ 36, 0, 0 });
+
 	std::array<unsigned char, 16 * 16 * 4> textureData;
 	for (size_t i = 0; i < 256; i++) {
 		size_t component = 0;
@@ -1100,40 +1104,6 @@ void NutshellGraphicsModule::loadCubeModel() {
 		textureData[i * 4 + component++] = static_cast<unsigned char>(i % 128);
 		textureData[i * 4 + component] = static_cast<unsigned char>(255);
 	}
-
-	m_objects.resize(3);
-	m_objects[0].index = 0;
-	m_objects[0].indexCount = 36;
-	m_objects[0].firstIndex = 0;
-	m_objects[0].vertexOffset = 0;
-
-	m_objects[0].position = nml::vec3(0.0f, 0.0f, 0.0f);
-	m_objects[0].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
-	m_objects[0].scale = nml::vec3(1.0f, 1.0f, 1.0f);
-
-	m_objects[0].textureID = 0;
-
-	m_objects[1].index = 1;
-	m_objects[1].indexCount = 36;
-	m_objects[1].firstIndex = 0;
-	m_objects[1].vertexOffset = 0;
-
-	m_objects[1].position = nml::vec3(0.0f, 2.0f, 0.0f);
-	m_objects[1].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
-	m_objects[1].scale = nml::vec3(0.5f, 1.0f, 2.5f);
-
-	m_objects[1].textureID = 0;
-
-	m_objects[2].index = 2;
-	m_objects[2].indexCount = 36;
-	m_objects[2].firstIndex = 0;
-	m_objects[2].vertexOffset = 0;
-
-	m_objects[2].position = nml::vec3(0.0f, -2.0f, 0.0f);
-	m_objects[2].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
-	m_objects[2].scale = nml::vec3(0.5f, 1.0f, 2.5f);
-
-	m_objects[2].textureID = 0;
 
 	// Vertex and Index staging buffer
 	VkBuffer vertexAndIndexStagingBuffer;
@@ -1989,6 +1959,36 @@ void NutshellGraphicsModule::createDescriptorSets() {
 
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 	}
+}
+
+void NutshellGraphicsModule::createScene() {
+	m_objects.resize(3);
+	m_objects[0].index = 0;
+	m_objects[0].meshIndex = 0;
+
+	m_objects[0].position = nml::vec3(0.0f, 0.0f, 0.0f);
+	m_objects[0].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
+	m_objects[0].scale = nml::vec3(1.0f, 1.0f, 1.0f);
+
+	m_objects[0].textureID = 0;
+
+	m_objects[1].index = 1;
+	m_objects[0].meshIndex = 0;
+
+	m_objects[1].position = nml::vec3(0.0f, 2.0f, 0.0f);
+	m_objects[1].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
+	m_objects[1].scale = nml::vec3(0.5f, 1.0f, 2.5f);
+
+	m_objects[1].textureID = 0;
+
+	m_objects[2].index = 2;
+	m_objects[0].meshIndex = 0;
+
+	m_objects[2].position = nml::vec3(0.0f, -2.0f, 0.0f);
+	m_objects[2].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
+	m_objects[2].scale = nml::vec3(0.5f, 1.0f, 2.5f);
+
+	m_objects[2].textureID = 0;
 }
 
 void NutshellGraphicsModule::resize() {
