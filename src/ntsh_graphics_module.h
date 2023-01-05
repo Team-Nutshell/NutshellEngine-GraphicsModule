@@ -38,6 +38,12 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBits
 
 const float toRad = 3.1415926535897932384626433832795f / 180.0f;
 
+struct Mesh {
+	uint32_t indexCount;
+	uint32_t firstIndex;
+	int32_t vertexOffset;
+};
+
 struct Object {
 	uint32_t index;
 
@@ -45,9 +51,7 @@ struct Object {
 	nml::vec3 rotation;
 	nml::vec3 scale;
 
-	uint32_t indexCount;
-	uint32_t firstIndex;
-	int32_t vertexOffset;
+	size_t meshIndex;
 
 	uint32_t textureID;
 };
@@ -87,6 +91,9 @@ private:
 
 	// Descriptor sets creation
 	void createDescriptorSets();
+
+	// Scene
+	void createScene();
 
 	// On window resize
 	void resize();
@@ -164,6 +171,8 @@ private:
 	VmaAllocation m_cubeTextureImageAllocation;
 	VkImageView m_cubeTextureImageView;
 	VkSampler m_textureSampler;
+
+	std::vector<Mesh> m_meshes;
 
 	std::vector<Object> m_objects;
 	float m_objectAngle = 0.0f;
