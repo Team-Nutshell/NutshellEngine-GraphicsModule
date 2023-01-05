@@ -342,6 +342,43 @@ void NutshellGraphicsModule::init() {
 
 	createDepthImage();
 
+	VkDescriptorSetLayoutBinding cameraDescriptorSetLayoutBinding = {};
+	cameraDescriptorSetLayoutBinding.binding = 0;
+	cameraDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	cameraDescriptorSetLayoutBinding.descriptorCount = 1;
+	cameraDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	cameraDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding objectsDescriptorSetLayoutBinding = {};
+	objectsDescriptorSetLayoutBinding.binding = 1;
+	objectsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	objectsDescriptorSetLayoutBinding.descriptorCount = 1;
+	objectsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	objectsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding texturesDescriptorSetLayoutBinding = {};
+	texturesDescriptorSetLayoutBinding.binding = 2;
+	texturesDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	texturesDescriptorSetLayoutBinding.descriptorCount = 524288;
+	texturesDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	texturesDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	std::array<VkDescriptorBindingFlags, 3> descriptorBindingFlags = { 0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
+	VkDescriptorSetLayoutBindingFlagsCreateInfo descriptorSetLayoutBindingFlagsCreateInfo = {};
+	descriptorSetLayoutBindingFlagsCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+	descriptorSetLayoutBindingFlagsCreateInfo.pNext = nullptr;
+	descriptorSetLayoutBindingFlagsCreateInfo.bindingCount = static_cast<uint32_t>(descriptorBindingFlags.size());
+	descriptorSetLayoutBindingFlagsCreateInfo.pBindingFlags = descriptorBindingFlags.data();
+
+	std::array<VkDescriptorSetLayoutBinding, 3> descriptorSetLayoutBindings = { cameraDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding, texturesDescriptorSetLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptorSetLayoutCreateInfo.pNext = &descriptorSetLayoutBindingFlagsCreateInfo;
+	descriptorSetLayoutCreateInfo.flags = 0;
+	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size());
+	descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
+	NTSH_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_descriptorSetLayout));
+
 	createGraphicsPipeline();
 
 	// Create texture sampler
@@ -365,7 +402,6 @@ void NutshellGraphicsModule::init() {
 	textureSamplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
 	textureSamplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
 	NTSH_VK_CHECK(vkCreateSampler(m_device, &textureSamplerCreateInfo, nullptr, &m_textureSampler));
-
 
 	// Create camera uniform buffer
 	m_cameraBuffers.resize(m_framesInFlight);
@@ -1811,43 +1847,6 @@ void NutshellGraphicsModule::createGraphicsPipeline() {
 	dynamicStateCreateInfo.flags = 0;
 	dynamicStateCreateInfo.dynamicStateCount = 2;
 	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
-
-	VkDescriptorSetLayoutBinding cameraDescriptorSetLayoutBinding = {};
-	cameraDescriptorSetLayoutBinding.binding = 0;
-	cameraDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	cameraDescriptorSetLayoutBinding.descriptorCount = 1;
-	cameraDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	cameraDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
-	VkDescriptorSetLayoutBinding objectsDescriptorSetLayoutBinding = {};
-	objectsDescriptorSetLayoutBinding.binding = 1;
-	objectsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	objectsDescriptorSetLayoutBinding.descriptorCount = 1;
-	objectsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	objectsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
-	VkDescriptorSetLayoutBinding texturesDescriptorSetLayoutBinding = {};
-	texturesDescriptorSetLayoutBinding.binding = 2;
-	texturesDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	texturesDescriptorSetLayoutBinding.descriptorCount = 524288;
-	texturesDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-	texturesDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
-	std::array<VkDescriptorBindingFlags, 3> descriptorBindingFlags = { 0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
-	VkDescriptorSetLayoutBindingFlagsCreateInfo descriptorSetLayoutBindingFlagsCreateInfo = {};
-	descriptorSetLayoutBindingFlagsCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
-	descriptorSetLayoutBindingFlagsCreateInfo.pNext = nullptr;
-	descriptorSetLayoutBindingFlagsCreateInfo.bindingCount = static_cast<uint32_t>(descriptorBindingFlags.size());
-	descriptorSetLayoutBindingFlagsCreateInfo.pBindingFlags = descriptorBindingFlags.data();
-
-	std::array<VkDescriptorSetLayoutBinding, 3> descriptorSetLayoutBindings = { cameraDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding, texturesDescriptorSetLayoutBinding };
-	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
-	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	descriptorSetLayoutCreateInfo.pNext = &descriptorSetLayoutBindingFlagsCreateInfo;
-	descriptorSetLayoutCreateInfo.flags = 0;
-	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size());
-	descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
-	NTSH_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_descriptorSetLayout));
 
 	VkPushConstantRange pushConstantRange = {};
 	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
