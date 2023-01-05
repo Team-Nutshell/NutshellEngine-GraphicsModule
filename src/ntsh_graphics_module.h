@@ -39,7 +39,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBits
 const float toRad = 3.1415926535897932384626433832795f / 180.0f;
 
 struct Object {
-	size_t index;
+	uint32_t index;
 
 	nml::vec3 position;
 	nml::vec3 rotation;
