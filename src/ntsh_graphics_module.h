@@ -80,9 +80,6 @@ private:
 	// Vertex and index buffers creation
 	void createVertexAndIndexBuffers();
 
-	// Cube model
-	void loadCubeModel();
-
 	// Depth image creation
 	void createDepthImage();
 
@@ -91,6 +88,10 @@ private:
 
 	// Descriptor sets creation
 	void createDescriptorSets();
+
+	// Load model and texture
+	uint32_t loadMesh(const NtshMesh& mesh);
+	uint32_t loadTexture(const NtshImage& image);
 
 	// Scene
 	void createScene();
@@ -166,13 +167,14 @@ private:
 	std::vector<VkBuffer> m_objectBuffers;
 	std::vector<VmaAllocation> m_objectBufferAllocations;
 
-	NtshModel m_cube;
-	VkImage m_cubeTextureImage;
-	VmaAllocation m_cubeTextureImageAllocation;
-	VkImageView m_cubeTextureImageView;
-	VkSampler m_textureSampler;
-
 	std::vector<Mesh> m_meshes;
+	int32_t m_currentVertexOffset = 0;
+	uint32_t m_currentIndexOffset = 0;
+
+	std::vector<VkImage> m_textureImages;
+	std::vector<VmaAllocation> m_textureImageAllocations;
+	std::vector<VkImageView> m_textureImageViews;
+	VkSampler m_textureSampler;
 
 	std::vector<Object> m_objects;
 	float m_objectAngle = 0.0f;

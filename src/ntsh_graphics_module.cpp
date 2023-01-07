@@ -338,9 +338,9 @@ void NutshellGraphicsModule::init() {
 
 	createVertexAndIndexBuffers();
 
-	loadCubeModel();
-
 	createDepthImage();
+
+	createScene();
 
 	VkDescriptorSetLayoutBinding cameraDescriptorSetLayoutBinding = {};
 	cameraDescriptorSetLayoutBinding.binding = 0;
@@ -389,14 +389,14 @@ void NutshellGraphicsModule::init() {
 	textureSamplerCreateInfo.magFilter = VK_FILTER_LINEAR;
 	textureSamplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 	textureSamplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	textureSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	textureSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	textureSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	textureSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	textureSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	textureSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	textureSamplerCreateInfo.mipLodBias = 0.0f;
 	textureSamplerCreateInfo.anisotropyEnable = VK_TRUE;
 	textureSamplerCreateInfo.maxAnisotropy = 16.0f;
-	textureSamplerCreateInfo.compareEnable = VK_TRUE;
-	textureSamplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+	textureSamplerCreateInfo.compareEnable = VK_FALSE;
+	textureSamplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
 	textureSamplerCreateInfo.minLod = 0.0f;
 	textureSamplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
 	textureSamplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
@@ -490,8 +490,6 @@ void NutshellGraphicsModule::init() {
 
 	// Set current frame-in-flight to 0
 	m_currentFrameInFlight = 0;
-
-	createScene();
 }
 
 void NutshellGraphicsModule::update(double dt) {
@@ -800,9 +798,11 @@ void NutshellGraphicsModule::destroy() {
 	vkDestroyImageView(m_device, m_depthImageView, nullptr);
 	vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
 
-	// Destroy texture
-	vkDestroyImageView(m_device, m_cubeTextureImageView, nullptr);
-	vmaDestroyImage(m_allocator, m_cubeTextureImage, m_cubeTextureImageAllocation);
+	// Destroy textures
+	for (size_t i = 0; i < m_textureImages.size(); i++) {
+		vkDestroyImageView(m_device, m_textureImageViews[i], nullptr);
+		vmaDestroyImage(m_allocator, m_textureImages[i], m_textureImageAllocations[i]);
+	}
 
 	// Destroy vertex and index buffers
 	vmaDestroyBuffer(m_allocator, m_indexBuffer, m_indexBufferAllocation);
@@ -1009,7 +1009,7 @@ void NutshellGraphicsModule::createVertexAndIndexBuffers() {
 	vertexAndIndexBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	vertexAndIndexBufferCreateInfo.pNext = nullptr;
 	vertexAndIndexBufferCreateInfo.flags = 0;
-	vertexAndIndexBufferCreateInfo.size = 65536;
+	vertexAndIndexBufferCreateInfo.size = 67108864;
 	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 	vertexAndIndexBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	vertexAndIndexBufferCreateInfo.queueFamilyIndexCount = 1;
@@ -1024,86 +1024,8 @@ void NutshellGraphicsModule::createVertexAndIndexBuffers() {
 	vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_indexBuffer, &m_indexBufferAllocation, nullptr);
 }
 
-void NutshellGraphicsModule::loadCubeModel() {
-	// Cube
-	NtshMesh cubeMesh;
-	cubeMesh.vertices = {
-		{ {1.0f, 1.0f, -1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, 1.0f, -1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, -1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, -1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, -1.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, 1.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, 1.0f, -1.0f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, -1.0f, -1.0f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, -1.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, -1.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, -1.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, -1.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, -1.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, 1.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, -1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, -1.0f, -1.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, 1.0f, -1.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, 1.0f, -1.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, -1.0f, -1.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} }
-	};
-	cubeMesh.indices = {
-		0,
-		1,
-		2,
-		0,
-		2,
-		3,
-		4,
-		5,
-		6,
-		4,
-		6,
-		7,
-		8,
-		9,
-		10,
-		8,
-		10,
-		11,
-		12,
-		13,
-		14,
-		12,
-		14,
-		15,
-		16,
-		17,
-		18,
-		16,
-		18,
-		19,
-		20,
-		21,
-		22,
-		20,
-		22,
-		23
-	};
-
-	m_cube.primitives.push_back({ cubeMesh, NtshMaterial() });
-
-	m_meshes.push_back({ 36, 0, 0 });
-
-	std::array<unsigned char, 16 * 16 * 4> textureData;
-	for (size_t i = 0; i < 256; i++) {
-		size_t component = 0;
-		textureData[i * 4 + component++] = static_cast<unsigned char>(i % 256);
-		textureData[i * 4 + component++] = static_cast<unsigned char>(i % 64);
-		textureData[i * 4 + component++] = static_cast<unsigned char>(i % 128);
-		textureData[i * 4 + component] = static_cast<unsigned char>(255);
-	}
+uint32_t NutshellGraphicsModule::loadMesh(const NtshMesh& mesh) {
+	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset });
 
 	// Vertex and Index staging buffer
 	VkBuffer vertexAndIndexStagingBuffer;
@@ -1113,7 +1035,7 @@ void NutshellGraphicsModule::loadCubeModel() {
 	vertexAndIndexStagingBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	vertexAndIndexStagingBufferCreateInfo.pNext = nullptr;
 	vertexAndIndexStagingBufferCreateInfo.flags = 0;
-	vertexAndIndexStagingBufferCreateInfo.size = 131072;
+	vertexAndIndexStagingBufferCreateInfo.size = (mesh.vertices.size() * sizeof(NtshVertex)) + (mesh.indices.size() * sizeof(uint32_t));
 	vertexAndIndexStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	vertexAndIndexStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	vertexAndIndexStagingBufferCreateInfo.queueFamilyIndexCount = 1;
@@ -1127,77 +1049,11 @@ void NutshellGraphicsModule::loadCubeModel() {
 	void* data;
 
 	NTSH_VK_CHECK(vmaMapMemory(m_allocator, vertexAndIndexStagingBufferAllocation, &data));
-	memcpy(data, cubeMesh.vertices.data(), cubeMesh.vertices.size() * sizeof(NtshVertex));
-	memcpy(reinterpret_cast<char*>(data) + 65536, cubeMesh.indices.data(), cubeMesh.indices.size() * sizeof(uint32_t));
+	memcpy(data, mesh.vertices.data(), mesh.vertices.size() * sizeof(NtshVertex));
+	memcpy(reinterpret_cast<char*>(data) + (mesh.vertices.size() * sizeof(NtshVertex)), mesh.indices.data(), mesh.indices.size() * sizeof(uint32_t));
 	vmaUnmapMemory(m_allocator, vertexAndIndexStagingBufferAllocation);
 
-	// Create texture
-	VkImageCreateInfo cubeTextureImageCreateInfo = {};
-	cubeTextureImageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	cubeTextureImageCreateInfo.pNext = nullptr;
-	cubeTextureImageCreateInfo.flags = 0;
-	cubeTextureImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-	cubeTextureImageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-	cubeTextureImageCreateInfo.extent.width = 16;
-	cubeTextureImageCreateInfo.extent.height = 16;
-	cubeTextureImageCreateInfo.extent.depth = 1;
-	cubeTextureImageCreateInfo.mipLevels = findMipLevels(cubeTextureImageCreateInfo.extent.width, cubeTextureImageCreateInfo.extent.height);
-	cubeTextureImageCreateInfo.arrayLayers = 1;
-	cubeTextureImageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-	cubeTextureImageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-	cubeTextureImageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-	cubeTextureImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	cubeTextureImageCreateInfo.queueFamilyIndexCount = 1;
-	cubeTextureImageCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
-	cubeTextureImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-	VmaAllocationCreateInfo cubeTextureImageAllocationCreateInfo = {};
-	cubeTextureImageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-
-	NTSH_VK_CHECK(vmaCreateImage(m_allocator, &cubeTextureImageCreateInfo, &cubeTextureImageAllocationCreateInfo, &m_cubeTextureImage, &m_cubeTextureImageAllocation, nullptr));
-
-	VkImageViewCreateInfo cubeTextureImageViewCreateInfo = {};
-	cubeTextureImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	cubeTextureImageViewCreateInfo.pNext = nullptr;
-	cubeTextureImageViewCreateInfo.flags = 0;
-	cubeTextureImageViewCreateInfo.image = m_cubeTextureImage;
-	cubeTextureImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	cubeTextureImageViewCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-	cubeTextureImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
-	cubeTextureImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
-	cubeTextureImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
-	cubeTextureImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
-	cubeTextureImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	cubeTextureImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-	cubeTextureImageViewCreateInfo.subresourceRange.levelCount = cubeTextureImageCreateInfo.mipLevels;
-	cubeTextureImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-	cubeTextureImageViewCreateInfo.subresourceRange.layerCount = 1;
-	NTSH_VK_CHECK(vkCreateImageView(m_device, &cubeTextureImageViewCreateInfo, nullptr, &m_cubeTextureImageView));
-
-	// Create texture staging buffer
-	VkBuffer cubeTextureStagingBuffer;
-	VmaAllocation cubeTextureStagingBufferAllocation;
-
-	VkBufferCreateInfo cubeTextureStagingBufferCreateInfo = {};
-	cubeTextureStagingBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	cubeTextureStagingBufferCreateInfo.pNext = nullptr;
-	cubeTextureStagingBufferCreateInfo.flags = 0;
-	cubeTextureStagingBufferCreateInfo.size = 16 * 16 * 4;
-	cubeTextureStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-	cubeTextureStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	cubeTextureStagingBufferCreateInfo.queueFamilyIndexCount = 1;
-	cubeTextureStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
-
-	VmaAllocationCreateInfo cubeTextureStagingBufferAllocationCreateInfo = {};
-	cubeTextureStagingBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-	cubeTextureStagingBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-	NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &cubeTextureStagingBufferCreateInfo, &cubeTextureStagingBufferAllocationCreateInfo, &cubeTextureStagingBuffer, &cubeTextureStagingBufferAllocation, nullptr));
-
-	NTSH_VK_CHECK(vmaMapMemory(m_allocator, cubeTextureStagingBufferAllocation, &data));
-	memcpy(data, textureData.data(), 16 * 16 * 4);
-	vmaUnmapMemory(m_allocator, cubeTextureStagingBufferAllocation);
-
-	// Copy staging buffers
+	// Copy staging buffer
 	VkCommandPool buffersCopyCommandPool;
 
 	VkCommandPoolCreateInfo buffersCopyCommandPoolCreateInfo = {};
@@ -1226,132 +1082,15 @@ void NutshellGraphicsModule::loadCubeModel() {
 
 	VkBufferCopy vertexBufferCopy = {};
 	vertexBufferCopy.srcOffset = 0;
-	vertexBufferCopy.dstOffset = 0;
-	vertexBufferCopy.size = cubeMesh.vertices.size() * sizeof(NtshVertex);
+	vertexBufferCopy.dstOffset = m_currentVertexOffset * sizeof(NtshVertex);
+	vertexBufferCopy.size = mesh.vertices.size() * sizeof(NtshVertex);
 	vkCmdCopyBuffer(buffersCopyCommandBuffer, vertexAndIndexStagingBuffer, m_vertexBuffer, 1, &vertexBufferCopy);
 
 	VkBufferCopy indexBufferCopy = {};
-	indexBufferCopy.srcOffset = 65536;
-	indexBufferCopy.dstOffset = 0;
-	indexBufferCopy.size = cubeMesh.indices.size() * sizeof(uint32_t);
+	indexBufferCopy.srcOffset = mesh.vertices.size() * sizeof(NtshVertex);
+	indexBufferCopy.dstOffset = m_currentIndexOffset * sizeof(uint32_t);
+	indexBufferCopy.size = mesh.indices.size() * sizeof(uint32_t);
 	vkCmdCopyBuffer(buffersCopyCommandBuffer, vertexAndIndexStagingBuffer, m_indexBuffer, 1, &indexBufferCopy);
-
-	VkImageMemoryBarrier2 undefinedToTransferDstOptimalImageMemoryBarrier = {};
-	undefinedToTransferDstOptimalImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-	undefinedToTransferDstOptimalImageMemoryBarrier.pNext = nullptr;
-	undefinedToTransferDstOptimalImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
-	undefinedToTransferDstOptimalImageMemoryBarrier.srcAccessMask = 0;
-	undefinedToTransferDstOptimalImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
-	undefinedToTransferDstOptimalImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-	undefinedToTransferDstOptimalImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	undefinedToTransferDstOptimalImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	undefinedToTransferDstOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	undefinedToTransferDstOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	undefinedToTransferDstOptimalImageMemoryBarrier.image = m_cubeTextureImage;
-	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
-	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.levelCount = cubeTextureImageCreateInfo.mipLevels;
-	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.layerCount = 1;
-
-	VkDependencyInfo undefinedToTransferDstOptimalDependencyInfo = {};
-	undefinedToTransferDstOptimalDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-	undefinedToTransferDstOptimalDependencyInfo.pNext = nullptr;
-	undefinedToTransferDstOptimalDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-	undefinedToTransferDstOptimalDependencyInfo.memoryBarrierCount = 0;
-	undefinedToTransferDstOptimalDependencyInfo.pMemoryBarriers = nullptr;
-	undefinedToTransferDstOptimalDependencyInfo.bufferMemoryBarrierCount = 0;
-	undefinedToTransferDstOptimalDependencyInfo.pBufferMemoryBarriers = nullptr;
-	undefinedToTransferDstOptimalDependencyInfo.imageMemoryBarrierCount = 1;
-	undefinedToTransferDstOptimalDependencyInfo.pImageMemoryBarriers = &undefinedToTransferDstOptimalImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(buffersCopyCommandBuffer, &undefinedToTransferDstOptimalDependencyInfo);
-
-	VkBufferImageCopy cubeTextureBufferCopy = {};
-	cubeTextureBufferCopy.bufferOffset = 0;
-	cubeTextureBufferCopy.bufferRowLength = 0;
-	cubeTextureBufferCopy.bufferImageHeight = 0;
-	cubeTextureBufferCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	cubeTextureBufferCopy.imageSubresource.mipLevel = 0;
-	cubeTextureBufferCopy.imageSubresource.baseArrayLayer = 0;
-	cubeTextureBufferCopy.imageSubresource.layerCount = 1;
-	cubeTextureBufferCopy.imageOffset.x = 0;
-	cubeTextureBufferCopy.imageOffset.y = 0;
-	cubeTextureBufferCopy.imageOffset.z = 0;
-	cubeTextureBufferCopy.imageExtent.width = 16;
-	cubeTextureBufferCopy.imageExtent.height = 16;
-	cubeTextureBufferCopy.imageExtent.depth = 1;
-	vkCmdCopyBufferToImage(buffersCopyCommandBuffer, cubeTextureStagingBuffer, m_cubeTextureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &cubeTextureBufferCopy);
-
-	VkImageMemoryBarrier2 mipMapGenerationImageMemoryBarrier = {};
-	mipMapGenerationImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-	mipMapGenerationImageMemoryBarrier.pNext = nullptr;
-	mipMapGenerationImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	mipMapGenerationImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	mipMapGenerationImageMemoryBarrier.image = m_cubeTextureImage;
-	mipMapGenerationImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	mipMapGenerationImageMemoryBarrier.subresourceRange.levelCount = 1;
-	mipMapGenerationImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-	mipMapGenerationImageMemoryBarrier.subresourceRange.layerCount = 1;
-
-	uint32_t mipWidth = cubeTextureImageCreateInfo.extent.width;
-	uint32_t mipHeight = cubeTextureImageCreateInfo.extent.height;
-	for (size_t i = 1; i < cubeTextureImageCreateInfo.mipLevels; i++) {
-		mipMapGenerationImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
-		mipMapGenerationImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-		mipMapGenerationImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
-		mipMapGenerationImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-		mipMapGenerationImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		mipMapGenerationImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		mipMapGenerationImageMemoryBarrier.subresourceRange.baseMipLevel = static_cast<uint32_t>(i) - 1;
-
-		VkDependencyInfo mipMapGenerationDependencyInfo = {};
-		mipMapGenerationDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-		mipMapGenerationDependencyInfo.pNext = nullptr;
-		mipMapGenerationDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-		mipMapGenerationDependencyInfo.memoryBarrierCount = 0;
-		mipMapGenerationDependencyInfo.pMemoryBarriers = nullptr;
-		mipMapGenerationDependencyInfo.bufferMemoryBarrierCount = 0;
-		mipMapGenerationDependencyInfo.pBufferMemoryBarriers = nullptr;
-		mipMapGenerationDependencyInfo.imageMemoryBarrierCount = 1;
-		mipMapGenerationDependencyInfo.pImageMemoryBarriers = &mipMapGenerationImageMemoryBarrier;
-		m_vkCmdPipelineBarrier2KHR(buffersCopyCommandBuffer, &mipMapGenerationDependencyInfo);
-
-		VkImageBlit imageBlit = {};
-		imageBlit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		imageBlit.srcSubresource.mipLevel = static_cast<uint32_t>(i) - 1;
-		imageBlit.srcSubresource.baseArrayLayer = 0;
-		imageBlit.srcSubresource.layerCount = 1;
-		imageBlit.srcOffsets[0].x = 0;
-		imageBlit.srcOffsets[0].y = 0;
-		imageBlit.srcOffsets[0].z = 0;
-		imageBlit.srcOffsets[1].x = mipWidth;
-		imageBlit.srcOffsets[1].y = mipHeight;
-		imageBlit.srcOffsets[1].z = 1;
-		imageBlit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		imageBlit.dstSubresource.mipLevel = static_cast<uint32_t>(i);
-		imageBlit.dstSubresource.baseArrayLayer = 0;
-		imageBlit.dstSubresource.layerCount = 1;
-		imageBlit.dstOffsets[0].x = 0;
-		imageBlit.dstOffsets[0].y = 0;
-		imageBlit.dstOffsets[0].z = 0;
-		imageBlit.dstOffsets[1].x = mipWidth > 1 ? mipWidth / 2 : 1;
-		imageBlit.dstOffsets[1].y = mipHeight > 1 ? mipHeight / 2 : 1;
-		imageBlit.dstOffsets[1].z = 1;
-		vkCmdBlitImage(buffersCopyCommandBuffer, m_cubeTextureImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, m_cubeTextureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageBlit, VK_FILTER_LINEAR);
-
-		mipMapGenerationImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
-		mipMapGenerationImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-		mipMapGenerationImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-		mipMapGenerationImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
-		mipMapGenerationImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		mipMapGenerationImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-		mipMapGenerationDependencyInfo.pImageMemoryBarriers = &mipMapGenerationImageMemoryBarrier;
-		m_vkCmdPipelineBarrier2KHR(buffersCopyCommandBuffer, &mipMapGenerationDependencyInfo);
-
-		mipWidth = mipWidth > 1 ? mipWidth / 2 : 1;
-		mipHeight = mipHeight > 1 ? mipHeight / 2 : 1;
-	}
 
 	vkEndCommandBuffer(buffersCopyCommandBuffer);
 
@@ -1379,7 +1118,261 @@ void NutshellGraphicsModule::loadCubeModel() {
 	vkDestroyFence(m_device, buffersCopyFence, nullptr);
 	vkDestroyCommandPool(m_device, buffersCopyCommandPool, nullptr);
 	vmaDestroyBuffer(m_allocator, vertexAndIndexStagingBuffer, vertexAndIndexStagingBufferAllocation);
-	vmaDestroyBuffer(m_allocator, cubeTextureStagingBuffer, cubeTextureStagingBufferAllocation);
+
+	m_currentVertexOffset += static_cast<int32_t>(mesh.vertices.size());
+	m_currentIndexOffset += static_cast<uint32_t>(mesh.indices.size());
+
+	return static_cast<uint32_t>(m_meshes.size() - 1);
+}
+
+uint32_t NutshellGraphicsModule::loadTexture(const NtshImage& image) {
+	// Create texture
+	VkImage textureImage;
+	VmaAllocation textureImageAllocation;
+	VkImageView textureImageView;
+
+	VkImageCreateInfo textureImageCreateInfo = {};
+	textureImageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	textureImageCreateInfo.pNext = nullptr;
+	textureImageCreateInfo.flags = 0;
+	textureImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	textureImageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+	textureImageCreateInfo.extent.width = image.width;
+	textureImageCreateInfo.extent.height = image.height;
+	textureImageCreateInfo.extent.depth = 1;
+	textureImageCreateInfo.mipLevels = findMipLevels(image.width, image.height);
+	textureImageCreateInfo.arrayLayers = 1;
+	textureImageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	textureImageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	textureImageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	textureImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	textureImageCreateInfo.queueFamilyIndexCount = 1;
+	textureImageCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	textureImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+	VmaAllocationCreateInfo cubeTextureImageAllocationCreateInfo = {};
+	cubeTextureImageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	NTSH_VK_CHECK(vmaCreateImage(m_allocator, &textureImageCreateInfo, &cubeTextureImageAllocationCreateInfo, &textureImage, &textureImageAllocation, nullptr));
+
+	VkImageViewCreateInfo textureImageViewCreateInfo = {};
+	textureImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	textureImageViewCreateInfo.pNext = nullptr;
+	textureImageViewCreateInfo.flags = 0;
+	textureImageViewCreateInfo.image = textureImage;
+	textureImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	textureImageViewCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+	textureImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+	textureImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+	textureImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+	textureImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+	textureImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	textureImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+	textureImageViewCreateInfo.subresourceRange.levelCount = textureImageCreateInfo.mipLevels;
+	textureImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+	textureImageViewCreateInfo.subresourceRange.layerCount = 1;
+	NTSH_VK_CHECK(vkCreateImageView(m_device, &textureImageViewCreateInfo, nullptr, &textureImageView));
+
+	// Create texture staging buffer
+	VkBuffer textureStagingBuffer;
+	VmaAllocation textureStagingBufferAllocation;
+
+	VkBufferCreateInfo textureStagingBufferCreateInfo = {};
+	textureStagingBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	textureStagingBufferCreateInfo.pNext = nullptr;
+	textureStagingBufferCreateInfo.flags = 0;
+	textureStagingBufferCreateInfo.size = static_cast<size_t>(image.width) * static_cast<size_t>(image.height) * 4;
+	textureStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	textureStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	textureStagingBufferCreateInfo.queueFamilyIndexCount = 1;
+	textureStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+
+	VmaAllocationCreateInfo textureStagingBufferAllocationCreateInfo = {};
+	textureStagingBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+	textureStagingBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+	NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &textureStagingBufferCreateInfo, &textureStagingBufferAllocationCreateInfo, &textureStagingBuffer, &textureStagingBufferAllocation, nullptr));
+
+	void* data;
+	NTSH_VK_CHECK(vmaMapMemory(m_allocator, textureStagingBufferAllocation, &data));
+	memcpy(data, image.data.data(), static_cast<size_t>(image.width) * static_cast<size_t>(image.height) * 4);
+	vmaUnmapMemory(m_allocator, textureStagingBufferAllocation);
+
+	// Copy staging buffer
+	VkCommandPool commandPool;
+
+	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
+	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	commandPoolCreateInfo.pNext = nullptr;
+	commandPoolCreateInfo.flags = 0;
+	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
+	NTSH_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &commandPool));
+
+	VkCommandBuffer commandBuffer;
+
+	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
+	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	commandBufferAllocateInfo.pNext = nullptr;
+	commandBufferAllocateInfo.commandPool = commandPool;
+	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	commandBufferAllocateInfo.commandBufferCount = 1;
+	NTSH_VK_CHECK(vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &commandBuffer));
+
+	VkCommandBufferBeginInfo textureCopyBeginInfo = {};
+	textureCopyBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	textureCopyBeginInfo.pNext = nullptr;
+	textureCopyBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	textureCopyBeginInfo.pInheritanceInfo = nullptr;
+	vkBeginCommandBuffer(commandBuffer, &textureCopyBeginInfo);
+
+	VkImageMemoryBarrier2 undefinedToTransferDstOptimalImageMemoryBarrier = {};
+	undefinedToTransferDstOptimalImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	undefinedToTransferDstOptimalImageMemoryBarrier.pNext = nullptr;
+	undefinedToTransferDstOptimalImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+	undefinedToTransferDstOptimalImageMemoryBarrier.srcAccessMask = 0;
+	undefinedToTransferDstOptimalImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+	undefinedToTransferDstOptimalImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+	undefinedToTransferDstOptimalImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	undefinedToTransferDstOptimalImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	undefinedToTransferDstOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToTransferDstOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToTransferDstOptimalImageMemoryBarrier.image = textureImage;
+	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.levelCount = textureImageCreateInfo.mipLevels;
+	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	VkDependencyInfo undefinedToTransferDstOptimalDependencyInfo = {};
+	undefinedToTransferDstOptimalDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	undefinedToTransferDstOptimalDependencyInfo.pNext = nullptr;
+	undefinedToTransferDstOptimalDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToTransferDstOptimalDependencyInfo.memoryBarrierCount = 0;
+	undefinedToTransferDstOptimalDependencyInfo.pMemoryBarriers = nullptr;
+	undefinedToTransferDstOptimalDependencyInfo.bufferMemoryBarrierCount = 0;
+	undefinedToTransferDstOptimalDependencyInfo.pBufferMemoryBarriers = nullptr;
+	undefinedToTransferDstOptimalDependencyInfo.imageMemoryBarrierCount = 1;
+	undefinedToTransferDstOptimalDependencyInfo.pImageMemoryBarriers = &undefinedToTransferDstOptimalImageMemoryBarrier;
+	m_vkCmdPipelineBarrier2KHR(commandBuffer, &undefinedToTransferDstOptimalDependencyInfo);
+
+	VkBufferImageCopy textureBufferCopy = {};
+	textureBufferCopy.bufferOffset = 0;
+	textureBufferCopy.bufferRowLength = 0;
+	textureBufferCopy.bufferImageHeight = 0;
+	textureBufferCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	textureBufferCopy.imageSubresource.mipLevel = 0;
+	textureBufferCopy.imageSubresource.baseArrayLayer = 0;
+	textureBufferCopy.imageSubresource.layerCount = 1;
+	textureBufferCopy.imageOffset.x = 0;
+	textureBufferCopy.imageOffset.y = 0;
+	textureBufferCopy.imageOffset.z = 0;
+	textureBufferCopy.imageExtent.width = image.width;
+	textureBufferCopy.imageExtent.height = image.height;
+	textureBufferCopy.imageExtent.depth = 1;
+	vkCmdCopyBufferToImage(commandBuffer, textureStagingBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &textureBufferCopy);
+
+	VkImageMemoryBarrier2 mipMapGenerationImageMemoryBarrier = {};
+	mipMapGenerationImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	mipMapGenerationImageMemoryBarrier.pNext = nullptr;
+	mipMapGenerationImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	mipMapGenerationImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	mipMapGenerationImageMemoryBarrier.image = textureImage;
+	mipMapGenerationImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	mipMapGenerationImageMemoryBarrier.subresourceRange.levelCount = 1;
+	mipMapGenerationImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	mipMapGenerationImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	uint32_t mipWidth = image.width;
+	uint32_t mipHeight = image.height;
+	for (size_t i = 1; i < textureImageCreateInfo.mipLevels; i++) {
+		mipMapGenerationImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		mipMapGenerationImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		mipMapGenerationImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		mipMapGenerationImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+		mipMapGenerationImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		mipMapGenerationImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		mipMapGenerationImageMemoryBarrier.subresourceRange.baseMipLevel = static_cast<uint32_t>(i) - 1;
+
+		VkDependencyInfo mipMapGenerationDependencyInfo = {};
+		mipMapGenerationDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		mipMapGenerationDependencyInfo.pNext = nullptr;
+		mipMapGenerationDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+		mipMapGenerationDependencyInfo.memoryBarrierCount = 0;
+		mipMapGenerationDependencyInfo.pMemoryBarriers = nullptr;
+		mipMapGenerationDependencyInfo.bufferMemoryBarrierCount = 0;
+		mipMapGenerationDependencyInfo.pBufferMemoryBarriers = nullptr;
+		mipMapGenerationDependencyInfo.imageMemoryBarrierCount = 1;
+		mipMapGenerationDependencyInfo.pImageMemoryBarriers = &mipMapGenerationImageMemoryBarrier;
+		m_vkCmdPipelineBarrier2KHR(commandBuffer, &mipMapGenerationDependencyInfo);
+
+		VkImageBlit imageBlit = {};
+		imageBlit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageBlit.srcSubresource.mipLevel = static_cast<uint32_t>(i) - 1;
+		imageBlit.srcSubresource.baseArrayLayer = 0;
+		imageBlit.srcSubresource.layerCount = 1;
+		imageBlit.srcOffsets[0].x = 0;
+		imageBlit.srcOffsets[0].y = 0;
+		imageBlit.srcOffsets[0].z = 0;
+		imageBlit.srcOffsets[1].x = mipWidth;
+		imageBlit.srcOffsets[1].y = mipHeight;
+		imageBlit.srcOffsets[1].z = 1;
+		imageBlit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageBlit.dstSubresource.mipLevel = static_cast<uint32_t>(i);
+		imageBlit.dstSubresource.baseArrayLayer = 0;
+		imageBlit.dstSubresource.layerCount = 1;
+		imageBlit.dstOffsets[0].x = 0;
+		imageBlit.dstOffsets[0].y = 0;
+		imageBlit.dstOffsets[0].z = 0;
+		imageBlit.dstOffsets[1].x = mipWidth > 1 ? mipWidth / 2 : 1;
+		imageBlit.dstOffsets[1].y = mipHeight > 1 ? mipHeight / 2 : 1;
+		imageBlit.dstOffsets[1].z = 1;
+		vkCmdBlitImage(commandBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageBlit, VK_FILTER_LINEAR);
+
+		mipMapGenerationImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		mipMapGenerationImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+		mipMapGenerationImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		mipMapGenerationImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+		mipMapGenerationImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		mipMapGenerationImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		mipMapGenerationDependencyInfo.pImageMemoryBarriers = &mipMapGenerationImageMemoryBarrier;
+		m_vkCmdPipelineBarrier2KHR(commandBuffer, &mipMapGenerationDependencyInfo);
+
+		mipWidth = mipWidth > 1 ? mipWidth / 2 : 1;
+		mipHeight = mipHeight > 1 ? mipHeight / 2 : 1;
+	}
+
+	vkEndCommandBuffer(commandBuffer);
+
+	VkFence buffersCopyFence;
+
+	VkFenceCreateInfo buffersCopyFenceCreateInfo = {};
+	buffersCopyFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	buffersCopyFenceCreateInfo.pNext = nullptr;
+	buffersCopyFenceCreateInfo.flags = 0;
+	NTSH_VK_CHECK(vkCreateFence(m_device, &buffersCopyFenceCreateInfo, nullptr, &buffersCopyFence));
+
+	VkSubmitInfo buffersCopySubmitInfo = {};
+	buffersCopySubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	buffersCopySubmitInfo.pNext = nullptr;
+	buffersCopySubmitInfo.waitSemaphoreCount = 0;
+	buffersCopySubmitInfo.pWaitSemaphores = nullptr;
+	buffersCopySubmitInfo.pWaitDstStageMask = nullptr;
+	buffersCopySubmitInfo.commandBufferCount = 1;
+	buffersCopySubmitInfo.pCommandBuffers = &commandBuffer;
+	buffersCopySubmitInfo.signalSemaphoreCount = 0;
+	buffersCopySubmitInfo.pSignalSemaphores = nullptr;
+	NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, buffersCopyFence));
+	NTSH_VK_CHECK(vkWaitForFences(m_device, 1, &buffersCopyFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+
+	vkDestroyFence(m_device, buffersCopyFence, nullptr);
+	vkDestroyCommandPool(m_device, commandPool, nullptr);
+	vmaDestroyBuffer(m_allocator, textureStagingBuffer, textureStagingBufferAllocation);
+
+	m_textureImages.push_back(textureImage);
+	m_textureImageAllocations.push_back(textureImageAllocation);
+	m_textureImageViews.push_back(textureImageView);
+
+	return static_cast<uint32_t>(m_textureImages.size() - 1);
 }
 
 void NutshellGraphicsModule::createDepthImage() {
@@ -1937,10 +1930,10 @@ void NutshellGraphicsModule::createDescriptorSets() {
 		objectsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(objectsDescriptorWriteDescriptorSet);
 
-		texturesDescriptorImageInfos.resize(1);
-		for (size_t j = 0; j < texturesDescriptorImageInfos.size(); j++) {
+		texturesDescriptorImageInfos.resize(m_textureImages.size());
+		for (size_t j = 0; j < m_textureImages.size(); j++) {
 			texturesDescriptorImageInfos[j].sampler = m_textureSampler;
-			texturesDescriptorImageInfos[j].imageView = m_cubeTextureImageView;
+			texturesDescriptorImageInfos[j].imageView = m_textureImageViews[j];
 			texturesDescriptorImageInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		}
 
@@ -1962,7 +1955,93 @@ void NutshellGraphicsModule::createDescriptorSets() {
 }
 
 void NutshellGraphicsModule::createScene() {
+	// Cube
+	NtshMesh cubeMesh;
+	cubeMesh.vertices = {
+		{ {1.0f, 1.0f, -1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {-1.0f, 1.0f, -1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {-1.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {1.0f, -1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {-1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {-1.0f, -1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {-1.0f, -1.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {-1.0f, 1.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {-1.0f, 1.0f, -1.0f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {-1.0f, -1.0f, -1.0f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {-1.0f, -1.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {1.0f, -1.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {1.0f, -1.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {-1.0f, -1.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {1.0f, -1.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {1.0f, 1.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {1.0f, -1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {-1.0f, -1.0f, -1.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {-1.0f, 1.0f, -1.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {1.0f, 1.0f, -1.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {1.0f, -1.0f, -1.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} }
+	};
+	cubeMesh.indices = {
+		0,
+		1,
+		2,
+		0,
+		2,
+		3,
+		4,
+		5,
+		6,
+		4,
+		6,
+		7,
+		8,
+		9,
+		10,
+		8,
+		10,
+		11,
+		12,
+		13,
+		14,
+		12,
+		14,
+		15,
+		16,
+		17,
+		18,
+		16,
+		18,
+		19,
+		20,
+		21,
+		22,
+		20,
+		22,
+		23
+	};
+	
+	uint32_t cubeMeshID = loadMesh(cubeMesh);
+
+	// Texture
+	NtshImage texture;
+	texture.width = 16;
+	texture.height = 16;
+	texture.format = NTSH_IMAGE_FORMAT_R8G8B8A8;
+	texture.data.resize(texture.width * texture.height * 4);
+
+	for (size_t i = 0; i < texture.width * texture.height; i++) {
+		texture.data[i * 4] = static_cast<unsigned char>(255 - i);
+		texture.data[i * 4 + 1] = static_cast<unsigned char>(i % 128);
+		texture.data[i * 4 + 2] = static_cast<unsigned char>(i);
+		texture.data[i * 4 + 3] = static_cast<unsigned char>(255);
+	}
+
+	uint32_t textureID = loadTexture(texture);
+
 	m_objects.resize(3);
+	// Object 0
 	m_objects[0].index = 0;
 	m_objects[0].meshIndex = 0;
 
@@ -1970,25 +2049,28 @@ void NutshellGraphicsModule::createScene() {
 	m_objects[0].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
 	m_objects[0].scale = nml::vec3(1.0f, 1.0f, 1.0f);
 
-	m_objects[0].textureID = 0;
+	m_objects[0].meshIndex = cubeMeshID;
+	m_objects[0].textureID = textureID;
 
+	// Object 1
 	m_objects[1].index = 1;
-	m_objects[0].meshIndex = 0;
 
 	m_objects[1].position = nml::vec3(0.0f, 2.0f, 0.0f);
 	m_objects[1].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
 	m_objects[1].scale = nml::vec3(0.5f, 1.0f, 2.5f);
 
-	m_objects[1].textureID = 0;
+	m_objects[1].meshIndex = cubeMeshID;
+	m_objects[2].textureID = textureID;
 
+	// Object 2
 	m_objects[2].index = 2;
-	m_objects[0].meshIndex = 0;
 
 	m_objects[2].position = nml::vec3(0.0f, -2.0f, 0.0f);
 	m_objects[2].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
 	m_objects[2].scale = nml::vec3(0.5f, 1.0f, 2.5f);
 
-	m_objects[2].textureID = 0;
+	m_objects[2].meshIndex = cubeMeshID;
+	m_objects[2].textureID = textureID;
 }
 
 void NutshellGraphicsModule::resize() {
