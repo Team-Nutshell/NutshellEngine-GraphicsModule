@@ -300,7 +300,7 @@ void NutshellGraphicsModule::init() {
 		VmaAllocationCreateInfo imageAllocationCreateInfo = {};
 		imageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-		vmaCreateImage(m_allocator, &imageCreateInfo, &imageAllocationCreateInfo, &m_drawImage, &m_drawImageAllocation, nullptr);
+		NTSH_VK_CHECK(vmaCreateImage(m_allocator, &imageCreateInfo, &imageAllocationCreateInfo, &m_drawImage, &m_drawImageAllocation, nullptr));
 
 		// Create the image view
 		VkImageViewCreateInfo imageViewCreateInfo = {};
@@ -536,12 +536,12 @@ void NutshellGraphicsModule::update(double dt) {
 	std::array<nml::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
 
 	void* data;
-	vmaMapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight], &data);
+	NTSH_VK_CHECK(vmaMapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight], &data));
 	memcpy(data, cameraMatrices.data(), sizeof(nml::mat4) * 2);
 	vmaUnmapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight]);
 
 	// Update objects buffer
-	vmaMapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight], &data);
+	NTSH_VK_CHECK(vmaMapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight], &data));
 	for (size_t i = 0; i < m_objects.size(); i++) {
 		m_objectAngle = std::fmodf(m_objectAngle + (m_objectRotationSpeed * static_cast<float>(dt)), 360.0f);
 		m_objects[i].rotation.y = m_objectAngle * toRad;
@@ -1018,10 +1018,10 @@ void NutshellGraphicsModule::createVertexAndIndexBuffers() {
 	VmaAllocationCreateInfo vertexAndIndexBufferAllocationCreateInfo = {};
 	vertexAndIndexBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-	vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_vertexBuffer, &m_vertexBufferAllocation, nullptr);
+	NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_vertexBuffer, &m_vertexBufferAllocation, nullptr));
 
 	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-	vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_indexBuffer, &m_indexBufferAllocation, nullptr);
+	NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_indexBuffer, &m_indexBufferAllocation, nullptr));
 }
 
 uint32_t NutshellGraphicsModule::loadMesh(const NtshMesh& mesh) {
@@ -1078,7 +1078,7 @@ uint32_t NutshellGraphicsModule::loadMesh(const NtshMesh& mesh) {
 	vertexAndIndexBuffersCopyBeginInfo.pNext = nullptr;
 	vertexAndIndexBuffersCopyBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	vertexAndIndexBuffersCopyBeginInfo.pInheritanceInfo = nullptr;
-	vkBeginCommandBuffer(buffersCopyCommandBuffer, &vertexAndIndexBuffersCopyBeginInfo);
+	NTSH_VK_CHECK(vkBeginCommandBuffer(buffersCopyCommandBuffer, &vertexAndIndexBuffersCopyBeginInfo));
 
 	VkBufferCopy vertexBufferCopy = {};
 	vertexBufferCopy.srcOffset = 0;
@@ -1092,7 +1092,7 @@ uint32_t NutshellGraphicsModule::loadMesh(const NtshMesh& mesh) {
 	indexBufferCopy.size = mesh.indices.size() * sizeof(uint32_t);
 	vkCmdCopyBuffer(buffersCopyCommandBuffer, vertexAndIndexStagingBuffer, m_indexBuffer, 1, &indexBufferCopy);
 
-	vkEndCommandBuffer(buffersCopyCommandBuffer);
+	NTSH_VK_CHECK(vkEndCommandBuffer(buffersCopyCommandBuffer));
 
 	VkFence buffersCopyFence;
 
@@ -1222,7 +1222,7 @@ uint32_t NutshellGraphicsModule::loadTexture(const NtshImage& image) {
 	textureCopyBeginInfo.pNext = nullptr;
 	textureCopyBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	textureCopyBeginInfo.pInheritanceInfo = nullptr;
-	vkBeginCommandBuffer(commandBuffer, &textureCopyBeginInfo);
+	NTSH_VK_CHECK(vkBeginCommandBuffer(commandBuffer, &textureCopyBeginInfo));
 
 	VkImageMemoryBarrier2 undefinedToTransferDstOptimalImageMemoryBarrier = {};
 	undefinedToTransferDstOptimalImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -1341,7 +1341,7 @@ uint32_t NutshellGraphicsModule::loadTexture(const NtshImage& image) {
 		mipHeight = mipHeight > 1 ? mipHeight / 2 : 1;
 	}
 
-	vkEndCommandBuffer(commandBuffer);
+	NTSH_VK_CHECK(vkEndCommandBuffer(commandBuffer));
 
 	VkFence buffersCopyFence;
 
@@ -1449,7 +1449,7 @@ void NutshellGraphicsModule::createDepthImage() {
 	depthImageTransitionBeginInfo.pNext = nullptr;
 	depthImageTransitionBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	depthImageTransitionBeginInfo.pInheritanceInfo = nullptr;
-	vkBeginCommandBuffer(depthImageTransitionCommandBuffer, &depthImageTransitionBeginInfo);
+	NTSH_VK_CHECK(vkBeginCommandBuffer(depthImageTransitionCommandBuffer, &depthImageTransitionBeginInfo));
 
 	VkImageMemoryBarrier2 undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier = {};
 	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -1481,7 +1481,7 @@ void NutshellGraphicsModule::createDepthImage() {
 	undefinedToDepthStencilAttachmentOptimalDependencyInfo.pImageMemoryBarriers = &undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier;
 	m_vkCmdPipelineBarrier2KHR(depthImageTransitionCommandBuffer, &undefinedToDepthStencilAttachmentOptimalDependencyInfo);
 
-	vkEndCommandBuffer(depthImageTransitionCommandBuffer);
+	NTSH_VK_CHECK(vkEndCommandBuffer(depthImageTransitionCommandBuffer));
 
 	VkFence depthImageTransitionFence;
 
