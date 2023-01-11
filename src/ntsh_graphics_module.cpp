@@ -975,6 +975,16 @@ void NutshellGraphicsModule::destroy() {
 	vkDestroyInstance(m_instance, nullptr);
 }
 
+NtshMeshId NutshellGraphicsModule::load(const NtshMesh mesh) {
+	NTSH_MODULE_FUNCTION_NOT_IMPLEMENTED();
+	return 0;
+}
+
+NtshImageId NutshellGraphicsModule::load(const NtshImage mesh) {
+	NTSH_MODULE_FUNCTION_NOT_IMPLEMENTED();
+	return 0;
+}
+
 VkSurfaceCapabilitiesKHR NutshellGraphicsModule::getSurfaceCapabilities() {
 	VkPhysicalDeviceSurfaceInfo2KHR surfaceInfo = {};
 	surfaceInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR;

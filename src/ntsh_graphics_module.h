@@ -57,6 +57,11 @@ public:
 	void update(double dt);
 	void destroy();
 
+	// Loads the mesh described in the mesh parameter in the internal format and returns a unique identifier
+	NtshMeshId load(const NtshMesh mesh);
+	// Loads the image described in the image parameter in the internal format and returns a unique identifier
+	NtshImageId load(const NtshImage image);
+
 private:
 	// Surface-related functions
 	VkSurfaceCapabilitiesKHR getSurfaceCapabilities();
