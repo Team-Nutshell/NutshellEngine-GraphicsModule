@@ -1,4 +1,4 @@
-# NutshellEngine-GraphicsModule - Vulkan Triangle
-![Vulkan Triangle](https://i.imgur.com/LBZcpTa.png)
+# NutshellEngine-GraphicsModule - Vulkan Model
+![Vulkan Model](https://i.imgur.com/GhTGguf.png)
 
-NutshellEngine Graphics Module drawing a triangle using Vulkan.
+NutshellEngine Graphics Module drawing models (meshes and textures) using Vulkan.
