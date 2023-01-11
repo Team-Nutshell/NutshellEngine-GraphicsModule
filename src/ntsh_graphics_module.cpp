@@ -2129,7 +2129,7 @@ void NutshellGraphicsModule::createScene() {
 	// Object 0
 	m_objects[0].index = 0;
 
-	m_objects[0].position = nml::vec3(0.0f, 0.0f, 0.0f);
+	m_objects[0].position = nml::vec3(-3.0f, -3.0f, 0.0f);
 	m_objects[0].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
 	m_objects[0].scale = nml::vec3(1.0f, 1.0f, 1.0f);
 
@@ -2139,9 +2139,9 @@ void NutshellGraphicsModule::createScene() {
 	// Object 1
 	m_objects[1].index = 1;
 
-	m_objects[1].position = nml::vec3(0.0f, 2.0f, 0.0f);
+	m_objects[1].position = nml::vec3(0.0f, 0.0f, 0.0f);
 	m_objects[1].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
-	m_objects[1].scale = nml::vec3(0.5f, 1.0f, 2.5f);
+	m_objects[1].scale = nml::vec3(1.0f, 1.0f, 1.0f);
 
 	m_objects[1].meshIndex = 0;
 	m_objects[2].textureID = 0;
@@ -2149,9 +2149,9 @@ void NutshellGraphicsModule::createScene() {
 	// Object 2
 	m_objects[2].index = 2;
 
-	m_objects[2].position = nml::vec3(0.0f, -2.0f, 0.0f);
+	m_objects[2].position = nml::vec3(3.0f, 3.0f, 0.0f);
 	m_objects[2].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
-	m_objects[2].scale = nml::vec3(0.5f, 1.0f, 2.5f);
+	m_objects[2].scale = nml::vec3(1.0f, 1.0f, 1.0f);
 
 	m_objects[2].meshIndex = 0;
 	m_objects[2].textureID = 0;
