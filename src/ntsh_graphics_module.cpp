@@ -326,6 +326,16 @@ void NutshellGraphicsModule::destroy() {
 	CloseHandle(m_fenceEvent);
 }
 
+NtshMeshId NutshellGraphicsModule::load(const NtshMesh mesh) {
+	NTSH_MODULE_FUNCTION_NOT_IMPLEMENTED();
+	return 0;
+}
+
+NtshImageId NutshellGraphicsModule::load(const NtshImage mesh) {
+	NTSH_MODULE_FUNCTION_NOT_IMPLEMENTED();
+	return 0;
+}
+
 void NutshellGraphicsModule::getHardwareAdapter(IDXGIFactory1* factory, IDXGIAdapter1** hardwareAdapter) {
 	ComPtr<IDXGIAdapter1> adapter;
 	ComPtr<IDXGIFactory6> factory6;
