@@ -17,6 +17,16 @@ void NutshellGraphicsModule::destroy() {
 	NTSH_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
+NtshMeshId NutshellGraphicsModule::load(const NtshMesh mesh) {
+	NTSH_MODULE_FUNCTION_NOT_IMPLEMENTED();
+	return 0;
+}
+
+NtshImageId NutshellGraphicsModule::load(const NtshImage mesh) {
+	NTSH_MODULE_FUNCTION_NOT_IMPLEMENTED();
+	return 0;
+}
+
 extern "C" NTSH_MODULE_API NutshellGraphicsModuleInterface* createModule() {
 	return new NutshellGraphicsModule;
 }
