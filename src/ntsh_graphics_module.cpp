@@ -340,6 +340,8 @@ void NutshellGraphicsModule::init() {
 
 	createDepthImage();
 
+	createDefaultResources();
+
 	createScene();
 
 	VkDescriptorSetLayoutBinding cameraDescriptorSetLayoutBinding = {};
@@ -850,181 +852,7 @@ void NutshellGraphicsModule::destroy() {
 	vkDestroyInstance(m_instance, nullptr);
 }
 
-VkSurfaceCapabilitiesKHR NutshellGraphicsModule::getSurfaceCapabilities() {
-	VkPhysicalDeviceSurfaceInfo2KHR surfaceInfo = {};
-	surfaceInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR;
-	surfaceInfo.pNext = nullptr;
-	surfaceInfo.surface = m_surface;
-
-	VkSurfaceCapabilities2KHR surfaceCapabilities;
-	surfaceCapabilities.sType = VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR;
-	surfaceCapabilities.pNext = nullptr;
-	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilities2KHR(m_physicalDevice, &surfaceInfo, &surfaceCapabilities));
-
-	return surfaceCapabilities.surfaceCapabilities;
-}
-
-std::vector<VkSurfaceFormatKHR> NutshellGraphicsModule::getSurfaceFormats() {
-	VkPhysicalDeviceSurfaceInfo2KHR surfaceInfo = {};
-	surfaceInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR;
-	surfaceInfo.pNext = nullptr;
-	surfaceInfo.surface = m_surface;
-
-	uint32_t surfaceFormatsCount;
-	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfaceFormats2KHR(m_physicalDevice, &surfaceInfo, &surfaceFormatsCount, nullptr));
-	std::vector<VkSurfaceFormat2KHR> surfaceFormats2(surfaceFormatsCount);
-	for (VkSurfaceFormat2KHR& surfaceFormat2 : surfaceFormats2) {
-		surfaceFormat2.sType = VK_STRUCTURE_TYPE_SURFACE_FORMAT_2_KHR;
-		surfaceFormat2.pNext = nullptr;
-	}
-	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfaceFormats2KHR(m_physicalDevice, &surfaceInfo, &surfaceFormatsCount, surfaceFormats2.data()));
-	
-	std::vector<VkSurfaceFormatKHR> surfaceFormats;
-	for (const VkSurfaceFormat2KHR surfaceFormat2 : surfaceFormats2) {
-		surfaceFormats.push_back(surfaceFormat2.surfaceFormat);
-	}
-
-	return surfaceFormats;
-}
-
-std::vector<VkPresentModeKHR> NutshellGraphicsModule::getSurfacePresentModes() {
-	uint32_t presentModesCount;
-	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &presentModesCount, nullptr));
-	std::vector<VkPresentModeKHR> presentModes(presentModesCount);
-	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &presentModesCount, presentModes.data()));
-
-	return presentModes;
-}
-
-VkPhysicalDeviceMemoryProperties NutshellGraphicsModule::getMemoryProperties() {
-	VkPhysicalDeviceMemoryProperties2 memoryProperties = {};
-	memoryProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
-	memoryProperties.pNext = nullptr;
-	vkGetPhysicalDeviceMemoryProperties2(m_physicalDevice, &memoryProperties);
-
-	return memoryProperties.memoryProperties;
-}
-
-uint32_t NutshellGraphicsModule::findMipLevels(uint32_t width, uint32_t height) {
-	return static_cast<uint32_t>(std::floor(std::log2(std::min(width, height)) + 1));
-}
-
-void NutshellGraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
-	VkSurfaceCapabilitiesKHR surfaceCapabilities = getSurfaceCapabilities();
-	uint32_t minImageCount = surfaceCapabilities.minImageCount + 1;
-	if (surfaceCapabilities.maxImageCount > 0 && minImageCount > surfaceCapabilities.maxImageCount) {
-		minImageCount = surfaceCapabilities.maxImageCount;
-	}
-
-	std::vector<VkSurfaceFormatKHR> surfaceFormats = getSurfaceFormats();
-	m_swapchainFormat = surfaceFormats[0].format;
-	VkColorSpaceKHR swapchainColorSpace = surfaceFormats[0].colorSpace;
-	for (const VkSurfaceFormatKHR& surfaceFormat : surfaceFormats) {
-		if (surfaceFormat.format == VK_FORMAT_B8G8R8A8_SRGB && surfaceFormat.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR) {
-			m_swapchainFormat = surfaceFormat.format;
-			swapchainColorSpace = surfaceFormat.colorSpace;
-			break;
-		}
-	}
-
-	std::vector<VkPresentModeKHR> presentModes = getSurfacePresentModes();
-	VkPresentModeKHR swapchainPresentMode = VK_PRESENT_MODE_FIFO_KHR;
-	for (const VkPresentModeKHR& presentMode : presentModes) {
-		if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-			swapchainPresentMode = presentMode;
-			break;
-		}
-		else if (presentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
-			swapchainPresentMode = presentMode;
-		}
-	}
-
-	VkExtent2D swapchainExtent = {};
-	swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSH_MAIN_WINDOW));
-	swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSH_MAIN_WINDOW));
-
-	m_viewport.x = 0.0f;
-	m_viewport.y = 0.0f;
-	m_viewport.width = static_cast<float>(swapchainExtent.width);
-	m_viewport.height = static_cast<float>(swapchainExtent.height);
-	m_viewport.minDepth = 0.0f;
-	m_viewport.maxDepth = 1.0f;
-
-	m_scissor.offset.x = 0;
-	m_scissor.offset.y = 0;
-	m_scissor.extent.width = swapchainExtent.width;
-	m_scissor.extent.height = swapchainExtent.height;
-
-	VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
-	swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	swapchainCreateInfo.pNext = nullptr;
-	swapchainCreateInfo.flags = 0;
-	swapchainCreateInfo.surface = m_surface;
-	swapchainCreateInfo.minImageCount = minImageCount;
-	swapchainCreateInfo.imageFormat = m_swapchainFormat;
-	swapchainCreateInfo.imageColorSpace = swapchainColorSpace;
-	swapchainCreateInfo.imageExtent = swapchainExtent;
-	swapchainCreateInfo.imageArrayLayers = 1;
-	swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	swapchainCreateInfo.queueFamilyIndexCount = 0;
-	swapchainCreateInfo.pQueueFamilyIndices = nullptr;
-	swapchainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
-	swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-	swapchainCreateInfo.presentMode = swapchainPresentMode;
-	swapchainCreateInfo.clipped = VK_TRUE;
-	swapchainCreateInfo.oldSwapchain = oldSwapchain;
-	NTSH_VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_swapchain));
-
-	NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, nullptr));
-	m_swapchainImages.resize(m_imageCount);
-	NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, m_swapchainImages.data()));
-
-	// Create the swapchain image views
-	m_swapchainImageViews.resize(m_imageCount);
-	for (uint32_t i = 0; i < m_imageCount; i++) {
-		VkImageViewCreateInfo swapchainImageViewCreateInfo = {};
-		swapchainImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		swapchainImageViewCreateInfo.pNext = nullptr;
-		swapchainImageViewCreateInfo.flags = 0;
-		swapchainImageViewCreateInfo.image = m_swapchainImages[i];
-		swapchainImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		swapchainImageViewCreateInfo.format = m_swapchainFormat;
-		swapchainImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
-		swapchainImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
-		swapchainImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
-		swapchainImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
-		swapchainImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		swapchainImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-		swapchainImageViewCreateInfo.subresourceRange.levelCount = 1;
-		swapchainImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-		swapchainImageViewCreateInfo.subresourceRange.layerCount = 1;
-		NTSH_VK_CHECK(vkCreateImageView(m_device, &swapchainImageViewCreateInfo, nullptr, &m_swapchainImageViews[i]));
-	}
-}
-
-void NutshellGraphicsModule::createVertexAndIndexBuffers() {
-	// Vertex and index buffers
-	VkBufferCreateInfo vertexAndIndexBufferCreateInfo = {};
-	vertexAndIndexBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	vertexAndIndexBufferCreateInfo.pNext = nullptr;
-	vertexAndIndexBufferCreateInfo.flags = 0;
-	vertexAndIndexBufferCreateInfo.size = 67108864;
-	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-	vertexAndIndexBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	vertexAndIndexBufferCreateInfo.queueFamilyIndexCount = 1;
-	vertexAndIndexBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
-
-	VmaAllocationCreateInfo vertexAndIndexBufferAllocationCreateInfo = {};
-	vertexAndIndexBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-
-	NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_vertexBuffer, &m_vertexBufferAllocation, nullptr));
-
-	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-	NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_indexBuffer, &m_indexBufferAllocation, nullptr));
-}
-
-uint32_t NutshellGraphicsModule::loadMesh(const NtshMesh& mesh) {
+NtshMeshId NutshellGraphicsModule::load(const NtshMesh mesh) {
 	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset });
 
 	// Vertex and Index staging buffer
@@ -1125,7 +953,144 @@ uint32_t NutshellGraphicsModule::loadMesh(const NtshMesh& mesh) {
 	return static_cast<uint32_t>(m_meshes.size() - 1);
 }
 
-uint32_t NutshellGraphicsModule::loadTexture(const NtshImage& image) {
+NtshImageId NutshellGraphicsModule::load(const NtshImage image) {
+	VkFormat imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
+	size_t numComponents = 4;
+	size_t sizeComponent = 1;
+
+	if (image.colorSpace == NtshImageColorSpace::Linear) {
+		switch (image.format) {
+		case NtshImageFormat::R8:
+			imageFormat = VK_FORMAT_R8_SRGB;
+			numComponents = 1;
+			sizeComponent = 1;
+			break;
+		case NtshImageFormat::R8G8:
+			imageFormat = VK_FORMAT_R8G8_SRGB;
+			numComponents = 2;
+			sizeComponent = 1;
+			break;
+		case NtshImageFormat::R8G8B8:
+			imageFormat = VK_FORMAT_R8G8B8_SRGB;
+			numComponents = 3;
+			sizeComponent = 1;
+			break;
+		case NtshImageFormat::R8G8B8A8:
+			imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
+			numComponents = 4;
+			sizeComponent = 1;
+			break;
+		case NtshImageFormat::R16:
+			imageFormat = VK_FORMAT_R16_SFLOAT;
+			numComponents = 1;
+			sizeComponent = 2;
+			break;
+		case NtshImageFormat::R16G16:
+			imageFormat = VK_FORMAT_R16G16_SFLOAT;
+			numComponents = 2;
+			sizeComponent = 2;
+			break;
+		case NtshImageFormat::R16G16B16:
+			imageFormat = VK_FORMAT_R16G16B16_SFLOAT;
+			numComponents = 3;
+			sizeComponent = 2;
+			break;
+		case NtshImageFormat::R16G16B16A16:
+			imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+			numComponents = 4;
+			sizeComponent = 2;
+			break;
+		case NtshImageFormat::R32:
+			imageFormat = VK_FORMAT_R32_SFLOAT;
+			numComponents = 1;
+			sizeComponent = 4;
+			break;
+		case NtshImageFormat::R32G32:
+			imageFormat = VK_FORMAT_R32G32_SFLOAT;
+			numComponents = 2;
+			sizeComponent = 4;
+			break;
+		case NtshImageFormat::R32G32B32:
+			imageFormat = VK_FORMAT_R32G32B32_SFLOAT;
+			numComponents = 3;
+			sizeComponent = 4;
+			break;
+		case NtshImageFormat::R32G32B32A32:
+			imageFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+			numComponents = 4;
+			sizeComponent = 4;
+			break;
+		default:
+			NTSH_MODULE_ERROR("Image format unrecognized.", NtshResult::ModuleError);
+		}
+	}
+	else if (image.colorSpace == NtshImageColorSpace::Linear) {
+		switch (image.format) {
+		case NtshImageFormat::R8:
+			imageFormat = VK_FORMAT_R8_UNORM;
+			numComponents = 1;
+			sizeComponent = 1;
+			break;
+		case NtshImageFormat::R8G8:
+			imageFormat = VK_FORMAT_R8G8_UNORM;
+			numComponents = 2;
+			sizeComponent = 1;
+			break;
+		case NtshImageFormat::R8G8B8:
+			imageFormat = VK_FORMAT_R8G8B8_UNORM;
+			numComponents = 3;
+			sizeComponent = 1;
+			break;
+		case NtshImageFormat::R8G8B8A8:
+			imageFormat = VK_FORMAT_R8G8B8A8_UNORM;
+			numComponents = 4;
+			sizeComponent = 1;
+			break;
+		case NtshImageFormat::R16:
+			imageFormat = VK_FORMAT_R16_UNORM;
+			numComponents = 1;
+			sizeComponent = 2;
+			break;
+		case NtshImageFormat::R16G16:
+			imageFormat = VK_FORMAT_R16G16_UNORM;
+			numComponents = 2;
+			sizeComponent = 2;
+			break;
+		case NtshImageFormat::R16G16B16:
+			imageFormat = VK_FORMAT_R16G16B16_UNORM;
+			numComponents = 3;
+			sizeComponent = 2;
+			break;
+		case NtshImageFormat::R16G16B16A16:
+			imageFormat = VK_FORMAT_R16G16B16A16_UNORM;
+			numComponents = 4;
+			sizeComponent = 2;
+			break;
+		case NtshImageFormat::R32:
+			imageFormat = VK_FORMAT_R32_SFLOAT;
+			numComponents = 1;
+			sizeComponent = 4;
+			break;
+		case NtshImageFormat::R32G32:
+			imageFormat = VK_FORMAT_R32G32_SFLOAT;
+			numComponents = 2;
+			sizeComponent = 4;
+			break;
+		case NtshImageFormat::R32G32B32:
+			imageFormat = VK_FORMAT_R32G32B32_SFLOAT;
+			numComponents = 3;
+			sizeComponent = 4;
+			break;
+		case NtshImageFormat::R32G32B32A32:
+			imageFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+			numComponents = 4;
+			sizeComponent = 4;
+			break;
+		default:
+			NTSH_MODULE_ERROR("Image format unrecognized.", NtshResult::ModuleError);
+		}
+	}
+
 	// Create texture
 	VkImage textureImage;
 	VmaAllocation textureImageAllocation;
@@ -1136,7 +1101,7 @@ uint32_t NutshellGraphicsModule::loadTexture(const NtshImage& image) {
 	textureImageCreateInfo.pNext = nullptr;
 	textureImageCreateInfo.flags = 0;
 	textureImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-	textureImageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+	textureImageCreateInfo.format = imageFormat;
 	textureImageCreateInfo.extent.width = image.width;
 	textureImageCreateInfo.extent.height = image.height;
 	textureImageCreateInfo.extent.depth = 1;
@@ -1161,7 +1126,7 @@ uint32_t NutshellGraphicsModule::loadTexture(const NtshImage& image) {
 	textureImageViewCreateInfo.flags = 0;
 	textureImageViewCreateInfo.image = textureImage;
 	textureImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	textureImageViewCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+	textureImageViewCreateInfo.format = imageFormat;
 	textureImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
 	textureImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
 	textureImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
@@ -1181,7 +1146,7 @@ uint32_t NutshellGraphicsModule::loadTexture(const NtshImage& image) {
 	textureStagingBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	textureStagingBufferCreateInfo.pNext = nullptr;
 	textureStagingBufferCreateInfo.flags = 0;
-	textureStagingBufferCreateInfo.size = static_cast<size_t>(image.width) * static_cast<size_t>(image.height) * 4;
+	textureStagingBufferCreateInfo.size = static_cast<size_t>(image.width) * static_cast<size_t>(image.height) * numComponents * sizeComponent;
 	textureStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	textureStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	textureStagingBufferCreateInfo.queueFamilyIndexCount = 1;
@@ -1194,7 +1159,7 @@ uint32_t NutshellGraphicsModule::loadTexture(const NtshImage& image) {
 
 	void* data;
 	NTSH_VK_CHECK(vmaMapMemory(m_allocator, textureStagingBufferAllocation, &data));
-	memcpy(data, image.data.data(), static_cast<size_t>(image.width) * static_cast<size_t>(image.height) * 4);
+	memcpy(data, image.data.data(), static_cast<size_t>(image.width) * static_cast<size_t>(image.height) * numComponents * sizeComponent);
 	vmaUnmapMemory(m_allocator, textureStagingBufferAllocation);
 
 	// Copy staging buffer
@@ -1373,6 +1338,180 @@ uint32_t NutshellGraphicsModule::loadTexture(const NtshImage& image) {
 	m_textureImageViews.push_back(textureImageView);
 
 	return static_cast<uint32_t>(m_textureImages.size() - 1);
+}
+
+VkSurfaceCapabilitiesKHR NutshellGraphicsModule::getSurfaceCapabilities() {
+	VkPhysicalDeviceSurfaceInfo2KHR surfaceInfo = {};
+	surfaceInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR;
+	surfaceInfo.pNext = nullptr;
+	surfaceInfo.surface = m_surface;
+
+	VkSurfaceCapabilities2KHR surfaceCapabilities;
+	surfaceCapabilities.sType = VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR;
+	surfaceCapabilities.pNext = nullptr;
+	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilities2KHR(m_physicalDevice, &surfaceInfo, &surfaceCapabilities));
+
+	return surfaceCapabilities.surfaceCapabilities;
+}
+
+std::vector<VkSurfaceFormatKHR> NutshellGraphicsModule::getSurfaceFormats() {
+	VkPhysicalDeviceSurfaceInfo2KHR surfaceInfo = {};
+	surfaceInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR;
+	surfaceInfo.pNext = nullptr;
+	surfaceInfo.surface = m_surface;
+
+	uint32_t surfaceFormatsCount;
+	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfaceFormats2KHR(m_physicalDevice, &surfaceInfo, &surfaceFormatsCount, nullptr));
+	std::vector<VkSurfaceFormat2KHR> surfaceFormats2(surfaceFormatsCount);
+	for (VkSurfaceFormat2KHR& surfaceFormat2 : surfaceFormats2) {
+		surfaceFormat2.sType = VK_STRUCTURE_TYPE_SURFACE_FORMAT_2_KHR;
+		surfaceFormat2.pNext = nullptr;
+	}
+	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfaceFormats2KHR(m_physicalDevice, &surfaceInfo, &surfaceFormatsCount, surfaceFormats2.data()));
+	
+	std::vector<VkSurfaceFormatKHR> surfaceFormats;
+	for (const VkSurfaceFormat2KHR surfaceFormat2 : surfaceFormats2) {
+		surfaceFormats.push_back(surfaceFormat2.surfaceFormat);
+	}
+
+	return surfaceFormats;
+}
+
+std::vector<VkPresentModeKHR> NutshellGraphicsModule::getSurfacePresentModes() {
+	uint32_t presentModesCount;
+	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &presentModesCount, nullptr));
+	std::vector<VkPresentModeKHR> presentModes(presentModesCount);
+	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &presentModesCount, presentModes.data()));
+
+	return presentModes;
+}
+
+VkPhysicalDeviceMemoryProperties NutshellGraphicsModule::getMemoryProperties() {
+	VkPhysicalDeviceMemoryProperties2 memoryProperties = {};
+	memoryProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+	memoryProperties.pNext = nullptr;
+	vkGetPhysicalDeviceMemoryProperties2(m_physicalDevice, &memoryProperties);
+
+	return memoryProperties.memoryProperties;
+}
+
+uint32_t NutshellGraphicsModule::findMipLevels(uint32_t width, uint32_t height) {
+	return static_cast<uint32_t>(std::floor(std::log2(std::min(width, height)) + 1));
+}
+
+void NutshellGraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
+	VkSurfaceCapabilitiesKHR surfaceCapabilities = getSurfaceCapabilities();
+	uint32_t minImageCount = surfaceCapabilities.minImageCount + 1;
+	if (surfaceCapabilities.maxImageCount > 0 && minImageCount > surfaceCapabilities.maxImageCount) {
+		minImageCount = surfaceCapabilities.maxImageCount;
+	}
+
+	std::vector<VkSurfaceFormatKHR> surfaceFormats = getSurfaceFormats();
+	m_swapchainFormat = surfaceFormats[0].format;
+	VkColorSpaceKHR swapchainColorSpace = surfaceFormats[0].colorSpace;
+	for (const VkSurfaceFormatKHR& surfaceFormat : surfaceFormats) {
+		if (surfaceFormat.format == VK_FORMAT_B8G8R8A8_SRGB && surfaceFormat.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR) {
+			m_swapchainFormat = surfaceFormat.format;
+			swapchainColorSpace = surfaceFormat.colorSpace;
+			break;
+		}
+	}
+
+	std::vector<VkPresentModeKHR> presentModes = getSurfacePresentModes();
+	VkPresentModeKHR swapchainPresentMode = VK_PRESENT_MODE_FIFO_KHR;
+	for (const VkPresentModeKHR& presentMode : presentModes) {
+		if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+			swapchainPresentMode = presentMode;
+			break;
+		}
+		else if (presentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
+			swapchainPresentMode = presentMode;
+		}
+	}
+
+	VkExtent2D swapchainExtent = {};
+	swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSH_MAIN_WINDOW));
+	swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSH_MAIN_WINDOW));
+
+	m_viewport.x = 0.0f;
+	m_viewport.y = 0.0f;
+	m_viewport.width = static_cast<float>(swapchainExtent.width);
+	m_viewport.height = static_cast<float>(swapchainExtent.height);
+	m_viewport.minDepth = 0.0f;
+	m_viewport.maxDepth = 1.0f;
+
+	m_scissor.offset.x = 0;
+	m_scissor.offset.y = 0;
+	m_scissor.extent.width = swapchainExtent.width;
+	m_scissor.extent.height = swapchainExtent.height;
+
+	VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
+	swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	swapchainCreateInfo.pNext = nullptr;
+	swapchainCreateInfo.flags = 0;
+	swapchainCreateInfo.surface = m_surface;
+	swapchainCreateInfo.minImageCount = minImageCount;
+	swapchainCreateInfo.imageFormat = m_swapchainFormat;
+	swapchainCreateInfo.imageColorSpace = swapchainColorSpace;
+	swapchainCreateInfo.imageExtent = swapchainExtent;
+	swapchainCreateInfo.imageArrayLayers = 1;
+	swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	swapchainCreateInfo.queueFamilyIndexCount = 0;
+	swapchainCreateInfo.pQueueFamilyIndices = nullptr;
+	swapchainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
+	swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	swapchainCreateInfo.presentMode = swapchainPresentMode;
+	swapchainCreateInfo.clipped = VK_TRUE;
+	swapchainCreateInfo.oldSwapchain = oldSwapchain;
+	NTSH_VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_swapchain));
+
+	NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, nullptr));
+	m_swapchainImages.resize(m_imageCount);
+	NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, m_swapchainImages.data()));
+
+	// Create the swapchain image views
+	m_swapchainImageViews.resize(m_imageCount);
+	for (uint32_t i = 0; i < m_imageCount; i++) {
+		VkImageViewCreateInfo swapchainImageViewCreateInfo = {};
+		swapchainImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		swapchainImageViewCreateInfo.pNext = nullptr;
+		swapchainImageViewCreateInfo.flags = 0;
+		swapchainImageViewCreateInfo.image = m_swapchainImages[i];
+		swapchainImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		swapchainImageViewCreateInfo.format = m_swapchainFormat;
+		swapchainImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+		swapchainImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+		swapchainImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+		swapchainImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+		swapchainImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		swapchainImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+		swapchainImageViewCreateInfo.subresourceRange.levelCount = 1;
+		swapchainImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+		swapchainImageViewCreateInfo.subresourceRange.layerCount = 1;
+		NTSH_VK_CHECK(vkCreateImageView(m_device, &swapchainImageViewCreateInfo, nullptr, &m_swapchainImageViews[i]));
+	}
+}
+
+void NutshellGraphicsModule::createVertexAndIndexBuffers() {
+	// Vertex and index buffers
+	VkBufferCreateInfo vertexAndIndexBufferCreateInfo = {};
+	vertexAndIndexBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	vertexAndIndexBufferCreateInfo.pNext = nullptr;
+	vertexAndIndexBufferCreateInfo.flags = 0;
+	vertexAndIndexBufferCreateInfo.size = 67108864;
+	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	vertexAndIndexBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	vertexAndIndexBufferCreateInfo.queueFamilyIndexCount = 1;
+	vertexAndIndexBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+
+	VmaAllocationCreateInfo vertexAndIndexBufferAllocationCreateInfo = {};
+	vertexAndIndexBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_vertexBuffer, &m_vertexBufferAllocation, nullptr));
+
+	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_indexBuffer, &m_indexBufferAllocation, nullptr));
 }
 
 void NutshellGraphicsModule::createDepthImage() {
@@ -1954,103 +2093,48 @@ void NutshellGraphicsModule::createDescriptorSets() {
 	}
 }
 
-void NutshellGraphicsModule::createScene() {
-	// Cube
-	NtshMesh cubeMesh;
-	cubeMesh.vertices = {
-		{ {1.0f, 1.0f, -1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, 1.0f, -1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, -1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, -1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, -1.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, 1.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, 1.0f, -1.0f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, -1.0f, -1.0f}, {-1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, -1.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, -1.0f, -1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, -1.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, -1.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, -1.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, 1.0f, -1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, -1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, -1.0f, -1.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-1.0f, 1.0f, -1.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, 1.0f, -1.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {1.0f, -1.0f, -1.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} }
+void NutshellGraphicsModule::createDefaultResources() {
+	NtshMesh defaultMesh;
+	defaultMesh.vertices = {
+		{ {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, -1.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {0.5f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, -1.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
+		{ {-0.5f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, -1.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} }
 	};
-	cubeMesh.indices = {
+	defaultMesh.indices = {
 		0,
 		1,
-		2,
-		0,
-		2,
-		3,
-		4,
-		5,
-		6,
-		4,
-		6,
-		7,
-		8,
-		9,
-		10,
-		8,
-		10,
-		11,
-		12,
-		13,
-		14,
-		12,
-		14,
-		15,
-		16,
-		17,
-		18,
-		16,
-		18,
-		19,
-		20,
-		21,
-		22,
-		20,
-		22,
-		23
+		2
 	};
-	
-	uint32_t cubeMeshID = loadMesh(cubeMesh);
 
-	// Texture
-	NtshImage texture;
-	texture.width = 16;
-	texture.height = 16;
-	texture.format = NTSH_IMAGE_FORMAT_R8G8B8A8;
-	texture.data.resize(texture.width * texture.height * 4);
+	load(defaultMesh);
 
-	for (size_t i = 0; i < texture.width * texture.height; i++) {
-		texture.data[i * 4] = static_cast<unsigned char>(255 - i);
-		texture.data[i * 4 + 1] = static_cast<unsigned char>(i % 128);
-		texture.data[i * 4 + 2] = static_cast<unsigned char>(i);
-		texture.data[i * 4 + 3] = static_cast<unsigned char>(255);
+	NtshImage defaultTexture;
+	defaultTexture.width = 16;
+	defaultTexture.height = 16;
+	defaultTexture.format = NtshImageFormat::R8G8B8A8;
+	defaultTexture.colorSpace = NtshImageColorSpace::SRGB;
+	defaultTexture.data.resize(defaultTexture.width * defaultTexture.height * 4 * 1);
+	for (size_t i = 0; i < 256; i++) {
+		defaultTexture.data[i * 4 + 0] = static_cast<uint8_t>(255 - i);
+		defaultTexture.data[i * 4 + 1] = static_cast<uint8_t>(i % 128);
+		defaultTexture.data[i * 4 + 2] = static_cast<uint8_t>(i);
+		defaultTexture.data[i * 4 + 3] = static_cast<uint8_t>(255);
 	}
 
-	uint32_t textureID = loadTexture(texture);
+	load(defaultTexture);
+}
 
+void NutshellGraphicsModule::createScene() {
 	m_objects.resize(3);
 	// Object 0
 	m_objects[0].index = 0;
-	m_objects[0].meshIndex = 0;
 
 	m_objects[0].position = nml::vec3(0.0f, 0.0f, 0.0f);
 	m_objects[0].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
 	m_objects[0].scale = nml::vec3(1.0f, 1.0f, 1.0f);
 
-	m_objects[0].meshIndex = cubeMeshID;
-	m_objects[0].textureID = textureID;
+	m_objects[0].meshIndex = 0;
+	m_objects[0].textureID = 0;
 
 	// Object 1
 	m_objects[1].index = 1;
@@ -2059,8 +2143,8 @@ void NutshellGraphicsModule::createScene() {
 	m_objects[1].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
 	m_objects[1].scale = nml::vec3(0.5f, 1.0f, 2.5f);
 
-	m_objects[1].meshIndex = cubeMeshID;
-	m_objects[2].textureID = textureID;
+	m_objects[1].meshIndex = 0;
+	m_objects[2].textureID = 0;
 
 	// Object 2
 	m_objects[2].index = 2;
@@ -2069,8 +2153,8 @@ void NutshellGraphicsModule::createScene() {
 	m_objects[2].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
 	m_objects[2].scale = nml::vec3(0.5f, 1.0f, 2.5f);
 
-	m_objects[2].meshIndex = cubeMeshID;
-	m_objects[2].textureID = textureID;
+	m_objects[2].meshIndex = 0;
+	m_objects[2].textureID = 0;
 }
 
 void NutshellGraphicsModule::resize() {
