@@ -93,6 +93,7 @@ private:
 
 	// Descriptor sets creation
 	void createDescriptorSets();
+	void updateDescriptorSet(uint32_t frameInFlight);
 
 	// Default resources
 	void createDefaultResources();
@@ -148,6 +149,7 @@ private:
 	VkDescriptorSetLayout m_descriptorSetLayout;
 	VkDescriptorPool m_descriptorPool;
 	std::vector<VkDescriptorSet> m_descriptorSets;
+	std::vector<bool> m_descriptorSetsNeedUpdate;
 
 	std::vector<VkCommandPool> m_renderingCommandPools;
 	std::vector<VkCommandBuffer> m_renderingCommandBuffers;

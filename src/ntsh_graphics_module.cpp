@@ -340,6 +340,7 @@ void NutshellGraphicsModule::init() {
 
 	createDepthImage();
 
+	m_descriptorSetsNeedUpdate.resize(m_framesInFlight);
 	createDefaultResources();
 
 	createScene();
@@ -552,9 +553,17 @@ void NutshellGraphicsModule::update(double dt) {
 		size_t offset = (i * (sizeof(nml::mat4) + sizeof(nml::vec4))); // vec4 is used here for padding
 
 		memcpy(reinterpret_cast<char*>(data) + offset, objectModel.data(), sizeof(nml::mat4));
-		memcpy(reinterpret_cast<char*>(data) + offset + sizeof(nml::mat4), &m_objects[i].textureID, sizeof(uint32_t));
+		const uint32_t textureID = (m_objects[i].textureID < m_textureImages.size()) ? m_objects[i].textureID : 0;
+		memcpy(reinterpret_cast<char*>(data) + offset + sizeof(nml::mat4), &textureID, sizeof(uint32_t));
 	}
 	vmaUnmapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight]);
+
+	// Update descriptor set if needed
+	if (m_descriptorSetsNeedUpdate[m_currentFrameInFlight]) {
+		updateDescriptorSet(m_currentFrameInFlight);
+
+		m_descriptorSetsNeedUpdate[m_currentFrameInFlight] = false;
+	}
 
 	// Record rendering commands
 	NTSH_VK_CHECK(vkResetCommandPool(m_device, m_renderingCommandPools[m_currentFrameInFlight], 0));
@@ -1337,6 +1346,11 @@ NtshImageId NutshellGraphicsModule::load(const NtshImage image) {
 	m_textureImageAllocations.push_back(textureImageAllocation);
 	m_textureImageViews.push_back(textureImageView);
 
+	// Mark descriptor sets for update
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		m_descriptorSetsNeedUpdate[i] = true;
+	}
+
 	return static_cast<uint32_t>(m_textureImages.size() - 1);
 }
 
@@ -2091,6 +2105,34 @@ void NutshellGraphicsModule::createDescriptorSets() {
 
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 	}
+
+	m_descriptorSetsNeedUpdate.resize(m_framesInFlight);
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		m_descriptorSetsNeedUpdate[i] = false;
+	}
+}
+
+void NutshellGraphicsModule::updateDescriptorSet(uint32_t frameInFlight) {
+	std::vector<VkDescriptorImageInfo> texturesDescriptorImageInfos(m_textureImages.size());
+	for (size_t j = 0; j < m_textureImages.size(); j++) {
+		texturesDescriptorImageInfos[j].sampler = m_textureSampler;
+		texturesDescriptorImageInfos[j].imageView = m_textureImageViews[j];
+		texturesDescriptorImageInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	}
+
+	VkWriteDescriptorSet texturesDescriptorWriteDescriptorSet = {};
+	texturesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	texturesDescriptorWriteDescriptorSet.pNext = nullptr;
+	texturesDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[frameInFlight];
+	texturesDescriptorWriteDescriptorSet.dstBinding = 2;
+	texturesDescriptorWriteDescriptorSet.dstArrayElement = 0;
+	texturesDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(texturesDescriptorImageInfos.size());
+	texturesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	texturesDescriptorWriteDescriptorSet.pImageInfo = texturesDescriptorImageInfos.data();
+	texturesDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
+	texturesDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+
+	vkUpdateDescriptorSets(m_device, 1, &texturesDescriptorWriteDescriptorSet, 0, nullptr);
 }
 
 void NutshellGraphicsModule::createDefaultResources() {
@@ -2134,7 +2176,7 @@ void NutshellGraphicsModule::createScene() {
 	m_objects[0].scale = nml::vec3(1.0f, 1.0f, 1.0f);
 
 	m_objects[0].meshIndex = 0;
-	m_objects[0].textureID = 0;
+	m_objects[0].textureID = 1;
 
 	// Object 1
 	m_objects[1].index = 1;
