@@ -340,9 +340,6 @@ void NutshellGraphicsModule::init() {
 
 	createDepthImage();
 
-	m_descriptorSetsNeedUpdate.resize(m_framesInFlight);
-	createDefaultResources();
-
 	createScene();
 
 	VkDescriptorSetLayoutBinding cameraDescriptorSetLayoutBinding = {};
@@ -445,6 +442,8 @@ void NutshellGraphicsModule::init() {
 	}
 
 	createDescriptorSets();
+
+	createDefaultResources();
 
 	// Resize buffers according to number of frames in flight and swapchain size
 	m_renderingCommandPools.resize(m_framesInFlight);
@@ -2047,7 +2046,6 @@ void NutshellGraphicsModule::createDescriptorSets() {
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
 		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
 		VkDescriptorBufferInfo objectsDescriptorBufferInfo;
-		std::vector<VkDescriptorImageInfo> texturesDescriptorImageInfos;
 
 		cameraDescriptorBufferInfo.buffer = m_cameraBuffers[i];
 		cameraDescriptorBufferInfo.offset = 0;
@@ -2082,26 +2080,6 @@ void NutshellGraphicsModule::createDescriptorSets() {
 		objectsDescriptorWriteDescriptorSet.pBufferInfo = &objectsDescriptorBufferInfo;
 		objectsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(objectsDescriptorWriteDescriptorSet);
-
-		texturesDescriptorImageInfos.resize(m_textureImages.size());
-		for (size_t j = 0; j < m_textureImages.size(); j++) {
-			texturesDescriptorImageInfos[j].sampler = m_textureSampler;
-			texturesDescriptorImageInfos[j].imageView = m_textureImageViews[j];
-			texturesDescriptorImageInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		}
-
-		VkWriteDescriptorSet texturesDescriptorWriteDescriptorSet = {};
-		texturesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		texturesDescriptorWriteDescriptorSet.pNext = nullptr;
-		texturesDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		texturesDescriptorWriteDescriptorSet.dstBinding = 2;
-		texturesDescriptorWriteDescriptorSet.dstArrayElement = 0;
-		texturesDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(texturesDescriptorImageInfos.size());
-		texturesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		texturesDescriptorWriteDescriptorSet.pImageInfo = texturesDescriptorImageInfos.data();
-		texturesDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
-		texturesDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
-		writeDescriptorSets.push_back(texturesDescriptorWriteDescriptorSet);
 
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 	}
