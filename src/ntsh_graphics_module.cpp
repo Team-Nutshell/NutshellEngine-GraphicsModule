@@ -860,7 +860,7 @@ void NutshellGraphicsModule::destroy() {
 	vkDestroyInstance(m_instance, nullptr);
 }
 
-NtshMeshId NutshellGraphicsModule::load(const NtshMesh mesh) {
+Ntsh::MeshId NutshellGraphicsModule::load(const Ntsh::Mesh mesh) {
 	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset });
 
 	// Vertex and Index staging buffer
@@ -871,7 +871,7 @@ NtshMeshId NutshellGraphicsModule::load(const NtshMesh mesh) {
 	vertexAndIndexStagingBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	vertexAndIndexStagingBufferCreateInfo.pNext = nullptr;
 	vertexAndIndexStagingBufferCreateInfo.flags = 0;
-	vertexAndIndexStagingBufferCreateInfo.size = (mesh.vertices.size() * sizeof(NtshVertex)) + (mesh.indices.size() * sizeof(uint32_t));
+	vertexAndIndexStagingBufferCreateInfo.size = (mesh.vertices.size() * sizeof(Ntsh::Vertex)) + (mesh.indices.size() * sizeof(uint32_t));
 	vertexAndIndexStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	vertexAndIndexStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	vertexAndIndexStagingBufferCreateInfo.queueFamilyIndexCount = 1;
@@ -885,8 +885,8 @@ NtshMeshId NutshellGraphicsModule::load(const NtshMesh mesh) {
 	void* data;
 
 	NTSH_VK_CHECK(vmaMapMemory(m_allocator, vertexAndIndexStagingBufferAllocation, &data));
-	memcpy(data, mesh.vertices.data(), mesh.vertices.size() * sizeof(NtshVertex));
-	memcpy(reinterpret_cast<char*>(data) + (mesh.vertices.size() * sizeof(NtshVertex)), mesh.indices.data(), mesh.indices.size() * sizeof(uint32_t));
+	memcpy(data, mesh.vertices.data(), mesh.vertices.size() * sizeof(Ntsh::Vertex));
+	memcpy(reinterpret_cast<char*>(data) + (mesh.vertices.size() * sizeof(Ntsh::Vertex)), mesh.indices.data(), mesh.indices.size() * sizeof(uint32_t));
 	vmaUnmapMemory(m_allocator, vertexAndIndexStagingBufferAllocation);
 
 	// Copy staging buffer
@@ -918,12 +918,12 @@ NtshMeshId NutshellGraphicsModule::load(const NtshMesh mesh) {
 
 	VkBufferCopy vertexBufferCopy = {};
 	vertexBufferCopy.srcOffset = 0;
-	vertexBufferCopy.dstOffset = m_currentVertexOffset * sizeof(NtshVertex);
-	vertexBufferCopy.size = mesh.vertices.size() * sizeof(NtshVertex);
+	vertexBufferCopy.dstOffset = m_currentVertexOffset * sizeof(Ntsh::Vertex);
+	vertexBufferCopy.size = mesh.vertices.size() * sizeof(Ntsh::Vertex);
 	vkCmdCopyBuffer(buffersCopyCommandBuffer, vertexAndIndexStagingBuffer, m_vertexBuffer, 1, &vertexBufferCopy);
 
 	VkBufferCopy indexBufferCopy = {};
-	indexBufferCopy.srcOffset = mesh.vertices.size() * sizeof(NtshVertex);
+	indexBufferCopy.srcOffset = mesh.vertices.size() * sizeof(Ntsh::Vertex);
 	indexBufferCopy.dstOffset = m_currentIndexOffset * sizeof(uint32_t);
 	indexBufferCopy.size = mesh.indices.size() * sizeof(uint32_t);
 	vkCmdCopyBuffer(buffersCopyCommandBuffer, vertexAndIndexStagingBuffer, m_indexBuffer, 1, &indexBufferCopy);
@@ -961,141 +961,141 @@ NtshMeshId NutshellGraphicsModule::load(const NtshMesh mesh) {
 	return static_cast<uint32_t>(m_meshes.size() - 1);
 }
 
-NtshImageId NutshellGraphicsModule::load(const NtshImage image) {
+Ntsh::ImageId NutshellGraphicsModule::load(const Ntsh::Image image) {
 	VkFormat imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
 	size_t numComponents = 4;
 	size_t sizeComponent = 1;
 
-	if (image.colorSpace == NtshImageColorSpace::Linear) {
+	if (image.colorSpace == Ntsh::ImageColorSpace::Linear) {
 		switch (image.format) {
-		case NtshImageFormat::R8:
+		case Ntsh::ImageFormat::R8:
 			imageFormat = VK_FORMAT_R8_SRGB;
 			numComponents = 1;
 			sizeComponent = 1;
 			break;
-		case NtshImageFormat::R8G8:
+		case Ntsh::ImageFormat::R8G8:
 			imageFormat = VK_FORMAT_R8G8_SRGB;
 			numComponents = 2;
 			sizeComponent = 1;
 			break;
-		case NtshImageFormat::R8G8B8:
+		case Ntsh::ImageFormat::R8G8B8:
 			imageFormat = VK_FORMAT_R8G8B8_SRGB;
 			numComponents = 3;
 			sizeComponent = 1;
 			break;
-		case NtshImageFormat::R8G8B8A8:
+		case Ntsh::ImageFormat::R8G8B8A8:
 			imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
 			numComponents = 4;
 			sizeComponent = 1;
 			break;
-		case NtshImageFormat::R16:
+		case Ntsh::ImageFormat::R16:
 			imageFormat = VK_FORMAT_R16_SFLOAT;
 			numComponents = 1;
 			sizeComponent = 2;
 			break;
-		case NtshImageFormat::R16G16:
+		case Ntsh::ImageFormat::R16G16:
 			imageFormat = VK_FORMAT_R16G16_SFLOAT;
 			numComponents = 2;
 			sizeComponent = 2;
 			break;
-		case NtshImageFormat::R16G16B16:
+		case Ntsh::ImageFormat::R16G16B16:
 			imageFormat = VK_FORMAT_R16G16B16_SFLOAT;
 			numComponents = 3;
 			sizeComponent = 2;
 			break;
-		case NtshImageFormat::R16G16B16A16:
+		case Ntsh::ImageFormat::R16G16B16A16:
 			imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 			numComponents = 4;
 			sizeComponent = 2;
 			break;
-		case NtshImageFormat::R32:
+		case Ntsh::ImageFormat::R32:
 			imageFormat = VK_FORMAT_R32_SFLOAT;
 			numComponents = 1;
 			sizeComponent = 4;
 			break;
-		case NtshImageFormat::R32G32:
+		case Ntsh::ImageFormat::R32G32:
 			imageFormat = VK_FORMAT_R32G32_SFLOAT;
 			numComponents = 2;
 			sizeComponent = 4;
 			break;
-		case NtshImageFormat::R32G32B32:
+		case Ntsh::ImageFormat::R32G32B32:
 			imageFormat = VK_FORMAT_R32G32B32_SFLOAT;
 			numComponents = 3;
 			sizeComponent = 4;
 			break;
-		case NtshImageFormat::R32G32B32A32:
+		case Ntsh::ImageFormat::R32G32B32A32:
 			imageFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
 			numComponents = 4;
 			sizeComponent = 4;
 			break;
 		default:
-			NTSH_MODULE_ERROR("Image format unrecognized.", NtshResult::ModuleError);
+			NTSH_MODULE_ERROR("Image format unrecognized.", Ntsh::Result::ModuleError);
 		}
 	}
-	else if (image.colorSpace == NtshImageColorSpace::Linear) {
+	else if (image.colorSpace == Ntsh::ImageColorSpace::Linear) {
 		switch (image.format) {
-		case NtshImageFormat::R8:
+		case Ntsh::ImageFormat::R8:
 			imageFormat = VK_FORMAT_R8_UNORM;
 			numComponents = 1;
 			sizeComponent = 1;
 			break;
-		case NtshImageFormat::R8G8:
+		case Ntsh::ImageFormat::R8G8:
 			imageFormat = VK_FORMAT_R8G8_UNORM;
 			numComponents = 2;
 			sizeComponent = 1;
 			break;
-		case NtshImageFormat::R8G8B8:
+		case Ntsh::ImageFormat::R8G8B8:
 			imageFormat = VK_FORMAT_R8G8B8_UNORM;
 			numComponents = 3;
 			sizeComponent = 1;
 			break;
-		case NtshImageFormat::R8G8B8A8:
+		case Ntsh::ImageFormat::R8G8B8A8:
 			imageFormat = VK_FORMAT_R8G8B8A8_UNORM;
 			numComponents = 4;
 			sizeComponent = 1;
 			break;
-		case NtshImageFormat::R16:
+		case Ntsh::ImageFormat::R16:
 			imageFormat = VK_FORMAT_R16_UNORM;
 			numComponents = 1;
 			sizeComponent = 2;
 			break;
-		case NtshImageFormat::R16G16:
+		case Ntsh::ImageFormat::R16G16:
 			imageFormat = VK_FORMAT_R16G16_UNORM;
 			numComponents = 2;
 			sizeComponent = 2;
 			break;
-		case NtshImageFormat::R16G16B16:
+		case Ntsh::ImageFormat::R16G16B16:
 			imageFormat = VK_FORMAT_R16G16B16_UNORM;
 			numComponents = 3;
 			sizeComponent = 2;
 			break;
-		case NtshImageFormat::R16G16B16A16:
+		case Ntsh::ImageFormat::R16G16B16A16:
 			imageFormat = VK_FORMAT_R16G16B16A16_UNORM;
 			numComponents = 4;
 			sizeComponent = 2;
 			break;
-		case NtshImageFormat::R32:
+		case Ntsh::ImageFormat::R32:
 			imageFormat = VK_FORMAT_R32_SFLOAT;
 			numComponents = 1;
 			sizeComponent = 4;
 			break;
-		case NtshImageFormat::R32G32:
+		case Ntsh::ImageFormat::R32G32:
 			imageFormat = VK_FORMAT_R32G32_SFLOAT;
 			numComponents = 2;
 			sizeComponent = 4;
 			break;
-		case NtshImageFormat::R32G32B32:
+		case Ntsh::ImageFormat::R32G32B32:
 			imageFormat = VK_FORMAT_R32G32B32_SFLOAT;
 			numComponents = 3;
 			sizeComponent = 4;
 			break;
-		case NtshImageFormat::R32G32B32A32:
+		case Ntsh::ImageFormat::R32G32B32A32:
 			imageFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
 			numComponents = 4;
 			sizeComponent = 4;
 			break;
 		default:
-			NTSH_MODULE_ERROR("Image format unrecognized.", NtshResult::ModuleError);
+			NTSH_MODULE_ERROR("Image format unrecognized.", Ntsh::Result::ModuleError);
 		}
 	}
 
@@ -1833,7 +1833,7 @@ void NutshellGraphicsModule::createGraphicsPipeline() {
 
 	VkVertexInputBindingDescription vertexInputBindingDescription = {};
 	vertexInputBindingDescription.binding = 0;
-	vertexInputBindingDescription.stride = sizeof(NtshVertex);
+	vertexInputBindingDescription.stride = sizeof(Ntsh::Vertex);
 	vertexInputBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 	VkVertexInputAttributeDescription vertexPositionInputAttributeDescription = {};
@@ -1846,25 +1846,25 @@ void NutshellGraphicsModule::createGraphicsPipeline() {
 	vertexNormalInputAttributeDescription.location = 1;
 	vertexNormalInputAttributeDescription.binding = 0;
 	vertexNormalInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
-	vertexNormalInputAttributeDescription.offset = offsetof(NtshVertex, normal);
+	vertexNormalInputAttributeDescription.offset = offsetof(Ntsh::Vertex, normal);
 
 	VkVertexInputAttributeDescription vertexUVInputAttributeDescription = {};
 	vertexUVInputAttributeDescription.location = 2;
 	vertexUVInputAttributeDescription.binding = 0;
 	vertexUVInputAttributeDescription.format = VK_FORMAT_R32G32_SFLOAT;
-	vertexUVInputAttributeDescription.offset = offsetof(NtshVertex, uv);
+	vertexUVInputAttributeDescription.offset = offsetof(Ntsh::Vertex, uv);
 
 	VkVertexInputAttributeDescription vertexColorInputAttributeDescription = {};
 	vertexColorInputAttributeDescription.location = 3;
 	vertexColorInputAttributeDescription.binding = 0;
 	vertexColorInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
-	vertexColorInputAttributeDescription.offset = offsetof(NtshVertex, color);
+	vertexColorInputAttributeDescription.offset = offsetof(Ntsh::Vertex, color);
 
 	VkVertexInputAttributeDescription vertexTangentInputAttributeDescription = {};
 	vertexTangentInputAttributeDescription.location = 4;
 	vertexTangentInputAttributeDescription.binding = 0;
 	vertexTangentInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-	vertexTangentInputAttributeDescription.offset = offsetof(NtshVertex, tangent);
+	vertexTangentInputAttributeDescription.offset = offsetof(Ntsh::Vertex, tangent);
 
 	std::array<VkVertexInputAttributeDescription, 5> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexNormalInputAttributeDescription, vertexUVInputAttributeDescription, vertexColorInputAttributeDescription, vertexTangentInputAttributeDescription };
 
@@ -2114,7 +2114,7 @@ void NutshellGraphicsModule::updateDescriptorSet(uint32_t frameInFlight) {
 }
 
 void NutshellGraphicsModule::createDefaultResources() {
-	NtshMesh defaultMesh;
+	Ntsh::Mesh defaultMesh;
 	defaultMesh.vertices = {
 		{ {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, -1.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
 		{ {0.5f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, -1.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
@@ -2128,11 +2128,11 @@ void NutshellGraphicsModule::createDefaultResources() {
 
 	load(defaultMesh);
 
-	NtshImage defaultTexture;
+	Ntsh::Image defaultTexture;
 	defaultTexture.width = 16;
 	defaultTexture.height = 16;
-	defaultTexture.format = NtshImageFormat::R8G8B8A8;
-	defaultTexture.colorSpace = NtshImageColorSpace::SRGB;
+	defaultTexture.format = Ntsh::ImageFormat::R8G8B8A8;
+	defaultTexture.colorSpace = Ntsh::ImageColorSpace::SRGB;
 	defaultTexture.data.resize(defaultTexture.width * defaultTexture.height * 4 * 1);
 	for (size_t i = 0; i < 256; i++) {
 		defaultTexture.data[i * 4 + 0] = static_cast<uint8_t>(255 - i);
