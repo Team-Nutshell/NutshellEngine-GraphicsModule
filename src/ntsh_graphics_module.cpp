@@ -903,12 +903,12 @@ void NutshellGraphicsModule::destroy() {
 	vkDestroyInstance(m_instance, nullptr);
 }
 
-NtshMeshId NutshellGraphicsModule::load(const NtshMesh mesh) {
+Ntsh::MeshId NutshellGraphicsModule::load(const Ntsh::Mesh mesh) {
 	NTSH_MODULE_FUNCTION_NOT_IMPLEMENTED();
 	return 0;
 }
 
-NtshImageId NutshellGraphicsModule::load(const NtshImage mesh) {
+Ntsh::ImageId NutshellGraphicsModule::load(const Ntsh::Image mesh) {
 	NTSH_MODULE_FUNCTION_NOT_IMPLEMENTED();
 	return 0;
 }
