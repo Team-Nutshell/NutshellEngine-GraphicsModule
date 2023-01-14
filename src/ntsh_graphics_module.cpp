@@ -8,7 +8,7 @@ void NutshellGraphicsModule::init() {
 		m_framesInFlight = 2;
 	}
 	else {
-		NTSH_MODULE_ERROR(m_name + " requires a window module and at least one open window.", NtshResult::ModuleError);
+		NTSH_MODULE_ERROR(m_name + " requires a window module and at least one open window.", Ntsh::Result::ModuleError);
 	}
 
 	// Create instance
@@ -541,7 +541,7 @@ void NutshellGraphicsModule::update(double dt) {
 		return;
 	}
 
-	if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, NtshInputKeyboardKey::Space) == NtshInputState::Pressed) {
+	if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, Ntsh::InputKeyboardKey::Space) == Ntsh::InputState::Pressed) {
 		createWindowResources(m_windowModule->open(300, 300, "New Window"));
 	}
 
@@ -774,12 +774,12 @@ void NutshellGraphicsModule::destroy() {
 	vkDestroyInstance(m_instance, nullptr);
 }
 
-NtshMeshId NutshellGraphicsModule::load(const NtshMesh mesh) {
+Ntsh::MeshId NutshellGraphicsModule::load(const Ntsh::Mesh mesh) {
 	NTSH_MODULE_FUNCTION_NOT_IMPLEMENTED();
 	return 0;
 }
 
-NtshImageId NutshellGraphicsModule::load(const NtshImage mesh) {
+Ntsh::ImageId NutshellGraphicsModule::load(const Ntsh::Image mesh) {
 	NTSH_MODULE_FUNCTION_NOT_IMPLEMENTED();
 	return 0;
 }
@@ -934,7 +934,7 @@ void NutshellGraphicsModule::createSwapchain(size_t index) {
 	}
 }
 
-void NutshellGraphicsModule::createWindowResources(NtshWindowId windowId) {
+void NutshellGraphicsModule::createWindowResources(Ntsh::WindowId windowId) {
 	size_t index = 0;
 	if (windowId != NTSH_MAIN_WINDOW) {
 		PerWindowResources newWindowResources;

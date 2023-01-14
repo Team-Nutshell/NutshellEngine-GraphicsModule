@@ -36,7 +36,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBits
 }
 
 struct PerWindowResources {
-	NtshWindowId windowId;
+	Ntsh::WindowId windowId;
 	VkSurfaceKHR surface = VK_NULL_HANDLE;
 	VkSwapchainKHR swapchain = VK_NULL_HANDLE;
 	uint32_t swapchainImageCount;
@@ -57,9 +57,9 @@ public:
 	void destroy();
 
 	// Loads the mesh described in the mesh parameter in the internal format and returns a unique identifier
-	NtshMeshId load(const NtshMesh mesh);
+	Ntsh::MeshId load(const Ntsh::Mesh mesh);
 	// Loads the image described in the image parameter in the internal format and returns a unique identifier
-	NtshImageId load(const NtshImage image);
+	Ntsh::ImageId load(const Ntsh::Image image);
 
 private:
 	// Surface-related functions
@@ -71,7 +71,7 @@ private:
 
 	// Per window functions
 	void createSwapchain(size_t index);
-	void createWindowResources(NtshWindowId windowId);
+	void createWindowResources(Ntsh::WindowId windowId);
 	std::vector<PerWindowResources>::iterator destroyWindowResources(const std::vector<PerWindowResources>::iterator perWindowResources);
 	void resize(size_t index);
 
