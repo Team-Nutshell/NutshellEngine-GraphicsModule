@@ -586,7 +586,7 @@ void NutshellGraphicsModule::update(double dt) {
 
 	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
 		// Update camera
-		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, NtshInputKeyboardKey::R) == NtshInputState::Pressed) {
+		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, Ntsh::InputKeyboardKey::R) == Ntsh::InputState::Pressed) {
 			m_mouseMiddleMode = !m_mouseMiddleMode;
 			m_windowModule->setCursorVisibility(NTSH_MAIN_WINDOW, !m_windowModule->isCursorVisible(NTSH_MAIN_WINDOW));
 			if (m_mouseMiddleMode) {
@@ -627,17 +627,17 @@ void NutshellGraphicsModule::update(double dt) {
 
 		float cameraSpeed = m_cameraSpeed * static_cast<float>(dt);
 
-		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, NtshInputKeyboardKey::W) == NtshInputState::Held) {
+		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, Ntsh::InputKeyboardKey::W) == Ntsh::InputState::Held) {
 			m_cameraPosition[0] += m_cameraDirection[0] * cameraSpeed;
 			m_cameraPosition[1] += m_cameraDirection[1] * cameraSpeed;
 			m_cameraPosition[2] += m_cameraDirection[2] * cameraSpeed;
 		}
-		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, NtshInputKeyboardKey::S) == NtshInputState::Held) {
+		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, Ntsh::InputKeyboardKey::S) == Ntsh::InputState::Held) {
 			m_cameraPosition[0] -= m_cameraDirection[0] * cameraSpeed;
 			m_cameraPosition[1] -= m_cameraDirection[1] * cameraSpeed;
 			m_cameraPosition[2] -= m_cameraDirection[2] * cameraSpeed;
 		}
-		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, NtshInputKeyboardKey::A) == NtshInputState::Held) {
+		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, Ntsh::InputKeyboardKey::A) == Ntsh::InputState::Held) {
 			float t[3] = { -m_cameraDirection[2], 0.0, m_cameraDirection[0] };
 			const float tLength = std::sqrt(t[0] * t[0] + t[2] * t[2]);
 			t[0] /= tLength;
@@ -645,7 +645,7 @@ void NutshellGraphicsModule::update(double dt) {
 			m_cameraPosition[0] += t[0] * cameraSpeed;
 			m_cameraPosition[2] += t[2] * cameraSpeed;
 		}
-		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, NtshInputKeyboardKey::D) == NtshInputState::Held) {
+		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, Ntsh::InputKeyboardKey::D) == Ntsh::InputState::Held) {
 			float t[3] = { -m_cameraDirection[2], 0.0, m_cameraDirection[0] };
 			const float tLength = std::sqrt(t[0] * t[0] + t[2] * t[2]);
 			t[0] /= tLength;
@@ -653,10 +653,10 @@ void NutshellGraphicsModule::update(double dt) {
 			m_cameraPosition[0] -= t[0] * cameraSpeed;
 			m_cameraPosition[2] -= t[2] * cameraSpeed;
 		}
-		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, NtshInputKeyboardKey::Space) == NtshInputState::Held) {
+		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, Ntsh::InputKeyboardKey::Space) == Ntsh::InputState::Held) {
 			m_cameraPosition[1] += cameraSpeed;
 		}
-		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, NtshInputKeyboardKey::Shift) == NtshInputState::Held) {
+		if (m_windowModule->getKeyState(NTSH_MAIN_WINDOW, Ntsh::InputKeyboardKey::Shift) == Ntsh::InputState::Held) {
 			m_cameraPosition[1] -= cameraSpeed;
 		}
 	}
@@ -975,12 +975,12 @@ void NutshellGraphicsModule::destroy() {
 	vkDestroyInstance(m_instance, nullptr);
 }
 
-NtshMeshId NutshellGraphicsModule::load(const NtshMesh mesh) {
+Ntsh::MeshId NutshellGraphicsModule::load(const Ntsh::Mesh mesh) {
 	NTSH_MODULE_FUNCTION_NOT_IMPLEMENTED();
 	return 0;
 }
 
-NtshImageId NutshellGraphicsModule::load(const NtshImage mesh) {
+Ntsh::ImageId NutshellGraphicsModule::load(const Ntsh::Image mesh) {
 	NTSH_MODULE_FUNCTION_NOT_IMPLEMENTED();
 	return 0;
 }
@@ -1052,7 +1052,7 @@ std::vector<uint32_t> NutshellGraphicsModule::compileFragmentShader() {
 		const std::filesystem::path absolutePath = std::filesystem::absolute(std::filesystem::current_path());
 		NTSH_MODULE_ERROR("Fragment shader raymarching.frag does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NTSH_RESULT_MODULE_ERROR);
 	}
-	std::string shaderCode = utils::file::readAscii(m_fragmentShaderName);
+	std::string shaderCode = Ntsh::Utils::File::readAscii(m_fragmentShaderName);
 	const char* shaderCodeCharPtr = shaderCode.c_str();
 
 	EShLanguage shaderType = EShLangFragment;

@@ -58,9 +58,9 @@ public:
 	void destroy();
 
 	// Loads the mesh described in the mesh parameter in the internal format and returns a unique identifier
-	NtshMeshId load(const NtshMesh mesh);
+	Ntsh::MeshId load(const Ntsh::Mesh mesh);
 	// Loads the image described in the image parameter in the internal format and returns a unique identifier
-	NtshImageId load(const NtshImage image);
+	Ntsh::ImageId load(const Ntsh::Image image);
 
 private:
 	// Surface-related functions
