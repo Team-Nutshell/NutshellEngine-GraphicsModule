@@ -12,6 +12,7 @@
 #endif
 #include "../external/VulkanMemoryAllocator/include/vk_mem_alloc.h"
 #include <vector>
+#include <unordered_map>
 
 #define NTSH_VK_CHECK(f) \
 	do { \
@@ -47,18 +48,13 @@ struct Mesh {
 struct Object {
 	uint32_t index;
 
-	nml::vec3 position;
-	nml::vec3 rotation;
-	nml::vec3 scale;
-
-	size_t meshIndex;
-
-	uint32_t textureID;
+	size_t meshIndex = 0;
+	uint32_t textureID = 0;
 };
 
 class NutshellGraphicsModule : public NutshellGraphicsModuleInterface {
 public:
-	NutshellGraphicsModule() : NutshellGraphicsModuleInterface("Nutshell Graphics Vulkan Model Module") {}
+	NutshellGraphicsModule() : NutshellGraphicsModuleInterface("Nutshell Graphics Vulkan ECS Module") {}
 
 	void init();
 	void update(double dt);
@@ -97,9 +93,6 @@ private:
 
 	// Default resources
 	void createDefaultResources();
-
-	// Scene
-	void createScene();
 
 	// On window resize
 	void resize();
@@ -182,7 +175,5 @@ private:
 	std::vector<VkImageView> m_textureImageViews;
 	VkSampler m_textureSampler;
 
-	std::vector<Object> m_objects;
-	float m_objectAngle = 0.0f;
-	float m_objectRotationSpeed = 0.12f;
+	std::unordered_map<Entity, Object> m_objects;
 };

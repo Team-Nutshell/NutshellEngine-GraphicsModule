@@ -16,7 +16,7 @@ void NutshellGraphicsModule::init() {
 	VkApplicationInfo applicationInfo = {};
 	applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	applicationInfo.pNext = nullptr;
-	applicationInfo.pApplicationName = "NutshellEngine Vulkan Model Graphics Module";
+	applicationInfo.pApplicationName = "NutshellEngine Vulkan ECS Graphics Module";
 	applicationInfo.applicationVersion = VK_MAKE_VERSION(0, 0, 1);
 	applicationInfo.pEngineName = "NutshellEngine";
 	applicationInfo.engineVersion = VK_MAKE_VERSION(0, 0, 1);
@@ -340,8 +340,6 @@ void NutshellGraphicsModule::init() {
 
 	createDepthImage();
 
-	createScene();
-
 	VkDescriptorSetLayoutBinding cameraDescriptorSetLayoutBinding = {};
 	cameraDescriptorSetLayoutBinding.binding = 0;
 	cameraDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -528,10 +526,27 @@ void NutshellGraphicsModule::update(double dt) {
 		NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptySignalSubmitInfo, VK_NULL_HANDLE));
 	}
 
+	// Update object map
+	for (Entity entity : entities) {
+		if (m_objects.find(entity) == m_objects.end()) {
+			Renderable objectRenderable = m_ecs->getComponent<Renderable>(entity);
+
+			Object newObject;
+			newObject.index = static_cast<uint32_t>(m_objects.size());
+			if (objectRenderable.mesh.vertices.size() != 0) {
+				newObject.meshIndex = load(objectRenderable.mesh);
+			}
+			if (objectRenderable.material.diffuseTexture) {
+				newObject.textureID = static_cast<uint32_t>(load(*objectRenderable.material.diffuseTexture));
+			}
+			m_objects[entity] = newObject;
+		}
+	}
+
 	// Update camera buffer
 	cameraPosition.x = 0.0f;
 	cameraPosition.y = 3.0f;
-	cameraPosition.z = -5.0f;
+	cameraPosition.z = 5.0f;
 	nml::mat4 cameraView = nml::lookAtRH(cameraPosition, nml::vec3(0.0f), nml::vec3(0.0f, 1.0f, 0.0));
 	nml::mat4 cameraProjection = nml::perspectiveRH(90.0f * toRad, m_viewport.width / m_viewport.height, 0.05f, 100.0f);
 	cameraProjection[1][1] *= -1.0f;
@@ -544,15 +559,22 @@ void NutshellGraphicsModule::update(double dt) {
 
 	// Update objects buffer
 	NTSH_VK_CHECK(vmaMapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight], &data));
-	for (size_t i = 0; i < m_objects.size(); i++) {
-		m_objectAngle = std::fmodf(m_objectAngle + (m_objectRotationSpeed * static_cast<float>(dt)), 360.0f);
-		m_objects[i].rotation.y = m_objectAngle * toRad;
-		nml::mat4 objectModel = nml::translate(m_objects[i].position) * nml::rotate(m_objects[i].rotation.x, nml::vec3(1.0f, 0.0f, 0.0f)) * nml::rotate(m_objects[i].rotation.y, nml::vec3(0.0f, 1.0f, 0.0f)) * nml::rotate(m_objects[i].rotation.z, nml::vec3(0.0f, 0.0f, 1.0f)) * nml::scale(m_objects[i].scale);
+	for (auto& it : m_objects) {
+		Transform objectTransform = m_ecs->getComponent<Transform>(it.first);
+		nml::vec3 objectPosition = nml::vec3(objectTransform.position[0], objectTransform.position[1], objectTransform.position[2]);
+		nml::vec3 objectRotation = nml::vec3(objectTransform.rotation[0], objectTransform.rotation[1], objectTransform.rotation[2]);
+		nml::vec3 objectScale = nml::vec3(objectTransform.scale[0], objectTransform.scale[1], objectTransform.scale[2]);
 
-		size_t offset = (i * (sizeof(nml::mat4) + sizeof(nml::vec4))); // vec4 is used here for padding
+		nml::mat4 objectModel = nml::translate(objectPosition) *
+			nml::rotate(objectRotation.x, nml::vec3(1.0f, 0.0f, 0.0f)) *
+			nml::rotate(objectRotation.y, nml::vec3(0.0f, 1.0f, 0.0f)) *
+			nml::rotate(objectRotation.z, nml::vec3(0.0f, 0.0f, 1.0f)) *
+			nml::scale(objectScale);
+
+		size_t offset = (it.second.index * (sizeof(nml::mat4) + sizeof(nml::vec4))); // vec4 is used here for padding
 
 		memcpy(reinterpret_cast<char*>(data) + offset, objectModel.data(), sizeof(nml::mat4));
-		const uint32_t textureID = (m_objects[i].textureID < m_textureImages.size()) ? m_objects[i].textureID : 0;
+		const uint32_t textureID = (it.second.textureID < m_textureImages.size()) ? it.second.textureID : 0;
 		memcpy(reinterpret_cast<char*>(data) + offset + sizeof(nml::mat4), &textureID, sizeof(uint32_t));
 	}
 	vmaUnmapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight]);
@@ -668,12 +690,12 @@ void NutshellGraphicsModule::update(double dt) {
 	vkCmdSetViewport(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_viewport);
 	vkCmdSetScissor(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_scissor);
 
-	for (size_t i = 0; i < m_objects.size(); i++) {
+	for (auto& it : m_objects) {
 		// Object index as push constant
-		vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_graphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &m_objects[i].index);
+		vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_graphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &it.second.index);
 
 		// Draw
-		vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_meshes[m_objects[i].meshIndex].indexCount, 1, m_meshes[m_objects[i].meshIndex].firstIndex, m_meshes[m_objects[i].meshIndex].vertexOffset, 0);
+		vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_meshes[it.second.meshIndex].indexCount, 1, m_meshes[it.second.meshIndex].firstIndex, m_meshes[it.second.meshIndex].vertexOffset, 0);
 	}
 
 	// End rendering
@@ -2142,39 +2164,6 @@ void NutshellGraphicsModule::createDefaultResources() {
 	}
 
 	load(defaultTexture);
-}
-
-void NutshellGraphicsModule::createScene() {
-	m_objects.resize(3);
-	// Object 0
-	m_objects[0].index = 0;
-
-	m_objects[0].position = nml::vec3(-3.0f, -3.0f, 0.0f);
-	m_objects[0].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
-	m_objects[0].scale = nml::vec3(1.0f, 1.0f, 1.0f);
-
-	m_objects[0].meshIndex = 0;
-	m_objects[0].textureID = 1;
-
-	// Object 1
-	m_objects[1].index = 1;
-
-	m_objects[1].position = nml::vec3(0.0f, 0.0f, 0.0f);
-	m_objects[1].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
-	m_objects[1].scale = nml::vec3(1.0f, 1.0f, 1.0f);
-
-	m_objects[1].meshIndex = 0;
-	m_objects[2].textureID = 0;
-
-	// Object 2
-	m_objects[2].index = 2;
-
-	m_objects[2].position = nml::vec3(3.0f, 3.0f, 0.0f);
-	m_objects[2].rotation = nml::vec3(0.0f, 0.0f, 0.0f);
-	m_objects[2].scale = nml::vec3(1.0f, 1.0f, 1.0f);
-
-	m_objects[2].meshIndex = 0;
-	m_objects[2].textureID = 0;
 }
 
 void NutshellGraphicsModule::resize() {
