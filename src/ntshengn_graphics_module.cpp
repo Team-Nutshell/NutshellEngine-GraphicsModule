@@ -16,9 +16,9 @@ void NtshEngn::GraphicsModule::init() {
 	VkApplicationInfo applicationInfo = {};
 	applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	applicationInfo.pNext = nullptr;
-	applicationInfo.pApplicationName = "NtshEngn::Engine Vulkan ECS Graphics Module";
+	applicationInfo.pApplicationName = m_name.c_str();
 	applicationInfo.applicationVersion = VK_MAKE_VERSION(0, 0, 1);
-	applicationInfo.pEngineName = "NtshEngn::Engine";
+	applicationInfo.pEngineName = "NutshellEngine";
 	applicationInfo.engineVersion = VK_MAKE_VERSION(0, 0, 1);
 	applicationInfo.apiVersion = VK_API_VERSION_1_1;
 
