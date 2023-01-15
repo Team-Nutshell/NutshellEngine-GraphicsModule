@@ -1,11 +1,11 @@
-#include "ntsh_graphics_module.h"
-#include "../external/Module/utils/ntsh_dynamic_library.h"
-#include "../external/Common/module_interfaces/ntsh_window_module_interface.h"
+#include "ntshengn_graphics_module.h"
+#include "../external/Module/utils/ntshengn_dynamic_library.h"
+#include "../external/Common/module_interfaces/ntshengn_window_module_interface.h"
 #include <limits>
 #include <array>
 
-void NutshellGraphicsModule::init() {
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+void NtshEngn::GraphicsModule::init() {
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		m_framesInFlight = 2;
 	}
 	else {
@@ -16,9 +16,9 @@ void NutshellGraphicsModule::init() {
 	VkApplicationInfo applicationInfo = {};
 	applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	applicationInfo.pNext = nullptr;
-	applicationInfo.pApplicationName = "NutshellEngine Vulkan ECS Graphics Module";
+	applicationInfo.pApplicationName = "NtshEngn::Engine Vulkan ECS Graphics Module";
 	applicationInfo.applicationVersion = VK_MAKE_VERSION(0, 0, 1);
-	applicationInfo.pEngineName = "NutshellEngine";
+	applicationInfo.pEngineName = "NtshEngn::Engine";
 	applicationInfo.engineVersion = VK_MAKE_VERSION(0, 0, 1);
 	applicationInfo.apiVersion = VK_API_VERSION_1_1;
 
@@ -27,13 +27,13 @@ void NutshellGraphicsModule::init() {
 	instanceCreateInfo.pNext = nullptr;
 	instanceCreateInfo.flags = 0;
 	instanceCreateInfo.pApplicationInfo = &applicationInfo;
-#if defined(NTSH_DEBUG)
+#if defined(NTSHENGN_DEBUG)
 	std::array<const char*, 1> explicitLayers = { "VK_LAYER_KHRONOS_validation" };
 	bool foundValidationLayer = false;
 	uint32_t instanceLayerPropertyCount;
-	NTSH_VK_CHECK(vkEnumerateInstanceLayerProperties(&instanceLayerPropertyCount, nullptr));
+	NTSHENGN_VK_CHECK(vkEnumerateInstanceLayerProperties(&instanceLayerPropertyCount, nullptr));
 	std::vector<VkLayerProperties> instanceLayerProperties(instanceLayerPropertyCount);
-	NTSH_VK_CHECK(vkEnumerateInstanceLayerProperties(&instanceLayerPropertyCount, instanceLayerProperties.data()));
+	NTSHENGN_VK_CHECK(vkEnumerateInstanceLayerProperties(&instanceLayerPropertyCount, instanceLayerProperties.data()));
 
 	for (const VkLayerProperties& availableLayer : instanceLayerProperties) {
 		if (strcmp(availableLayer.layerName, "VK_LAYER_KHRONOS_validation") == 0) {
@@ -47,7 +47,7 @@ void NutshellGraphicsModule::init() {
 		instanceCreateInfo.ppEnabledLayerNames = explicitLayers.data();
 	}
 	else {
-		NTSH_MODULE_WARNING("Could not find validation layer VK_LAYER_KHRONOS_validation.");
+		NTSHENGN_MODULE_WARNING("Could not find validation layer VK_LAYER_KHRONOS_validation.");
 		instanceCreateInfo.enabledLayerCount = 0;
 		instanceCreateInfo.ppEnabledLayerNames = nullptr;
 	}
@@ -56,24 +56,24 @@ void NutshellGraphicsModule::init() {
 	instanceCreateInfo.ppEnabledLayerNames = nullptr;
 #endif
 	std::vector<const char*> instanceExtensions;
-#if defined(NTSH_DEBUG)
+#if defined(NTSHENGN_DEBUG)
 	instanceExtensions.push_back("VK_EXT_debug_utils");
 #endif
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		instanceExtensions.push_back("VK_KHR_surface");
 		instanceExtensions.push_back("VK_KHR_get_surface_capabilities2");
 		instanceExtensions.push_back("VK_KHR_get_physical_device_properties2");
-#if defined(NTSH_OS_WINDOWS)
+#if defined(NTSHENGN_OS_WINDOWS)
 		instanceExtensions.push_back("VK_KHR_win32_surface");
-#elif defined(NTSH_OS_LINUX)
+#elif defined(NTSHENGN_OS_LINUX)
 		instanceExtensions.push_back("VK_KHR_xlib_surface");
 #endif
 	}
 	instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(instanceExtensions.size());
 	instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions.data();
-	NTSH_VK_CHECK(vkCreateInstance(&instanceCreateInfo, nullptr, &m_instance));
+	NTSHENGN_VK_CHECK(vkCreateInstance(&instanceCreateInfo, nullptr, &m_instance));
 
-#if defined(NTSH_DEBUG)
+#if defined(NTSHENGN_DEBUG)
 	// Create debug messenger
 	VkDebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo = {};
 	debugMessengerCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -88,13 +88,13 @@ void NutshellGraphicsModule::init() {
 	debugMessengerCreateInfo.pUserData = nullptr;
 
 	auto createDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkCreateDebugUtilsMessengerEXT");
-	NTSH_VK_CHECK(createDebugUtilsMessengerEXT(m_instance, &debugMessengerCreateInfo, nullptr, &m_debugMessenger));
+	NTSHENGN_VK_CHECK(createDebugUtilsMessengerEXT(m_instance, &debugMessengerCreateInfo, nullptr, &m_debugMessenger));
 #endif
 
 	// Create surface
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
-#if defined(NTSH_OS_WINDOWS)
-		HWND windowHandle = m_windowModule->getNativeHandle(NTSH_MAIN_WINDOW);
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+#if defined(NTSHENGN_OS_WINDOWS)
+		HWND windowHandle = m_windowModule->getNativeHandle(NTSHENGN_MAIN_WINDOW);
 		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.pNext = nullptr;
@@ -102,10 +102,10 @@ void NutshellGraphicsModule::init() {
 		surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(GetWindowLongPtr(windowHandle, GWLP_HINSTANCE));
 		surfaceCreateInfo.hwnd = windowHandle;
 		auto createWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateWin32SurfaceKHR");
-		NTSH_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
-#elif defined(NTSH_OS_LINUX)
+		NTSHENGN_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
+#elif defined(NTSHENGN_OS_LINUX)
 		m_display = XOpenDisplay(NULL);
-		Window windowHandle = m_windowModule->getNativeHandle(NTSH_MAIN_WINDOW);
+		Window windowHandle = m_windowModule->getNativeHandle(NTSHENGN_MAIN_WINDOW);
 		VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.pNext = nullptr;
@@ -113,7 +113,7 @@ void NutshellGraphicsModule::init() {
 		surfaceCreateInfo.dpy = m_display;
 		surfaceCreateInfo.window = windowHandle;
 		auto createXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateXlibSurfaceKHR");
-		NTSH_VK_CHECK(createXlibSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
+		NTSHENGN_VK_CHECK(createXlibSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
 #endif
 	}
 
@@ -121,7 +121,7 @@ void NutshellGraphicsModule::init() {
 	uint32_t deviceCount;
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
 	if (deviceCount == 0) {
-		NTSH_MODULE_ERROR("Vulkan: Found no suitable GPU.", NTSH_RESULT_UNKNOWN_ERROR);
+		NTSHENGN_MODULE_ERROR("Vulkan: Found no suitable GPU.", NTSHENGN_RESULT_UNKNOWN_ERROR);
 	}
 	std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, physicalDevices.data());
@@ -160,7 +160,7 @@ void NutshellGraphicsModule::init() {
 		uint32_t patch = (physicalDeviceProperties2.properties.driverVersion >> 6) & 0x0ff;
 		driverVersion = std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch);
 	}
-#if defined(NTSH_OS_WINDOWS)
+#if defined(NTSHENGN_OS_WINDOWS)
 	else if (physicalDeviceProperties2.properties.vendorID == 0x8086) { // Intel
 		uint32_t major = (physicalDeviceProperties2.properties.driverVersion >> 14);
 		uint32_t minor = (physicalDeviceProperties2.properties.driverVersion) & 0x3fff;
@@ -168,10 +168,10 @@ void NutshellGraphicsModule::init() {
 	}
 #endif
 
-	NTSH_MODULE_INFO("Physical Device Name: " + std::string(physicalDeviceProperties2.properties.deviceName));
-	NTSH_MODULE_INFO("Physical Device Type: " + physicalDeviceType);
-	NTSH_MODULE_INFO("Physical Device Driver Version: " + driverVersion);
-	NTSH_MODULE_INFO("Physical Device Vulkan API Version: " + std::to_string(VK_API_VERSION_MAJOR(physicalDeviceProperties2.properties.apiVersion)) + "."
+	NTSHENGN_MODULE_INFO("Physical Device Name: " + std::string(physicalDeviceProperties2.properties.deviceName));
+	NTSHENGN_MODULE_INFO("Physical Device Type: " + physicalDeviceType);
+	NTSHENGN_MODULE_INFO("Physical Device Driver Version: " + driverVersion);
+	NTSHENGN_MODULE_INFO("Physical Device Vulkan API Version: " + std::to_string(VK_API_VERSION_MAJOR(physicalDeviceProperties2.properties.apiVersion)) + "."
 		+ std::to_string(VK_API_VERSION_MINOR(physicalDeviceProperties2.properties.apiVersion)) + "."
 		+ std::to_string(VK_API_VERSION_PATCH(physicalDeviceProperties2.properties.apiVersion)));
 
@@ -183,7 +183,7 @@ void NutshellGraphicsModule::init() {
 	m_graphicsQueueFamilyIndex = 0;
 	for (const VkQueueFamilyProperties& queueFamilyProperty : queueFamilyProperties) {
 		if (queueFamilyProperty.queueCount > 0 && queueFamilyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-			if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+			if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 				VkBool32 presentSupport;
 				vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsQueueFamilyIndex, m_surface, &presentSupport);
 				if (presentSupport) {
@@ -243,13 +243,13 @@ void NutshellGraphicsModule::init() {
 		"VK_KHR_dynamic_rendering",
 		"VK_KHR_maintenance3",
 		"VK_EXT_descriptor_indexing" };
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		deviceExtensions.push_back("VK_KHR_swapchain");
 	}
 	deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
 	deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
 	deviceCreateInfo.pEnabledFeatures = &physicalDeviceFeatures;
-	NTSH_VK_CHECK(vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device));
+	NTSHENGN_VK_CHECK(vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device));
 
 	vkGetDeviceQueue(m_device, m_graphicsQueueFamilyIndex, 0, &m_graphicsQueue);
 
@@ -259,7 +259,7 @@ void NutshellGraphicsModule::init() {
 	m_vkCmdEndRenderingKHR = (PFN_vkCmdEndRenderingKHR)vkGetDeviceProcAddr(m_device, "vkCmdEndRenderingKHR");
 
 	// Create the swapchain
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		createSwapchain(VK_NULL_HANDLE);
 	}
 	// Or create an image to draw on
@@ -300,7 +300,7 @@ void NutshellGraphicsModule::init() {
 		VmaAllocationCreateInfo imageAllocationCreateInfo = {};
 		imageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-		NTSH_VK_CHECK(vmaCreateImage(m_allocator, &imageCreateInfo, &imageAllocationCreateInfo, &m_drawImage, &m_drawImageAllocation, nullptr));
+		NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &imageCreateInfo, &imageAllocationCreateInfo, &m_drawImage, &m_drawImageAllocation, nullptr));
 
 		// Create the image view
 		VkImageViewCreateInfo imageViewCreateInfo = {};
@@ -319,7 +319,7 @@ void NutshellGraphicsModule::init() {
 		imageViewCreateInfo.subresourceRange.levelCount = 1;
 		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 		imageViewCreateInfo.subresourceRange.layerCount = 1;
-		NTSH_VK_CHECK(vkCreateImageView(m_device, &imageViewCreateInfo, nullptr, &m_drawImageView));
+		NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &imageViewCreateInfo, nullptr, &m_drawImageView));
 	}
 
 	// Initialize VMA
@@ -334,7 +334,7 @@ void NutshellGraphicsModule::init() {
 	vmaAllocatorCreateInfo.pVulkanFunctions = nullptr;
 	vmaAllocatorCreateInfo.instance = m_instance;
 	vmaAllocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_1;
-	NTSH_VK_CHECK(vmaCreateAllocator(&vmaAllocatorCreateInfo, &m_allocator));
+	NTSHENGN_VK_CHECK(vmaCreateAllocator(&vmaAllocatorCreateInfo, &m_allocator));
 
 	createVertexAndIndexBuffers();
 
@@ -375,7 +375,7 @@ void NutshellGraphicsModule::init() {
 	descriptorSetLayoutCreateInfo.flags = 0;
 	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size());
 	descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
-	NTSH_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_descriptorSetLayout));
+	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_descriptorSetLayout));
 
 	createGraphicsPipeline();
 
@@ -399,7 +399,7 @@ void NutshellGraphicsModule::init() {
 	textureSamplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
 	textureSamplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
 	textureSamplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-	NTSH_VK_CHECK(vkCreateSampler(m_device, &textureSamplerCreateInfo, nullptr, &m_textureSampler));
+	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &textureSamplerCreateInfo, nullptr, &m_textureSampler));
 
 	// Create camera uniform buffer
 	m_cameraBuffers.resize(m_framesInFlight);
@@ -419,7 +419,7 @@ void NutshellGraphicsModule::init() {
 	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &cameraBufferCreateInfo, &bufferAllocationCreateInfo, &m_cameraBuffers[i], &m_cameraBufferAllocations[i], nullptr));
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &cameraBufferCreateInfo, &bufferAllocationCreateInfo, &m_cameraBuffers[i], &m_cameraBufferAllocations[i], nullptr));
 	}
 
 	// Create object storage buffer
@@ -436,7 +436,7 @@ void NutshellGraphicsModule::init() {
 	objectBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &objectBufferCreateInfo, &bufferAllocationCreateInfo, &m_objectBuffers[i], &m_objectBufferAllocations[i], nullptr));
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &objectBufferCreateInfo, &bufferAllocationCreateInfo, &m_objectBuffers[i], &m_objectBufferAllocations[i], nullptr));
 	}
 
 	createDescriptorSets();
@@ -474,42 +474,42 @@ void NutshellGraphicsModule::init() {
 	semaphoreCreateInfo.flags = 0;
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		// Create rendering command pools and buffers
-		NTSH_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &m_renderingCommandPools[i]));
+		NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &m_renderingCommandPools[i]));
 
 		commandBufferAllocateInfo.commandPool = m_renderingCommandPools[i];
-		NTSH_VK_CHECK(vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &m_renderingCommandBuffers[i]));
+		NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &m_renderingCommandBuffers[i]));
 
 		// Create sync objects
-		NTSH_VK_CHECK(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_fences[i]));
+		NTSHENGN_VK_CHECK(vkCreateFence(m_device, &fenceCreateInfo, nullptr, &m_fences[i]));
 
-		NTSH_VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_imageAvailableSemaphores[i]));
+		NTSHENGN_VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_imageAvailableSemaphores[i]));
 	}
 	for (uint32_t i = 0; i < m_imageCount; i++) {
-		NTSH_VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_renderFinishedSemaphores[i]));
+		NTSHENGN_VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_renderFinishedSemaphores[i]));
 	}
 
 	// Set current frame-in-flight to 0
 	m_currentFrameInFlight = 0;
 }
 
-void NutshellGraphicsModule::update(double dt) {
-	NTSH_UNUSED(dt);
+void NtshEngn::GraphicsModule::update(double dt) {
+	NTSHENGN_UNUSED(dt);
 
-	if (m_windowModule && !m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+	if (m_windowModule && !m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		// Do not update if the main window got closed
 		return;
 	}
 
-	NTSH_VK_CHECK(vkWaitForFences(m_device, 1, &m_fences[m_currentFrameInFlight], VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_fences[m_currentFrameInFlight], VK_TRUE, std::numeric_limits<uint64_t>::max()));
 
 	uint32_t imageIndex = m_imageCount - 1;
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		VkResult acquireNextImageResult = vkAcquireNextImageKHR(m_device, m_swapchain, std::numeric_limits<uint64_t>::max(), m_imageAvailableSemaphores[m_currentFrameInFlight], VK_NULL_HANDLE, &imageIndex);
 		if (acquireNextImageResult == VK_ERROR_OUT_OF_DATE_KHR) {
 			resize();
 		}
 		else if (acquireNextImageResult != VK_SUCCESS && acquireNextImageResult != VK_SUBOPTIMAL_KHR) {
-			NTSH_MODULE_ERROR("Next swapchain image acquire failed.", NTSH_RESULT_MODULE_ERROR);
+			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.", NTSHENGN_RESULT_MODULE_ERROR);
 		}
 	}
 	else {
@@ -523,7 +523,7 @@ void NutshellGraphicsModule::update(double dt) {
 		emptySignalSubmitInfo.pCommandBuffers = nullptr;
 		emptySignalSubmitInfo.signalSemaphoreCount = 1;
 		emptySignalSubmitInfo.pSignalSemaphores = &m_imageAvailableSemaphores[m_currentFrameInFlight];
-		NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptySignalSubmitInfo, VK_NULL_HANDLE));
+		NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptySignalSubmitInfo, VK_NULL_HANDLE));
 	}
 
 	// Update object map
@@ -531,7 +531,7 @@ void NutshellGraphicsModule::update(double dt) {
 		if (m_objects.find(entity) == m_objects.end()) {
 			Renderable objectRenderable = m_ecs->getComponent<Renderable>(entity);
 
-			Object newObject;
+			InternalObject newObject;
 			newObject.index = static_cast<uint32_t>(m_objects.size());
 			if (objectRenderable.mesh.vertices.size() != 0) {
 				newObject.meshIndex = load(objectRenderable.mesh);
@@ -553,12 +553,12 @@ void NutshellGraphicsModule::update(double dt) {
 	std::array<nml::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
 
 	void* data;
-	NTSH_VK_CHECK(vmaMapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight], &data));
+	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight], &data));
 	memcpy(data, cameraMatrices.data(), sizeof(nml::mat4) * 2);
 	vmaUnmapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight]);
 
 	// Update objects buffer
-	NTSH_VK_CHECK(vmaMapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight], &data));
+	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight], &data));
 	for (auto& it : m_objects) {
 		Transform objectTransform = m_ecs->getComponent<Transform>(it.first);
 		nml::vec3 objectPosition = nml::vec3(objectTransform.position[0], objectTransform.position[1], objectTransform.position[2]);
@@ -587,14 +587,14 @@ void NutshellGraphicsModule::update(double dt) {
 	}
 
 	// Record rendering commands
-	NTSH_VK_CHECK(vkResetCommandPool(m_device, m_renderingCommandPools[m_currentFrameInFlight], 0));
+	NTSHENGN_VK_CHECK(vkResetCommandPool(m_device, m_renderingCommandPools[m_currentFrameInFlight], 0));
 
 	// Begin command buffer recording
 	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
 	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	commandBufferBeginInfo.pNext = nullptr;
 	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-	NTSH_VK_CHECK(vkBeginCommandBuffer(m_renderingCommandBuffers[m_currentFrameInFlight], &commandBufferBeginInfo));
+	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(m_renderingCommandBuffers[m_currentFrameInFlight], &commandBufferBeginInfo));
 
 	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
 	VkImageMemoryBarrier2 undefinedToColorAttachmentOptimalImageMemoryBarrier = {};
@@ -608,7 +608,7 @@ void NutshellGraphicsModule::update(double dt) {
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		undefinedToColorAttachmentOptimalImageMemoryBarrier.image = m_swapchainImages[imageIndex];
 	}
 	else {
@@ -644,7 +644,7 @@ void NutshellGraphicsModule::update(double dt) {
 	VkRenderingAttachmentInfo renderingSwapchainAttachmentInfo = {};
 	renderingSwapchainAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	renderingSwapchainAttachmentInfo.pNext = nullptr;
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		renderingSwapchainAttachmentInfo.imageView = m_swapchainImageViews[imageIndex];
 	}
 	else {
@@ -702,7 +702,7 @@ void NutshellGraphicsModule::update(double dt) {
 	m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight]);
 
 	// Layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		VkImageMemoryBarrier2 colorAttachmentOptimalToPresentSrcImageMemoryBarrier = {};
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.pNext = nullptr;
@@ -735,9 +735,9 @@ void NutshellGraphicsModule::update(double dt) {
 	}
 
 	// End command buffer recording
-	NTSH_VK_CHECK(vkEndCommandBuffer(m_renderingCommandBuffers[m_currentFrameInFlight]));
+	NTSHENGN_VK_CHECK(vkEndCommandBuffer(m_renderingCommandBuffers[m_currentFrameInFlight]));
 
-	NTSH_VK_CHECK(vkResetFences(m_device, 1, &m_fences[m_currentFrameInFlight]));
+	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_fences[m_currentFrameInFlight]));
 
 	VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	VkSubmitInfo submitInfo = {};
@@ -750,9 +750,9 @@ void NutshellGraphicsModule::update(double dt) {
 	submitInfo.pCommandBuffers = &m_renderingCommandBuffers[m_currentFrameInFlight];
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = &m_renderFinishedSemaphores[imageIndex];
-	NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fences[m_currentFrameInFlight]));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fences[m_currentFrameInFlight]));
 
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		VkPresentInfoKHR presentInfo = {};
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		presentInfo.pNext = nullptr;
@@ -767,7 +767,7 @@ void NutshellGraphicsModule::update(double dt) {
 			resize();
 		}
 		else if (queuePresentResult != VK_SUCCESS) {
-			NTSH_MODULE_ERROR("Queue present swapchain image failed.", NTSH_RESULT_MODULE_ERROR);
+			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.", NTSHENGN_RESULT_MODULE_ERROR);
 		}
 	}
 	else {
@@ -782,14 +782,14 @@ void NutshellGraphicsModule::update(double dt) {
 		emptyWaitSubmitInfo.pCommandBuffers = nullptr;
 		emptyWaitSubmitInfo.signalSemaphoreCount = 0;
 		emptyWaitSubmitInfo.pSignalSemaphores = nullptr;
-		NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptyWaitSubmitInfo, VK_NULL_HANDLE));
+		NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptyWaitSubmitInfo, VK_NULL_HANDLE));
 	}
 
 	m_currentFrameInFlight = (m_currentFrameInFlight + 1) % m_framesInFlight;
 }
 
-void NutshellGraphicsModule::destroy() {
-	NTSH_VK_CHECK(vkQueueWaitIdle(m_graphicsQueue));
+void NtshEngn::GraphicsModule::destroy() {
+	NTSHENGN_VK_CHECK(vkQueueWaitIdle(m_graphicsQueue));
 
 	// Destroy sync objects
 	for (uint32_t i = 0; i < m_imageCount; i++) {
@@ -867,12 +867,12 @@ void NutshellGraphicsModule::destroy() {
 		vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
 	}
 
-#if defined(NTSH_OS_LINUX)
+#if defined(NTSHENGN_OS_LINUX)
 	// Close X display
 	XCloseDisplay(m_display);
 #endif
 
-#if defined(NTSH_DEBUG)
+#if defined(NTSHENGN_DEBUG)
 	// Destroy debug messenger
 	auto destroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT");
 	destroyDebugUtilsMessengerEXT(m_instance, m_debugMessenger, nullptr);
@@ -882,7 +882,7 @@ void NutshellGraphicsModule::destroy() {
 	vkDestroyInstance(m_instance, nullptr);
 }
 
-Ntsh::MeshId NutshellGraphicsModule::load(const Ntsh::Mesh mesh) {
+NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh mesh) {
 	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset });
 
 	// Vertex and Index staging buffer
@@ -893,7 +893,7 @@ Ntsh::MeshId NutshellGraphicsModule::load(const Ntsh::Mesh mesh) {
 	vertexAndIndexStagingBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	vertexAndIndexStagingBufferCreateInfo.pNext = nullptr;
 	vertexAndIndexStagingBufferCreateInfo.flags = 0;
-	vertexAndIndexStagingBufferCreateInfo.size = (mesh.vertices.size() * sizeof(Ntsh::Vertex)) + (mesh.indices.size() * sizeof(uint32_t));
+	vertexAndIndexStagingBufferCreateInfo.size = (mesh.vertices.size() * sizeof(NtshEngn::Vertex)) + (mesh.indices.size() * sizeof(uint32_t));
 	vertexAndIndexStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	vertexAndIndexStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	vertexAndIndexStagingBufferCreateInfo.queueFamilyIndexCount = 1;
@@ -902,13 +902,13 @@ Ntsh::MeshId NutshellGraphicsModule::load(const Ntsh::Mesh mesh) {
 	VmaAllocationCreateInfo vertexAndIndexStagingBufferAllocationCreateInfo = {};
 	vertexAndIndexStagingBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 	vertexAndIndexStagingBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-	NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexStagingBufferCreateInfo, &vertexAndIndexStagingBufferAllocationCreateInfo, &vertexAndIndexStagingBuffer, &vertexAndIndexStagingBufferAllocation, nullptr));
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexStagingBufferCreateInfo, &vertexAndIndexStagingBufferAllocationCreateInfo, &vertexAndIndexStagingBuffer, &vertexAndIndexStagingBufferAllocation, nullptr));
 
 	void* data;
 
-	NTSH_VK_CHECK(vmaMapMemory(m_allocator, vertexAndIndexStagingBufferAllocation, &data));
-	memcpy(data, mesh.vertices.data(), mesh.vertices.size() * sizeof(Ntsh::Vertex));
-	memcpy(reinterpret_cast<char*>(data) + (mesh.vertices.size() * sizeof(Ntsh::Vertex)), mesh.indices.data(), mesh.indices.size() * sizeof(uint32_t));
+	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, vertexAndIndexStagingBufferAllocation, &data));
+	memcpy(data, mesh.vertices.data(), mesh.vertices.size() * sizeof(NtshEngn::Vertex));
+	memcpy(reinterpret_cast<char*>(data) + (mesh.vertices.size() * sizeof(NtshEngn::Vertex)), mesh.indices.data(), mesh.indices.size() * sizeof(uint32_t));
 	vmaUnmapMemory(m_allocator, vertexAndIndexStagingBufferAllocation);
 
 	// Copy staging buffer
@@ -919,7 +919,7 @@ Ntsh::MeshId NutshellGraphicsModule::load(const Ntsh::Mesh mesh) {
 	buffersCopyCommandPoolCreateInfo.pNext = nullptr;
 	buffersCopyCommandPoolCreateInfo.flags = 0;
 	buffersCopyCommandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
-	NTSH_VK_CHECK(vkCreateCommandPool(m_device, &buffersCopyCommandPoolCreateInfo, nullptr, &buffersCopyCommandPool));
+	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &buffersCopyCommandPoolCreateInfo, nullptr, &buffersCopyCommandPool));
 
 	VkCommandBuffer buffersCopyCommandBuffer;
 
@@ -929,28 +929,28 @@ Ntsh::MeshId NutshellGraphicsModule::load(const Ntsh::Mesh mesh) {
 	buffersCopyCommandBufferAllocateInfo.commandPool = buffersCopyCommandPool;
 	buffersCopyCommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	buffersCopyCommandBufferAllocateInfo.commandBufferCount = 1;
-	NTSH_VK_CHECK(vkAllocateCommandBuffers(m_device, &buffersCopyCommandBufferAllocateInfo, &buffersCopyCommandBuffer));
+	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &buffersCopyCommandBufferAllocateInfo, &buffersCopyCommandBuffer));
 
 	VkCommandBufferBeginInfo vertexAndIndexBuffersCopyBeginInfo = {};
 	vertexAndIndexBuffersCopyBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	vertexAndIndexBuffersCopyBeginInfo.pNext = nullptr;
 	vertexAndIndexBuffersCopyBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	vertexAndIndexBuffersCopyBeginInfo.pInheritanceInfo = nullptr;
-	NTSH_VK_CHECK(vkBeginCommandBuffer(buffersCopyCommandBuffer, &vertexAndIndexBuffersCopyBeginInfo));
+	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(buffersCopyCommandBuffer, &vertexAndIndexBuffersCopyBeginInfo));
 
 	VkBufferCopy vertexBufferCopy = {};
 	vertexBufferCopy.srcOffset = 0;
-	vertexBufferCopy.dstOffset = m_currentVertexOffset * sizeof(Ntsh::Vertex);
-	vertexBufferCopy.size = mesh.vertices.size() * sizeof(Ntsh::Vertex);
+	vertexBufferCopy.dstOffset = m_currentVertexOffset * sizeof(NtshEngn::Vertex);
+	vertexBufferCopy.size = mesh.vertices.size() * sizeof(NtshEngn::Vertex);
 	vkCmdCopyBuffer(buffersCopyCommandBuffer, vertexAndIndexStagingBuffer, m_vertexBuffer, 1, &vertexBufferCopy);
 
 	VkBufferCopy indexBufferCopy = {};
-	indexBufferCopy.srcOffset = mesh.vertices.size() * sizeof(Ntsh::Vertex);
+	indexBufferCopy.srcOffset = mesh.vertices.size() * sizeof(NtshEngn::Vertex);
 	indexBufferCopy.dstOffset = m_currentIndexOffset * sizeof(uint32_t);
 	indexBufferCopy.size = mesh.indices.size() * sizeof(uint32_t);
 	vkCmdCopyBuffer(buffersCopyCommandBuffer, vertexAndIndexStagingBuffer, m_indexBuffer, 1, &indexBufferCopy);
 
-	NTSH_VK_CHECK(vkEndCommandBuffer(buffersCopyCommandBuffer));
+	NTSHENGN_VK_CHECK(vkEndCommandBuffer(buffersCopyCommandBuffer));
 
 	VkFence buffersCopyFence;
 
@@ -958,7 +958,7 @@ Ntsh::MeshId NutshellGraphicsModule::load(const Ntsh::Mesh mesh) {
 	buffersCopyFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	buffersCopyFenceCreateInfo.pNext = nullptr;
 	buffersCopyFenceCreateInfo.flags = 0;
-	NTSH_VK_CHECK(vkCreateFence(m_device, &buffersCopyFenceCreateInfo, nullptr, &buffersCopyFence));
+	NTSHENGN_VK_CHECK(vkCreateFence(m_device, &buffersCopyFenceCreateInfo, nullptr, &buffersCopyFence));
 
 	VkSubmitInfo buffersCopySubmitInfo = {};
 	buffersCopySubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -970,8 +970,8 @@ Ntsh::MeshId NutshellGraphicsModule::load(const Ntsh::Mesh mesh) {
 	buffersCopySubmitInfo.pCommandBuffers = &buffersCopyCommandBuffer;
 	buffersCopySubmitInfo.signalSemaphoreCount = 0;
 	buffersCopySubmitInfo.pSignalSemaphores = nullptr;
-	NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, buffersCopyFence));
-	NTSH_VK_CHECK(vkWaitForFences(m_device, 1, &buffersCopyFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, buffersCopyFence));
+	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &buffersCopyFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 
 	vkDestroyFence(m_device, buffersCopyFence, nullptr);
 	vkDestroyCommandPool(m_device, buffersCopyCommandPool, nullptr);
@@ -983,141 +983,141 @@ Ntsh::MeshId NutshellGraphicsModule::load(const Ntsh::Mesh mesh) {
 	return static_cast<uint32_t>(m_meshes.size() - 1);
 }
 
-Ntsh::ImageId NutshellGraphicsModule::load(const Ntsh::Image image) {
+NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image image) {
 	VkFormat imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
 	size_t numComponents = 4;
 	size_t sizeComponent = 1;
 
-	if (image.colorSpace == Ntsh::ImageColorSpace::Linear) {
+	if (image.colorSpace == NtshEngn::ImageColorSpace::Linear) {
 		switch (image.format) {
-		case Ntsh::ImageFormat::R8:
+		case NtshEngn::ImageFormat::R8:
 			imageFormat = VK_FORMAT_R8_SRGB;
 			numComponents = 1;
 			sizeComponent = 1;
 			break;
-		case Ntsh::ImageFormat::R8G8:
+		case NtshEngn::ImageFormat::R8G8:
 			imageFormat = VK_FORMAT_R8G8_SRGB;
 			numComponents = 2;
 			sizeComponent = 1;
 			break;
-		case Ntsh::ImageFormat::R8G8B8:
+		case NtshEngn::ImageFormat::R8G8B8:
 			imageFormat = VK_FORMAT_R8G8B8_SRGB;
 			numComponents = 3;
 			sizeComponent = 1;
 			break;
-		case Ntsh::ImageFormat::R8G8B8A8:
+		case NtshEngn::ImageFormat::R8G8B8A8:
 			imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
 			numComponents = 4;
 			sizeComponent = 1;
 			break;
-		case Ntsh::ImageFormat::R16:
+		case NtshEngn::ImageFormat::R16:
 			imageFormat = VK_FORMAT_R16_SFLOAT;
 			numComponents = 1;
 			sizeComponent = 2;
 			break;
-		case Ntsh::ImageFormat::R16G16:
+		case NtshEngn::ImageFormat::R16G16:
 			imageFormat = VK_FORMAT_R16G16_SFLOAT;
 			numComponents = 2;
 			sizeComponent = 2;
 			break;
-		case Ntsh::ImageFormat::R16G16B16:
+		case NtshEngn::ImageFormat::R16G16B16:
 			imageFormat = VK_FORMAT_R16G16B16_SFLOAT;
 			numComponents = 3;
 			sizeComponent = 2;
 			break;
-		case Ntsh::ImageFormat::R16G16B16A16:
+		case NtshEngn::ImageFormat::R16G16B16A16:
 			imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 			numComponents = 4;
 			sizeComponent = 2;
 			break;
-		case Ntsh::ImageFormat::R32:
+		case NtshEngn::ImageFormat::R32:
 			imageFormat = VK_FORMAT_R32_SFLOAT;
 			numComponents = 1;
 			sizeComponent = 4;
 			break;
-		case Ntsh::ImageFormat::R32G32:
+		case NtshEngn::ImageFormat::R32G32:
 			imageFormat = VK_FORMAT_R32G32_SFLOAT;
 			numComponents = 2;
 			sizeComponent = 4;
 			break;
-		case Ntsh::ImageFormat::R32G32B32:
+		case NtshEngn::ImageFormat::R32G32B32:
 			imageFormat = VK_FORMAT_R32G32B32_SFLOAT;
 			numComponents = 3;
 			sizeComponent = 4;
 			break;
-		case Ntsh::ImageFormat::R32G32B32A32:
+		case NtshEngn::ImageFormat::R32G32B32A32:
 			imageFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
 			numComponents = 4;
 			sizeComponent = 4;
 			break;
 		default:
-			NTSH_MODULE_ERROR("Image format unrecognized.", Ntsh::Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Image format unrecognized.", NtshEngn::Result::ModuleError);
 		}
 	}
-	else if (image.colorSpace == Ntsh::ImageColorSpace::Linear) {
+	else if (image.colorSpace == NtshEngn::ImageColorSpace::Linear) {
 		switch (image.format) {
-		case Ntsh::ImageFormat::R8:
+		case NtshEngn::ImageFormat::R8:
 			imageFormat = VK_FORMAT_R8_UNORM;
 			numComponents = 1;
 			sizeComponent = 1;
 			break;
-		case Ntsh::ImageFormat::R8G8:
+		case NtshEngn::ImageFormat::R8G8:
 			imageFormat = VK_FORMAT_R8G8_UNORM;
 			numComponents = 2;
 			sizeComponent = 1;
 			break;
-		case Ntsh::ImageFormat::R8G8B8:
+		case NtshEngn::ImageFormat::R8G8B8:
 			imageFormat = VK_FORMAT_R8G8B8_UNORM;
 			numComponents = 3;
 			sizeComponent = 1;
 			break;
-		case Ntsh::ImageFormat::R8G8B8A8:
+		case NtshEngn::ImageFormat::R8G8B8A8:
 			imageFormat = VK_FORMAT_R8G8B8A8_UNORM;
 			numComponents = 4;
 			sizeComponent = 1;
 			break;
-		case Ntsh::ImageFormat::R16:
+		case NtshEngn::ImageFormat::R16:
 			imageFormat = VK_FORMAT_R16_UNORM;
 			numComponents = 1;
 			sizeComponent = 2;
 			break;
-		case Ntsh::ImageFormat::R16G16:
+		case NtshEngn::ImageFormat::R16G16:
 			imageFormat = VK_FORMAT_R16G16_UNORM;
 			numComponents = 2;
 			sizeComponent = 2;
 			break;
-		case Ntsh::ImageFormat::R16G16B16:
+		case NtshEngn::ImageFormat::R16G16B16:
 			imageFormat = VK_FORMAT_R16G16B16_UNORM;
 			numComponents = 3;
 			sizeComponent = 2;
 			break;
-		case Ntsh::ImageFormat::R16G16B16A16:
+		case NtshEngn::ImageFormat::R16G16B16A16:
 			imageFormat = VK_FORMAT_R16G16B16A16_UNORM;
 			numComponents = 4;
 			sizeComponent = 2;
 			break;
-		case Ntsh::ImageFormat::R32:
+		case NtshEngn::ImageFormat::R32:
 			imageFormat = VK_FORMAT_R32_SFLOAT;
 			numComponents = 1;
 			sizeComponent = 4;
 			break;
-		case Ntsh::ImageFormat::R32G32:
+		case NtshEngn::ImageFormat::R32G32:
 			imageFormat = VK_FORMAT_R32G32_SFLOAT;
 			numComponents = 2;
 			sizeComponent = 4;
 			break;
-		case Ntsh::ImageFormat::R32G32B32:
+		case NtshEngn::ImageFormat::R32G32B32:
 			imageFormat = VK_FORMAT_R32G32B32_SFLOAT;
 			numComponents = 3;
 			sizeComponent = 4;
 			break;
-		case Ntsh::ImageFormat::R32G32B32A32:
+		case NtshEngn::ImageFormat::R32G32B32A32:
 			imageFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
 			numComponents = 4;
 			sizeComponent = 4;
 			break;
 		default:
-			NTSH_MODULE_ERROR("Image format unrecognized.", Ntsh::Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Image format unrecognized.", NtshEngn::Result::ModuleError);
 		}
 	}
 
@@ -1148,7 +1148,7 @@ Ntsh::ImageId NutshellGraphicsModule::load(const Ntsh::Image image) {
 	VmaAllocationCreateInfo cubeTextureImageAllocationCreateInfo = {};
 	cubeTextureImageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-	NTSH_VK_CHECK(vmaCreateImage(m_allocator, &textureImageCreateInfo, &cubeTextureImageAllocationCreateInfo, &textureImage, &textureImageAllocation, nullptr));
+	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &textureImageCreateInfo, &cubeTextureImageAllocationCreateInfo, &textureImage, &textureImageAllocation, nullptr));
 
 	VkImageViewCreateInfo textureImageViewCreateInfo = {};
 	textureImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -1166,7 +1166,7 @@ Ntsh::ImageId NutshellGraphicsModule::load(const Ntsh::Image image) {
 	textureImageViewCreateInfo.subresourceRange.levelCount = textureImageCreateInfo.mipLevels;
 	textureImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 	textureImageViewCreateInfo.subresourceRange.layerCount = 1;
-	NTSH_VK_CHECK(vkCreateImageView(m_device, &textureImageViewCreateInfo, nullptr, &textureImageView));
+	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &textureImageViewCreateInfo, nullptr, &textureImageView));
 
 	// Create texture staging buffer
 	VkBuffer textureStagingBuffer;
@@ -1185,10 +1185,10 @@ Ntsh::ImageId NutshellGraphicsModule::load(const Ntsh::Image image) {
 	VmaAllocationCreateInfo textureStagingBufferAllocationCreateInfo = {};
 	textureStagingBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 	textureStagingBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-	NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &textureStagingBufferCreateInfo, &textureStagingBufferAllocationCreateInfo, &textureStagingBuffer, &textureStagingBufferAllocation, nullptr));
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &textureStagingBufferCreateInfo, &textureStagingBufferAllocationCreateInfo, &textureStagingBuffer, &textureStagingBufferAllocation, nullptr));
 
 	void* data;
-	NTSH_VK_CHECK(vmaMapMemory(m_allocator, textureStagingBufferAllocation, &data));
+	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, textureStagingBufferAllocation, &data));
 	memcpy(data, image.data.data(), static_cast<size_t>(image.width) * static_cast<size_t>(image.height) * numComponents * sizeComponent);
 	vmaUnmapMemory(m_allocator, textureStagingBufferAllocation);
 
@@ -1200,7 +1200,7 @@ Ntsh::ImageId NutshellGraphicsModule::load(const Ntsh::Image image) {
 	commandPoolCreateInfo.pNext = nullptr;
 	commandPoolCreateInfo.flags = 0;
 	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
-	NTSH_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &commandPool));
+	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &commandPool));
 
 	VkCommandBuffer commandBuffer;
 
@@ -1210,14 +1210,14 @@ Ntsh::ImageId NutshellGraphicsModule::load(const Ntsh::Image image) {
 	commandBufferAllocateInfo.commandPool = commandPool;
 	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	commandBufferAllocateInfo.commandBufferCount = 1;
-	NTSH_VK_CHECK(vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &commandBuffer));
+	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &commandBuffer));
 
 	VkCommandBufferBeginInfo textureCopyBeginInfo = {};
 	textureCopyBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	textureCopyBeginInfo.pNext = nullptr;
 	textureCopyBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	textureCopyBeginInfo.pInheritanceInfo = nullptr;
-	NTSH_VK_CHECK(vkBeginCommandBuffer(commandBuffer, &textureCopyBeginInfo));
+	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(commandBuffer, &textureCopyBeginInfo));
 
 	VkImageMemoryBarrier2 undefinedToTransferDstOptimalImageMemoryBarrier = {};
 	undefinedToTransferDstOptimalImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -1336,7 +1336,7 @@ Ntsh::ImageId NutshellGraphicsModule::load(const Ntsh::Image image) {
 		mipHeight = mipHeight > 1 ? mipHeight / 2 : 1;
 	}
 
-	NTSH_VK_CHECK(vkEndCommandBuffer(commandBuffer));
+	NTSHENGN_VK_CHECK(vkEndCommandBuffer(commandBuffer));
 
 	VkFence buffersCopyFence;
 
@@ -1344,7 +1344,7 @@ Ntsh::ImageId NutshellGraphicsModule::load(const Ntsh::Image image) {
 	buffersCopyFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	buffersCopyFenceCreateInfo.pNext = nullptr;
 	buffersCopyFenceCreateInfo.flags = 0;
-	NTSH_VK_CHECK(vkCreateFence(m_device, &buffersCopyFenceCreateInfo, nullptr, &buffersCopyFence));
+	NTSHENGN_VK_CHECK(vkCreateFence(m_device, &buffersCopyFenceCreateInfo, nullptr, &buffersCopyFence));
 
 	VkSubmitInfo buffersCopySubmitInfo = {};
 	buffersCopySubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1356,8 +1356,8 @@ Ntsh::ImageId NutshellGraphicsModule::load(const Ntsh::Image image) {
 	buffersCopySubmitInfo.pCommandBuffers = &commandBuffer;
 	buffersCopySubmitInfo.signalSemaphoreCount = 0;
 	buffersCopySubmitInfo.pSignalSemaphores = nullptr;
-	NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, buffersCopyFence));
-	NTSH_VK_CHECK(vkWaitForFences(m_device, 1, &buffersCopyFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, buffersCopyFence));
+	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &buffersCopyFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 
 	vkDestroyFence(m_device, buffersCopyFence, nullptr);
 	vkDestroyCommandPool(m_device, commandPool, nullptr);
@@ -1375,7 +1375,7 @@ Ntsh::ImageId NutshellGraphicsModule::load(const Ntsh::Image image) {
 	return static_cast<uint32_t>(m_textureImages.size() - 1);
 }
 
-VkSurfaceCapabilitiesKHR NutshellGraphicsModule::getSurfaceCapabilities() {
+VkSurfaceCapabilitiesKHR NtshEngn::GraphicsModule::getSurfaceCapabilities() {
 	VkPhysicalDeviceSurfaceInfo2KHR surfaceInfo = {};
 	surfaceInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR;
 	surfaceInfo.pNext = nullptr;
@@ -1384,25 +1384,25 @@ VkSurfaceCapabilitiesKHR NutshellGraphicsModule::getSurfaceCapabilities() {
 	VkSurfaceCapabilities2KHR surfaceCapabilities;
 	surfaceCapabilities.sType = VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR;
 	surfaceCapabilities.pNext = nullptr;
-	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilities2KHR(m_physicalDevice, &surfaceInfo, &surfaceCapabilities));
+	NTSHENGN_VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilities2KHR(m_physicalDevice, &surfaceInfo, &surfaceCapabilities));
 
 	return surfaceCapabilities.surfaceCapabilities;
 }
 
-std::vector<VkSurfaceFormatKHR> NutshellGraphicsModule::getSurfaceFormats() {
+std::vector<VkSurfaceFormatKHR> NtshEngn::GraphicsModule::getSurfaceFormats() {
 	VkPhysicalDeviceSurfaceInfo2KHR surfaceInfo = {};
 	surfaceInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR;
 	surfaceInfo.pNext = nullptr;
 	surfaceInfo.surface = m_surface;
 
 	uint32_t surfaceFormatsCount;
-	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfaceFormats2KHR(m_physicalDevice, &surfaceInfo, &surfaceFormatsCount, nullptr));
+	NTSHENGN_VK_CHECK(vkGetPhysicalDeviceSurfaceFormats2KHR(m_physicalDevice, &surfaceInfo, &surfaceFormatsCount, nullptr));
 	std::vector<VkSurfaceFormat2KHR> surfaceFormats2(surfaceFormatsCount);
 	for (VkSurfaceFormat2KHR& surfaceFormat2 : surfaceFormats2) {
 		surfaceFormat2.sType = VK_STRUCTURE_TYPE_SURFACE_FORMAT_2_KHR;
 		surfaceFormat2.pNext = nullptr;
 	}
-	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfaceFormats2KHR(m_physicalDevice, &surfaceInfo, &surfaceFormatsCount, surfaceFormats2.data()));
+	NTSHENGN_VK_CHECK(vkGetPhysicalDeviceSurfaceFormats2KHR(m_physicalDevice, &surfaceInfo, &surfaceFormatsCount, surfaceFormats2.data()));
 	
 	std::vector<VkSurfaceFormatKHR> surfaceFormats;
 	for (const VkSurfaceFormat2KHR surfaceFormat2 : surfaceFormats2) {
@@ -1412,16 +1412,16 @@ std::vector<VkSurfaceFormatKHR> NutshellGraphicsModule::getSurfaceFormats() {
 	return surfaceFormats;
 }
 
-std::vector<VkPresentModeKHR> NutshellGraphicsModule::getSurfacePresentModes() {
+std::vector<VkPresentModeKHR> NtshEngn::GraphicsModule::getSurfacePresentModes() {
 	uint32_t presentModesCount;
-	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &presentModesCount, nullptr));
+	NTSHENGN_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &presentModesCount, nullptr));
 	std::vector<VkPresentModeKHR> presentModes(presentModesCount);
-	NTSH_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &presentModesCount, presentModes.data()));
+	NTSHENGN_VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &presentModesCount, presentModes.data()));
 
 	return presentModes;
 }
 
-VkPhysicalDeviceMemoryProperties NutshellGraphicsModule::getMemoryProperties() {
+VkPhysicalDeviceMemoryProperties NtshEngn::GraphicsModule::getMemoryProperties() {
 	VkPhysicalDeviceMemoryProperties2 memoryProperties = {};
 	memoryProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
 	memoryProperties.pNext = nullptr;
@@ -1430,11 +1430,11 @@ VkPhysicalDeviceMemoryProperties NutshellGraphicsModule::getMemoryProperties() {
 	return memoryProperties.memoryProperties;
 }
 
-uint32_t NutshellGraphicsModule::findMipLevels(uint32_t width, uint32_t height) {
+uint32_t NtshEngn::GraphicsModule::findMipLevels(uint32_t width, uint32_t height) {
 	return static_cast<uint32_t>(std::floor(std::log2(std::min(width, height)) + 1));
 }
 
-void NutshellGraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
+void NtshEngn::GraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
 	VkSurfaceCapabilitiesKHR surfaceCapabilities = getSurfaceCapabilities();
 	uint32_t minImageCount = surfaceCapabilities.minImageCount + 1;
 	if (surfaceCapabilities.maxImageCount > 0 && minImageCount > surfaceCapabilities.maxImageCount) {
@@ -1465,8 +1465,8 @@ void NutshellGraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
 	}
 
 	VkExtent2D swapchainExtent = {};
-	swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSH_MAIN_WINDOW));
-	swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSH_MAIN_WINDOW));
+	swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW));
+	swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW));
 
 	m_viewport.x = 0.0f;
 	m_viewport.y = 0.0f;
@@ -1499,11 +1499,11 @@ void NutshellGraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
 	swapchainCreateInfo.presentMode = swapchainPresentMode;
 	swapchainCreateInfo.clipped = VK_TRUE;
 	swapchainCreateInfo.oldSwapchain = oldSwapchain;
-	NTSH_VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_swapchain));
+	NTSHENGN_VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_swapchain));
 
-	NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, nullptr));
+	NTSHENGN_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, nullptr));
 	m_swapchainImages.resize(m_imageCount);
-	NTSH_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, m_swapchainImages.data()));
+	NTSHENGN_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, m_swapchainImages.data()));
 
 	// Create the swapchain image views
 	m_swapchainImageViews.resize(m_imageCount);
@@ -1524,11 +1524,11 @@ void NutshellGraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
 		swapchainImageViewCreateInfo.subresourceRange.levelCount = 1;
 		swapchainImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 		swapchainImageViewCreateInfo.subresourceRange.layerCount = 1;
-		NTSH_VK_CHECK(vkCreateImageView(m_device, &swapchainImageViewCreateInfo, nullptr, &m_swapchainImageViews[i]));
+		NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &swapchainImageViewCreateInfo, nullptr, &m_swapchainImageViews[i]));
 	}
 }
 
-void NutshellGraphicsModule::createVertexAndIndexBuffers() {
+void NtshEngn::GraphicsModule::createVertexAndIndexBuffers() {
 	// Vertex and index buffers
 	VkBufferCreateInfo vertexAndIndexBufferCreateInfo = {};
 	vertexAndIndexBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -1543,22 +1543,22 @@ void NutshellGraphicsModule::createVertexAndIndexBuffers() {
 	VmaAllocationCreateInfo vertexAndIndexBufferAllocationCreateInfo = {};
 	vertexAndIndexBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-	NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_vertexBuffer, &m_vertexBufferAllocation, nullptr));
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_vertexBuffer, &m_vertexBufferAllocation, nullptr));
 
 	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-	NTSH_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_indexBuffer, &m_indexBufferAllocation, nullptr));
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_indexBuffer, &m_indexBufferAllocation, nullptr));
 }
 
-void NutshellGraphicsModule::createDepthImage() {
+void NtshEngn::GraphicsModule::createDepthImage() {
 	VkImageCreateInfo depthImageCreateInfo = {};
 	depthImageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	depthImageCreateInfo.pNext = nullptr;
 	depthImageCreateInfo.flags = 0;
 	depthImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 	depthImageCreateInfo.format = VK_FORMAT_D32_SFLOAT;
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
-		depthImageCreateInfo.extent.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSH_MAIN_WINDOW));
-		depthImageCreateInfo.extent.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSH_MAIN_WINDOW));
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+		depthImageCreateInfo.extent.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW));
+		depthImageCreateInfo.extent.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW));
 	}
 	else {
 		depthImageCreateInfo.extent.width = 1280;
@@ -1578,7 +1578,7 @@ void NutshellGraphicsModule::createDepthImage() {
 	VmaAllocationCreateInfo depthImageAllocationCreateInfo = {};
 	depthImageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-	NTSH_VK_CHECK(vmaCreateImage(m_allocator, &depthImageCreateInfo, &depthImageAllocationCreateInfo, &m_depthImage, &m_depthImageAllocation, nullptr));
+	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &depthImageCreateInfo, &depthImageAllocationCreateInfo, &m_depthImage, &m_depthImageAllocation, nullptr));
 
 	VkImageViewCreateInfo depthImageViewCreateInfo = {};
 	depthImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -1596,7 +1596,7 @@ void NutshellGraphicsModule::createDepthImage() {
 	depthImageViewCreateInfo.subresourceRange.levelCount = 1;
 	depthImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 	depthImageViewCreateInfo.subresourceRange.layerCount = 1;
-	NTSH_VK_CHECK(vkCreateImageView(m_device, &depthImageViewCreateInfo, nullptr, &m_depthImageView));
+	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &depthImageViewCreateInfo, nullptr, &m_depthImageView));
 
 	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
 	VkCommandPool depthImageTransitionCommandPool;
@@ -1606,7 +1606,7 @@ void NutshellGraphicsModule::createDepthImage() {
 	depthImageTransitionCommandPoolCreateInfo.pNext = nullptr;
 	depthImageTransitionCommandPoolCreateInfo.flags = 0;
 	depthImageTransitionCommandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
-	NTSH_VK_CHECK(vkCreateCommandPool(m_device, &depthImageTransitionCommandPoolCreateInfo, nullptr, &depthImageTransitionCommandPool));
+	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &depthImageTransitionCommandPoolCreateInfo, nullptr, &depthImageTransitionCommandPool));
 
 	VkCommandBuffer depthImageTransitionCommandBuffer;
 
@@ -1616,14 +1616,14 @@ void NutshellGraphicsModule::createDepthImage() {
 	depthImageTransitionCommandBufferAllocateInfo.commandPool = depthImageTransitionCommandPool;
 	depthImageTransitionCommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	depthImageTransitionCommandBufferAllocateInfo.commandBufferCount = 1;
-	NTSH_VK_CHECK(vkAllocateCommandBuffers(m_device, &depthImageTransitionCommandBufferAllocateInfo, &depthImageTransitionCommandBuffer));
+	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &depthImageTransitionCommandBufferAllocateInfo, &depthImageTransitionCommandBuffer));
 
 	VkCommandBufferBeginInfo depthImageTransitionBeginInfo = {};
 	depthImageTransitionBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	depthImageTransitionBeginInfo.pNext = nullptr;
 	depthImageTransitionBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	depthImageTransitionBeginInfo.pInheritanceInfo = nullptr;
-	NTSH_VK_CHECK(vkBeginCommandBuffer(depthImageTransitionCommandBuffer, &depthImageTransitionBeginInfo));
+	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(depthImageTransitionCommandBuffer, &depthImageTransitionBeginInfo));
 
 	VkImageMemoryBarrier2 undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier = {};
 	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -1655,7 +1655,7 @@ void NutshellGraphicsModule::createDepthImage() {
 	undefinedToDepthStencilAttachmentOptimalDependencyInfo.pImageMemoryBarriers = &undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier;
 	m_vkCmdPipelineBarrier2KHR(depthImageTransitionCommandBuffer, &undefinedToDepthStencilAttachmentOptimalDependencyInfo);
 
-	NTSH_VK_CHECK(vkEndCommandBuffer(depthImageTransitionCommandBuffer));
+	NTSHENGN_VK_CHECK(vkEndCommandBuffer(depthImageTransitionCommandBuffer));
 
 	VkFence depthImageTransitionFence;
 
@@ -1663,7 +1663,7 @@ void NutshellGraphicsModule::createDepthImage() {
 	depthImageTransitionFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	depthImageTransitionFenceCreateInfo.pNext = nullptr;
 	depthImageTransitionFenceCreateInfo.flags = 0;
-	NTSH_VK_CHECK(vkCreateFence(m_device, &depthImageTransitionFenceCreateInfo, nullptr, &depthImageTransitionFence));
+	NTSHENGN_VK_CHECK(vkCreateFence(m_device, &depthImageTransitionFenceCreateInfo, nullptr, &depthImageTransitionFence));
 
 	VkSubmitInfo depthImageTransitionSubmitInfo = {};
 	depthImageTransitionSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1675,17 +1675,17 @@ void NutshellGraphicsModule::createDepthImage() {
 	depthImageTransitionSubmitInfo.pCommandBuffers = &depthImageTransitionCommandBuffer;
 	depthImageTransitionSubmitInfo.signalSemaphoreCount = 0;
 	depthImageTransitionSubmitInfo.pSignalSemaphores = nullptr;
-	NTSH_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &depthImageTransitionSubmitInfo, depthImageTransitionFence));
-	NTSH_VK_CHECK(vkWaitForFences(m_device, 1, &depthImageTransitionFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &depthImageTransitionSubmitInfo, depthImageTransitionFence));
+	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &depthImageTransitionFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 
 	vkDestroyFence(m_device, depthImageTransitionFence, nullptr);
 	vkDestroyCommandPool(m_device, depthImageTransitionCommandPool, nullptr);
 }
 
-void NutshellGraphicsModule::createGraphicsPipeline() {
+void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 	// Create graphics pipeline
 	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		pipelineRenderingColorFormat = m_swapchainFormat;
 	}
 
@@ -1786,7 +1786,7 @@ void NutshellGraphicsModule::createGraphicsPipeline() {
 	vertexShaderModuleCreateInfo.flags = 0;
 	vertexShaderModuleCreateInfo.codeSize = vertexShaderCode.size() * sizeof(uint32_t);
 	vertexShaderModuleCreateInfo.pCode = vertexShaderCode.data();
-	NTSH_VK_CHECK(vkCreateShaderModule(m_device, &vertexShaderModuleCreateInfo, nullptr, &vertexShaderModule));
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &vertexShaderModuleCreateInfo, nullptr, &vertexShaderModule));
 
 	VkPipelineShaderStageCreateInfo vertexShaderStageCreateInfo = {};
 	vertexShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -1840,7 +1840,7 @@ void NutshellGraphicsModule::createGraphicsPipeline() {
 	fragmentShaderModuleCreateInfo.flags = 0;
 	fragmentShaderModuleCreateInfo.codeSize = fragmentShaderCode.size() * sizeof(uint32_t);
 	fragmentShaderModuleCreateInfo.pCode = fragmentShaderCode.data();
-	NTSH_VK_CHECK(vkCreateShaderModule(m_device, &fragmentShaderModuleCreateInfo, nullptr, &fragmentShaderModule));
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &fragmentShaderModuleCreateInfo, nullptr, &fragmentShaderModule));
 
 	VkPipelineShaderStageCreateInfo fragmentShaderStageCreateInfo = {};
 	fragmentShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -1855,7 +1855,7 @@ void NutshellGraphicsModule::createGraphicsPipeline() {
 
 	VkVertexInputBindingDescription vertexInputBindingDescription = {};
 	vertexInputBindingDescription.binding = 0;
-	vertexInputBindingDescription.stride = sizeof(Ntsh::Vertex);
+	vertexInputBindingDescription.stride = sizeof(NtshEngn::Vertex);
 	vertexInputBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 	VkVertexInputAttributeDescription vertexPositionInputAttributeDescription = {};
@@ -1868,25 +1868,25 @@ void NutshellGraphicsModule::createGraphicsPipeline() {
 	vertexNormalInputAttributeDescription.location = 1;
 	vertexNormalInputAttributeDescription.binding = 0;
 	vertexNormalInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
-	vertexNormalInputAttributeDescription.offset = offsetof(Ntsh::Vertex, normal);
+	vertexNormalInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, normal);
 
 	VkVertexInputAttributeDescription vertexUVInputAttributeDescription = {};
 	vertexUVInputAttributeDescription.location = 2;
 	vertexUVInputAttributeDescription.binding = 0;
 	vertexUVInputAttributeDescription.format = VK_FORMAT_R32G32_SFLOAT;
-	vertexUVInputAttributeDescription.offset = offsetof(Ntsh::Vertex, uv);
+	vertexUVInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, uv);
 
 	VkVertexInputAttributeDescription vertexColorInputAttributeDescription = {};
 	vertexColorInputAttributeDescription.location = 3;
 	vertexColorInputAttributeDescription.binding = 0;
 	vertexColorInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
-	vertexColorInputAttributeDescription.offset = offsetof(Ntsh::Vertex, color);
+	vertexColorInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, color);
 
 	VkVertexInputAttributeDescription vertexTangentInputAttributeDescription = {};
 	vertexTangentInputAttributeDescription.location = 4;
 	vertexTangentInputAttributeDescription.binding = 0;
 	vertexTangentInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-	vertexTangentInputAttributeDescription.offset = offsetof(Ntsh::Vertex, tangent);
+	vertexTangentInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, tangent);
 
 	std::array<VkVertexInputAttributeDescription, 5> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexNormalInputAttributeDescription, vertexUVInputAttributeDescription, vertexColorInputAttributeDescription, vertexTangentInputAttributeDescription };
 
@@ -1998,7 +1998,7 @@ void NutshellGraphicsModule::createGraphicsPipeline() {
 	pipelineLayoutCreateInfo.pSetLayouts = &m_descriptorSetLayout;
 	pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
 	pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
-	NTSH_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_graphicsPipelineLayout));
+	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_graphicsPipelineLayout));
 
 	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};
 	graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -2020,13 +2020,13 @@ void NutshellGraphicsModule::createGraphicsPipeline() {
 	graphicsPipelineCreateInfo.subpass = 0;
 	graphicsPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
 	graphicsPipelineCreateInfo.basePipelineIndex = 0;
-	NTSH_VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_graphicsPipeline));
+	NTSHENGN_VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_graphicsPipeline));
 
 	vkDestroyShaderModule(m_device, vertexShaderModule, nullptr);
 	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
 }
 
-void NutshellGraphicsModule::createDescriptorSets() {
+void NtshEngn::GraphicsModule::createDescriptorSets() {
 	// Create descriptor pool
 	VkDescriptorPoolSize cameraDescriptorPoolSize = {};
 	cameraDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -2048,7 +2048,7 @@ void NutshellGraphicsModule::createDescriptorSets() {
 	descriptorPoolCreateInfo.maxSets = m_framesInFlight;
 	descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(descriptorPoolSizes.size());
 	descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes.data();
-	NTSH_VK_CHECK(vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool));
+	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool));
 
 	// Allocate descriptor sets
 	m_descriptorSets.resize(m_framesInFlight);
@@ -2060,7 +2060,7 @@ void NutshellGraphicsModule::createDescriptorSets() {
 	descriptorSetAllocateInfo.pSetLayouts = &m_descriptorSetLayout;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSH_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_descriptorSets[i]));
+		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_descriptorSets[i]));
 	}
 
 	// Update descriptor sets
@@ -2112,7 +2112,7 @@ void NutshellGraphicsModule::createDescriptorSets() {
 	}
 }
 
-void NutshellGraphicsModule::updateDescriptorSet(uint32_t frameInFlight) {
+void NtshEngn::GraphicsModule::updateDescriptorSet(uint32_t frameInFlight) {
 	std::vector<VkDescriptorImageInfo> texturesDescriptorImageInfos(m_textureImages.size());
 	for (size_t j = 0; j < m_textureImages.size(); j++) {
 		texturesDescriptorImageInfos[j].sampler = m_textureSampler;
@@ -2135,8 +2135,8 @@ void NutshellGraphicsModule::updateDescriptorSet(uint32_t frameInFlight) {
 	vkUpdateDescriptorSets(m_device, 1, &texturesDescriptorWriteDescriptorSet, 0, nullptr);
 }
 
-void NutshellGraphicsModule::createDefaultResources() {
-	Ntsh::Mesh defaultMesh;
+void NtshEngn::GraphicsModule::createDefaultResources() {
+	NtshEngn::Mesh defaultMesh;
 	defaultMesh.vertices = {
 		{ {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, -1.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
 		{ {0.5f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, -1.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
@@ -2150,11 +2150,11 @@ void NutshellGraphicsModule::createDefaultResources() {
 
 	load(defaultMesh);
 
-	Ntsh::Image defaultTexture;
+	NtshEngn::Image defaultTexture;
 	defaultTexture.width = 16;
 	defaultTexture.height = 16;
-	defaultTexture.format = Ntsh::ImageFormat::R8G8B8A8;
-	defaultTexture.colorSpace = Ntsh::ImageColorSpace::SRGB;
+	defaultTexture.format = NtshEngn::ImageFormat::R8G8B8A8;
+	defaultTexture.colorSpace = NtshEngn::ImageColorSpace::SRGB;
 	defaultTexture.data.resize(defaultTexture.width * defaultTexture.height * 4 * 1);
 	for (size_t i = 0; i < 256; i++) {
 		defaultTexture.data[i * 4 + 0] = static_cast<uint8_t>(255 - i);
@@ -2166,13 +2166,13 @@ void NutshellGraphicsModule::createDefaultResources() {
 	load(defaultTexture);
 }
 
-void NutshellGraphicsModule::resize() {
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
-		while (m_windowModule->getWidth(NTSH_MAIN_WINDOW) == 0 || m_windowModule->getHeight(NTSH_MAIN_WINDOW) == 0) {
+void NtshEngn::GraphicsModule::resize() {
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+		while (m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW) == 0 || m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW) == 0) {
 			m_windowModule->pollEvents();
 		}
 
-		NTSH_VK_CHECK(vkQueueWaitIdle(m_graphicsQueue));
+		NTSHENGN_VK_CHECK(vkQueueWaitIdle(m_graphicsQueue));
 
 		// Destroy swapchain image views
 		for (VkImageView& swapchainImageView : m_swapchainImageViews) {
@@ -2191,10 +2191,10 @@ void NutshellGraphicsModule::resize() {
 	}
 }
 
-extern "C" NTSH_MODULE_API NutshellGraphicsModuleInterface* createModule() {
-	return new NutshellGraphicsModule;
+extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface* createModule() {
+	return new NtshEngn::GraphicsModule;
 }
 
-extern "C" NTSH_MODULE_API void destroyModule(NutshellGraphicsModuleInterface* m) {
+extern "C" NTSHENGN_MODULE_API void destroyModule(NtshEngn::GraphicsModuleInterface* m) {
 	delete m;
 }
