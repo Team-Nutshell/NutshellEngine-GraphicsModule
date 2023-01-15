@@ -1,15 +1,15 @@
-#include "ntsh_graphics_module.h"
-#include "../external/Module/utils/ntsh_module_defines.h"
-#include "../external/Module/utils/ntsh_dynamic_library.h"
-#include "../external/Common/utils/ntsh_engine_defines.h"
-#include "../external/Common/utils/ntsh_engine_enums.h"
-#include "../external/Common/module_interfaces/ntsh_window_module_interface.h"
+#include "ntshengn_graphics_module.h"
+#include "../external/Module/utils/ntshengn_module_defines.h"
+#include "../external/Module/utils/ntshengn_dynamic_library.h"
+#include "../external/Common/utils/ntshengn_defines.h"
+#include "../external/Common/utils/ntshengn_enums.h"
+#include "../external/Common/module_interfaces/ntshengn_window_module_interface.h"
 #include "../external/d3dx12/d3dx12.h"
 #include <algorithm>
 
-void NutshellGraphicsModule::init() {
+void NtshEngn::GraphicsModule::init() {
 	uint32_t factoryFlags = 0;
-#if defined(NTSH_DEBUG)
+#if defined(NTSHENGN_DEBUG)
 	// Enable the debug layer
 	ComPtr<ID3D12Debug> debugLayer;
 	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugLayer)))) {
@@ -18,17 +18,17 @@ void NutshellGraphicsModule::init() {
 		factoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
 	}
 	else {
-		NTSH_MODULE_WARNING("Could not enable debug layer.");
+		NTSHENGN_MODULE_WARNING("Could not enable debug layer.");
 	}
 #endif
 
 	// Create factory
-	NTSH_DX12_CHECK(CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&m_factory)));
+	NTSHENGN_DX12_CHECK(CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&m_factory)));
 
 	// Pick a hardware adapter and create a device
 	ComPtr<IDXGIAdapter1> hardwareAdapter;
 	getHardwareAdapter(m_factory.Get(), &hardwareAdapter);
-	NTSH_DX12_CHECK(D3D12CreateDevice(hardwareAdapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&m_device)));
+	NTSHENGN_DX12_CHECK(D3D12CreateDevice(hardwareAdapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&m_device)));
 
 	// Create command queue
 	D3D12_COMMAND_QUEUE_DESC commandQueueDesc = {};
@@ -36,25 +36,25 @@ void NutshellGraphicsModule::init() {
 	commandQueueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
 	commandQueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	commandQueueDesc.NodeMask = 0;
-	NTSH_DX12_CHECK(m_device->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&m_commandQueue)));
+	NTSHENGN_DX12_CHECK(m_device->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&m_commandQueue)));
 
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		m_imageCount = 2;
 
 		m_viewport.TopLeftX = 0.0f;
 		m_viewport.TopLeftY = 0.0f;
-		m_viewport.Width = static_cast<float>(m_windowModule->getWidth(NTSH_MAIN_WINDOW));
-		m_viewport.Height = static_cast<float>(m_windowModule->getHeight(NTSH_MAIN_WINDOW));
+		m_viewport.Width = static_cast<float>(m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW));
+		m_viewport.Height = static_cast<float>(m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW));
 		m_viewport.MinDepth = D3D12_MIN_DEPTH;
 		m_viewport.MaxDepth = D3D12_MAX_DEPTH;
 
 		m_scissor.left = 0;
 		m_scissor.top = 0;
-		m_scissor.right = m_windowModule->getWidth(NTSH_MAIN_WINDOW);
-		m_scissor.bottom = m_windowModule->getHeight(NTSH_MAIN_WINDOW);
+		m_scissor.right = m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW);
+		m_scissor.bottom = m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW);
 
-		m_savedWidth = m_windowModule->getWidth(NTSH_MAIN_WINDOW);
-		m_savedHeight = m_windowModule->getHeight(NTSH_MAIN_WINDOW);
+		m_savedWidth = m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW);
+		m_savedHeight = m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW);
 
 		// Create swapchain
 		ComPtr<IDXGISwapChain1> swapchain;
@@ -70,9 +70,9 @@ void NutshellGraphicsModule::init() {
 		swapchainDesc.Scaling = DXGI_SCALING_NONE;
 		swapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 		swapchainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-		NTSH_DX12_CHECK(m_factory->CreateSwapChainForHwnd(m_commandQueue.Get(), m_windowModule->getNativeHandle(NTSH_MAIN_WINDOW), &swapchainDesc, nullptr, nullptr, &swapchain));
+		NTSHENGN_DX12_CHECK(m_factory->CreateSwapChainForHwnd(m_commandQueue.Get(), m_windowModule->getNativeHandle(NTSHENGN_MAIN_WINDOW), &swapchainDesc, nullptr, nullptr, &swapchain));
 
-		NTSH_DX12_CHECK(swapchain.As(&m_swapchain));
+		NTSHENGN_DX12_CHECK(swapchain.As(&m_swapchain));
 		m_frameIndex = m_swapchain->GetCurrentBackBufferIndex();
 	}
 	else {
@@ -107,7 +107,7 @@ void NutshellGraphicsModule::init() {
 		clearValue.DepthStencil.Depth = 0.0f;
 		clearValue.DepthStencil.Stencil = 0;
 
-		NTSH_DX12_CHECK(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc, D3D12_RESOURCE_STATE_RENDER_TARGET, &clearValue, IID_PPV_ARGS(&m_drawImage)));
+		NTSHENGN_DX12_CHECK(m_device->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_NONE, &resourceDesc, D3D12_RESOURCE_STATE_RENDER_TARGET, &clearValue, IID_PPV_ARGS(&m_drawImage)));
 
 		m_frameIndex = 0;
 	}
@@ -118,7 +118,7 @@ void NutshellGraphicsModule::init() {
 	descriptorHeapDesc.NumDescriptors = m_imageCount;
 	descriptorHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	descriptorHeapDesc.NodeMask = 0;
-	NTSH_DX12_CHECK(m_device->CreateDescriptorHeap(&descriptorHeapDesc, IID_PPV_ARGS(&m_descriptorHeap)));
+	NTSHENGN_DX12_CHECK(m_device->CreateDescriptorHeap(&descriptorHeapDesc, IID_PPV_ARGS(&m_descriptorHeap)));
 
 	m_descriptorHeapSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
@@ -128,8 +128,8 @@ void NutshellGraphicsModule::init() {
 	m_renderTargets.resize(m_imageCount);
 	m_commandAllocators.resize(m_imageCount);
 	for (uint32_t i = 0; i < m_imageCount; i++) {
-		if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
-			NTSH_DX12_CHECK(m_swapchain->GetBuffer(i, IID_PPV_ARGS(&m_renderTargets[i])));
+		if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+			NTSHENGN_DX12_CHECK(m_swapchain->GetBuffer(i, IID_PPV_ARGS(&m_renderTargets[i])));
 		}
 		else {
 			m_drawImage.As(&m_renderTargets[i]);
@@ -138,7 +138,7 @@ void NutshellGraphicsModule::init() {
 		descriptorHandle.Offset(1, m_descriptorHeapSize);
 
 		// Create command allocator
-		NTSH_DX12_CHECK(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[i])));
+		NTSHENGN_DX12_CHECK(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[i])));
 	}
 
 	// Create empty root signature
@@ -147,12 +147,12 @@ void NutshellGraphicsModule::init() {
 
 	ComPtr<ID3DBlob> signature;
 	ComPtr<ID3DBlob> error;
-	NTSH_DX12_CHECK(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
-	NTSH_DX12_CHECK(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
+	NTSHENGN_DX12_CHECK(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
+	NTSHENGN_DX12_CHECK(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
 
 	// Create pipeline state
 	uint32_t shaderCompileFlags = 0;
-#if defined(NTSH_DEBUG)
+#if defined(NTSHENGN_DEBUG)
 	shaderCompileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif
 
@@ -186,7 +186,7 @@ void NutshellGraphicsModule::init() {
 	ComPtr<ID3DBlob> vertexShaderError;
 	if (FAILED(D3DCompile(vertexShaderCode.c_str(), vertexShaderCode.size(), nullptr, nullptr, nullptr, "main", "vs_5_0", shaderCompileFlags, 0, &vertexShader, &vertexShaderError))) {
 		std::string shaderCompilationError(reinterpret_cast<const char*>(vertexShaderError->GetBufferPointer()), vertexShaderError->GetBufferSize());
-		NTSH_MODULE_ERROR("Vertex shader compilation failed:\n" + shaderCompilationError, NTSH_RESULT_MODULE_ERROR);
+		NTSHENGN_MODULE_ERROR("Vertex shader compilation failed:\n" + shaderCompilationError, NTSHENGN_RESULT_MODULE_ERROR);
 	}
 
 	const std::string pixelShaderCode = R"HLSL(
@@ -203,7 +203,7 @@ void NutshellGraphicsModule::init() {
 	ComPtr<ID3DBlob> pixelShaderError;
 	if (FAILED(D3DCompile(pixelShaderCode.c_str(), pixelShaderCode.size(), nullptr, nullptr, nullptr, "main", "ps_5_0", shaderCompileFlags, 0, &pixelShader, &pixelShaderError))) {
 		std::string shaderCompilationError(reinterpret_cast<const char*>(pixelShaderError->GetBufferPointer()), pixelShaderError->GetBufferSize());
-		NTSH_MODULE_ERROR("Pixel shader compilation failed:\n" + shaderCompilationError, NTSH_RESULT_MODULE_ERROR);
+		NTSHENGN_MODULE_ERROR("Pixel shader compilation failed:\n" + shaderCompilationError, NTSHENGN_RESULT_MODULE_ERROR);
 	}
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC graphicsPipelineStateDesc = {};
@@ -222,49 +222,49 @@ void NutshellGraphicsModule::init() {
 	graphicsPipelineStateDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
 	graphicsPipelineStateDesc.SampleDesc.Count = 1;
 	graphicsPipelineStateDesc.SampleDesc.Quality = 0;
-	NTSH_DX12_CHECK(m_device->CreateGraphicsPipelineState(&graphicsPipelineStateDesc, IID_PPV_ARGS(&m_graphicsPipeline)));
+	NTSHENGN_DX12_CHECK(m_device->CreateGraphicsPipelineState(&graphicsPipelineStateDesc, IID_PPV_ARGS(&m_graphicsPipeline)));
 
 	// Create command list
-	NTSH_DX12_CHECK(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_frameIndex].Get(), m_graphicsPipeline.Get(), IID_PPV_ARGS(&m_commandList)));
-	NTSH_DX12_CHECK(m_commandList->Close());
+	NTSHENGN_DX12_CHECK(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_frameIndex].Get(), m_graphicsPipeline.Get(), IID_PPV_ARGS(&m_commandList)));
+	NTSHENGN_DX12_CHECK(m_commandList->Close());
 
 	// Create sync objects
 	m_fenceValues.resize(m_imageCount);
 	std::fill(m_fenceValues.begin(), m_fenceValues.end(), 0);
-	NTSH_DX12_CHECK(m_device->CreateFence(m_fenceValues[m_frameIndex], D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
+	NTSHENGN_DX12_CHECK(m_device->CreateFence(m_fenceValues[m_frameIndex], D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
 	m_fenceValues[m_frameIndex]++;
 
 	m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-	NTSH_ASSERT(m_fenceEvent != nullptr);
+	NTSHENGN_ASSERT(m_fenceEvent != nullptr);
 
 	waitForGPUIdle();
 }
 
-void NutshellGraphicsModule::update(double dt) {
-	NTSH_UNUSED(dt);
+void NtshEngn::GraphicsModule::update(double dt) {
+	NTSHENGN_UNUSED(dt);
 
-	if (m_windowModule && !m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+	if (m_windowModule && !m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		// Do not update if the main window got closed
 		return;
 	}
 
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		// Check for window resize
-		if (m_windowModule->getWidth(NTSH_MAIN_WINDOW) != m_savedWidth || m_windowModule->getHeight(NTSH_MAIN_WINDOW) != m_savedHeight) {
+		if (m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW) != m_savedWidth || m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW) != m_savedHeight) {
 			resize();
 		}
 	}
 	
 	// Record commands
-	NTSH_DX12_CHECK(m_commandAllocators[m_frameIndex]->Reset());
+	NTSHENGN_DX12_CHECK(m_commandAllocators[m_frameIndex]->Reset());
 
-	NTSH_DX12_CHECK(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), m_graphicsPipeline.Get()));
+	NTSHENGN_DX12_CHECK(m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), m_graphicsPipeline.Get()));
 
 	m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
 	m_commandList->RSSetViewports(1, &m_viewport);
 	m_commandList->RSSetScissorRects(1, &m_scissor);
 
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		m_presentToRenderTargetBarrier = {};
 		m_presentToRenderTargetBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 		m_presentToRenderTargetBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -282,7 +282,7 @@ void NutshellGraphicsModule::update(double dt) {
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	m_commandList->DrawInstanced(3, 1, 0, 0);
 
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		m_renderTargetToPresentBarrier = {};
 		m_renderTargetToPresentBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 		m_renderTargetToPresentBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -293,50 +293,50 @@ void NutshellGraphicsModule::update(double dt) {
 		m_commandList->ResourceBarrier(1, &m_renderTargetToPresentBarrier);
 	}
 
-	NTSH_DX12_CHECK(m_commandList->Close());
+	NTSHENGN_DX12_CHECK(m_commandList->Close());
 
 	// Execute command list
 	ID3D12CommandList* commandLists[] = { m_commandList.Get() };
 	m_commandQueue->ExecuteCommandLists(1, commandLists);
 
 	// Present
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
-		NTSH_DX12_CHECK(m_swapchain->Present(0, 0));
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+		NTSHENGN_DX12_CHECK(m_swapchain->Present(0, 0));
 	}
 
 	// Sync
 	uint64_t currentFenceValue = m_fenceValues[m_frameIndex];
-	NTSH_DX12_CHECK(m_commandQueue->Signal(m_fence.Get(), currentFenceValue));
+	NTSHENGN_DX12_CHECK(m_commandQueue->Signal(m_fence.Get(), currentFenceValue));
 
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		m_frameIndex = m_swapchain->GetCurrentBackBufferIndex();
 	}
 
 	if (m_fence->GetCompletedValue() < m_fenceValues[m_frameIndex]) {
-		NTSH_DX12_CHECK(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent));
+		NTSHENGN_DX12_CHECK(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent));
 		WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
 	}
 
 	m_fenceValues[m_frameIndex] = currentFenceValue + 1;
 }
 
-void NutshellGraphicsModule::destroy() {
+void NtshEngn::GraphicsModule::destroy() {
 	waitForGPUIdle();
 
 	CloseHandle(m_fenceEvent);
 }
 
-Ntsh::MeshId NutshellGraphicsModule::load(const Ntsh::Mesh mesh) {
-	NTSH_MODULE_FUNCTION_NOT_IMPLEMENTED();
+NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh mesh) {
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 	return 0;
 }
 
-Ntsh::ImageId NutshellGraphicsModule::load(const Ntsh::Image mesh) {
-	NTSH_MODULE_FUNCTION_NOT_IMPLEMENTED();
+NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image mesh) {
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 	return 0;
 }
 
-void NutshellGraphicsModule::getHardwareAdapter(IDXGIFactory1* factory, IDXGIAdapter1** hardwareAdapter) {
+void NtshEngn::GraphicsModule::getHardwareAdapter(IDXGIFactory1* factory, IDXGIAdapter1** hardwareAdapter) {
 	ComPtr<IDXGIAdapter1> adapter;
 	ComPtr<IDXGIFactory6> factory6;
 
@@ -373,23 +373,23 @@ void NutshellGraphicsModule::getHardwareAdapter(IDXGIFactory1* factory, IDXGIAda
 			}
 		}
 	}
-	NTSH_ASSERT(adapter.Get() != nullptr);
+	NTSHENGN_ASSERT(adapter.Get() != nullptr);
 
 	*hardwareAdapter = adapter.Detach();
 }
 
-void NutshellGraphicsModule::waitForGPUIdle() {
-	NTSH_DX12_CHECK(m_commandQueue->Signal(m_fence.Get(), m_fenceValues[m_frameIndex]));
+void NtshEngn::GraphicsModule::waitForGPUIdle() {
+	NTSHENGN_DX12_CHECK(m_commandQueue->Signal(m_fence.Get(), m_fenceValues[m_frameIndex]));
 
-	NTSH_DX12_CHECK(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent));
+	NTSHENGN_DX12_CHECK(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent));
 	WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
 
 	m_fenceValues[m_frameIndex]++;
 }
 
-void NutshellGraphicsModule::resize() {
-	if (m_windowModule && m_windowModule->isOpen(NTSH_MAIN_WINDOW)) {
-		while (m_windowModule->getWidth(NTSH_MAIN_WINDOW) == 0 || m_windowModule->getHeight(NTSH_MAIN_WINDOW) == 0) {
+void NtshEngn::GraphicsModule::resize() {
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+		while (m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW) == 0 || m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW) == 0) {
 			m_windowModule->pollEvents();
 		}
 
@@ -402,25 +402,25 @@ void NutshellGraphicsModule::resize() {
 
 		m_viewport.TopLeftX = 0.0f;
 		m_viewport.TopLeftY = 0.0f;
-		m_viewport.Width = static_cast<float>(m_windowModule->getWidth(NTSH_MAIN_WINDOW));
-		m_viewport.Height = static_cast<float>(m_windowModule->getHeight(NTSH_MAIN_WINDOW));
+		m_viewport.Width = static_cast<float>(m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW));
+		m_viewport.Height = static_cast<float>(m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW));
 		m_viewport.MinDepth = D3D12_MIN_DEPTH;
 		m_viewport.MaxDepth = D3D12_MAX_DEPTH;
 
 		m_scissor.left = 0;
 		m_scissor.top = 0;
-		m_scissor.right = m_windowModule->getWidth(NTSH_MAIN_WINDOW);
-		m_scissor.bottom = m_windowModule->getHeight(NTSH_MAIN_WINDOW);
+		m_scissor.right = m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW);
+		m_scissor.bottom = m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW);
 
-		m_savedWidth = m_windowModule->getWidth(NTSH_MAIN_WINDOW);
-		m_savedHeight = m_windowModule->getHeight(NTSH_MAIN_WINDOW);
+		m_savedWidth = m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW);
+		m_savedHeight = m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW);
 
-		NTSH_DX12_CHECK(m_swapchain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
+		NTSHENGN_DX12_CHECK(m_swapchain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
 
 		CD3DX12_CPU_DESCRIPTOR_HANDLE descriptorHandle(m_descriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
 		for (uint32_t i = 0; i < m_imageCount; i++) {
-			NTSH_DX12_CHECK(m_swapchain->GetBuffer(i, IID_PPV_ARGS(&m_renderTargets[i])));
+			NTSHENGN_DX12_CHECK(m_swapchain->GetBuffer(i, IID_PPV_ARGS(&m_renderTargets[i])));
 			m_device->CreateRenderTargetView(m_renderTargets[i].Get(), nullptr, descriptorHandle);
 			descriptorHandle.Offset(1, m_descriptorHeapSize);
 		}
@@ -429,10 +429,10 @@ void NutshellGraphicsModule::resize() {
 	}
 }
 
-extern "C" NTSH_MODULE_API NutshellGraphicsModuleInterface* createModule() {
-	return new NutshellGraphicsModule;
+extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface* createModule() {
+	return new NtshEngn::GraphicsModule;
 }
 
-extern "C" NTSH_MODULE_API void destroyModule(NutshellGraphicsModuleInterface* m) {
+extern "C" NTSHENGN_MODULE_API void destroyModule(NtshEngn::GraphicsModuleInterface* m) {
 	delete m;
 }
