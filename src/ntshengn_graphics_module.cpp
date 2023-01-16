@@ -526,36 +526,51 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptySignalSubmitInfo, VK_NULL_HANDLE));
 	}
 
-	// Update object map
-	for (Entity entity : entities) {
-		if (m_objects.find(entity) == m_objects.end()) {
-			Renderable objectRenderable = m_ecs->getComponent<Renderable>(entity);
+	bool foundCamera = false;
 
-			InternalObject newObject;
-			newObject.index = static_cast<uint32_t>(m_objects.size());
-			if (objectRenderable.mesh.vertices.size() != 0) {
-				newObject.meshIndex = load(objectRenderable.mesh);
+	// Update information
+	for (Entity entity : m_entities) {
+		// Renderable
+		if (m_ecs->hasComponent<Renderable>(entity)) {
+			if (m_objects.find(entity) == m_objects.end()) {
+				Renderable objectRenderable = m_ecs->getComponent<Renderable>(entity);
+
+				InternalObject newObject;
+				newObject.index = static_cast<uint32_t>(m_objects.size());
+				if (objectRenderable.mesh.vertices.size() != 0) {
+					newObject.meshIndex = load(objectRenderable.mesh);
+				}
+				if (objectRenderable.material.diffuseTexture) {
+					newObject.textureID = static_cast<uint32_t>(load(*objectRenderable.material.diffuseTexture));
+				}
+				m_objects[entity] = newObject;
 			}
-			if (objectRenderable.material.diffuseTexture) {
-				newObject.textureID = static_cast<uint32_t>(load(*objectRenderable.material.diffuseTexture));
-			}
-			m_objects[entity] = newObject;
+		}
+		// Camera
+		else if (!foundCamera && m_ecs->hasComponent<Camera>(entity)) {
+			mainCamera = entity;
+			foundCamera = true;
 		}
 	}
 
-	// Update camera buffer
-	cameraPosition.x = 0.0f;
-	cameraPosition.y = 3.0f;
-	cameraPosition.z = 5.0f;
-	nml::mat4 cameraView = nml::lookAtRH(cameraPosition, nml::vec3(0.0f), nml::vec3(0.0f, 1.0f, 0.0));
-	nml::mat4 cameraProjection = nml::perspectiveRH(90.0f * toRad, m_viewport.width / m_viewport.height, 0.05f, 100.0f);
-	cameraProjection[1][1] *= -1.0f;
-	std::array<nml::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
-
 	void* data;
-	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight], &data));
-	memcpy(data, cameraMatrices.data(), sizeof(nml::mat4) * 2);
-	vmaUnmapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight]);
+
+	// Update camera buffer
+	if (foundCamera) {
+		Camera camera = m_ecs->getComponent<Camera>(mainCamera);
+		Transform cameraTransform = m_ecs->getComponent<Transform>(mainCamera);
+		nml::vec3 cameraPosition = nml::vec3(cameraTransform.position[0], cameraTransform.position[1], cameraTransform.position[2]);
+		nml::vec3 cameraRotation = nml::vec3(cameraTransform.rotation[0], cameraTransform.rotation[1], cameraTransform.rotation[2]);
+
+		nml::mat4 cameraView = nml::lookAtRH(cameraPosition, cameraPosition + cameraRotation, nml::vec3(0.0f, 1.0f, 0.0));
+		nml::mat4 cameraProjection = nml::perspectiveRH(camera.fov * toRad, m_viewport.width / m_viewport.height, camera.nearPlane, camera.farPlane);
+		cameraProjection[1][1] *= -1.0f;
+		std::array<nml::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
+
+		NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight], &data));
+		memcpy(data, cameraMatrices.data(), sizeof(nml::mat4) * 2);
+		vmaUnmapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight]);
+	}
 
 	// Update objects buffer
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight], &data));

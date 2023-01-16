@@ -161,7 +161,6 @@ namespace NtshEngn {
 		uint32_t m_framesInFlight;
 		uint32_t m_currentFrameInFlight;
 
-		nml::vec3 cameraPosition;
 		std::vector<VkBuffer> m_cameraBuffers;
 		std::vector<VmaAllocation> m_cameraBufferAllocations;
 
@@ -178,6 +177,7 @@ namespace NtshEngn {
 		VkSampler m_textureSampler;
 
 		std::unordered_map<Entity, InternalObject> m_objects;
+		Entity mainCamera;
 	};
 
 }
