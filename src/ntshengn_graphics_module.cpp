@@ -379,28 +379,6 @@ void NtshEngn::GraphicsModule::init() {
 
 	createGraphicsPipeline();
 
-	// Create texture sampler
-	VkSamplerCreateInfo textureSamplerCreateInfo = {};
-	textureSamplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	textureSamplerCreateInfo.pNext = nullptr;
-	textureSamplerCreateInfo.flags = 0;
-	textureSamplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-	textureSamplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-	textureSamplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	textureSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	textureSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	textureSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	textureSamplerCreateInfo.mipLodBias = 0.0f;
-	textureSamplerCreateInfo.anisotropyEnable = VK_TRUE;
-	textureSamplerCreateInfo.maxAnisotropy = 16.0f;
-	textureSamplerCreateInfo.compareEnable = VK_FALSE;
-	textureSamplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
-	textureSamplerCreateInfo.minLod = 0.0f;
-	textureSamplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
-	textureSamplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-	textureSamplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &textureSamplerCreateInfo, nullptr, &m_textureSampler));
-
 	// Create camera uniform buffer
 	m_cameraBuffers.resize(m_framesInFlight);
 	m_cameraBufferAllocations.resize(m_framesInFlight);
@@ -820,6 +798,7 @@ void NtshEngn::GraphicsModule::destroy() {
 
 	// Destroy textures
 	for (size_t i = 0; i < m_textureImages.size(); i++) {
+		vkDestroySampler(m_device, m_textureSamplers[i], nullptr);
 		vkDestroyImageView(m_device, m_textureImageViews[i], nullptr);
 		vmaDestroyImage(m_allocator, m_textureImages[i], m_textureImageAllocations[i]);
 	}
@@ -827,9 +806,6 @@ void NtshEngn::GraphicsModule::destroy() {
 	// Destroy vertex and index buffers
 	vmaDestroyBuffer(m_allocator, m_indexBuffer, m_indexBufferAllocation);
 	vmaDestroyBuffer(m_allocator, m_vertexBuffer, m_vertexBufferAllocation);
-
-	// Destroy texture sampler
-	vkDestroySampler(m_device, m_textureSampler, nullptr);
 
 	// Destroy VMA Allocator
 	vmaDestroyAllocator(m_allocator);
@@ -1372,8 +1348,9 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		if (renderable.mesh.vertices.size() != 0) {
 			object.meshIndex = load(renderable.mesh);
 		}
-		if (renderable.material.diffuseTexture) {
-			object.textureIndex = static_cast<uint32_t>(load(*renderable.material.diffuseTexture));
+		if (renderable.material.diffuseTexture.first) {
+			object.textureIndex = static_cast<uint32_t>(load(*renderable.material.diffuseTexture.first));
+			createSampler(renderable.material.diffuseTexture.second);
 		}
 		m_objects[entity] = object;
 	}
@@ -2138,7 +2115,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 void NtshEngn::GraphicsModule::updateDescriptorSet(uint32_t frameInFlight) {
 	std::vector<VkDescriptorImageInfo> texturesDescriptorImageInfos(m_textureImages.size());
 	for (size_t j = 0; j < m_textureImages.size(); j++) {
-		texturesDescriptorImageInfos[j].sampler = m_textureSampler;
+		texturesDescriptorImageInfos[j].sampler = m_textureSamplers[j];
 		texturesDescriptorImageInfos[j].imageView = m_textureImageViews[j];
 		texturesDescriptorImageInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
@@ -2187,6 +2164,31 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	}
 
 	load(defaultTexture);
+
+	// Create texture sampler
+	VkSampler defaultTextureSampler;
+	VkSamplerCreateInfo textureSamplerCreateInfo = {};
+	textureSamplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	textureSamplerCreateInfo.pNext = nullptr;
+	textureSamplerCreateInfo.flags = 0;
+	textureSamplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+	textureSamplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+	textureSamplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	textureSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	textureSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	textureSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	textureSamplerCreateInfo.mipLodBias = 0.0f;
+	textureSamplerCreateInfo.anisotropyEnable = VK_TRUE;
+	textureSamplerCreateInfo.maxAnisotropy = 16.0f;
+	textureSamplerCreateInfo.compareEnable = VK_FALSE;
+	textureSamplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
+	textureSamplerCreateInfo.minLod = 0.0f;
+	textureSamplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
+	textureSamplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	textureSamplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &textureSamplerCreateInfo, nullptr, &defaultTextureSampler));
+
+	m_textureSamplers.push_back(defaultTextureSampler);
 }
 
 void NtshEngn::GraphicsModule::resize() {
@@ -2212,6 +2214,56 @@ void NtshEngn::GraphicsModule::resize() {
 		// Recreate depth image
 		createDepthImage();
 	}
+}
+
+void NtshEngn::GraphicsModule::createSampler(const NtshEngn::ImageSampler& sampler) {
+	const std::unordered_map<NtshEngn::ImageSamplerFilter, VkFilter> filterMap{ { NtshEngn::ImageSamplerFilter::Linear, VK_FILTER_LINEAR },
+	{ NtshEngn::ImageSamplerFilter::Nearest, VK_FILTER_NEAREST },
+	{ NtshEngn::ImageSamplerFilter::Unknown, VK_FILTER_LINEAR }
+	};
+	const std::unordered_map<NtshEngn::ImageSamplerFilter, VkSamplerMipmapMode> mipmapFilterMap{ { NtshEngn::ImageSamplerFilter::Linear, VK_SAMPLER_MIPMAP_MODE_LINEAR },
+	{ NtshEngn::ImageSamplerFilter::Nearest, VK_SAMPLER_MIPMAP_MODE_NEAREST },
+	{ NtshEngn::ImageSamplerFilter::Unknown, VK_SAMPLER_MIPMAP_MODE_LINEAR }
+	};
+	const std::unordered_map<NtshEngn::ImageSamplerAddressMode, VkSamplerAddressMode> addressModeMap{ { NtshEngn::ImageSamplerAddressMode::Repeat, VK_SAMPLER_ADDRESS_MODE_REPEAT },
+	{ NtshEngn::ImageSamplerAddressMode::MirroredRepeat, VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT },
+	{ NtshEngn::ImageSamplerAddressMode::ClampToEdge, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE },
+	{ NtshEngn::ImageSamplerAddressMode::ClampToBorder, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER },
+	{ NtshEngn::ImageSamplerAddressMode::Unknown, VK_SAMPLER_ADDRESS_MODE_REPEAT }
+	};
+	const std::unordered_map<NtshEngn::ImageSamplerBorderColor, VkBorderColor> borderColorMap{ { NtshEngn::ImageSamplerBorderColor::FloatTransparentBlack, VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK },
+	{ NtshEngn::ImageSamplerBorderColor::IntTransparentBlack, VK_BORDER_COLOR_INT_TRANSPARENT_BLACK },
+	{ NtshEngn::ImageSamplerBorderColor::FloatOpaqueBlack, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK },
+	{ NtshEngn::ImageSamplerBorderColor::IntOpaqueBlack, VK_BORDER_COLOR_INT_OPAQUE_BLACK },
+	{ NtshEngn::ImageSamplerBorderColor::FloatOpaqueWhite, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE },
+	{ NtshEngn::ImageSamplerBorderColor::IntOpaqueWhite, VK_BORDER_COLOR_INT_OPAQUE_WHITE },
+	{ NtshEngn::ImageSamplerBorderColor::Unknown, VK_BORDER_COLOR_INT_OPAQUE_BLACK },
+	};
+
+	VkSampler newSampler;
+
+	VkSamplerCreateInfo samplerCreateInfo = {};
+	samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerCreateInfo.pNext = nullptr;
+	samplerCreateInfo.flags = 0;
+	samplerCreateInfo.magFilter = filterMap.at(sampler.magFilter);
+	samplerCreateInfo.minFilter = filterMap.at(sampler.minFilter);
+	samplerCreateInfo.mipmapMode = mipmapFilterMap.at(sampler.mipmapFilter);
+	samplerCreateInfo.addressModeU = addressModeMap.at(sampler.addressModeU);
+	samplerCreateInfo.addressModeV = addressModeMap.at(sampler.addressModeV);
+	samplerCreateInfo.addressModeW = addressModeMap.at(sampler.addressModeW);
+	samplerCreateInfo.mipLodBias = 0.0f;
+	samplerCreateInfo.anisotropyEnable = sampler.anisotropyLevel > 0.0f ? VK_TRUE : VK_FALSE;
+	samplerCreateInfo.maxAnisotropy = sampler.anisotropyLevel;
+	samplerCreateInfo.compareEnable = VK_FALSE;
+	samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
+	samplerCreateInfo.minLod = 0.0f;
+	samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
+	samplerCreateInfo.borderColor = borderColorMap.at(sampler.borderColor);
+	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &newSampler));
+
+	m_textureSamplers.push_back(newSampler);
 }
 
 uint32_t NtshEngn::GraphicsModule::attributeObjectIndex() {

@@ -104,6 +104,9 @@ namespace NtshEngn {
 		// On window resize
 		void resize();
 
+		// Create sampler
+		void createSampler(const NtshEngn::ImageSampler& sampler);
+
 		// Attribute an InternalObject index
 		uint32_t attributeObjectIndex();
 
@@ -185,7 +188,7 @@ namespace NtshEngn {
 		std::vector<VkImage> m_textureImages;
 		std::vector<VmaAllocation> m_textureImageAllocations;
 		std::vector<VkImageView> m_textureImageViews;
-		VkSampler m_textureSampler;
+		std::vector<VkSampler> m_textureSamplers;
 
 		std::unordered_map<Entity, InternalObject> m_objects;
 		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
