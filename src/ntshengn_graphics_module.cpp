@@ -526,39 +526,12 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptySignalSubmitInfo, VK_NULL_HANDLE));
 	}
 
-	bool foundCamera = false;
-
-	// Update information
-	for (Entity entity : m_entities) {
-		// Renderable
-		if (m_ecs->hasComponent<Renderable>(entity)) {
-			if (m_objects.find(entity) == m_objects.end()) {
-				Renderable objectRenderable = m_ecs->getComponent<Renderable>(entity);
-
-				InternalObject newObject;
-				newObject.index = static_cast<uint32_t>(m_objects.size());
-				if (objectRenderable.mesh.vertices.size() != 0) {
-					newObject.meshIndex = load(objectRenderable.mesh);
-				}
-				if (objectRenderable.material.diffuseTexture) {
-					newObject.textureID = static_cast<uint32_t>(load(*objectRenderable.material.diffuseTexture));
-				}
-				m_objects[entity] = newObject;
-			}
-		}
-		// Camera
-		else if (!foundCamera && m_ecs->hasComponent<Camera>(entity)) {
-			mainCamera = entity;
-			foundCamera = true;
-		}
-	}
-
 	void* data;
 
 	// Update camera buffer
-	if (foundCamera) {
-		Camera camera = m_ecs->getComponent<Camera>(mainCamera);
-		Transform cameraTransform = m_ecs->getComponent<Transform>(mainCamera);
+	if (m_mainCamera != std::numeric_limits<uint32_t>::max()) {
+		Camera camera = m_ecs->getComponent<Camera>(m_mainCamera);
+		Transform cameraTransform = m_ecs->getComponent<Transform>(m_mainCamera);
 		nml::vec3 cameraPosition = nml::vec3(cameraTransform.position[0], cameraTransform.position[1], cameraTransform.position[2]);
 		nml::vec3 cameraRotation = nml::vec3(cameraTransform.rotation[0], cameraTransform.rotation[1], cameraTransform.rotation[2]);
 
@@ -589,7 +562,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		size_t offset = (it.second.index * (sizeof(nml::mat4) + sizeof(nml::vec4))); // vec4 is used here for padding
 
 		memcpy(reinterpret_cast<char*>(data) + offset, objectModel.data(), sizeof(nml::mat4));
-		const uint32_t textureID = (it.second.textureID < m_textureImages.size()) ? it.second.textureID : 0;
+		const uint32_t textureID = (it.second.textureIndex < m_textureImages.size()) ? it.second.textureIndex : 0;
 		memcpy(reinterpret_cast<char*>(data) + offset + sizeof(nml::mat4), &textureID, sizeof(uint32_t));
 	}
 	vmaUnmapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight]);
@@ -1388,6 +1361,41 @@ NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image image) {
 	}
 
 	return static_cast<uint32_t>(m_textureImages.size() - 1);
+}
+
+void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component componentID) {
+	if (componentID == m_ecs->getComponentId<Renderable>()) {
+		const Renderable& renderable = m_ecs->getComponent<Renderable>(entity);
+
+		InternalObject object;
+		object.index = attributeObjectIndex();
+		if (renderable.mesh.vertices.size() != 0) {
+			object.meshIndex = load(renderable.mesh);
+		}
+		if (renderable.material.diffuseTexture) {
+			object.textureIndex = static_cast<uint32_t>(load(*renderable.material.diffuseTexture));
+		}
+		m_objects[entity] = object;
+	}
+	else if (componentID == m_ecs->getComponentId<Camera>()) {
+		if (m_mainCamera == std::numeric_limits<uint32_t>::max()) {
+			m_mainCamera = entity;
+		}
+	}
+}
+
+void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component componentID) {
+	if (componentID == m_ecs->getComponentId<Renderable>()) {
+		const InternalObject& object = m_objects[entity];
+		retrieveObjectIndex(object.index);
+
+		m_objects.erase(entity);
+	}
+	else if (componentID == m_ecs->getComponentId<Camera>()) {
+		if (m_mainCamera == entity) {
+			m_mainCamera = std::numeric_limits<uint32_t>::max();
+		}
+	}
 }
 
 VkSurfaceCapabilitiesKHR NtshEngn::GraphicsModule::getSurfaceCapabilities() {
@@ -2204,6 +2212,20 @@ void NtshEngn::GraphicsModule::resize() {
 		// Recreate depth image
 		createDepthImage();
 	}
+}
+
+uint32_t NtshEngn::GraphicsModule::attributeObjectIndex() {
+	uint32_t objectID = m_freeObjectsIndices[0];
+	m_freeObjectsIndices.erase(m_freeObjectsIndices.begin());
+	if (m_freeObjectsIndices.empty()) {
+		m_freeObjectsIndices.push_back(objectID + 1);
+	}
+
+	return objectID;
+}
+
+void NtshEngn::GraphicsModule::retrieveObjectIndex(uint32_t objectIndex) {
+	m_freeObjectsIndices.insert(m_freeObjectsIndices.begin(), objectIndex);
 }
 
 extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface* createModule() {

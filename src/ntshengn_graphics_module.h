@@ -12,6 +12,7 @@
 #endif
 #include "../external/VulkanMemoryAllocator/include/vk_mem_alloc.h"
 #include <vector>
+#include <limits>
 #include <unordered_map>
 
 #define NTSHENGN_VK_CHECK(f) \
@@ -49,7 +50,7 @@ struct InternalObject {
 	uint32_t index;
 
 	size_t meshIndex = 0;
-	uint32_t textureID = 0;
+	uint32_t textureIndex = 0;
 };
 
 namespace NtshEngn {
@@ -66,6 +67,10 @@ namespace NtshEngn {
 		NtshEngn::MeshId load(const NtshEngn::Mesh mesh);
 		// Loads the image described in the image parameter in the internal format and returns a unique identifier
 		NtshEngn::ImageId load(const NtshEngn::Image image);
+
+	public:
+		void onEntityComponentAdded(Entity entity, Component componentID);
+		void onEntityComponentRemoved(Entity entity, Component componentID);
 
 	private:
 		// Surface-related functions
@@ -98,6 +103,12 @@ namespace NtshEngn {
 
 		// On window resize
 		void resize();
+
+		// Attribute an InternalObject index
+		uint32_t attributeObjectIndex();
+
+		// Retrieve an InternalObject index
+		void retrieveObjectIndex(uint32_t objectIndex);
 
 	private:
 		VkInstance m_instance;
@@ -177,7 +188,9 @@ namespace NtshEngn {
 		VkSampler m_textureSampler;
 
 		std::unordered_map<Entity, InternalObject> m_objects;
-		Entity mainCamera;
+		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
+
+		Entity m_mainCamera = std::numeric_limits<uint32_t>::max();
 	};
 
 }
