@@ -29,9 +29,9 @@ namespace NtshEngn {
 		void destroy();
 
 		// Loads the mesh described in the mesh parameter in the internal format and returns a unique identifier
-		NtshEngn::MeshId load(const NtshEngn::Mesh mesh);
+		NtshEngn::MeshId load(const NtshEngn::Mesh& mesh);
 		// Loads the image described in the image parameter in the internal format and returns a unique identifier
-		NtshEngn::ImageId load(const NtshEngn::Image image);
+		NtshEngn::ImageId load(const NtshEngn::Image& image);
 
 	private:
 		void getHardwareAdapter(IDXGIFactory1* factory, IDXGIAdapter1** hardwareAdapter);
