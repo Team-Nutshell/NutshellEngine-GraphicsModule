@@ -1345,12 +1345,12 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 
 		InternalObject object;
 		object.index = attributeObjectIndex();
-		if (renderable.mesh.vertices.size() != 0) {
-			object.meshIndex = load(renderable.mesh);
+		if (renderable.mesh->vertices.size() != 0) {
+			object.meshIndex = load(*renderable.mesh);
 		}
-		if (renderable.material.diffuseTexture.first) {
-			object.textureIndex = static_cast<uint32_t>(load(*renderable.material.diffuseTexture.first));
-			createSampler(renderable.material.diffuseTexture.second);
+		if (renderable.material->diffuseTexture.first) {
+			object.textureIndex = static_cast<uint32_t>(load(*renderable.material->diffuseTexture.first));
+			createSampler(renderable.material->diffuseTexture.second);
 		}
 		m_objects[entity] = object;
 	}
