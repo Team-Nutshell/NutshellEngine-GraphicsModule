@@ -46,6 +46,11 @@ struct InternalMesh {
 	int32_t vertexOffset;
 };
 
+struct InternalTexture {
+	uint32_t imageIndex = 0;
+	uint32_t samplerIndex = 0;
+};
+
 struct InternalObject {
 	uint32_t index;
 
@@ -105,7 +110,7 @@ namespace NtshEngn {
 		void resize();
 
 		// Create sampler
-		void createSampler(const NtshEngn::ImageSampler& sampler);
+		uint32_t createSampler(const NtshEngn::ImageSampler& sampler);
 
 		// Attribute an InternalObject index
 		uint32_t attributeObjectIndex();
@@ -181,14 +186,20 @@ namespace NtshEngn {
 		std::vector<VkBuffer> m_objectBuffers;
 		std::vector<VmaAllocation> m_objectBufferAllocations;
 
+		Mesh m_defaultMesh;
+		Image m_defaultTexture;
+
 		std::vector<InternalMesh> m_meshes;
 		int32_t m_currentVertexOffset = 0;
 		uint32_t m_currentIndexOffset = 0;
+		std::unordered_map<const Mesh*, uint32_t> m_meshAddresses;
 
 		std::vector<VkImage> m_textureImages;
 		std::vector<VmaAllocation> m_textureImageAllocations;
 		std::vector<VkImageView> m_textureImageViews;
 		std::vector<VkSampler> m_textureSamplers;
+		std::unordered_map<const Image*, uint32_t> m_imageAddresses;
+		std::vector<InternalTexture> m_textures;
 
 		std::unordered_map<Entity, InternalObject> m_objects;
 		std::vector<uint32_t> m_freeObjectsIndices{ 0 };

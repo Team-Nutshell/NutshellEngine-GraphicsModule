@@ -540,7 +540,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		size_t offset = (it.second.index * (sizeof(nml::mat4) + sizeof(nml::vec4))); // vec4 is used here for padding
 
 		memcpy(reinterpret_cast<char*>(data) + offset, objectModel.data(), sizeof(nml::mat4));
-		const uint32_t textureID = (it.second.textureIndex < m_textureImages.size()) ? it.second.textureIndex : 0;
+		const uint32_t textureID = (it.second.textureIndex < m_textures.size()) ? it.second.textureIndex : 0;
 		memcpy(reinterpret_cast<char*>(data) + offset + sizeof(nml::mat4), &textureID, sizeof(uint32_t));
 	}
 	vmaUnmapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight]);
@@ -796,9 +796,13 @@ void NtshEngn::GraphicsModule::destroy() {
 	vkDestroyImageView(m_device, m_depthImageView, nullptr);
 	vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
 
+	// Destroy samplers
+	for (size_t i = 0; i < m_textureSamplers.size(); i++) {
+		vkDestroySampler(m_device, m_textureSamplers[i], nullptr);
+	}
+
 	// Destroy textures
 	for (size_t i = 0; i < m_textureImages.size(); i++) {
-		vkDestroySampler(m_device, m_textureSamplers[i], nullptr);
 		vkDestroyImageView(m_device, m_textureImageViews[i], nullptr);
 		vmaDestroyImage(m_allocator, m_textureImages[i], m_textureImageAllocations[i]);
 	}
@@ -847,7 +851,12 @@ void NtshEngn::GraphicsModule::destroy() {
 }
 
 NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
+	if (m_meshAddresses.find(&mesh) != m_meshAddresses.end()) {
+		return m_meshAddresses[&mesh];
+	}
+
 	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset });
+	m_meshAddresses[&mesh] = static_cast<uint32_t>(m_meshes.size() - 1);
 
 	// Vertex and Index staging buffer
 	VkBuffer vertexAndIndexStagingBuffer;
@@ -948,6 +957,12 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 }
 
 NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image& image) {
+	if (m_imageAddresses.find(&image) != m_imageAddresses.end()) {
+		return m_imageAddresses[&image];
+	}
+
+	m_imageAddresses[&image] = static_cast<uint32_t>(m_textureImages.size());
+
 	VkFormat imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
 	size_t numComponents = 4;
 	size_t sizeComponent = 1;
@@ -1349,8 +1364,10 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 			object.meshIndex = load(*renderable.mesh);
 		}
 		if (renderable.material->diffuseTexture.first) {
-			object.textureIndex = static_cast<uint32_t>(load(*renderable.material->diffuseTexture.first));
-			createSampler(renderable.material->diffuseTexture.second);
+			ImageId imageId = static_cast<uint32_t>(load(*renderable.material->diffuseTexture.first));
+			uint32_t samplerId = createSampler(renderable.material->diffuseTexture.second);
+			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerId });
+			object.textureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
 		}
 		m_objects[entity] = object;
 	}
@@ -2113,10 +2130,10 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 }
 
 void NtshEngn::GraphicsModule::updateDescriptorSet(uint32_t frameInFlight) {
-	std::vector<VkDescriptorImageInfo> texturesDescriptorImageInfos(m_textureImages.size());
-	for (size_t j = 0; j < m_textureImages.size(); j++) {
-		texturesDescriptorImageInfos[j].sampler = m_textureSamplers[j];
-		texturesDescriptorImageInfos[j].imageView = m_textureImageViews[j];
+	std::vector<VkDescriptorImageInfo> texturesDescriptorImageInfos(m_textures.size());
+	for (size_t j = 0; j < m_textures.size(); j++) {
+		texturesDescriptorImageInfos[j].sampler = m_textureSamplers[m_textures[j].samplerIndex];
+		texturesDescriptorImageInfos[j].imageView = m_textureImageViews[m_textures[j].imageIndex];
 		texturesDescriptorImageInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
 
@@ -2136,34 +2153,32 @@ void NtshEngn::GraphicsModule::updateDescriptorSet(uint32_t frameInFlight) {
 }
 
 void NtshEngn::GraphicsModule::createDefaultResources() {
-	NtshEngn::Mesh defaultMesh;
-	defaultMesh.vertices = {
+	m_defaultMesh.vertices = {
 		{ {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, -1.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
 		{ {0.5f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, -1.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} },
 		{ {-0.5f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, -1.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f} }
 	};
-	defaultMesh.indices = {
+	m_defaultMesh.indices = {
 		0,
 		1,
 		2
 	};
 
-	load(defaultMesh);
+	load(m_defaultMesh);
 
-	NtshEngn::Image defaultTexture;
-	defaultTexture.width = 16;
-	defaultTexture.height = 16;
-	defaultTexture.format = NtshEngn::ImageFormat::R8G8B8A8;
-	defaultTexture.colorSpace = NtshEngn::ImageColorSpace::SRGB;
-	defaultTexture.data.resize(defaultTexture.width * defaultTexture.height * 4 * 1);
+	m_defaultTexture.width = 16;
+	m_defaultTexture.height = 16;
+	m_defaultTexture.format = NtshEngn::ImageFormat::R8G8B8A8;
+	m_defaultTexture.colorSpace = NtshEngn::ImageColorSpace::SRGB;
+	m_defaultTexture.data.resize(m_defaultTexture.width * m_defaultTexture.height * 4 * 1);
 	for (size_t i = 0; i < 256; i++) {
-		defaultTexture.data[i * 4 + 0] = static_cast<uint8_t>(255 - i);
-		defaultTexture.data[i * 4 + 1] = static_cast<uint8_t>(i % 128);
-		defaultTexture.data[i * 4 + 2] = static_cast<uint8_t>(i);
-		defaultTexture.data[i * 4 + 3] = static_cast<uint8_t>(255);
+		m_defaultTexture.data[i * 4 + 0] = static_cast<uint8_t>(255 - i);
+		m_defaultTexture.data[i * 4 + 1] = static_cast<uint8_t>(i % 128);
+		m_defaultTexture.data[i * 4 + 2] = static_cast<uint8_t>(i);
+		m_defaultTexture.data[i * 4 + 3] = static_cast<uint8_t>(255);
 	}
 
-	load(defaultTexture);
+	load(m_defaultTexture);
 
 	// Create texture sampler
 	VkSampler defaultTextureSampler;
@@ -2189,6 +2204,9 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &textureSamplerCreateInfo, nullptr, &defaultTextureSampler));
 
 	m_textureSamplers.push_back(defaultTextureSampler);
+
+	// Texture
+	m_textures.push_back({ 0, 0 });
 }
 
 void NtshEngn::GraphicsModule::resize() {
@@ -2216,7 +2234,7 @@ void NtshEngn::GraphicsModule::resize() {
 	}
 }
 
-void NtshEngn::GraphicsModule::createSampler(const NtshEngn::ImageSampler& sampler) {
+uint32_t NtshEngn::GraphicsModule::createSampler(const NtshEngn::ImageSampler& sampler) {
 	const std::unordered_map<NtshEngn::ImageSamplerFilter, VkFilter> filterMap{ { NtshEngn::ImageSamplerFilter::Linear, VK_FILTER_LINEAR },
 	{ NtshEngn::ImageSamplerFilter::Nearest, VK_FILTER_NEAREST },
 	{ NtshEngn::ImageSamplerFilter::Unknown, VK_FILTER_LINEAR }
@@ -2264,6 +2282,8 @@ void NtshEngn::GraphicsModule::createSampler(const NtshEngn::ImageSampler& sampl
 	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &newSampler));
 
 	m_textureSamplers.push_back(newSampler);
+
+	return static_cast<uint32_t>(m_textureSamplers.size() - 1);
 }
 
 uint32_t NtshEngn::GraphicsModule::attributeObjectIndex() {
