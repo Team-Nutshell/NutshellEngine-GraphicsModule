@@ -162,7 +162,7 @@ namespace NtshEngn {
 		VkPipelineLayout m_graphicsPipelineLayout;
 
 		VkDescriptorSetLayout m_descriptorSetLayout;
-		VkDescriptorPool m_descriptorPool;
+		std::vector<VkDescriptorPool> m_descriptorPools;
 		std::vector<VkDescriptorSet> m_descriptorSets;
 		std::vector<bool> m_descriptorSetsNeedUpdate;
 

@@ -781,7 +781,9 @@ void NtshEngn::GraphicsModule::destroy() {
 	}
 
 	// Destroy descriptor pool
-	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		vkDestroyDescriptorPool(m_device, m_descriptorPools[i], nullptr);
+	}
 
 	// Destroy graphics pipeline
 	vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
@@ -2057,26 +2059,29 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 	texturesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	texturesDescriptorPoolSize.descriptorCount = 524288;
 
+	m_descriptorPools.resize(m_framesInFlight);
 	std::array<VkDescriptorPoolSize, 3> descriptorPoolSizes = { cameraDescriptorPoolSize, objectsDescriptorPoolSize, texturesDescriptorPoolSize };
-	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
-	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	descriptorPoolCreateInfo.pNext = nullptr;
-	descriptorPoolCreateInfo.flags = 0;
-	descriptorPoolCreateInfo.maxSets = m_framesInFlight;
-	descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(descriptorPoolSizes.size());
-	descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes.data();
-	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool));
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
+		descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		descriptorPoolCreateInfo.pNext = nullptr;
+		descriptorPoolCreateInfo.flags = 0;
+		descriptorPoolCreateInfo.maxSets = 1;
+		descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(descriptorPoolSizes.size());
+		descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes.data();
+		NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPools[i]));
+	}
 
 	// Allocate descriptor sets
 	m_descriptorSets.resize(m_framesInFlight);
-	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
-	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	descriptorSetAllocateInfo.pNext = nullptr;
-	descriptorSetAllocateInfo.descriptorPool = m_descriptorPool;
-	descriptorSetAllocateInfo.descriptorSetCount = 1;
-	descriptorSetAllocateInfo.pSetLayouts = &m_descriptorSetLayout;
-
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
+		descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		descriptorSetAllocateInfo.pNext = nullptr;
+		descriptorSetAllocateInfo.descriptorPool = m_descriptorPools[i];
+		descriptorSetAllocateInfo.descriptorSetCount = 1;
+		descriptorSetAllocateInfo.pSetLayouts = &m_descriptorSetLayout;
+
 		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_descriptorSets[i]));
 	}
 
