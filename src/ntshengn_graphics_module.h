@@ -75,6 +75,8 @@ namespace NtshEngn {
 		NtshEngn::ImageId load(const NtshEngn::Image& image);
 
 	public:
+		const ComponentMask getComponentMask() const;
+
 		void onEntityComponentAdded(Entity entity, Component componentID);
 		void onEntityComponentRemoved(Entity entity, Component componentID);
 

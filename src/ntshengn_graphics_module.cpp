@@ -1354,6 +1354,14 @@ NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image& image) {
 	return static_cast<uint32_t>(m_textureImages.size() - 1);
 }
 
+const NtshEngn::ComponentMask NtshEngn::GraphicsModule::getComponentMask() const {
+	ComponentMask componentMask;
+	componentMask.set(m_ecs->getComponentId<Renderable>());
+	componentMask.set(m_ecs->getComponentId<Camera>());
+
+	return componentMask;
+}
+
 void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component componentID) {
 	if (componentID == m_ecs->getComponentId<Renderable>()) {
 		const Renderable& renderable = m_ecs->getComponent<Renderable>(entity);
