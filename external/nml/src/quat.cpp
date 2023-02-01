@@ -7,6 +7,7 @@ namespace nml {
 
 quat::quat(): a(1.0f), b(0.0f), c(0.0f), d(0.0f) {}
 quat::quat(float _a, float _b, float _c, float _d): a(_a), b(_b), c(_c), d(_d) {}
+quat::quat(const float* _ptr): a(*_ptr), b(*(_ptr + 1)), c(*(_ptr + 2)), d(*(_ptr + 3)) {}
 
 quat& quat::operator+=(const quat& other) {
 	a += other.a;
