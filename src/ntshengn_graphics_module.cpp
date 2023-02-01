@@ -20,13 +20,15 @@ void NtshEngn::GraphicsModule::destroy() {
 NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	NTSHENGN_UNUSED(mesh);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
-	return 0;
+
+	return std::numeric_limits<NtshEngn::MeshId>::max();
 }
 
 NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image& image) {
 	NTSHENGN_UNUSED(image);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
-	return 0;
+
+	return std::numeric_limits<NtshEngn::ImageId>::max();
 }
 
 extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface* createModule() {
