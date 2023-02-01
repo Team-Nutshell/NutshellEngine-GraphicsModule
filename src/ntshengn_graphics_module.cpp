@@ -1346,7 +1346,9 @@ void NtshEngn::GraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain)
 	swapchainCreateInfo.oldSwapchain = oldSwapchain;
 	NTSHENGN_VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_swapchain));
 
-	vkDestroySwapchainKHR(m_device, oldSwapchain, nullptr);
+	if (oldSwapchain != VK_NULL_HANDLE) {
+		vkDestroySwapchainKHR(m_device, oldSwapchain, nullptr);
+	}
 
 	NTSHENGN_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_imageCount, nullptr));
 	m_swapchainImages.resize(m_imageCount);
