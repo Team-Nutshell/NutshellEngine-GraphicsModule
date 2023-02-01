@@ -116,8 +116,8 @@ namespace NtshEngn {
 
 		// Create meshes for colliders
 		NtshEngn::MeshId createAABB(const nml::vec3& min, const nml::vec3& max);
-		NtshEngn::MeshId createSphere(float radius);
-		NtshEngn::MeshId createCapsule();
+		NtshEngn::MeshId createSphere(const nml::vec3& center, float radius);
+		NtshEngn::MeshId createCapsule(const nml::vec3& base, const nml::vec3& tip, float radius);
 
 	private:
 		VkInstance m_instance;

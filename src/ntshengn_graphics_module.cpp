@@ -963,14 +963,13 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		const SphereCollidable collidable = m_ecs->getComponent<SphereCollidable>(entity);
 
 		InternalObject& object = m_objects[entity];
-		object.sphereMeshIndex = createSphere(collidable.collider.radius);
+		object.sphereMeshIndex = createSphere(collidable.collider.center.data(), collidable.collider.radius);
 	}
 	else if (componentID == m_ecs->getComponentId<CapsuleCollidable>()) {
 		const CapsuleCollidable& collidable = m_ecs->getComponent<CapsuleCollidable>(entity);
-		NTSHENGN_UNUSED(collidable);
 
 		InternalObject& object = m_objects[entity];
-		object.capsuleMeshIndex = createCapsule();
+		object.capsuleMeshIndex = createCapsule(collidable.collider.base.data(), collidable.collider.tip.data(), collidable.collider.radius);
 	}
 	else if (componentID == m_ecs->getComponentId<Camera>()) {
 		if (m_mainCamera == std::numeric_limits<uint32_t>::max()) {
@@ -1785,13 +1784,51 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::createAABB(const nml::vec3& min, cons
 	return load(cubeMesh);
 }
 
-NtshEngn::MeshId NtshEngn::GraphicsModule::createSphere(float radius) {
-	NTSHENGN_UNUSED(radius);
+NtshEngn::MeshId NtshEngn::GraphicsModule::createSphere(const nml::vec3& center, float radius) {
+	Model* sphereModel = m_assetManager->createModel();
+	sphereModel->primitives.resize(1);
+	Mesh& sphereMesh = sphereModel->primitives[0].first;
+	const float pi = 3.1415926535897932384626433832795f;
+	const size_t nbLongLat = 25;
+	const float thetaStep = pi / static_cast<size_t>(nbLongLat);
+	const float phiStep = 2.0f * (pi / static_cast<size_t>(nbLongLat));
+	
+	for (float theta = 0.0f; theta < 2.0f * pi; theta += thetaStep) {
+		for (float phi = 0.0f; phi < pi; phi += phiStep) {
+			if ((phi + phiStep) >= pi) {
+				Vertex vertex;
+				vertex.position = { center.x,
+					-0.25f + center.y,
+					center.z };
+				vertex.color = { 0.0f, 1.0f, 0.0f };
+				sphereMesh.vertices.push_back(vertex);
+			}
+			else {
+				Vertex vertex;
+				vertex.position = { (radius * std::cos(theta) * std::sin(phi)) + center.x,
+					(radius * std::cos(phi)) + center.y,
+					(radius * std::sin(theta) * std::sin(phi)) + center.z };
+				vertex.color = { 0.0f, 1.0f, 0.0f };
+				sphereMesh.vertices.push_back(vertex);
+			}
+		}
+	}
 
-	return 0;
+	for (size_t i = 1; i < sphereMesh.vertices.size(); i++) {
+		if (i % (nbLongLat / 2 + 1) != 0) {
+			sphereMesh.indices.push_back(static_cast<uint32_t>(i) - 1);
+			sphereMesh.indices.push_back(static_cast<uint32_t>(i));
+		}
+	}
+
+	return load(sphereMesh);
 }
 
-NtshEngn::MeshId NtshEngn::GraphicsModule::createCapsule() {
+NtshEngn::MeshId NtshEngn::GraphicsModule::createCapsule(const nml::vec3& base, const nml::vec3& tip, float radius) {
+	NTSHENGN_UNUSED(base);
+	NTSHENGN_UNUSED(tip);
+	NTSHENGN_UNUSED(radius);
+
 	return 0;
 }
 
