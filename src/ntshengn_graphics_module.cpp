@@ -906,8 +906,11 @@ void NtshEngn::GraphicsModule::createSwapchain(size_t index) {
 	swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 	swapchainCreateInfo.presentMode = swapchainPresentMode;
 	swapchainCreateInfo.clipped = VK_TRUE;
-	swapchainCreateInfo.oldSwapchain = m_perWindowResources[index].swapchain;
+	VkSwapchainKHR oldSwapchain = m_perWindowResources[index].swapchain;
+	swapchainCreateInfo.oldSwapchain = oldSwapchain;
 	NTSHENGN_VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_perWindowResources[index].swapchain));
+
+	vkDestroySwapchainKHR(m_device, oldSwapchain, nullptr);
 
 	NTSHENGN_VK_CHECK(vkGetSwapchainImagesKHR(m_device, m_perWindowResources[index].swapchain, &m_perWindowResources[index].swapchainImageCount, nullptr));
 	m_perWindowResources[index].swapchainImages.resize(m_perWindowResources[index].swapchainImageCount);
