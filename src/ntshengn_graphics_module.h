@@ -47,15 +47,12 @@ struct InternalMesh {
 	int32_t vertexOffset;
 };
 
-struct InternalTexture {
-	uint32_t imageIndex = 0;
-	uint32_t samplerIndex = 0;
-};
-
 struct InternalObject {
 	uint32_t index;
 
-	size_t meshIndex = 0;
+	size_t aabbMeshIndex = std::numeric_limits<size_t>::max();
+	size_t sphereMeshIndex = std::numeric_limits<size_t>::max();
+	size_t capsuleMeshIndex = std::numeric_limits<size_t>::max();
 	uint32_t textureIndex = 0;
 };
 
@@ -104,7 +101,6 @@ namespace NtshEngn {
 
 		// Descriptor sets creation
 		void createDescriptorSets();
-		void updateDescriptorSet(uint32_t frameInFlight);
 
 		// Default resources
 		void createDefaultResources();
@@ -112,14 +108,16 @@ namespace NtshEngn {
 		// On window resize
 		void resize();
 
-		// Create sampler
-		uint32_t createSampler(const NtshEngn::ImageSampler& sampler);
-
 		// Attribute an InternalObject index
 		uint32_t attributeObjectIndex();
 
 		// Retrieve an InternalObject index
 		void retrieveObjectIndex(uint32_t objectIndex);
+
+		// Create meshes for colliders
+		NtshEngn::MeshId createAABB(const nml::vec3& min, const nml::vec3& max);
+		NtshEngn::MeshId createSphere(float radius);
+		NtshEngn::MeshId createCapsule();
 
 	private:
 		VkInstance m_instance;
@@ -166,7 +164,6 @@ namespace NtshEngn {
 		VkDescriptorSetLayout m_descriptorSetLayout;
 		VkDescriptorPool m_descriptorPool;
 		std::vector<VkDescriptorSet> m_descriptorSets;
-		std::vector<bool> m_descriptorSetsNeedUpdate;
 
 		std::vector<VkCommandPool> m_renderingCommandPools;
 		std::vector<VkCommandBuffer> m_renderingCommandBuffers;
@@ -190,19 +187,11 @@ namespace NtshEngn {
 		std::vector<VmaAllocation> m_objectBufferAllocations;
 
 		Mesh m_defaultMesh;
-		Image m_defaultTexture;
 
 		std::vector<InternalMesh> m_meshes;
 		int32_t m_currentVertexOffset = 0;
 		uint32_t m_currentIndexOffset = 0;
 		std::unordered_map<const Mesh*, uint32_t> m_meshAddresses;
-
-		std::vector<VkImage> m_textureImages;
-		std::vector<VmaAllocation> m_textureImageAllocations;
-		std::vector<VkImageView> m_textureImageViews;
-		std::vector<VkSampler> m_textureSamplers;
-		std::unordered_map<const Image*, uint32_t> m_imageAddresses;
-		std::vector<InternalTexture> m_textures;
 
 		std::unordered_map<Entity, InternalObject> m_objects;
 		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
