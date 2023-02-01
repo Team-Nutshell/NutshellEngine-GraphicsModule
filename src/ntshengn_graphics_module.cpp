@@ -1389,7 +1389,7 @@ void NtshEngn::GraphicsModule::resize() {
 		}
 
 		// Recreate the swapchain
-		createSwapchain(VK_NULL_HANDLE);
+		createSwapchain(m_swapchain);
 	}
 }
 
