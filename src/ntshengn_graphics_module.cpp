@@ -1844,17 +1844,19 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::createCapsule(const nml::vec3& base, 
 		for (float phi = pi / 2.0f; phi < pi; phi += phiStep) {
 			if ((phi + phiStep) >= pi) {
 				Vertex vertex;
-				vertex.position = { base.x,
-					-radius + base.y,
-					base.z };
+				nml::vec3 position = nml::vec3(0.0f, -1.0f, 0.0f) * radius + base;
+				vertex.position = { position.x,
+					position.y,
+					position.z };
 				vertex.color = { 0.0f, 0.0f, 1.0f };
 				capsuleMesh.vertices.push_back(vertex);
 			}
 			else {
 				Vertex vertex;
-				vertex.position = { (radius * std::cos(theta) * std::sin(phi)) + base.x,
-					(radius * std::cos(phi)) + base.y,
-					(radius * std::sin(theta) * std::sin(phi)) + base.z };
+				nml::vec3 position = nml::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * radius + base;
+				vertex.position = { position.x,
+					position.y,
+					position.z };
 				vertex.color = { 0.0f, 0.0f, 1.0f };
 				capsuleMesh.vertices.push_back(vertex);
 			}
@@ -1870,16 +1872,15 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::createCapsule(const nml::vec3& base, 
 
 	size_t baseVertexCount = capsuleMesh.vertices.size();
 
-	const float baseTipDistance = (tip - base).length();
-
 	// Tip
 	std::vector<uint32_t> tipFinal;
 	for (float theta = 0.0f; theta < 2.0f * pi; theta += thetaStep) {
 		for (float phi = 0.0f; phi < pi / 2.0f; phi += phiStep) {
 			Vertex vertex;
-			vertex.position = { (radius * std::cos(theta) * std::sin(phi)) + base.x,
-				(radius * std::cos(phi)) + base.y + baseTipDistance,
-				(radius * std::sin(theta) * std::sin(phi)) + base.z };
+			nml::vec3 position = nml::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * radius + tip;
+			vertex.position = { position.x,
+				position.y,
+				position.z };
 			vertex.color = { 0.0f, 0.0f, 1.0f };
 			capsuleMesh.vertices.push_back(vertex);
 		}
