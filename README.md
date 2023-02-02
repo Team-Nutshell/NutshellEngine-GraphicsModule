@@ -1,3 +1,4 @@
-# NutshellEngine-GraphicsModule - Vulkan ECS
+# NutshellEngine-GraphicsModule - Vulkan ECS Colliders
+![Vulkan ECS Colliders](https://i.imgur.com/Zdlfmmt.png)
 
-NutshellEngine Graphics Module drawing models (meshes and textures) using Vulkan. Uses NutshellEngine's ECS (Entity Component System).
+NutshellEngine Graphics Module drawing colliders using Vulkan. Uses NutshellEngine's ECS (Entity Component System).
