@@ -1802,7 +1802,7 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::createSphere(const nml::vec3& center,
 			if ((phi + phiStep) >= pi) {
 				Vertex vertex;
 				vertex.position = { center.x,
-					-0.25f + center.y,
+					(-1.0f + center.y) * radius,
 					center.z };
 				vertex.color = { 0.0f, 1.0f, 0.0f };
 				sphereMesh.vertices.push_back(vertex);
