@@ -1837,6 +1837,17 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::createCapsule(const nml::vec3& base, 
 	const float thetaStep = pi / static_cast<size_t>(nbLongLat);
 	const float phiStep = 2.0f * (pi / static_cast<size_t>(nbLongLat));
 
+	const nml::vec3 baseTipDifference = tip - base;
+	const nml::vec3 facing = nml::vec3(0.0f, 1.0f, 0.0f);
+	const nml::vec3 toB = nml::normalize(baseTipDifference);
+	nml::mat4 rotation = nml::mat4(); // Identity
+	if (facing != toB) { // Cross product of parallel vectors is undefined
+		const nml::vec3 rotationAxis = nml::normalize(nml::cross(facing, toB));
+		const float rotationAngle = std::acos(nml::dot(facing, toB));
+
+		rotation = nml::rotate(rotationAngle, rotationAxis);
+	}
+
 	// Base
 	std::vector<uint32_t> baseFinal;
 	for (float theta = 0.0f; theta < 2.0f * pi; theta += thetaStep) {
@@ -1844,19 +1855,21 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::createCapsule(const nml::vec3& base, 
 		for (float phi = pi / 2.0f; phi < pi; phi += phiStep) {
 			if ((phi + phiStep) >= pi) {
 				Vertex vertex;
-				nml::vec3 position = nml::vec3(0.0f, -1.0f, 0.0f) * radius + base;
-				vertex.position = { position.x,
-					position.y,
-					position.z };
+				nml::vec3 position = nml::vec3(0.0f, -1.0f, 0.0f) * radius;
+				nml::vec3 transformedPosition = rotation * nml::vec4(position, 1.0f);
+				vertex.position = { transformedPosition.x + base.x,
+					transformedPosition.y + base.y,
+					transformedPosition.z + base.z };
 				vertex.color = { 0.0f, 0.0f, 1.0f };
 				capsuleMesh.vertices.push_back(vertex);
 			}
 			else {
 				Vertex vertex;
-				nml::vec3 position = nml::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * radius + base;
-				vertex.position = { position.x,
-					position.y,
-					position.z };
+				nml::vec3 position = nml::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * radius;
+				nml::vec3 transformedPosition = rotation * nml::vec4(position, 1.0f);
+				vertex.position = { transformedPosition.x + base.x,
+					transformedPosition.y + base.y,
+					transformedPosition.z + base.z };
 				vertex.color = { 0.0f, 0.0f, 1.0f };
 				capsuleMesh.vertices.push_back(vertex);
 			}
@@ -1877,10 +1890,11 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::createCapsule(const nml::vec3& base, 
 	for (float theta = 0.0f; theta < 2.0f * pi; theta += thetaStep) {
 		for (float phi = 0.0f; phi < pi / 2.0f; phi += phiStep) {
 			Vertex vertex;
-			nml::vec3 position = nml::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * radius + tip;
-			vertex.position = { position.x,
-				position.y,
-				position.z };
+			nml::vec3 position = nml::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * radius;
+			nml::vec3 transformedPosition = rotation * nml::vec4(position, 1.0f);
+			vertex.position = { transformedPosition.x + tip.x,
+				transformedPosition.y + tip.y,
+				transformedPosition.z + tip.z };
 			vertex.color = { 0.0f, 0.0f, 1.0f };
 			capsuleMesh.vertices.push_back(vertex);
 		}
