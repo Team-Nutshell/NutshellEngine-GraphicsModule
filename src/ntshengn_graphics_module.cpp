@@ -1829,11 +1829,77 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::createSphere(const nml::vec3& center,
 }
 
 NtshEngn::MeshId NtshEngn::GraphicsModule::createCapsule(const nml::vec3& base, const nml::vec3& tip, float radius) {
-	NTSHENGN_UNUSED(base);
-	NTSHENGN_UNUSED(tip);
-	NTSHENGN_UNUSED(radius);
+	Model* capsuleModel = m_assetManager->createModel();
+	capsuleModel->primitives.resize(1);
+	Mesh& capsuleMesh = capsuleModel->primitives[0].first;
+	const float pi = 3.1415926535897932384626433832795f;
+	const size_t nbLongLat = 25;
+	const float thetaStep = pi / static_cast<size_t>(nbLongLat);
+	const float phiStep = 2.0f * (pi / static_cast<size_t>(nbLongLat));
 
-	return 0;
+	// Base
+	std::vector<uint32_t> baseFinal;
+	for (float theta = 0.0f; theta < 2.0f * pi; theta += thetaStep) {
+		baseFinal.push_back(static_cast<uint32_t>(capsuleMesh.vertices.size()));
+		for (float phi = pi / 2.0f; phi < pi; phi += phiStep) {
+			if ((phi + phiStep) >= pi) {
+				Vertex vertex;
+				vertex.position = { base.x,
+					(-1.0f + base.y) * radius,
+					base.z };
+				vertex.color = { 0.0f, 0.0f, 1.0f };
+				capsuleMesh.vertices.push_back(vertex);
+			}
+			else {
+				Vertex vertex;
+				vertex.position = { (radius * std::cos(theta) * std::sin(phi)) + base.x,
+					(radius * std::cos(phi)) + base.y,
+					(radius * std::sin(theta) * std::sin(phi)) + base.z };
+				vertex.color = { 0.0f, 0.0f, 1.0f };
+				capsuleMesh.vertices.push_back(vertex);
+			}
+		}
+	}
+
+	for (size_t i = 1; i < capsuleMesh.vertices.size(); i++) {
+		if (i % (nbLongLat / 4 + 1) != 0) {
+			capsuleMesh.indices.push_back(static_cast<uint32_t>(i) - 1);
+			capsuleMesh.indices.push_back(static_cast<uint32_t>(i));
+		}
+	}
+
+	size_t baseVertexCount = capsuleMesh.vertices.size();
+
+	const float baseTipDistance = (tip - base).length();
+
+	// Tip
+	std::vector<uint32_t> tipFinal;
+	for (float theta = 0.0f; theta < 2.0f * pi; theta += thetaStep) {
+		for (float phi = 0.0f; phi < pi / 2.0f; phi += phiStep) {
+			Vertex vertex;
+			vertex.position = { (radius * std::cos(theta) * std::sin(phi)) + base.x,
+				(radius * std::cos(phi)) + base.y + baseTipDistance,
+				(radius * std::sin(theta) * std::sin(phi)) + base.z };
+			vertex.color = { 0.0f, 0.0f, 1.0f };
+			capsuleMesh.vertices.push_back(vertex);
+		}
+		tipFinal.push_back(static_cast<uint32_t>(capsuleMesh.vertices.size() - 1));
+	}
+
+	for (size_t i = baseVertexCount; i < capsuleMesh.vertices.size(); i++) {
+		if (i % (nbLongLat / 4 + 1) != 0) {
+			capsuleMesh.indices.push_back(static_cast<uint32_t>(i) - 1);
+			capsuleMesh.indices.push_back(static_cast<uint32_t>(i));
+		}
+	}
+
+	// Connect base and tip
+	for (size_t i = 0; i < baseFinal.size(); i++) {
+		capsuleMesh.indices.push_back(baseFinal[i]);
+		capsuleMesh.indices.push_back(tipFinal[i]);
+	}
+
+	return load(capsuleMesh);
 }
 
 extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface* createModule() {
