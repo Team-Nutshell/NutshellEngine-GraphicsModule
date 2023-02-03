@@ -1278,8 +1278,7 @@ bool NtshEngn::GraphicsModule::recreateGraphicsPipeline() {
 	return true;
 }
 
-void NtshEngn::GraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain)
-{
+void NtshEngn::GraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
 	VkSurfaceCapabilitiesKHR surfaceCapabilities = getSurfaceCapabilities();
 	uint32_t minImageCount = surfaceCapabilities.minImageCount + 1;
 	if (surfaceCapabilities.maxImageCount > 0 && minImageCount > surfaceCapabilities.maxImageCount) {
