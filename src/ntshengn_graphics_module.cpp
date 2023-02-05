@@ -258,6 +258,20 @@ void NtshEngn::GraphicsModule::init() {
 	m_vkCmdBeginRenderingKHR = (PFN_vkCmdBeginRenderingKHR)vkGetDeviceProcAddr(m_device, "vkCmdBeginRenderingKHR");
 	m_vkCmdEndRenderingKHR = (PFN_vkCmdEndRenderingKHR)vkGetDeviceProcAddr(m_device, "vkCmdEndRenderingKHR");
 
+	// Initialize VMA
+	VmaAllocatorCreateInfo vmaAllocatorCreateInfo = {};
+	vmaAllocatorCreateInfo.flags = 0;
+	vmaAllocatorCreateInfo.physicalDevice = m_physicalDevice;
+	vmaAllocatorCreateInfo.device = m_device;
+	vmaAllocatorCreateInfo.preferredLargeHeapBlockSize = 0;
+	vmaAllocatorCreateInfo.pAllocationCallbacks = nullptr;
+	vmaAllocatorCreateInfo.pDeviceMemoryCallbacks = nullptr;
+	vmaAllocatorCreateInfo.pHeapSizeLimit = nullptr;
+	vmaAllocatorCreateInfo.pVulkanFunctions = nullptr;
+	vmaAllocatorCreateInfo.instance = m_instance;
+	vmaAllocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_1;
+	NTSHENGN_VK_CHECK(vmaCreateAllocator(&vmaAllocatorCreateInfo, &m_allocator));
+
 	// Create the swapchain
 	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		createSwapchain(VK_NULL_HANDLE);
@@ -321,20 +335,6 @@ void NtshEngn::GraphicsModule::init() {
 		imageViewCreateInfo.subresourceRange.layerCount = 1;
 		NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &imageViewCreateInfo, nullptr, &m_drawImageView));
 	}
-
-	// Initialize VMA
-	VmaAllocatorCreateInfo vmaAllocatorCreateInfo = {};
-	vmaAllocatorCreateInfo.flags = 0;
-	vmaAllocatorCreateInfo.physicalDevice = m_physicalDevice;
-	vmaAllocatorCreateInfo.device = m_device;
-	vmaAllocatorCreateInfo.preferredLargeHeapBlockSize = 0;
-	vmaAllocatorCreateInfo.pAllocationCallbacks = nullptr;
-	vmaAllocatorCreateInfo.pDeviceMemoryCallbacks = nullptr;
-	vmaAllocatorCreateInfo.pHeapSizeLimit = nullptr;
-	vmaAllocatorCreateInfo.pVulkanFunctions = nullptr;
-	vmaAllocatorCreateInfo.instance = m_instance;
-	vmaAllocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_1;
-	NTSHENGN_VK_CHECK(vmaCreateAllocator(&vmaAllocatorCreateInfo, &m_allocator));
 
 	createVertexAndIndexBuffers();
 
@@ -811,9 +811,6 @@ void NtshEngn::GraphicsModule::destroy() {
 	vmaDestroyBuffer(m_allocator, m_indexBuffer, m_indexBufferAllocation);
 	vmaDestroyBuffer(m_allocator, m_vertexBuffer, m_vertexBufferAllocation);
 
-	// Destroy VMA Allocator
-	vmaDestroyAllocator(m_allocator);
-
 	// Destroy swapchain
 	if (m_swapchain != VK_NULL_HANDLE) {
 		for (VkImageView& swapchainImageView : m_swapchainImageViews) {
@@ -826,6 +823,9 @@ void NtshEngn::GraphicsModule::destroy() {
 		vkDestroyImageView(m_device, m_drawImageView, nullptr);
 		vmaDestroyImage(m_allocator, m_drawImage, m_drawImageAllocation);
 	}
+
+	// Destroy VMA Allocator
+	vmaDestroyAllocator(m_allocator);
 
 	// Destroy device
 	vkDestroyDevice(m_device, nullptr);
