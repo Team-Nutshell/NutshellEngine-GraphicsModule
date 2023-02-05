@@ -198,7 +198,7 @@ void main() {
 	const vec2 newUv = (2.0 * (uv * dim) - dim) / pC.height;
 	vec3 d = cameraMatrix * normalize(vec3(newUv, 2.0));
 
-	vec3 color = render(pC.cameraPosition, d);
+	vec3 color = render(vec3(-pC.cameraPosition.x, pC.cameraPosition.yz), d);
 	
 	outColor = vec4(color, 1.0);
 }
