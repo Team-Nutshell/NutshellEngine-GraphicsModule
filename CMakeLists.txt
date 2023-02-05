@@ -32,8 +32,6 @@ set(HEADERS ${MODULE_HEADERS})
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES} ${HEADERS})
 
-target_include_directories(${PROJECT_NAME} PRIVATE external/nml)
-
 target_link_libraries(${PROJECT_NAME} PRIVATE NutshellEngine::Module NutshellEngine::Common Vulkan::Vulkan VulkanMemoryAllocator nml)
 
 target_compile_options(${PROJECT_NAME} PRIVATE
