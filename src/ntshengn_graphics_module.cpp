@@ -2088,7 +2088,6 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		descriptorSetAllocateInfo.descriptorPool = m_descriptorPool;
 		descriptorSetAllocateInfo.descriptorSetCount = 1;
 		descriptorSetAllocateInfo.pSetLayouts = &m_descriptorSetLayout;
-
 		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_descriptorSets[i]));
 	}
 
