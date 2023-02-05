@@ -9,8 +9,8 @@ set(NTSHENGN_DEFINES "")
 
 add_subdirectory(external/Module)
 add_subdirectory(external/Common)
-
 add_subdirectory(external/glslang)
+add_subdirectory(external/nml)
 
 if(NOT CMAKE_VERSION VERSION_LESS 3.7.0)
 	find_package(Vulkan)
@@ -34,7 +34,7 @@ add_library(${PROJECT_NAME} SHARED ${SOURCES} ${HEADERS})
 
 target_include_directories(${PROJECT_NAME} PUBLIC external/glslang)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE NutshellEngine::Module NutshellEngine::Common glslang SPIRV Vulkan::Vulkan)
+target_link_libraries(${PROJECT_NAME} PRIVATE NutshellEngine::Module NutshellEngine::Common glslang SPIRV Vulkan::Vulkan nml)
 
 target_compile_options(${PROJECT_NAME} PRIVATE
 	$<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>

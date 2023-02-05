@@ -82,6 +82,12 @@ namespace NtshEngn {
 		// On window resize
 		void resize();
 
+	public:
+		const ComponentMask getComponentMask() const;
+
+		void onEntityComponentAdded(Entity entity, Component componentID);
+		void onEntityComponentRemoved(Entity entity, Component componentID);
+
 	private:
 		VkInstance m_instance;
 #if defined(NTSHENGN_DEBUG)
@@ -150,16 +156,7 @@ namespace NtshEngn {
 		uint32_t m_framesInFlight;
 		uint32_t m_currentFrameInFlight;
 
-		bool m_mouseMiddleMode = true;
-		const float m_cameraSpeed = 0.0015f;
-		const float m_mouseSensitivity = 0.12f;
-		int m_prevMouseX = 0;
-		int m_prevMouseY = 0;
-		float m_yaw = 0.0f;
-		float m_pitch = 0.0f;
-
-		float m_cameraPosition[3] = { 0.0f, 1.0f, -2.0f };
-		float m_cameraDirection[3] = { 0.0f, 0.0f, 1.0f };
+		Entity m_mainCamera = std::numeric_limits<uint32_t>::max();
 	};
 
 }

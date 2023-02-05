@@ -12,3 +12,5 @@ Place ``raymarching.frag``, ``raymarching_helper.glsl`` and ``scene.glsl``, foun
 - ``scene.glsl`` is included by ``raymarching.frag`` and contains the scene, with objects, materials, camera and lights, used to draw.
 
 Compilation errors are written in the console.
+
+Uses NutshellEngine's ECS.

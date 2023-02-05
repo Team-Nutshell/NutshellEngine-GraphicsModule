@@ -2,6 +2,7 @@
 #include "../external/Module/utils/ntshengn_dynamic_library.h"
 #include "../external/Common/module_interfaces/ntshengn_window_module_interface.h"
 #include "../external/Common/utils/ntshengn_utils_file.h"
+#include "../external/nml/include/nml.h"
 #include <limits>
 #include <array>
 #include <chrono>
@@ -257,11 +258,6 @@ void NtshEngn::GraphicsModule::init() {
 	// Create the swapchain
 	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		createSwapchain(VK_NULL_HANDLE);
-
-		m_prevMouseX = m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW) / 2;
-		m_prevMouseY = m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW) / 2;
-		m_windowModule->setCursorPosition(NTSHENGN_MAIN_WINDOW, m_prevMouseX, m_prevMouseY);
-		m_windowModule->setCursorVisibility(NTSHENGN_MAIN_WINDOW, !m_mouseMiddleMode);
 	}
 	// Or create an image to draw on
 	else {
@@ -579,87 +575,16 @@ void NtshEngn::GraphicsModule::init() {
 }
 
 void NtshEngn::GraphicsModule::update(double dt) {
+	NTSHENGN_UNUSED(dt);
+
 	if (m_windowModule && !m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		// Do not update if the main window got closed
 		return;
 	}
 
-	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
-		// Update camera
-		if (m_windowModule->getKeyState(NTSHENGN_MAIN_WINDOW, NtshEngn::InputKeyboardKey::R) == NtshEngn::InputState::Pressed) {
-			m_mouseMiddleMode = !m_mouseMiddleMode;
-			m_windowModule->setCursorVisibility(NTSHENGN_MAIN_WINDOW, !m_windowModule->isCursorVisible(NTSHENGN_MAIN_WINDOW));
-			if (m_mouseMiddleMode) {
-				m_prevMouseX = m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW) / 2;
-				m_prevMouseY = m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW) / 2;
-				m_windowModule->setCursorPosition(NTSHENGN_MAIN_WINDOW, m_prevMouseX, m_prevMouseY);
-			}
-		}
-
-		if (m_mouseMiddleMode) {
-			const int mouseX = m_windowModule->getCursorPositionX(NTSHENGN_MAIN_WINDOW);
-			const int mouseY = m_windowModule->getCursorPositionY(NTSHENGN_MAIN_WINDOW);
-
-			m_prevMouseX = m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW) / 2;
-			m_prevMouseY = m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW) / 2;
-			m_windowModule->setCursorPosition(NTSHENGN_MAIN_WINDOW, m_prevMouseX, m_prevMouseY);
-
-			const float xOffset = (mouseX - m_prevMouseX) * m_mouseSensitivity;
-			const float yOffset = (mouseY - m_prevMouseY) * m_mouseSensitivity;
-
-			m_prevMouseX = mouseX;
-			m_prevMouseY = mouseY;
-
-			m_yaw = std::fmod(m_yaw + xOffset, 360.0f);
-			m_pitch = std::max(-89.0f, std::min(89.0f, m_pitch + yOffset));
-
-			float yawRad = -m_yaw * toRad;
-			float pitchRad = m_pitch * toRad;
-
-			m_cameraDirection[0] = std::cos(pitchRad) * std::cos(yawRad);
-			m_cameraDirection[1] = -std::sin(pitchRad);
-			m_cameraDirection[2] = std::cos(pitchRad) * std::sin(yawRad);
-			const float cameraDirectionLength = std::sqrt(m_cameraDirection[0] * m_cameraDirection[0] + m_cameraDirection[1] * m_cameraDirection[1] + m_cameraDirection[2] * m_cameraDirection[2]);
-			m_cameraDirection[0] /= cameraDirectionLength;
-			m_cameraDirection[1] /= cameraDirectionLength;
-			m_cameraDirection[2] /= cameraDirectionLength;
-		}
-
-		float cameraSpeed = m_cameraSpeed * static_cast<float>(dt);
-
-		if (m_windowModule->getKeyState(NTSHENGN_MAIN_WINDOW, NtshEngn::InputKeyboardKey::W) == NtshEngn::InputState::Held) {
-			m_cameraPosition[0] += m_cameraDirection[0] * cameraSpeed;
-			m_cameraPosition[1] += m_cameraDirection[1] * cameraSpeed;
-			m_cameraPosition[2] += m_cameraDirection[2] * cameraSpeed;
-		}
-		if (m_windowModule->getKeyState(NTSHENGN_MAIN_WINDOW, NtshEngn::InputKeyboardKey::S) == NtshEngn::InputState::Held) {
-			m_cameraPosition[0] -= m_cameraDirection[0] * cameraSpeed;
-			m_cameraPosition[1] -= m_cameraDirection[1] * cameraSpeed;
-			m_cameraPosition[2] -= m_cameraDirection[2] * cameraSpeed;
-		}
-		if (m_windowModule->getKeyState(NTSHENGN_MAIN_WINDOW, NtshEngn::InputKeyboardKey::A) == NtshEngn::InputState::Held) {
-			float t[3] = { -m_cameraDirection[2], 0.0, m_cameraDirection[0] };
-			const float tLength = std::sqrt(t[0] * t[0] + t[2] * t[2]);
-			t[0] /= tLength;
-			t[2] /= tLength;
-			m_cameraPosition[0] += t[0] * cameraSpeed;
-			m_cameraPosition[2] += t[2] * cameraSpeed;
-		}
-		if (m_windowModule->getKeyState(NTSHENGN_MAIN_WINDOW, NtshEngn::InputKeyboardKey::D) == NtshEngn::InputState::Held) {
-			float t[3] = { -m_cameraDirection[2], 0.0, m_cameraDirection[0] };
-			const float tLength = std::sqrt(t[0] * t[0] + t[2] * t[2]);
-			t[0] /= tLength;
-			t[2] /= tLength;
-			m_cameraPosition[0] -= t[0] * cameraSpeed;
-			m_cameraPosition[2] -= t[2] * cameraSpeed;
-		}
-		if (m_windowModule->getKeyState(NTSHENGN_MAIN_WINDOW, NtshEngn::InputKeyboardKey::Space) == NtshEngn::InputState::Held) {
-			m_cameraPosition[1] += cameraSpeed;
-		}
-		if (m_windowModule->getKeyState(NTSHENGN_MAIN_WINDOW, NtshEngn::InputKeyboardKey::Shift) == NtshEngn::InputState::Held) {
-			m_cameraPosition[1] -= cameraSpeed;
-		}
-	}
+	const NtshEngn::Transform& cameraTransform = m_ecs->getComponent<Transform>(m_mainCamera);
+	nml::vec4 cameraPosition = nml::vec4(cameraTransform.position.data(), 0.0f);
+	nml::vec4 cameraDirection = nml::vec4(cameraTransform.rotation.data(), 0.0f);
 
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_fences[m_currentFrameInFlight], VK_TRUE, std::numeric_limits<uint64_t>::max()));
 
@@ -676,7 +601,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	}
 	else {
 		const std::filesystem::path absolutePath = std::filesystem::absolute(std::filesystem::current_path());
-		NTSHENGN_MODULE_ERROR("Fragment shader \"raymarching.frag\" does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NTSHENGN_RESULT_MODULE_ERROR);
+		NTSHENGN_MODULE_ERROR("Fragment shader \"raymarching.frag\" does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NtshEngn::Result::ModuleError);
 	}
 	if (std::filesystem::exists(m_raymarchingHelperFileName)) {
 		fileLastModified = std::filesystem::last_write_time(m_raymarchingHelperFileName);
@@ -711,7 +636,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			resize();
 		}
 		else if (acquireNextImageResult != VK_SUCCESS && acquireNextImageResult != VK_SUBOPTIMAL_KHR) {
-			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.", NTSHENGN_RESULT_MODULE_ERROR);
+			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.", NtshEngn::Result::ModuleError);
 		}
 	}
 	else {
@@ -814,7 +739,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		vkCmdSetScissor(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_scissor);
 
 		// Push time constant
-		PushConstants pushConstants = { static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()) / 1000.0f, m_scissor.extent.width, m_scissor.extent.height, 0.0f, { m_cameraPosition[0], m_cameraPosition[1], m_cameraPosition[2], 0.0f }, { m_cameraDirection[0], m_cameraDirection[1], m_cameraDirection[2], 0.0f } };
+		PushConstants pushConstants = { static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()) / 1000.0f, m_scissor.extent.width, m_scissor.extent.height, 0.0f, { cameraPosition[0], cameraPosition[1], cameraPosition[2], 0.0f }, { cameraDirection[0], cameraDirection[1], cameraDirection[2], 0.0f } };
 		vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_graphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
 
 		// Draw
@@ -1391,6 +1316,29 @@ void NtshEngn::GraphicsModule::resize() {
 
 		// Recreate the swapchain
 		createSwapchain(m_swapchain);
+	}
+}
+
+const NtshEngn::ComponentMask NtshEngn::GraphicsModule::getComponentMask() const {
+	ComponentMask componentMask;
+	componentMask.set(m_ecs->getComponentId<Camera>());
+
+	return componentMask;
+}
+
+void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component componentID) {
+	if (componentID == m_ecs->getComponentId<Camera>()) {
+		if (m_mainCamera == std::numeric_limits<uint32_t>::max()) {
+			m_mainCamera = entity;
+		}
+	}
+}
+
+void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component componentID) {
+	if (componentID == m_ecs->getComponentId<Camera>()) {
+		if (m_mainCamera == entity) {
+			m_mainCamera = std::numeric_limits<uint32_t>::max();
+		}
 	}
 }
 
