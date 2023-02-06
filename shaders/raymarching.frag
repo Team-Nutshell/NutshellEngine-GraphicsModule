@@ -1,9 +1,21 @@
 #version 460
 #extension GL_GOOGLE_include_directive : enable
 
+struct Light {
+	vec3 position;
+	vec3 direction;
+	vec3 color;
+	vec2 cutoffs;
+};
+
 layout(location = 0) in vec2 uv;
 
 layout(location = 0) out vec4 outColor;
+
+layout(set = 0, binding = 0) restrict readonly buffer Lights {
+	uvec3 count;
+	Light info[];
+} lights;
 
 layout(push_constant) uniform PushConstants {
 	float time;
@@ -144,7 +156,6 @@ float ambientOcclusion(vec3 p, vec3 n) {
 
 // Render
 vec3 render(vec3 o, vec3 d) {
-	Light l[LIGHTS_COUNT] = lights();
 	const float fogDensity = 0.0008;
 
 	float frac = 1.0;
@@ -165,8 +176,27 @@ vec3 render(vec3 o, vec3 d) {
 			const float ao = ambientOcclusion(p, n);
 
 			// Local color
-			for (int i = 0; i < LIGHTS_COUNT; i++) {
-				localColor += shade(p, d, n, l[i].position, l[i].color, diffuse, metallic, roughness) * shadows(p, n, l[i].position);
+			uint lightIndex = 0;
+			for (int i = 0; i < lights.count.x; i++) {
+				vec3 l = vec3(-lights.info[lightIndex].position.x, lights.info[lightIndex].position.y + 100.0, lights.info[lightIndex].position.z);
+				vec3 lc = lights.info[lightIndex].color;
+				localColor += shade(p, d, n, l, lc, diffuse, metallic, roughness) * shadows(p, n, l);
+
+				lightIndex++;
+			}
+			for (int i = 0; i < lights.count.y; i++) {
+				vec3 l = vec3(-lights.info[lightIndex].position.x, lights.info[lightIndex].position.y + 100.0, lights.info[lightIndex].position.z);
+				vec3 lc = lights.info[lightIndex].color;
+				localColor += shade(p, d, n, l, lc, diffuse, metallic, roughness) * shadows(p, n, l);
+
+				lightIndex++;
+			}
+			for (int i = 0; i < lights.count.z; i++) {
+				vec3 l = vec3(-lights.info[lightIndex].position.x, lights.info[lightIndex].position.y + 100.0, lights.info[lightIndex].position.z);
+				vec3 lc = lights.info[lightIndex].color;
+				localColor += shade(p, d, n, l, lc, diffuse, metallic, roughness) * shadows(p, n, l);
+
+				lightIndex++;
 			}
 			localColor *= ao;
 			localColor = mix(localColor, background(p), 1.0 - exp(-fogDensity * object.dist * object.dist));

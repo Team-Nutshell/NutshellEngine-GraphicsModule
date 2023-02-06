@@ -6,13 +6,15 @@
 #include "../external/glslang/glslang/Include/ShHandle.h"
 #include "../external/glslang/SPIRV/GlslangToSpv.h"
 #include "../external/glslang/StandAlone/DirStackFileIncluder.h"
+#include "../external/nml/include/nml.h"
 #if defined(NTSHENGN_OS_WINDOWS)
 #define VK_USE_PLATFORM_WIN32_KHR
 #elif defined(NTSHENGN_OS_LINUX)
 #define VK_USE_PLATFORM_XLIB_KHR
 #endif
-#include "vulkan/vulkan.h"
+#include "../external/VulkanMemoryAllocator/include/vk_mem_alloc.h"
 #include <vector>
+#include <set>
 #include <filesystem>
 
 #define NTSHENGN_VK_CHECK(f) \
@@ -49,6 +51,20 @@ struct PushConstants {
 	float cameraPosition[4];
 	float cameraDirection[4];
 };
+
+struct InternalLight {
+	nml::vec4 position = { 0.0f, 0.0f, 0.0f, 0.0f };
+	nml::vec4 direction = { 0.0f, 0.0f, 0.0f, 0.0f };
+	nml::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
+	nml::vec4 cutoffs = { 0.0f, 0.0f, 0.0f, 0.0f };
+};
+
+struct InternalLights {
+	std::set<NtshEngn::Entity> directionalLights;
+	std::set<NtshEngn::Entity> pointLights;
+	std::set<NtshEngn::Entity> spotLights;
+};
+
 
 namespace NtshEngn {
 
@@ -100,7 +116,7 @@ namespace NtshEngn {
 		VkSurfaceKHR m_surface = VK_NULL_HANDLE;
 
 		VkPhysicalDevice m_physicalDevice;
-		uint32_t m_graphicsQueueIndex;
+		uint32_t m_graphicsQueueFamilyIndex;
 		VkQueue m_graphicsQueue;
 		VkDevice m_device;
 
@@ -113,8 +129,10 @@ namespace NtshEngn {
 		VkFormat m_swapchainFormat;
 
 		VkImage m_drawImage;
+		VmaAllocation m_drawImageAllocation;
 		VkImageView m_drawImageView;
-		VkDeviceMemory m_drawImageMemory;
+
+		VmaAllocator m_allocator;
 
 		bool m_glslangInitialized = false;
 		const std::string m_fragmentShaderName = "raymarching.frag";
@@ -141,6 +159,10 @@ namespace NtshEngn {
 		VkPipeline m_graphicsPipeline = VK_NULL_HANDLE;
 		VkPipelineLayout m_graphicsPipelineLayout;
 
+		VkDescriptorSetLayout m_descriptorSetLayout;
+		VkDescriptorPool m_descriptorPool;
+		std::vector<VkDescriptorSet> m_descriptorSets;
+
 		std::vector<VkCommandPool> m_renderingCommandPools;
 		std::vector<VkCommandBuffer> m_renderingCommandBuffers;
 
@@ -155,6 +177,11 @@ namespace NtshEngn {
 		uint32_t m_imageCount;
 		uint32_t m_framesInFlight;
 		uint32_t m_currentFrameInFlight;
+
+		std::vector<VkBuffer> m_lightBuffers;
+		std::vector<VmaAllocation> m_lightBufferAllocations;
+
+		InternalLights m_lights;
 
 		Entity m_mainCamera = std::numeric_limits<uint32_t>::max();
 	};

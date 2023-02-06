@@ -30,13 +30,3 @@ mat3 camera() {
 
 	return mat3(right, -realUp, forward);
 }
-
-#define LIGHTS_COUNT 2
-// Light
-Light[LIGHTS_COUNT] lights() {
-	Light l[LIGHTS_COUNT];
-	l[0] = Light(vec3(sin(pC.time), 1.0, cos(pC.time)), vec3(1.0, 1.0, 1.0));
-	l[1] = Light(vec3(cos(pC.time), 1.0, sin(pC.time)), vec3(1.0, 1.0, 1.0));
-
-	return l;
-}

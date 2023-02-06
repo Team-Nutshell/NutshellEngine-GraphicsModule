@@ -2,7 +2,6 @@
 #include "../external/Module/utils/ntshengn_dynamic_library.h"
 #include "../external/Common/module_interfaces/ntshengn_window_module_interface.h"
 #include "../external/Common/utils/ntshengn_utils_file.h"
-#include "../external/nml/include/nml.h"
 #include <limits>
 #include <array>
 #include <chrono>
@@ -184,12 +183,12 @@ void NtshEngn::GraphicsModule::init() {
 	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyPropertyCount, nullptr);
 	std::vector<VkQueueFamilyProperties> queueFamilyProperties(queueFamilyPropertyCount);
 	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyPropertyCount, queueFamilyProperties.data());
-	m_graphicsQueueIndex = 0;
+	m_graphicsQueueFamilyIndex = 0;
 	for (const VkQueueFamilyProperties& queueFamilyProperty : queueFamilyProperties) {
 		if (queueFamilyProperty.queueCount > 0 && queueFamilyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
 			if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 				VkBool32 presentSupport;
-				vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsQueueIndex, m_surface, &presentSupport);
+				vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsQueueFamilyIndex, m_surface, &presentSupport);
 				if (presentSupport) {
 					break;
 				}
@@ -198,7 +197,7 @@ void NtshEngn::GraphicsModule::init() {
 				break;
 			}
 		}
-		m_graphicsQueueIndex++;
+		m_graphicsQueueFamilyIndex++;
 	}
 
 	// Create a queue supporting graphics
@@ -207,7 +206,7 @@ void NtshEngn::GraphicsModule::init() {
 	deviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 	deviceQueueCreateInfo.pNext = nullptr;
 	deviceQueueCreateInfo.flags = 0;
-	deviceQueueCreateInfo.queueFamilyIndex = m_graphicsQueueIndex;
+	deviceQueueCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
 	deviceQueueCreateInfo.queueCount = 1;
 	deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
 
@@ -248,12 +247,26 @@ void NtshEngn::GraphicsModule::init() {
 	deviceCreateInfo.pEnabledFeatures = nullptr;
 	NTSHENGN_VK_CHECK(vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device));
 
-	vkGetDeviceQueue(m_device, m_graphicsQueueIndex, 0, &m_graphicsQueue);
+	vkGetDeviceQueue(m_device, m_graphicsQueueFamilyIndex, 0, &m_graphicsQueue);
 
 	// Get functions
 	m_vkCmdPipelineBarrier2KHR = (PFN_vkCmdPipelineBarrier2KHR)vkGetDeviceProcAddr(m_device, "vkCmdPipelineBarrier2KHR");
 	m_vkCmdBeginRenderingKHR = (PFN_vkCmdBeginRenderingKHR)vkGetDeviceProcAddr(m_device, "vkCmdBeginRenderingKHR");
 	m_vkCmdEndRenderingKHR = (PFN_vkCmdEndRenderingKHR)vkGetDeviceProcAddr(m_device, "vkCmdEndRenderingKHR");
+
+	// Initialize VMA
+	VmaAllocatorCreateInfo vmaAllocatorCreateInfo = {};
+	vmaAllocatorCreateInfo.flags = 0;
+	vmaAllocatorCreateInfo.physicalDevice = m_physicalDevice;
+	vmaAllocatorCreateInfo.device = m_device;
+	vmaAllocatorCreateInfo.preferredLargeHeapBlockSize = 0;
+	vmaAllocatorCreateInfo.pAllocationCallbacks = nullptr;
+	vmaAllocatorCreateInfo.pDeviceMemoryCallbacks = nullptr;
+	vmaAllocatorCreateInfo.pHeapSizeLimit = nullptr;
+	vmaAllocatorCreateInfo.pVulkanFunctions = nullptr;
+	vmaAllocatorCreateInfo.instance = m_instance;
+	vmaAllocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_1;
+	NTSHENGN_VK_CHECK(vmaCreateAllocator(&vmaAllocatorCreateInfo, &m_allocator));
 
 	// Create the swapchain
 	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
@@ -295,33 +308,10 @@ void NtshEngn::GraphicsModule::init() {
 		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		NTSHENGN_VK_CHECK(vkCreateImage(m_device, &imageCreateInfo, nullptr, &m_drawImage));
 
-		// Allocate memory for the image
-		VkMemoryRequirements memoryRequirements;
-		vkGetImageMemoryRequirements(m_device, m_drawImage, &memoryRequirements);
+		VmaAllocationCreateInfo imageAllocationCreateInfo = {};
+		imageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-		VkPhysicalDeviceMemoryProperties memoryProperties = getMemoryProperties();
-		uint32_t memoryTypeIndex = memoryProperties.memoryTypeCount;
-		for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++) {
-			uint32_t memoryTypeBits = (1 << i);
-			bool isRequiredMemoryType = memoryRequirements.memoryTypeBits & memoryTypeBits;
-
-			VkMemoryPropertyFlags properties = memoryProperties.memoryTypes[i].propertyFlags;
-			bool hasRequiredProperties = (properties & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-
-			if (isRequiredMemoryType && hasRequiredProperties) {
-				memoryTypeIndex = i;
-			}
-		}
-		NTSHENGN_ASSERT(memoryTypeIndex < memoryProperties.memoryTypeCount);
-
-		VkMemoryAllocateInfo memoryAllocateInfo = {};
-		memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		memoryAllocateInfo.pNext = nullptr;
-		memoryAllocateInfo.allocationSize = 268435456;
-		memoryAllocateInfo.memoryTypeIndex = memoryTypeIndex;
-		NTSHENGN_VK_CHECK(vkAllocateMemory(m_device, &memoryAllocateInfo, nullptr, &m_drawImageMemory));
-
-		NTSHENGN_VK_CHECK(vkBindImageMemory(m_device, m_drawImage, m_drawImageMemory, 0));
+		NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &imageCreateInfo, &imageAllocationCreateInfo, &m_drawImage, &m_drawImageAllocation, nullptr));
 
 		// Create the image view
 		VkImageViewCreateInfo imageViewCreateInfo = {};
@@ -342,6 +332,22 @@ void NtshEngn::GraphicsModule::init() {
 		imageViewCreateInfo.subresourceRange.layerCount = 1;
 		NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &imageViewCreateInfo, nullptr, &m_drawImageView));
 	}
+
+	VkDescriptorSetLayoutBinding lightsDescriptorSetLayoutBinding = {};
+	lightsDescriptorSetLayoutBinding.binding = 0;
+	lightsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	lightsDescriptorSetLayoutBinding.descriptorCount = 1;
+	lightsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	lightsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	std::array<VkDescriptorSetLayoutBinding, 1> descriptorSetLayoutBindings = { lightsDescriptorSetLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptorSetLayoutCreateInfo.pNext = nullptr;
+	descriptorSetLayoutCreateInfo.flags = 0;
+	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size());
+	descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
+	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_descriptorSetLayout));
 
 	// Create graphics pipeline
 	const std::vector<uint32_t> vertexShaderCode = { 0x07230203,0x00010000,0x0008000b,0x0000002c,0x00000000,0x00020011,0x00000001,0x0006000b,
@@ -419,8 +425,8 @@ void NtshEngn::GraphicsModule::init() {
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutCreateInfo.pNext = nullptr;
 	pipelineLayoutCreateInfo.flags = 0;
-	pipelineLayoutCreateInfo.setLayoutCount = 0;
-	pipelineLayoutCreateInfo.pSetLayouts = nullptr;
+	pipelineLayoutCreateInfo.setLayoutCount = 1;
+	pipelineLayoutCreateInfo.pSetLayouts = &m_descriptorSetLayout;
 	pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
 	pipelineLayoutCreateInfo.pPushConstantRanges = &fragmentShaderPushConstantRange;
 	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_graphicsPipelineLayout));
@@ -525,6 +531,79 @@ void NtshEngn::GraphicsModule::init() {
 	}
 	recreateGraphicsPipeline();
 
+	// Create light storage buffer
+	m_lightBuffers.resize(m_framesInFlight);
+	m_lightBufferAllocations.resize(m_framesInFlight);
+	VkBufferCreateInfo lightBufferCreateInfo = {};
+	lightBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	lightBufferCreateInfo.pNext = nullptr;
+	lightBufferCreateInfo.flags = 0;
+	lightBufferCreateInfo.size = 32768;
+	lightBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+	lightBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	lightBufferCreateInfo.queueFamilyIndexCount = 1;
+	lightBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+
+	VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
+	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &lightBufferCreateInfo, &bufferAllocationCreateInfo, &m_lightBuffers[i], &m_lightBufferAllocations[i], nullptr));
+	}
+
+	// Create descriptor pool
+	VkDescriptorPoolSize lightsDescriptorPoolSize = {};
+	lightsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	lightsDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	std::array<VkDescriptorPoolSize, 1> descriptorPoolSizes = { lightsDescriptorPoolSize };
+	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
+	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	descriptorPoolCreateInfo.pNext = nullptr;
+	descriptorPoolCreateInfo.flags = 0;
+	descriptorPoolCreateInfo.maxSets = m_framesInFlight;
+	descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(descriptorPoolSizes.size());
+	descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes.data();
+	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool));
+
+	// Allocate descriptor sets
+	m_descriptorSets.resize(m_framesInFlight);
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
+		descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		descriptorSetAllocateInfo.pNext = nullptr;
+		descriptorSetAllocateInfo.descriptorPool = m_descriptorPool;
+		descriptorSetAllocateInfo.descriptorSetCount = 1;
+		descriptorSetAllocateInfo.pSetLayouts = &m_descriptorSetLayout;
+		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_descriptorSets[i]));
+	}
+
+	// Update descriptor sets
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
+
+		VkDescriptorBufferInfo lightsDescriptorBufferInfo;
+		lightsDescriptorBufferInfo.buffer = m_lightBuffers[i];
+		lightsDescriptorBufferInfo.offset = 0;
+		lightsDescriptorBufferInfo.range = 32768;
+
+		VkWriteDescriptorSet lightsDescriptorWriteDescriptorSet = {};
+		lightsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		lightsDescriptorWriteDescriptorSet.pNext = nullptr;
+		lightsDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		lightsDescriptorWriteDescriptorSet.dstBinding = 0;
+		lightsDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		lightsDescriptorWriteDescriptorSet.descriptorCount = 1;
+		lightsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		lightsDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		lightsDescriptorWriteDescriptorSet.pBufferInfo = &lightsDescriptorBufferInfo;
+		lightsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(lightsDescriptorWriteDescriptorSet);
+
+		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+	}
+
 	// Resize buffers according to number of frames in flight and swapchain size
 	m_renderingCommandPools.resize(m_framesInFlight);
 	m_renderingCommandBuffers.resize(m_framesInFlight);
@@ -537,7 +616,7 @@ void NtshEngn::GraphicsModule::init() {
 	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	commandPoolCreateInfo.pNext = nullptr;
 	commandPoolCreateInfo.flags = 0;
-	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueIndex;
+	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
 
 	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
 	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -629,6 +708,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		}
 	}
 
+
 	uint32_t imageIndex = m_imageCount - 1;
 	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		VkResult acquireNextImageResult = vkAcquireNextImageKHR(m_device, m_swapchain, std::numeric_limits<uint64_t>::max(), m_imageAvailableSemaphores[m_currentFrameInFlight], VK_NULL_HANDLE, &imageIndex);
@@ -653,6 +733,50 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptySignalSubmitInfo, VK_NULL_HANDLE));
 	}
 
+	// Update lights buffer
+	void* data;
+	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_lightBufferAllocations[m_currentFrameInFlight], &data));
+	std::array<uint32_t, 4> lightsCount = { static_cast<uint32_t>(m_lights.directionalLights.size()), static_cast<uint32_t>(m_lights.pointLights.size()), static_cast<uint32_t>(m_lights.spotLights.size()), 0 };
+	memcpy(data, lightsCount.data(), 4 * sizeof(uint32_t));
+
+	size_t offset = sizeof(nml::vec4);
+	for (Entity light : m_lights.directionalLights) {
+		const Light& lightLight = m_ecs->getComponent<Light>(light);
+		const Transform& lightTransform = m_ecs->getComponent<Transform>(light);
+
+		InternalLight internalLight;
+		internalLight.direction = nml::vec4(lightTransform.rotation.data(), 0.0f);
+		internalLight.color = nml::vec4(lightLight.color.data(), 0.0f);
+
+		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
+		offset += sizeof(InternalLight);
+	}
+	for (Entity light : m_lights.pointLights) {
+		const Light& lightLight = m_ecs->getComponent<Light>(light);
+		const Transform& lightTransform = m_ecs->getComponent<Transform>(light);
+
+		InternalLight internalLight;
+		internalLight.position = nml::vec4(lightTransform.position.data(), 0.0f);
+		internalLight.color = nml::vec4(lightLight.color.data(), 0.0f);
+
+		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
+		offset += sizeof(InternalLight);
+	}
+	for (Entity light : m_lights.spotLights) {
+		const Light& lightLight = m_ecs->getComponent<Light>(light);
+		const Transform& lightTransform = m_ecs->getComponent<Transform>(light);
+
+		InternalLight internalLight;
+		internalLight.position = nml::vec4(lightTransform.position.data(), 0.0f);
+		internalLight.direction = nml::vec4(lightTransform.rotation.data(), 0.0f);
+		internalLight.color = nml::vec4(lightLight.color.data(), 0.0f);
+		internalLight.cutoffs = nml::vec4(lightTransform.scale.data(), 0.0f, 0.0f);
+
+		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
+		offset += sizeof(InternalLight);
+	}
+	vmaUnmapMemory(m_allocator, m_lightBufferAllocations[m_currentFrameInFlight]);
+
 	// Record rendering commands
 	NTSHENGN_VK_CHECK(vkResetCommandPool(m_device, m_renderingCommandPools[m_currentFrameInFlight], 0));
 
@@ -673,8 +797,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueIndex;
-	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueIndex;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		undefinedToColorAttachmentOptimalImageMemoryBarrier.image = m_swapchainImages[imageIndex];
 	}
@@ -699,6 +823,9 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	undefinedToColorAttachmentOptimalDependencyInfo.pImageMemoryBarriers = &undefinedToColorAttachmentOptimalImageMemoryBarrier;
 
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &undefinedToColorAttachmentOptimalDependencyInfo);
+
+	// Bind descriptor set 0
+	vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipelineLayout, 0, 1, &m_descriptorSets[m_currentFrameInFlight], 0, nullptr);
 
 	// Begin rendering
 	VkRenderingAttachmentInfo renderingAttachmentInfo = {};
@@ -760,8 +887,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.dstAccessMask = 0;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueIndex;
-		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueIndex;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.image = m_swapchainImages[imageIndex];
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -853,6 +980,14 @@ void NtshEngn::GraphicsModule::destroy() {
 		vkDestroyCommandPool(m_device, m_renderingCommandPools[i], nullptr);
 	}
 
+	// Destroy lights buffers
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		vmaDestroyBuffer(m_allocator, m_lightBuffers[i], m_lightBufferAllocations[i]);
+	}
+
+	// Destroy descriptor pool
+	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
+
 	// Destroy graphics pipeline
 	vkDestroyShaderModule(m_device, m_vertexShaderModule, nullptr);
 	if (m_fragmentShaderModule != VK_NULL_HANDLE) {
@@ -862,6 +997,9 @@ void NtshEngn::GraphicsModule::destroy() {
 	if (m_graphicsPipeline != VK_NULL_HANDLE) {
 		vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
 	}
+
+	// Destroy descriptor set layout
+	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
 
 	// Destroy swapchain
 	if (m_swapchain != VK_NULL_HANDLE) {
@@ -873,9 +1011,11 @@ void NtshEngn::GraphicsModule::destroy() {
 	// Or destroy the image
 	else {
 		vkDestroyImageView(m_device, m_drawImageView, nullptr);
-		vkDestroyImage(m_device, m_drawImage, nullptr);
-		vkFreeMemory(m_device, m_drawImageMemory, nullptr);
+		vmaDestroyImage(m_allocator, m_drawImage, m_drawImageAllocation);
 	}
+
+	// Destroy VMA Allocator
+	vmaDestroyAllocator(m_allocator);
 
 	// Destroy device
 	vkDestroyDevice(m_device, nullptr);
@@ -1322,6 +1462,7 @@ void NtshEngn::GraphicsModule::resize() {
 const NtshEngn::ComponentMask NtshEngn::GraphicsModule::getComponentMask() const {
 	ComponentMask componentMask;
 	componentMask.set(m_ecs->getComponentId<Camera>());
+	componentMask.set(m_ecs->getComponentId<Light>());
 
 	return componentMask;
 }
@@ -1332,12 +1473,54 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 			m_mainCamera = entity;
 		}
 	}
+	else if (componentID == m_ecs->getComponentId<Light>()) {
+		const Light& light = m_ecs->getComponent<Light>(entity);
+
+		switch (light.type) {
+		case LightType::Directional:
+			m_lights.directionalLights.insert(entity);
+			break;
+
+		case LightType::Point:
+			m_lights.pointLights.insert(entity);
+			break;
+
+		case LightType::Spot:
+			m_lights.spotLights.insert(entity);
+			break;
+
+		default: // Arbitrarily consider it a directional light
+			m_lights.directionalLights.insert(entity);
+			break;
+		}
+	}
 }
 
 void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component componentID) {
 	if (componentID == m_ecs->getComponentId<Camera>()) {
 		if (m_mainCamera == entity) {
 			m_mainCamera = std::numeric_limits<uint32_t>::max();
+		}
+	}
+	else if (componentID == m_ecs->getComponentId<Light>()) {
+		const Light& light = m_ecs->getComponent<Light>(entity);
+
+		switch (light.type) {
+		case LightType::Directional:
+			m_lights.directionalLights.erase(entity);
+			break;
+
+		case LightType::Point:
+			m_lights.pointLights.erase(entity);
+			break;
+
+		case LightType::Spot:
+			m_lights.spotLights.erase(entity);
+			break;
+
+		default: // Arbitrarily consider it a directional light
+			m_lights.directionalLights.erase(entity);
+			break;
 		}
 	}
 }

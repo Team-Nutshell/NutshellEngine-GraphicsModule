@@ -15,11 +15,6 @@ struct Object {
 	Material mat;
 };
 
-struct Light {
-	vec3 position;
-	vec3 color;
-};
-
 // Random functions
 float rand(float seed) {
 	return fract(sin(seed));
