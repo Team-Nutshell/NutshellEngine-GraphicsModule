@@ -32,7 +32,6 @@ set(HEADERS ${MODULE_HEADERS})
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES} ${HEADERS})
 
-target_include_directories(${PROJECT_NAME} PUBLIC external/glslang)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE NutshellEngine::Module NutshellEngine::Common glslang SPIRV Vulkan::Vulkan nml)
 
