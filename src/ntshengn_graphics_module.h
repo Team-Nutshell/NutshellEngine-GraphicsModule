@@ -14,6 +14,7 @@
 #include <vector>
 #include <limits>
 #include <unordered_map>
+#include <set>
 
 #define NTSHENGN_VK_CHECK(f) \
 	do { \
@@ -57,6 +58,19 @@ struct InternalObject {
 
 	size_t meshIndex = 0;
 	uint32_t textureIndex = 0;
+};
+
+struct InternalLight {
+	nml::vec4 position = { 0.0f, 0.0f, 0.0f, 0.0f };
+	nml::vec4 direction = { 0.0f, 0.0f, 0.0f, 0.0f };
+	nml::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
+	nml::vec4 cutoffs = { 0.0f, 0.0f, 0.0f, 0.0f };
+};
+
+struct InternalLights {
+	std::set<NtshEngn::Entity> directionalLights;
+	std::set<NtshEngn::Entity> pointLights;
+	std::set<NtshEngn::Entity> spotLights;
 };
 
 namespace NtshEngn {
@@ -189,6 +203,9 @@ namespace NtshEngn {
 		std::vector<VkBuffer> m_objectBuffers;
 		std::vector<VmaAllocation> m_objectBufferAllocations;
 
+		std::vector<VkBuffer> m_lightBuffers;
+		std::vector<VmaAllocation> m_lightBufferAllocations;
+
 		Mesh m_defaultMesh;
 		Image m_defaultTexture;
 
@@ -208,6 +225,8 @@ namespace NtshEngn {
 		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
 
 		Entity m_mainCamera = std::numeric_limits<uint32_t>::max();
+
+		InternalLights m_lights;
 	};
 
 }
