@@ -5,6 +5,8 @@
 
 namespace nml {
 
+struct mat4;
+
 //  xx | yx | zx
 // ----|----|----
 //  xy | yy | zy
@@ -17,15 +19,17 @@ struct mat3 {
 	
 	// Constructors
 	mat3();
-	mat3(float _xxxyxzyxyyyzzxzyzz);
+	mat3(float _value);
 	mat3(float _xx, float _xy, float _xz, float _yx, float _yy, float _yz, float _zx, float _zy, float _zz);
-	mat3(float _xx, float _xy, float _xz, float _yx, float _yy, float _yz, vec3 _zxzyzz);
-	mat3(float _xx, float _xy, float _xz, vec3 _yxyyyz, float _zx, float _zy, float _zz);
-	mat3(vec3 _xxxyxz, float _yx, float _yy, float _yz, float _zx, float _zy, float _zz);
-	mat3(float _xx, float _xy, float _xz, vec3 _yxyyyz, vec3 _zxzyzz);
-	mat3(vec3 _xxxyxz, vec3 _yxyyyz, float _zx, float _zy, float _zz);
-	mat3(vec3 _xxxyxz, float _yx, float _yy, float _yz, vec3 _zxzyzz);
-	mat3(vec3 _xxxyxz, vec3 _yxyyyz, vec3 _zxzyzz);
+	mat3(float _xx, float _xy, float _xz, float _yx, float _yy, float _yz, vec3 _z);
+	mat3(float _xx, float _xy, float _xz, vec3 _y, float _zx, float _zy, float _zz);
+	mat3(vec3 _x, float _yx, float _yy, float _yz, float _zx, float _zy, float _zz);
+	mat3(float _xx, float _xy, float _xz, vec3 _y, vec3 _z);
+	mat3(vec3 _x, vec3 _y, float _zx, float _zy, float _zz);
+	mat3(vec3 _x, float _yx, float _yy, float _yz, vec3 _z);
+	mat3(vec3 _x, vec3 _y, vec3 _z);
+	mat3(const float* _ptr);
+	mat3(mat4 _mat);
 
 	// Operators
 	mat3& operator+=(const mat3& other);

@@ -1,12 +1,17 @@
 #include "../include/vec2.h"
+#include "../include/vec3.h"
+#include "../include/vec4.h"
 #include <cmath>
 #include <stdexcept>
 
 namespace nml {
 
 vec2::vec2(): x(0.0f), y(0.0f) {}
-vec2::vec2(float _xy): x(_xy), y(_xy) {}
+vec2::vec2(float _value): x(_value), y(_value) {}
 vec2::vec2(float _x, float _y): x(_x), y(_y) {}
+vec2::vec2(const float* _ptr): x(*_ptr), y(*(_ptr + 1)) {}
+vec2::vec2(vec3 _xyz): x(_xyz.x), y(_xyz.y) {}
+vec2::vec2(vec4 _xyzw): x(_xyzw.x), y(_xyzw.y) {}
 
 vec2& vec2::operator+=(const vec2& other) { 
 	x += other.x;

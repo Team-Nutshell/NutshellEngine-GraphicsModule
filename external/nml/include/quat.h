@@ -15,6 +15,7 @@ struct quat {
     // Constructors
     quat();
     quat(float _a, float _b, float _c, float _d);
+    quat(const float* _ptr);
 
     // Operators
     quat& operator+=(const quat& other);

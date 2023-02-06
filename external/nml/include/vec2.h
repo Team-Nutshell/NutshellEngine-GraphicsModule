@@ -3,6 +3,9 @@
 
 namespace nml {
 
+struct vec3;
+struct vec4;
+
 // x | y
 struct vec2 {
 	float x;
@@ -10,8 +13,11 @@ struct vec2 {
 	
 	// Constructors
 	vec2();
-	vec2(float _xy);
+	vec2(float _value);
 	vec2(float _x, float _y);
+	vec2(const float* _ptr);
+	vec2(vec3 _xyz);
+	vec2(vec4 _xyzw);
 
 	// Operators
 	vec2& operator+=(const vec2& other);

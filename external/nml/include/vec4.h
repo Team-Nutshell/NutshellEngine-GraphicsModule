@@ -15,7 +15,7 @@ struct vec4 {
 	
 	// Constructors
 	vec4();
-	vec4(float _xyzw);
+	vec4(float _value);
 	vec4(float _x, float _y, float _z, float _w);
 	vec4(float _x, vec3 _yzw);
 	vec4(vec3 _xyz, float _w);
@@ -23,6 +23,7 @@ struct vec4 {
 	vec4(float _x, vec2 _yz, float _w);
 	vec4(vec2 _xy, float _z, float _w);
 	vec4(vec2 _xy, vec2 _zw);
+	vec4(const float* _ptr);
 
 	// Operators
 	vec4& operator+=(const vec4& other);
