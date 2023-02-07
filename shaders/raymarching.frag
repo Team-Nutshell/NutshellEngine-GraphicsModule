@@ -177,24 +177,33 @@ vec3 render(vec3 o, vec3 d) {
 
 			// Local color
 			uint lightIndex = 0;
+			// Directional Light
 			for (int i = 0; i < lights.count.x; i++) {
-				vec3 l = vec3(-lights.info[lightIndex].position.x, lights.info[lightIndex].position.y + 100.0, lights.info[lightIndex].position.z);
+				vec3 l = normalize(-vec3(-lights.info[lightIndex].direction.x, lights.info[lightIndex].direction.yz));
 				vec3 lc = lights.info[lightIndex].color;
 				localColor += shade(p, d, n, l, lc, diffuse, metallic, roughness) * shadows(p, n, l);
 
 				lightIndex++;
 			}
+			// Point Light
 			for (int i = 0; i < lights.count.y; i++) {
-				vec3 l = vec3(-lights.info[lightIndex].position.x, lights.info[lightIndex].position.y + 100.0, lights.info[lightIndex].position.z);
-				vec3 lc = lights.info[lightIndex].color;
+				vec3 l = normalize(vec3(-lights.info[lightIndex].position.x, lights.info[lightIndex].position.yz) - p);
+				float distance = length(vec3(-lights.info[lightIndex].position.x, lights.info[lightIndex].position.yz) - p);
+				float attenuation = 1.0 / (distance * distance);
+				vec3 lc = lights.info[lightIndex].color * attenuation;
 				localColor += shade(p, d, n, l, lc, diffuse, metallic, roughness) * shadows(p, n, l);
 
 				lightIndex++;
 			}
+			// Spot Light
 			for (int i = 0; i < lights.count.z; i++) {
-				vec3 l = vec3(-lights.info[lightIndex].position.x, lights.info[lightIndex].position.y + 100.0, lights.info[lightIndex].position.z);
+				vec3 l = normalize(vec3(-lights.info[lightIndex].position.x, lights.info[lightIndex].position.yz) - p);
+				vec3 ld = vec3(-lights.info[lightIndex].direction.x, lights.info[lightIndex].direction.yz);
+				float theta = dot(l, normalize(-ld));
+				float epsilon = cos(lights.info[lightIndex].cutoffs.y - lights.info[lightIndex].cutoffs.x);
+				float intensity = clamp((theta - cos(lights.info[lightIndex].cutoffs.x)) / epsilon, 0.0, 1.0);
 				vec3 lc = lights.info[lightIndex].color;
-				localColor += shade(p, d, n, l, lc, diffuse, metallic, roughness) * shadows(p, n, l);
+				localColor += shade(p, d * intensity, n, l, lc * intensity, diffuse, metallic, roughness) * shadows(p, n, l);
 
 				lightIndex++;
 			}
