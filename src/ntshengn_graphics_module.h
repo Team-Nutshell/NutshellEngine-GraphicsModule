@@ -53,11 +53,20 @@ struct InternalTexture {
 	uint32_t samplerIndex = 0;
 };
 
+struct InternalMaterial {
+	uint32_t diffuseTextureIndex = 0;
+	uint32_t normalTextureIndex = 1;
+	uint32_t metalnessTextureIndex = 2;
+	uint32_t roughnessTextureIndex = 3;
+	uint32_t occlusionTextureIndex = 4;
+	uint32_t emissiveTextureIndex = 5;
+};
+
 struct InternalObject {
 	uint32_t index;
 
 	size_t meshIndex = 0;
-	uint32_t textureIndex = 0;
+	uint32_t materialIndex = 0;
 };
 
 struct InternalLight {
@@ -203,11 +212,19 @@ namespace NtshEngn {
 		std::vector<VkBuffer> m_objectBuffers;
 		std::vector<VmaAllocation> m_objectBufferAllocations;
 
+		std::vector<VkBuffer> m_materialBuffers;
+		std::vector<VmaAllocation> m_materialBufferAllocations;
+
 		std::vector<VkBuffer> m_lightBuffers;
 		std::vector<VmaAllocation> m_lightBufferAllocations;
 
 		Mesh m_defaultMesh;
-		Image m_defaultTexture;
+		Image m_defaultDiffuseTexture;
+		Image m_defaultNormalTexture;
+		Image m_defaultMetalnessTexture;
+		Image m_defaultRoughnessTexture;
+		Image m_defaultOcclusionTexture;
+		Image m_defaultEmissiveTexture;
 
 		std::vector<InternalMesh> m_meshes;
 		int32_t m_currentVertexOffset = 0;
@@ -220,6 +237,8 @@ namespace NtshEngn {
 		std::vector<VkSampler> m_textureSamplers;
 		std::unordered_map<const Image*, uint32_t> m_imageAddresses;
 		std::vector<InternalTexture> m_textures;
+
+		std::vector<InternalMaterial> m_materials;
 
 		std::unordered_map<Entity, InternalObject> m_objects;
 		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
