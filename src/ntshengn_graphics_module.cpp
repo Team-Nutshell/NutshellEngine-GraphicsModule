@@ -943,7 +943,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			resize();
 		}
 		else if (queuePresentResult != VK_SUCCESS) {
-			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.", NTSHENGN_RESULT_MODULE_ERROR);
+			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.", NtshEngn::Result::ModuleError);
 		}
 	}
 	else {
@@ -1117,7 +1117,7 @@ std::vector<uint32_t> NtshEngn::GraphicsModule::compileFragmentShader() {
 
 	if (!std::filesystem::exists(m_fragmentShaderName)) {
 		const std::filesystem::path absolutePath = std::filesystem::absolute(std::filesystem::current_path());
-		NTSHENGN_MODULE_ERROR("Fragment shader raymarching.frag does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NTSHENGN_RESULT_MODULE_ERROR);
+		NTSHENGN_MODULE_ERROR("Fragment shader raymarching.frag does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NtshEngn::Result::ModuleError);
 	}
 	std::string shaderCode = NtshEngn::readAscii(m_fragmentShaderName);
 	const char* shaderCodeCharPtr = shaderCode.c_str();
