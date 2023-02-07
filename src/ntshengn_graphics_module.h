@@ -42,6 +42,14 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBits
 
 const float toRad = 3.1415926535897932384626433832795f / 180.0f;
 
+enum class ShaderType {
+	Vertex,
+	TesselationControl,
+	TesselationEvaluation,
+	Geometry,
+	Fragment,
+};
+
 struct InternalMesh {
 	uint32_t indexCount;
 	uint32_t firstIndex;
@@ -122,6 +130,9 @@ namespace NtshEngn {
 		// Depth image creation
 		void createDepthImage();
 
+		// Shader compilation
+		std::vector<uint32_t> compileShader(const std::string& shaderCode, ShaderType type);
+
 		// Graphics pipeline creation
 		void createGraphicsPipeline();
 
@@ -182,6 +193,8 @@ namespace NtshEngn {
 		VmaAllocation m_vertexBufferAllocation;
 		VkBuffer m_indexBuffer;
 		VmaAllocation m_indexBufferAllocation;
+
+		bool m_glslangInitialized = false;
 
 		VkPipeline m_graphicsPipeline;
 		VkPipelineLayout m_graphicsPipelineLayout;
