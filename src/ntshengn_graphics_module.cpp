@@ -1039,7 +1039,7 @@ NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image& image) {
 	size_t numComponents = 4;
 	size_t sizeComponent = 1;
 
-	if (image.colorSpace == NtshEngn::ImageColorSpace::Linear) {
+	if (image.colorSpace == NtshEngn::ImageColorSpace::SRGB) {
 		switch (image.format) {
 		case NtshEngn::ImageFormat::R8:
 			imageFormat = VK_FORMAT_R8_SRGB;
