@@ -124,7 +124,7 @@ void NtshEngn::GraphicsModule::init() {
 	uint32_t deviceCount;
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
 	if (deviceCount == 0) {
-		NTSHENGN_MODULE_ERROR("Vulkan: Found no suitable GPU.", NTSHENGN_RESULT_UNKNOWN_ERROR);
+		NTSHENGN_MODULE_ERROR("Vulkan: Found no suitable GPU.", NtshEngn::Result::ModuleError);
 	}
 	std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, physicalDevices.data());
@@ -521,7 +521,7 @@ void NtshEngn::GraphicsModule::init() {
 	}
 	else {
 		const std::filesystem::path absolutePath = std::filesystem::absolute(std::filesystem::current_path());
-		NTSHENGN_MODULE_ERROR("Fragment shader \"raymarching.frag\" does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NTSHENGN_RESULT_MODULE_ERROR);
+		NTSHENGN_MODULE_ERROR("Fragment shader \"raymarching.frag\" does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NtshEngn::Result::ModuleError);
 	}
 	if (std::filesystem::exists(m_raymarchingHelperFileName)) {
 		m_raymarchingHelperLastModified = std::filesystem::last_write_time(m_raymarchingHelperFileName);
