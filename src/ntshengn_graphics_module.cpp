@@ -124,7 +124,7 @@ void NtshEngn::GraphicsModule::init() {
 	uint32_t deviceCount;
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
 	if (deviceCount == 0) {
-		NTSHENGN_MODULE_ERROR("Vulkan: Found no suitable GPU.", NTSHENGN_RESULT_UNKNOWN_ERROR);
+		NTSHENGN_MODULE_ERROR("Vulkan: Found no suitable GPU.", NtshEngn::Result::ModuleError);
 	}
 	std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, physicalDevices.data());
@@ -538,7 +538,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			resize();
 		}
 		else if (acquireNextImageResult != VK_SUCCESS && acquireNextImageResult != VK_SUBOPTIMAL_KHR) {
-			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.", NTSHENGN_RESULT_MODULE_ERROR);
+			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.", NtshEngn::Result::ModuleError);
 		}
 	}
 	else {
@@ -838,7 +838,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			resize();
 		}
 		else if (queuePresentResult != VK_SUCCESS) {
-			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.", NTSHENGN_RESULT_MODULE_ERROR);
+			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.", NtshEngn::Result::ModuleError);
 		}
 	}
 	else {
