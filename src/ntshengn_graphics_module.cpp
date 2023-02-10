@@ -186,7 +186,7 @@ void NtshEngn::GraphicsModule::init() {
 	ComPtr<ID3DBlob> vertexShaderError;
 	if (FAILED(D3DCompile(vertexShaderCode.c_str(), vertexShaderCode.size(), nullptr, nullptr, nullptr, "main", "vs_5_0", shaderCompileFlags, 0, &vertexShader, &vertexShaderError))) {
 		std::string shaderCompilationError(reinterpret_cast<const char*>(vertexShaderError->GetBufferPointer()), vertexShaderError->GetBufferSize());
-		NTSHENGN_MODULE_ERROR("Vertex shader compilation failed:\n" + shaderCompilationError, NTSHENGN_RESULT_MODULE_ERROR);
+		NTSHENGN_MODULE_ERROR("Vertex shader compilation failed:\n" + shaderCompilationError, NtshEngn::Result::ModuleError);
 	}
 
 	const std::string pixelShaderCode = R"HLSL(
@@ -203,7 +203,7 @@ void NtshEngn::GraphicsModule::init() {
 	ComPtr<ID3DBlob> pixelShaderError;
 	if (FAILED(D3DCompile(pixelShaderCode.c_str(), pixelShaderCode.size(), nullptr, nullptr, nullptr, "main", "ps_5_0", shaderCompileFlags, 0, &pixelShader, &pixelShaderError))) {
 		std::string shaderCompilationError(reinterpret_cast<const char*>(pixelShaderError->GetBufferPointer()), pixelShaderError->GetBufferSize());
-		NTSHENGN_MODULE_ERROR("Pixel shader compilation failed:\n" + shaderCompilationError, NTSHENGN_RESULT_MODULE_ERROR);
+		NTSHENGN_MODULE_ERROR("Pixel shader compilation failed:\n" + shaderCompilationError, NtshEngn::Result::ModuleError);
 	}
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC graphicsPipelineStateDesc = {};
