@@ -94,23 +94,22 @@ void NtshEngn::GraphicsModule::init() {
 
 	// Create surface for the initial logical device creation
 #if defined(NTSHENGN_OS_WINDOWS)
-	HWND windowHandle = m_windowModule->getNativeHandle(m_perWindowResources[0].windowId);
+	HWND windowHandle = reinterpret_cast<HWND>(m_windowModule->getNativeHandle(m_perWindowResources[0].windowId));
 	VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
 	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 	surfaceCreateInfo.pNext = nullptr;
 	surfaceCreateInfo.flags = 0;
-	surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(GetWindowLongPtr(windowHandle, GWLP_HINSTANCE));
+	surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(m_windowModule->getNativeAdditionalInformation(m_perWindowResources[0].windowId));
 	surfaceCreateInfo.hwnd = windowHandle;
 	auto createWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateWin32SurfaceKHR");
 	NTSHENGN_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_perWindowResources[0].surface));
 #elif defined(NTSHENGN_OS_LINUX)
-	m_display = XOpenDisplay(NULL);
-	Window windowHandle = m_windowModule->getNativeHandle(m_perWindowResources[0].windowId);
+	Window windowHandle = reinterpret_cast<Window>(m_windowModule->getNativeHandle(m_perWindowResources[0].windowId));
 	VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
 	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
 	surfaceCreateInfo.pNext = nullptr;
 	surfaceCreateInfo.flags = 0;
-	surfaceCreateInfo.dpy = m_display;
+	surfaceCreateInfo.dpy = reinterpret_cast<Display*>(m_windowModule->getNativeAdditionalInformation(m_perWindowResources[0].windowId));;
 	surfaceCreateInfo.window = windowHandle;
 	auto createXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateXlibSurfaceKHR");
 	NTSHENGN_VK_CHECK(createXlibSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_perWindowResources[0].surface));
@@ -148,6 +147,8 @@ void NtshEngn::GraphicsModule::init() {
 	case VK_PHYSICAL_DEVICE_TYPE_CPU:
 		physicalDeviceType = "CPU";
 		break;
+	default:
+		physicalDeviceType = "Unknown";
 	}
 
 	std::string driverVersion = std::to_string(VK_API_VERSION_MAJOR(physicalDeviceProperties2.properties.driverVersion)) + "."
@@ -759,11 +760,6 @@ void NtshEngn::GraphicsModule::destroy() {
 	// Destroy device
 	vkDestroyDevice(m_device, nullptr);
 
-#if defined(NTSHENGN_OS_LINUX)
-	// Close X display
-	XCloseDisplay(m_display);
-#endif
-
 #if defined(NTSHENGN_DEBUG)
 	// Destroy debug messenger
 	auto destroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT");
@@ -951,24 +947,23 @@ void NtshEngn::GraphicsModule::createWindowResources(NtshEngn::WindowId windowId
 
 		// Create surface
 #if defined(NTSHENGN_OS_WINDOWS)
-		HWND windowHandle = m_windowModule->getNativeHandle(m_perWindowResources[index].windowId);
+		HWND windowHandle = reinterpret_cast<HWND>(m_windowModule->getNativeHandle(m_perWindowResources[index].windowId));
 		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.pNext = nullptr;
 		surfaceCreateInfo.flags = 0;
-		surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(GetWindowLongPtr(windowHandle, GWLP_HINSTANCE));
+		surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(m_windowModule->getNativeAdditionalInformation(m_perWindowResources[index].windowId));
 		surfaceCreateInfo.hwnd = windowHandle;
 		auto createWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateWin32SurfaceKHR");
 		NTSHENGN_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_perWindowResources[index].surface));
 #elif defined(NTSHENGN_OS_LINUX)
 		for (size_t i = 0; i < m_windowIds.size(); i++) {
-			m_display = XOpenDisplay(NULL);
-			Window windowHandle = m_windowModule->getNativeHandle(m_perWindowResources[index].windowId);
+			Window windowHandle = reinterpret_cast<Window>(m_windowModule->getNativeHandle(m_perWindowResources[index].windowId));
 			VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
 			surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
 			surfaceCreateInfo.pNext = nullptr;
 			surfaceCreateInfo.flags = 0;
-			surfaceCreateInfo.dpy = m_display;
+			surfaceCreateInfo.dpy = reinterpret_cast<Display*>(m_windowModule->getNativeAdditionalInformation(m_perWindowResources[index].windowId));;
 			surfaceCreateInfo.window = windowHandle;
 			auto createXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateXlibSurfaceKHR");
 			NTSHENGN_VK_CHECK(createXlibSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_perWindowResources[index].surface));

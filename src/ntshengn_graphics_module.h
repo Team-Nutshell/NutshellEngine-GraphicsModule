@@ -10,6 +10,10 @@
 #define VK_USE_PLATFORM_XLIB_KHR
 #endif
 #include "vulkan/vulkan.h"
+#if defined(NTSHENGN_OS_LINUX)
+#undef None
+#undef Success
+#endif
 #include <vector>
 
 #define NTSHENGN_VK_CHECK(f) \
@@ -82,10 +86,6 @@ namespace NtshEngn {
 		VkInstance m_instance;
 #if defined(NTSHENGN_DEBUG)
 		VkDebugUtilsMessengerEXT m_debugMessenger;
-#endif
-
-#if defined(NTSHENGN_OS_LINUX)
-		Display* m_display = nullptr;
 #endif
 
 		VkPhysicalDevice m_physicalDevice;
