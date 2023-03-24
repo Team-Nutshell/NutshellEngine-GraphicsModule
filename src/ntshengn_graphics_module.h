@@ -9,6 +9,8 @@
 #define VK_USE_PLATFORM_XLIB_KHR
 #endif
 #include "vulkan/vulkan.h"
+#undef None
+#undef Success
 #include <vector>
 
 #define NTSHENGN_VK_CHECK(f) \
