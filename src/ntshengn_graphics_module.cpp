@@ -147,6 +147,8 @@ void NtshEngn::GraphicsModule::init() {
 	case VK_PHYSICAL_DEVICE_TYPE_CPU:
 		physicalDeviceType = "CPU";
 		break;
+	default:
+		physicalDeviceType = "Unknown";
 	}
 
 	std::string driverVersion = std::to_string(VK_API_VERSION_MAJOR(physicalDeviceProperties2.properties.driverVersion)) + "."
