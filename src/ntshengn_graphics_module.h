@@ -11,6 +11,10 @@
 #define VK_USE_PLATFORM_XLIB_KHR
 #endif
 #include "../external/VulkanMemoryAllocator/include/vk_mem_alloc.h"
+#if defined(NTSHENGN_OS_LINUX)
+#undef None
+#undef Success
+#endif
 #include <vector>
 #include <limits>
 #include <unordered_map>
@@ -161,9 +165,6 @@ namespace NtshEngn {
 		VkDebugUtilsMessengerEXT m_debugMessenger;
 #endif
 
-#if defined(NTSHENGN_OS_LINUX)
-		Display* m_display = nullptr;
-#endif
 		VkSurfaceKHR m_surface = VK_NULL_HANDLE;
 
 		VkPhysicalDevice m_physicalDevice;
