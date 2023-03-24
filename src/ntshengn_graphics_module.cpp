@@ -70,7 +70,7 @@ void NtshEngn::GraphicsModule::init() {
 		swapchainDesc.Scaling = DXGI_SCALING_NONE;
 		swapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 		swapchainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-		NTSHENGN_DX12_CHECK(m_factory->CreateSwapChainForHwnd(m_commandQueue.Get(), m_windowModule->getNativeHandle(NTSHENGN_MAIN_WINDOW), &swapchainDesc, nullptr, nullptr, &swapchain));
+		NTSHENGN_DX12_CHECK(m_factory->CreateSwapChainForHwnd(m_commandQueue.Get(), reinterpret_cast<HWND>(m_windowModule->getNativeHandle(NTSHENGN_MAIN_WINDOW)), &swapchainDesc, nullptr, nullptr, &swapchain));
 
 		NTSHENGN_DX12_CHECK(swapchain.As(&m_swapchain));
 		m_frameIndex = m_swapchain->GetCurrentBackBufferIndex();
