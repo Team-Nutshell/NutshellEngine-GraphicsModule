@@ -70,9 +70,6 @@ namespace NtshEngn {
 		VkDebugUtilsMessengerEXT m_debugMessenger;
 #endif
 
-#if defined(NTSHENGN_OS_LINUX)
-		Display* m_display = nullptr;
-#endif
 		VkSurfaceKHR m_surface = VK_NULL_HANDLE;
 
 		VkPhysicalDevice m_physicalDevice;
