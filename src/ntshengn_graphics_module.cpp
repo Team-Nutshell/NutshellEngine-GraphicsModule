@@ -97,7 +97,7 @@ void NtshEngn::GraphicsModule::init() {
 	// Create surface
 	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 #if defined(NTSHENGN_OS_WINDOWS)
-		HWND windowHandle = m_windowModule->getNativeHandle(NTSHENGN_MAIN_WINDOW);
+		HWND windowHandle = reinterpret_cast<HWND>(m_windowModule->getNativeHandle(NTSHENGN_MAIN_WINDOW));
 		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.pNext = nullptr;
@@ -108,12 +108,11 @@ void NtshEngn::GraphicsModule::init() {
 		NTSHENGN_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
 #elif defined(NTSHENGN_OS_LINUX)
 		Window windowHandle = reinterpret_cast<Window>(m_windowModule->getNativeHandle(NTSHENGN_MAIN_WINDOW));
-		Display* windowDisplay = reinterpret_cast<Display*>(m_windowModule->getNativeAdditionalInformation(NTSHENGN_MAIN_WINDOW));
 		VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.pNext = nullptr;
 		surfaceCreateInfo.flags = 0;
-		surfaceCreateInfo.dpy = windowDisplay;
+		surfaceCreateInfo.dpy = reinterpret_cast<Display*>(m_windowModule->getNativeAdditionalInformation(NTSHENGN_MAIN_WINDOW));;
 		surfaceCreateInfo.window = windowHandle;
 		auto createXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateXlibSurfaceKHR");
 		NTSHENGN_VK_CHECK(createXlibSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
