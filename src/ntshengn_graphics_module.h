@@ -134,9 +134,6 @@ namespace NtshEngn {
 		// Color image creation
 		void createColorImage();
 
-		// Depth image creation
-		void createDepthImage();
-
 		// Shader compilation
 		std::vector<uint32_t> compileShader(const std::string& shaderCode, ShaderType type);
 

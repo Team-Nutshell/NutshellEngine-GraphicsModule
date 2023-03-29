@@ -129,9 +129,17 @@ void NtshEngn::GraphicsModule::init() {
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, physicalDevices.data());
 	m_physicalDevice = physicalDevices[0];
 
+	VkPhysicalDeviceRayTracingPipelinePropertiesKHR physicalDeviceRayTracingPipelineProperties = {};
+	physicalDeviceRayTracingPipelineProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
+	physicalDeviceRayTracingPipelineProperties.pNext = nullptr;
+
+	VkPhysicalDeviceAccelerationStructurePropertiesKHR physicalDeviceAccelerationStructureProperties = {};
+	physicalDeviceAccelerationStructureProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR;
+	physicalDeviceAccelerationStructureProperties.pNext = &physicalDeviceRayTracingPipelineProperties;
+
 	VkPhysicalDeviceProperties2 physicalDeviceProperties2 = {};
 	physicalDeviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-	physicalDeviceProperties2.pNext = nullptr;
+	physicalDeviceProperties2.pNext = &physicalDeviceAccelerationStructureProperties;
 	vkGetPhysicalDeviceProperties2(m_physicalDevice, &physicalDeviceProperties2);
 
 	std::string physicalDeviceType;
@@ -178,6 +186,12 @@ void NtshEngn::GraphicsModule::init() {
 	NTSHENGN_MODULE_INFO("Physical Device Vulkan API Version: " + std::to_string(VK_API_VERSION_MAJOR(physicalDeviceProperties2.properties.apiVersion)) + "."
 		+ std::to_string(VK_API_VERSION_MINOR(physicalDeviceProperties2.properties.apiVersion)) + "."
 		+ std::to_string(VK_API_VERSION_PATCH(physicalDeviceProperties2.properties.apiVersion)));
+	NTSHENGN_MODULE_INFO("Physical Device Raytracing capabilities:");
+	NTSHENGN_MODULE_INFO("Max Ray Recursion Depth: " + std::to_string(physicalDeviceRayTracingPipelineProperties.maxRayRecursionDepth));
+	NTSHENGN_MODULE_INFO("Max Ray Dispatch Invocation Count: " + std::to_string(physicalDeviceRayTracingPipelineProperties.maxRayDispatchInvocationCount));
+	NTSHENGN_MODULE_INFO("Max BLAS Count In TLAS: " + std::to_string(physicalDeviceAccelerationStructureProperties.maxInstanceCount));
+	NTSHENGN_MODULE_INFO("Max Geometry Count In BLAS: " + std::to_string(physicalDeviceAccelerationStructureProperties.maxGeometryCount));
+	NTSHENGN_MODULE_INFO("Max Triangle Or AABB Count In BLAS: " + std::to_string(physicalDeviceAccelerationStructureProperties.maxPrimitiveCount));
 
 	// Find a queue family supporting graphics
 	uint32_t queueFamilyPropertyCount;
@@ -246,6 +260,8 @@ void NtshEngn::GraphicsModule::init() {
 		"VK_KHR_depth_stencil_resolve", 
 		"VK_KHR_dynamic_rendering",
 		"VK_KHR_maintenance3",
+		"VK_KHR_shader_float_controls",
+		"VK_KHR_spirv_1_4",
 		"VK_EXT_descriptor_indexing",
 		"VK_KHR_ray_tracing_pipeline",
 		"VK_KHR_buffer_device_address",
@@ -2797,8 +2813,8 @@ void NtshEngn::GraphicsModule::resize() {
 		vkDestroyImageView(m_device, m_colorImageView, nullptr);
 		vmaDestroyImage(m_allocator, m_colorImage, m_colorImageAllocation);
 
-		// Recreate depth image
-		createDepthImage();
+		// Recreate color image
+		createColorImage();
 	}
 }
 
