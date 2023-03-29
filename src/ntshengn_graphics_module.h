@@ -98,7 +98,7 @@ namespace NtshEngn {
 
 	class GraphicsModule : public GraphicsModuleInterface {
 	public:
-		GraphicsModule() : GraphicsModuleInterface("NutshellEngine Graphics Vulkan ECS Module") {}
+		GraphicsModule() : GraphicsModuleInterface("NutshellEngine Graphics Vulkan Path Tracing Module") {}
 
 		void init();
 		void update(double dt);
@@ -130,6 +130,9 @@ namespace NtshEngn {
 
 		// Vertex and index buffers creation
 		void createVertexAndIndexBuffers();
+
+		// Color image creation
+		void createColorImage();
 
 		// Depth image creation
 		void createDepthImage();
@@ -184,9 +187,9 @@ namespace NtshEngn {
 		VmaAllocation m_drawImageAllocation;
 		VkImageView m_drawImageView;
 
-		VkImage m_depthImage;
-		VmaAllocation m_depthImageAllocation;
-		VkImageView m_depthImageView;
+		VkImage m_colorImage;
+		VmaAllocation m_colorImageAllocation;
+		VkImageView m_colorImageView;
 
 		VmaAllocator m_allocator;
 
@@ -215,6 +218,7 @@ namespace NtshEngn {
 		PFN_vkCmdBeginRenderingKHR m_vkCmdBeginRenderingKHR;
 		PFN_vkCmdEndRenderingKHR m_vkCmdEndRenderingKHR;
 		PFN_vkCmdPipelineBarrier2KHR m_vkCmdPipelineBarrier2KHR;
+		PFN_vkCmdTraceRaysKHR m_vkCmdTraceRaysKHR;
 
 		uint32_t m_imageCount;
 		uint32_t m_framesInFlight;

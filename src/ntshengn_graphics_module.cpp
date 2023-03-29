@@ -246,7 +246,11 @@ void NtshEngn::GraphicsModule::init() {
 		"VK_KHR_depth_stencil_resolve", 
 		"VK_KHR_dynamic_rendering",
 		"VK_KHR_maintenance3",
-		"VK_EXT_descriptor_indexing" };
+		"VK_EXT_descriptor_indexing",
+		"VK_KHR_ray_tracing_pipeline",
+		"VK_KHR_buffer_device_address",
+		"VK_KHR_deferred_host_operations",
+		"VK_KHR_acceleration_structure" };
 	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		deviceExtensions.push_back("VK_KHR_swapchain");
 	}
@@ -261,6 +265,7 @@ void NtshEngn::GraphicsModule::init() {
 	m_vkCmdPipelineBarrier2KHR = (PFN_vkCmdPipelineBarrier2KHR)vkGetDeviceProcAddr(m_device, "vkCmdPipelineBarrier2KHR");
 	m_vkCmdBeginRenderingKHR = (PFN_vkCmdBeginRenderingKHR)vkGetDeviceProcAddr(m_device, "vkCmdBeginRenderingKHR");
 	m_vkCmdEndRenderingKHR = (PFN_vkCmdEndRenderingKHR)vkGetDeviceProcAddr(m_device, "vkCmdEndRenderingKHR");
+	m_vkCmdTraceRaysKHR = (PFN_vkCmdTraceRaysKHR)vkGetDeviceProcAddr(m_device, "vkCmdTraceRaysKHR");
 
 	// Initialize VMA
 	VmaAllocatorCreateInfo vmaAllocatorCreateInfo = {};
@@ -342,7 +347,7 @@ void NtshEngn::GraphicsModule::init() {
 
 	createVertexAndIndexBuffers();
 
-	createDepthImage();
+	createColorImage();
 
 	VkDescriptorSetLayoutBinding cameraDescriptorSetLayoutBinding = {};
 	cameraDescriptorSetLayoutBinding.binding = 0;
@@ -731,19 +736,6 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	renderingSwapchainAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
 	renderingSwapchainAttachmentInfo.clearValue.depthStencil = { 0.0f, 0 };
 
-	VkRenderingAttachmentInfo renderingDepthAttachmentInfo = {};
-	renderingDepthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	renderingDepthAttachmentInfo.pNext = nullptr;
-	renderingDepthAttachmentInfo.imageView = m_depthImageView;
-	renderingDepthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	renderingDepthAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
-	renderingDepthAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
-	renderingDepthAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	renderingDepthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	renderingDepthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	renderingDepthAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
-	renderingDepthAttachmentInfo.clearValue.depthStencil = { 1.0f, 0 };
-
 	VkRenderingInfo renderingInfo = {};
 	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
 	renderingInfo.pNext = nullptr;
@@ -753,7 +745,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	renderingInfo.viewMask = 0;
 	renderingInfo.colorAttachmentCount = 1;
 	renderingInfo.pColorAttachments = &renderingSwapchainAttachmentInfo;
-	renderingInfo.pDepthAttachment = &renderingDepthAttachmentInfo;
+	renderingInfo.pDepthAttachment = nullptr;
 	renderingInfo.pStencilAttachment = nullptr;
 	m_vkCmdBeginRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight], &renderingInfo);
 
@@ -908,9 +900,9 @@ void NtshEngn::GraphicsModule::destroy() {
 	// Destroy descriptor set layout
 	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
 
-	// Destroy depth image and image view
-	vkDestroyImageView(m_device, m_depthImageView, nullptr);
-	vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
+	// Destroy color image and image view
+	vkDestroyImageView(m_device, m_colorImageView, nullptr);
+	vmaDestroyImage(m_allocator, m_colorImage, m_colorImageAllocation);
 
 	// Destroy samplers
 	for (size_t i = 0; i < m_textureSamplers.size(); i++) {
@@ -1765,137 +1757,137 @@ void NtshEngn::GraphicsModule::createVertexAndIndexBuffers() {
 	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_indexBuffer, &m_indexBufferAllocation, nullptr));
 }
 
-void NtshEngn::GraphicsModule::createDepthImage() {
-	VkImageCreateInfo depthImageCreateInfo = {};
-	depthImageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	depthImageCreateInfo.pNext = nullptr;
-	depthImageCreateInfo.flags = 0;
-	depthImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-	depthImageCreateInfo.format = VK_FORMAT_D32_SFLOAT;
+void NtshEngn::GraphicsModule::createColorImage() {
+	VkImageCreateInfo colorImageCreateInfo = {};
+	colorImageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	colorImageCreateInfo.pNext = nullptr;
+	colorImageCreateInfo.flags = 0;
+	colorImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	colorImageCreateInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
 	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
-		depthImageCreateInfo.extent.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW));
-		depthImageCreateInfo.extent.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW));
+		colorImageCreateInfo.extent.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW));
+		colorImageCreateInfo.extent.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW));
 	}
 	else {
-		depthImageCreateInfo.extent.width = 1280;
-		depthImageCreateInfo.extent.height = 720;
+		colorImageCreateInfo.extent.width = 1280;
+		colorImageCreateInfo.extent.height = 720;
 	}
-	depthImageCreateInfo.extent.depth = 1;
-	depthImageCreateInfo.mipLevels = 1;
-	depthImageCreateInfo.arrayLayers = 1;
-	depthImageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-	depthImageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-	depthImageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-	depthImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	depthImageCreateInfo.queueFamilyIndexCount = 1;
-	depthImageCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
-	depthImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	colorImageCreateInfo.extent.depth = 1;
+	colorImageCreateInfo.mipLevels = 1;
+	colorImageCreateInfo.arrayLayers = 1;
+	colorImageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	colorImageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	colorImageCreateInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT;
+	colorImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	colorImageCreateInfo.queueFamilyIndexCount = 1;
+	colorImageCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	colorImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-	VmaAllocationCreateInfo depthImageAllocationCreateInfo = {};
-	depthImageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+	VmaAllocationCreateInfo colorImageAllocationCreateInfo = {};
+	colorImageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &depthImageCreateInfo, &depthImageAllocationCreateInfo, &m_depthImage, &m_depthImageAllocation, nullptr));
+	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &colorImageCreateInfo, &colorImageAllocationCreateInfo, &m_colorImage, &m_colorImageAllocation, nullptr));
 
-	VkImageViewCreateInfo depthImageViewCreateInfo = {};
-	depthImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	depthImageViewCreateInfo.pNext = nullptr;
-	depthImageViewCreateInfo.flags = 0;
-	depthImageViewCreateInfo.image = m_depthImage;
-	depthImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	depthImageViewCreateInfo.format = VK_FORMAT_D32_SFLOAT;
-	depthImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
-	depthImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
-	depthImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
-	depthImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
-	depthImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-	depthImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-	depthImageViewCreateInfo.subresourceRange.levelCount = 1;
-	depthImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-	depthImageViewCreateInfo.subresourceRange.layerCount = 1;
-	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &depthImageViewCreateInfo, nullptr, &m_depthImageView));
+	VkImageViewCreateInfo colorImageViewCreateInfo = {};
+	colorImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	colorImageViewCreateInfo.pNext = nullptr;
+	colorImageViewCreateInfo.flags = 0;
+	colorImageViewCreateInfo.image = m_colorImage;
+	colorImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	colorImageViewCreateInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	colorImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+	colorImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+	colorImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+	colorImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+	colorImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	colorImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+	colorImageViewCreateInfo.subresourceRange.levelCount = 1;
+	colorImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+	colorImageViewCreateInfo.subresourceRange.layerCount = 1;
+	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &colorImageViewCreateInfo, nullptr, &m_colorImageView));
 
-	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-	VkCommandPool depthImageTransitionCommandPool;
+	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_GENERAL
+	VkCommandPool colorImageTransitionCommandPool;
 
-	VkCommandPoolCreateInfo depthImageTransitionCommandPoolCreateInfo = {};
-	depthImageTransitionCommandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	depthImageTransitionCommandPoolCreateInfo.pNext = nullptr;
-	depthImageTransitionCommandPoolCreateInfo.flags = 0;
-	depthImageTransitionCommandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
-	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &depthImageTransitionCommandPoolCreateInfo, nullptr, &depthImageTransitionCommandPool));
+	VkCommandPoolCreateInfo colorImageTransitionCommandPoolCreateInfo = {};
+	colorImageTransitionCommandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	colorImageTransitionCommandPoolCreateInfo.pNext = nullptr;
+	colorImageTransitionCommandPoolCreateInfo.flags = 0;
+	colorImageTransitionCommandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
+	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &colorImageTransitionCommandPoolCreateInfo, nullptr, &colorImageTransitionCommandPool));
 
-	VkCommandBuffer depthImageTransitionCommandBuffer;
+	VkCommandBuffer colorImageTransitionCommandBuffer;
 
-	VkCommandBufferAllocateInfo depthImageTransitionCommandBufferAllocateInfo = {};
-	depthImageTransitionCommandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	depthImageTransitionCommandBufferAllocateInfo.pNext = nullptr;
-	depthImageTransitionCommandBufferAllocateInfo.commandPool = depthImageTransitionCommandPool;
-	depthImageTransitionCommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	depthImageTransitionCommandBufferAllocateInfo.commandBufferCount = 1;
-	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &depthImageTransitionCommandBufferAllocateInfo, &depthImageTransitionCommandBuffer));
+	VkCommandBufferAllocateInfo colorImageTransitionCommandBufferAllocateInfo = {};
+	colorImageTransitionCommandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	colorImageTransitionCommandBufferAllocateInfo.pNext = nullptr;
+	colorImageTransitionCommandBufferAllocateInfo.commandPool = colorImageTransitionCommandPool;
+	colorImageTransitionCommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	colorImageTransitionCommandBufferAllocateInfo.commandBufferCount = 1;
+	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &colorImageTransitionCommandBufferAllocateInfo, &colorImageTransitionCommandBuffer));
 
-	VkCommandBufferBeginInfo depthImageTransitionBeginInfo = {};
-	depthImageTransitionBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	depthImageTransitionBeginInfo.pNext = nullptr;
-	depthImageTransitionBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-	depthImageTransitionBeginInfo.pInheritanceInfo = nullptr;
-	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(depthImageTransitionCommandBuffer, &depthImageTransitionBeginInfo));
+	VkCommandBufferBeginInfo colorImageTransitionBeginInfo = {};
+	colorImageTransitionBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	colorImageTransitionBeginInfo.pNext = nullptr;
+	colorImageTransitionBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	colorImageTransitionBeginInfo.pInheritanceInfo = nullptr;
+	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(colorImageTransitionCommandBuffer, &colorImageTransitionBeginInfo));
 
-	VkImageMemoryBarrier2 undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier = {};
-	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.pNext = nullptr;
-	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
-	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.srcAccessMask = 0;
-	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
-	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.image = m_depthImage;
-	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
-	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.subresourceRange.levelCount = 1;
-	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.subresourceRange.layerCount = 1;
+	VkImageMemoryBarrier2 undefinedToGeneralImageMemoryBarrier = {};
+	undefinedToGeneralImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	undefinedToGeneralImageMemoryBarrier.pNext = nullptr;
+	undefinedToGeneralImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+	undefinedToGeneralImageMemoryBarrier.srcAccessMask = 0;
+	undefinedToGeneralImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
+	undefinedToGeneralImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+	undefinedToGeneralImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	undefinedToGeneralImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+	undefinedToGeneralImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToGeneralImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToGeneralImageMemoryBarrier.image = m_colorImage;
+	undefinedToGeneralImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	undefinedToGeneralImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	undefinedToGeneralImageMemoryBarrier.subresourceRange.levelCount = 1;
+	undefinedToGeneralImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	undefinedToGeneralImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	VkDependencyInfo undefinedToDepthStencilAttachmentOptimalDependencyInfo = {};
-	undefinedToDepthStencilAttachmentOptimalDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-	undefinedToDepthStencilAttachmentOptimalDependencyInfo.pNext = nullptr;
-	undefinedToDepthStencilAttachmentOptimalDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-	undefinedToDepthStencilAttachmentOptimalDependencyInfo.memoryBarrierCount = 0;
-	undefinedToDepthStencilAttachmentOptimalDependencyInfo.pMemoryBarriers = nullptr;
-	undefinedToDepthStencilAttachmentOptimalDependencyInfo.bufferMemoryBarrierCount = 0;
-	undefinedToDepthStencilAttachmentOptimalDependencyInfo.pBufferMemoryBarriers = nullptr;
-	undefinedToDepthStencilAttachmentOptimalDependencyInfo.imageMemoryBarrierCount = 1;
-	undefinedToDepthStencilAttachmentOptimalDependencyInfo.pImageMemoryBarriers = &undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(depthImageTransitionCommandBuffer, &undefinedToDepthStencilAttachmentOptimalDependencyInfo);
+	VkDependencyInfo undefinedToGeneralDependencyInfo = {};
+	undefinedToGeneralDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	undefinedToGeneralDependencyInfo.pNext = nullptr;
+	undefinedToGeneralDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToGeneralDependencyInfo.memoryBarrierCount = 0;
+	undefinedToGeneralDependencyInfo.pMemoryBarriers = nullptr;
+	undefinedToGeneralDependencyInfo.bufferMemoryBarrierCount = 0;
+	undefinedToGeneralDependencyInfo.pBufferMemoryBarriers = nullptr;
+	undefinedToGeneralDependencyInfo.imageMemoryBarrierCount = 1;
+	undefinedToGeneralDependencyInfo.pImageMemoryBarriers = &undefinedToGeneralImageMemoryBarrier;
+	m_vkCmdPipelineBarrier2KHR(colorImageTransitionCommandBuffer, &undefinedToGeneralDependencyInfo);
 
-	NTSHENGN_VK_CHECK(vkEndCommandBuffer(depthImageTransitionCommandBuffer));
+	NTSHENGN_VK_CHECK(vkEndCommandBuffer(colorImageTransitionCommandBuffer));
 
-	VkFence depthImageTransitionFence;
+	VkFence colorImageTransitionFence;
 
-	VkFenceCreateInfo depthImageTransitionFenceCreateInfo = {};
-	depthImageTransitionFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	depthImageTransitionFenceCreateInfo.pNext = nullptr;
-	depthImageTransitionFenceCreateInfo.flags = 0;
-	NTSHENGN_VK_CHECK(vkCreateFence(m_device, &depthImageTransitionFenceCreateInfo, nullptr, &depthImageTransitionFence));
+	VkFenceCreateInfo colorImageTransitionFenceCreateInfo = {};
+	colorImageTransitionFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	colorImageTransitionFenceCreateInfo.pNext = nullptr;
+	colorImageTransitionFenceCreateInfo.flags = 0;
+	NTSHENGN_VK_CHECK(vkCreateFence(m_device, &colorImageTransitionFenceCreateInfo, nullptr, &colorImageTransitionFence));
 
-	VkSubmitInfo depthImageTransitionSubmitInfo = {};
-	depthImageTransitionSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	depthImageTransitionSubmitInfo.pNext = nullptr;
-	depthImageTransitionSubmitInfo.waitSemaphoreCount = 0;
-	depthImageTransitionSubmitInfo.pWaitSemaphores = nullptr;
-	depthImageTransitionSubmitInfo.pWaitDstStageMask = nullptr;
-	depthImageTransitionSubmitInfo.commandBufferCount = 1;
-	depthImageTransitionSubmitInfo.pCommandBuffers = &depthImageTransitionCommandBuffer;
-	depthImageTransitionSubmitInfo.signalSemaphoreCount = 0;
-	depthImageTransitionSubmitInfo.pSignalSemaphores = nullptr;
-	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &depthImageTransitionSubmitInfo, depthImageTransitionFence));
-	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &depthImageTransitionFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	VkSubmitInfo colorImageTransitionSubmitInfo = {};
+	colorImageTransitionSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	colorImageTransitionSubmitInfo.pNext = nullptr;
+	colorImageTransitionSubmitInfo.waitSemaphoreCount = 0;
+	colorImageTransitionSubmitInfo.pWaitSemaphores = nullptr;
+	colorImageTransitionSubmitInfo.pWaitDstStageMask = nullptr;
+	colorImageTransitionSubmitInfo.commandBufferCount = 1;
+	colorImageTransitionSubmitInfo.pCommandBuffers = &colorImageTransitionCommandBuffer;
+	colorImageTransitionSubmitInfo.signalSemaphoreCount = 0;
+	colorImageTransitionSubmitInfo.pSignalSemaphores = nullptr;
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &colorImageTransitionSubmitInfo, colorImageTransitionFence));
+	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &colorImageTransitionFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 
-	vkDestroyFence(m_device, depthImageTransitionFence, nullptr);
-	vkDestroyCommandPool(m_device, depthImageTransitionCommandPool, nullptr);
+	vkDestroyFence(m_device, colorImageTransitionFence, nullptr);
+	vkDestroyCommandPool(m_device, colorImageTransitionCommandPool, nullptr);
 }
 
 std::vector<uint32_t> NtshEngn::GraphicsModule::compileShader(const std::string& shaderCode, ShaderType type) {
@@ -2802,8 +2794,8 @@ void NtshEngn::GraphicsModule::resize() {
 		createSwapchain(m_swapchain);
 		
 		// Destroy depth image and image view
-		vkDestroyImageView(m_device, m_depthImageView, nullptr);
-		vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
+		vkDestroyImageView(m_device, m_colorImageView, nullptr);
+		vmaDestroyImage(m_allocator, m_colorImage, m_colorImageAllocation);
 
 		// Recreate depth image
 		createDepthImage();
