@@ -1937,6 +1937,30 @@ std::vector<uint32_t> NtshEngn::GraphicsModule::compileShader(const std::string&
 	case ShaderType::Fragment:
 		shaderType = EShLangFragment;
 		break;
+	
+	case ShaderType::RayGeneration:
+		shaderType = EShLangRayGen;
+		break;
+
+	case ShaderType::RayIntersection:
+		shaderType = EShLangIntersect;
+		break;
+
+	case ShaderType::RayAnyHit:
+		shaderType = EShLangAnyHit;
+		break;
+
+	case ShaderType::RayClosestHit:
+		shaderType = EShLangClosestHit;
+		break;
+
+	case ShaderType::RayMiss:
+		shaderType = EShLangMiss;
+		break;
+
+	case ShaderType::RayCallable:
+		shaderType = EShLangCallable;
+		break;
 	}
 
 	glslang::TShader shader(shaderType);

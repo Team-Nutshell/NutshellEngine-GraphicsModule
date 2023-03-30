@@ -52,6 +52,12 @@ enum class ShaderType {
 	TesselationEvaluation,
 	Geometry,
 	Fragment,
+	RayGeneration,
+	RayIntersection,
+	RayAnyHit,
+	RayClosestHit,
+	RayMiss,
+	RayCallable
 };
 
 struct InternalMesh {
