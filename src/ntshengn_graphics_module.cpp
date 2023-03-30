@@ -226,9 +226,19 @@ void NtshEngn::GraphicsModule::init() {
 	deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
 
 	// Enable features
+	VkPhysicalDeviceRayTracingPipelineFeaturesKHR physicalDeviceRayTracingPipelineFeatures = {};
+	physicalDeviceRayTracingPipelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+	physicalDeviceRayTracingPipelineFeatures.pNext = nullptr;
+	physicalDeviceRayTracingPipelineFeatures.rayTracingPipeline = VK_TRUE;
+
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR physicalDeviceAccelerationStructureFeatures = {};
+	physicalDeviceAccelerationStructureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+	physicalDeviceAccelerationStructureFeatures.pNext = &physicalDeviceRayTracingPipelineFeatures;
+	physicalDeviceAccelerationStructureFeatures.accelerationStructure = VK_TRUE;
+
 	VkPhysicalDeviceDescriptorIndexingFeatures physicalDeviceDescriptorIndexingFeatures = {};
 	physicalDeviceDescriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-	physicalDeviceDescriptorIndexingFeatures.pNext = nullptr;
+	physicalDeviceDescriptorIndexingFeatures.pNext = &physicalDeviceAccelerationStructureFeatures;
 	physicalDeviceDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
 	physicalDeviceDescriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing = VK_TRUE;
 	physicalDeviceDescriptorIndexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
