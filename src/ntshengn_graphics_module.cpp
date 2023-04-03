@@ -1019,46 +1019,71 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	memcpy(reinterpret_cast<char*>(data) + (mesh.vertices.size() * sizeof(NtshEngn::Vertex)), mesh.indices.data(), mesh.indices.size() * sizeof(uint32_t));
 	vmaUnmapMemory(m_allocator, vertexAndIndexStagingBufferAllocation);
 
-	// Copy staging buffer
-	VkCommandPool buffersCopyCommandPool;
+	// BLAS
+	VkAccelerationStructureGeometryTrianglesDataKHR accelerationStructureGeometryTrianglesData = {};
+	accelerationStructureGeometryTrianglesData.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
+	accelerationStructureGeometryTrianglesData.pNext = nullptr;
+	accelerationStructureGeometryTrianglesData.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+	accelerationStructureGeometryTrianglesData.vertexData.deviceAddress = m_vertexBufferDeviceAddress + (static_cast<size_t>(m_currentVertexOffset) * sizeof(NtshEngn::Vertex));
+	accelerationStructureGeometryTrianglesData.vertexStride = sizeof(Vertex);
+	accelerationStructureGeometryTrianglesData.maxVertex = static_cast<uint32_t>(mesh.vertices.size());
+	accelerationStructureGeometryTrianglesData.indexType = VK_INDEX_TYPE_UINT32;
+	accelerationStructureGeometryTrianglesData.indexData.deviceAddress = m_indexBufferDeviceAddress + (static_cast<size_t>(m_currentIndexOffset) * sizeof(uint32_t));
+	accelerationStructureGeometryTrianglesData.transformData = {};
 
-	VkCommandPoolCreateInfo buffersCopyCommandPoolCreateInfo = {};
-	buffersCopyCommandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	buffersCopyCommandPoolCreateInfo.pNext = nullptr;
-	buffersCopyCommandPoolCreateInfo.flags = 0;
-	buffersCopyCommandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
-	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &buffersCopyCommandPoolCreateInfo, nullptr, &buffersCopyCommandPool));
+	VkAccelerationStructureGeometryKHR accelerationStructureGeometry = {};
+	accelerationStructureGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+	accelerationStructureGeometry.pNext = nullptr;
+	accelerationStructureGeometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+	accelerationStructureGeometry.geometry.triangles = accelerationStructureGeometryTrianglesData;
+	accelerationStructureGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
 
-	VkCommandBuffer buffersCopyCommandBuffer;
+	VkAccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo = {};
+	accelerationStructureBuildRangeInfo.primitiveCount = static_cast<uint32_t>(mesh.indices.size()) / 3;
+	accelerationStructureBuildRangeInfo.primitiveOffset = 0;
+	accelerationStructureBuildRangeInfo.firstVertex = 0;
+	accelerationStructureBuildRangeInfo.transformOffset = 0;
 
-	VkCommandBufferAllocateInfo buffersCopyCommandBufferAllocateInfo = {};
-	buffersCopyCommandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	buffersCopyCommandBufferAllocateInfo.pNext = nullptr;
-	buffersCopyCommandBufferAllocateInfo.commandPool = buffersCopyCommandPool;
-	buffersCopyCommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	buffersCopyCommandBufferAllocateInfo.commandBufferCount = 1;
-	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &buffersCopyCommandBufferAllocateInfo, &buffersCopyCommandBuffer));
+	// Copy staging buffer and build BLAS
+	VkCommandPool buffersCopyAndBLASCommandPool;
+
+	VkCommandPoolCreateInfo buffersCopyAndBLASCommandPoolCreateInfo = {};
+	buffersCopyAndBLASCommandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	buffersCopyAndBLASCommandPoolCreateInfo.pNext = nullptr;
+	buffersCopyAndBLASCommandPoolCreateInfo.flags = 0;
+	buffersCopyAndBLASCommandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
+	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &buffersCopyAndBLASCommandPoolCreateInfo, nullptr, &buffersCopyAndBLASCommandPool));
+
+	VkCommandBuffer buffersCopyAndBLASCommandBuffer;
+
+	VkCommandBufferAllocateInfo buffersCopyAndBLASCommandBufferAllocateInfo = {};
+	buffersCopyAndBLASCommandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	buffersCopyAndBLASCommandBufferAllocateInfo.pNext = nullptr;
+	buffersCopyAndBLASCommandBufferAllocateInfo.commandPool = buffersCopyAndBLASCommandPool;
+	buffersCopyAndBLASCommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	buffersCopyAndBLASCommandBufferAllocateInfo.commandBufferCount = 1;
+	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &buffersCopyAndBLASCommandBufferAllocateInfo, &buffersCopyAndBLASCommandBuffer));
 
 	VkCommandBufferBeginInfo vertexAndIndexBuffersCopyBeginInfo = {};
 	vertexAndIndexBuffersCopyBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	vertexAndIndexBuffersCopyBeginInfo.pNext = nullptr;
 	vertexAndIndexBuffersCopyBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	vertexAndIndexBuffersCopyBeginInfo.pInheritanceInfo = nullptr;
-	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(buffersCopyCommandBuffer, &vertexAndIndexBuffersCopyBeginInfo));
+	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(buffersCopyAndBLASCommandBuffer, &vertexAndIndexBuffersCopyBeginInfo));
 
 	VkBufferCopy vertexBufferCopy = {};
 	vertexBufferCopy.srcOffset = 0;
 	vertexBufferCopy.dstOffset = m_currentVertexOffset * sizeof(NtshEngn::Vertex);
 	vertexBufferCopy.size = mesh.vertices.size() * sizeof(NtshEngn::Vertex);
-	vkCmdCopyBuffer(buffersCopyCommandBuffer, vertexAndIndexStagingBuffer, m_vertexBuffer, 1, &vertexBufferCopy);
+	vkCmdCopyBuffer(buffersCopyAndBLASCommandBuffer, vertexAndIndexStagingBuffer, m_vertexBuffer, 1, &vertexBufferCopy);
 
 	VkBufferCopy indexBufferCopy = {};
 	indexBufferCopy.srcOffset = mesh.vertices.size() * sizeof(NtshEngn::Vertex);
 	indexBufferCopy.dstOffset = m_currentIndexOffset * sizeof(uint32_t);
 	indexBufferCopy.size = mesh.indices.size() * sizeof(uint32_t);
-	vkCmdCopyBuffer(buffersCopyCommandBuffer, vertexAndIndexStagingBuffer, m_indexBuffer, 1, &indexBufferCopy);
+	vkCmdCopyBuffer(buffersCopyAndBLASCommandBuffer, vertexAndIndexStagingBuffer, m_indexBuffer, 1, &indexBufferCopy);
 
-	NTSHENGN_VK_CHECK(vkEndCommandBuffer(buffersCopyCommandBuffer));
+	NTSHENGN_VK_CHECK(vkEndCommandBuffer(buffersCopyAndBLASCommandBuffer));
 
 	VkFence buffersCopyFence;
 
@@ -1075,14 +1100,14 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	buffersCopySubmitInfo.pWaitSemaphores = nullptr;
 	buffersCopySubmitInfo.pWaitDstStageMask = nullptr;
 	buffersCopySubmitInfo.commandBufferCount = 1;
-	buffersCopySubmitInfo.pCommandBuffers = &buffersCopyCommandBuffer;
+	buffersCopySubmitInfo.pCommandBuffers = &buffersCopyAndBLASCommandBuffer;
 	buffersCopySubmitInfo.signalSemaphoreCount = 0;
 	buffersCopySubmitInfo.pSignalSemaphores = nullptr;
 	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, buffersCopyFence));
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &buffersCopyFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 
 	vkDestroyFence(m_device, buffersCopyFence, nullptr);
-	vkDestroyCommandPool(m_device, buffersCopyCommandPool, nullptr);
+	vkDestroyCommandPool(m_device, buffersCopyAndBLASCommandPool, nullptr);
 	vmaDestroyBuffer(m_allocator, vertexAndIndexStagingBuffer, vertexAndIndexStagingBufferAllocation);
 
 	m_currentVertexOffset += static_cast<int32_t>(mesh.vertices.size());
