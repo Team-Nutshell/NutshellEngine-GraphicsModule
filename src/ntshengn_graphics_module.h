@@ -104,7 +104,7 @@ namespace NtshEngn {
 
 	class GraphicsModule : public GraphicsModuleInterface {
 	public:
-		GraphicsModule() : GraphicsModuleInterface("NutshellEngine Graphics Vulkan Path Tracing Module") {}
+		GraphicsModule() : GraphicsModuleInterface("NutshellEngine Graphics Vulkan Ray Tracing Module") {}
 
 		void init();
 		void update(double dt);
