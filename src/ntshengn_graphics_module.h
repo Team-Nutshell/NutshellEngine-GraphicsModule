@@ -198,8 +198,10 @@ namespace NtshEngn {
 
 		VkBuffer m_vertexBuffer;
 		VmaAllocation m_vertexBufferAllocation;
+		VkDeviceAddress m_vertexBufferDeviceAddress;
 		VkBuffer m_indexBuffer;
 		VmaAllocation m_indexBufferAllocation;
+		VkDeviceAddress m_indexBufferDeviceAddress;
 
 		bool m_glslangInitialized = false;
 
@@ -221,6 +223,7 @@ namespace NtshEngn {
 		PFN_vkCmdBeginRenderingKHR m_vkCmdBeginRenderingKHR;
 		PFN_vkCmdEndRenderingKHR m_vkCmdEndRenderingKHR;
 		PFN_vkCmdPipelineBarrier2KHR m_vkCmdPipelineBarrier2KHR;
+		PFN_vkGetBufferDeviceAddressKHR m_vkGetBufferDeviceAddressKHR;
 		PFN_vkCmdTraceRaysKHR m_vkCmdTraceRaysKHR;
 
 		uint32_t m_imageCount;

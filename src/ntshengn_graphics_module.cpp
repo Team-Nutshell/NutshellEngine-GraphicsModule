@@ -236,9 +236,14 @@ void NtshEngn::GraphicsModule::init() {
 	physicalDeviceAccelerationStructureFeatures.pNext = &physicalDeviceRayTracingPipelineFeatures;
 	physicalDeviceAccelerationStructureFeatures.accelerationStructure = VK_TRUE;
 
+	VkPhysicalDeviceBufferDeviceAddressFeaturesKHR physicalDeviceBufferDeviceAddressFeatures = {};
+	physicalDeviceBufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES_KHR;
+	physicalDeviceBufferDeviceAddressFeatures.pNext = &physicalDeviceAccelerationStructureFeatures;
+	physicalDeviceBufferDeviceAddressFeatures.bufferDeviceAddress = VK_TRUE;
+
 	VkPhysicalDeviceDescriptorIndexingFeatures physicalDeviceDescriptorIndexingFeatures = {};
 	physicalDeviceDescriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-	physicalDeviceDescriptorIndexingFeatures.pNext = &physicalDeviceAccelerationStructureFeatures;
+	physicalDeviceDescriptorIndexingFeatures.pNext = &physicalDeviceBufferDeviceAddressFeatures;
 	physicalDeviceDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
 	physicalDeviceDescriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing = VK_TRUE;
 	physicalDeviceDescriptorIndexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
@@ -291,11 +296,12 @@ void NtshEngn::GraphicsModule::init() {
 	m_vkCmdPipelineBarrier2KHR = (PFN_vkCmdPipelineBarrier2KHR)vkGetDeviceProcAddr(m_device, "vkCmdPipelineBarrier2KHR");
 	m_vkCmdBeginRenderingKHR = (PFN_vkCmdBeginRenderingKHR)vkGetDeviceProcAddr(m_device, "vkCmdBeginRenderingKHR");
 	m_vkCmdEndRenderingKHR = (PFN_vkCmdEndRenderingKHR)vkGetDeviceProcAddr(m_device, "vkCmdEndRenderingKHR");
+	m_vkGetBufferDeviceAddressKHR = (PFN_vkGetBufferDeviceAddressKHR)vkGetDeviceProcAddr(m_device, "vkGetBufferDeviceAddressKHR");
 	m_vkCmdTraceRaysKHR = (PFN_vkCmdTraceRaysKHR)vkGetDeviceProcAddr(m_device, "vkCmdTraceRaysKHR");
 
 	// Initialize VMA
 	VmaAllocatorCreateInfo vmaAllocatorCreateInfo = {};
-	vmaAllocatorCreateInfo.flags = 0;
+	vmaAllocatorCreateInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 	vmaAllocatorCreateInfo.physicalDevice = m_physicalDevice;
 	vmaAllocatorCreateInfo.device = m_device;
 	vmaAllocatorCreateInfo.preferredLargeHeapBlockSize = 0;
@@ -1769,7 +1775,7 @@ void NtshEngn::GraphicsModule::createVertexAndIndexBuffers() {
 	vertexAndIndexBufferCreateInfo.pNext = nullptr;
 	vertexAndIndexBufferCreateInfo.flags = 0;
 	vertexAndIndexBufferCreateInfo.size = 67108864;
-	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
 	vertexAndIndexBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	vertexAndIndexBufferCreateInfo.queueFamilyIndexCount = 1;
 	vertexAndIndexBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
@@ -1779,8 +1785,18 @@ void NtshEngn::GraphicsModule::createVertexAndIndexBuffers() {
 
 	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_vertexBuffer, &m_vertexBufferAllocation, nullptr));
 
-	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
 	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_indexBuffer, &m_indexBufferAllocation, nullptr));
+
+	VkBufferDeviceAddressInfoKHR vertexAndIndexBufferDeviceAddressInfo = {};
+	vertexAndIndexBufferDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO_KHR;
+	vertexAndIndexBufferDeviceAddressInfo.pNext = nullptr;
+	vertexAndIndexBufferDeviceAddressInfo.buffer = m_vertexBuffer;
+
+	m_vertexBufferDeviceAddress = m_vkGetBufferDeviceAddressKHR(m_device, &vertexAndIndexBufferDeviceAddressInfo);
+
+	vertexAndIndexBufferDeviceAddressInfo.buffer = m_indexBuffer;
+	m_indexBufferDeviceAddress = m_vkGetBufferDeviceAddressKHR(m_device, &vertexAndIndexBufferDeviceAddressInfo);
 }
 
 void NtshEngn::GraphicsModule::createColorImage() {
