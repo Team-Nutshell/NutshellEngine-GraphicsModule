@@ -297,6 +297,10 @@ void NtshEngn::GraphicsModule::init() {
 	m_vkCmdBeginRenderingKHR = (PFN_vkCmdBeginRenderingKHR)vkGetDeviceProcAddr(m_device, "vkCmdBeginRenderingKHR");
 	m_vkCmdEndRenderingKHR = (PFN_vkCmdEndRenderingKHR)vkGetDeviceProcAddr(m_device, "vkCmdEndRenderingKHR");
 	m_vkGetBufferDeviceAddressKHR = (PFN_vkGetBufferDeviceAddressKHR)vkGetDeviceProcAddr(m_device, "vkGetBufferDeviceAddressKHR");
+	m_vkGetAccelerationStructureBuildSizesKHR = (PFN_vkGetAccelerationStructureBuildSizesKHR)vkGetDeviceProcAddr(m_device, "vkGetAccelerationStructureBuildSizesKHR");
+	m_vkCreateAccelerationStructureKHR = (PFN_vkCreateAccelerationStructureKHR)vkGetDeviceProcAddr(m_device, "vkCreateAccelerationStructureKHR");
+	m_vkDestroyAccelerationStructureKHR = (PFN_vkDestroyAccelerationStructureKHR)vkGetDeviceProcAddr(m_device, "vkDestroyAccelerationStructureKHR");
+	m_vkCmdBuildAccelerationStructuresKHR = (PFN_vkCmdBuildAccelerationStructuresKHR)vkGetDeviceProcAddr(m_device, "vkCmdBuildAccelerationStructuresKHR");
 	m_vkCmdTraceRaysKHR = (PFN_vkCmdTraceRaysKHR)vkGetDeviceProcAddr(m_device, "vkCmdTraceRaysKHR");
 
 	// Initialize VMA
@@ -377,7 +381,7 @@ void NtshEngn::GraphicsModule::init() {
 		NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &imageViewCreateInfo, nullptr, &m_drawImageView));
 	}
 
-	createVertexAndIndexBuffers();
+	createVertexIndexAndAccelerationStructureBuffers();
 
 	createColorImage();
 
@@ -947,7 +951,13 @@ void NtshEngn::GraphicsModule::destroy() {
 		vmaDestroyImage(m_allocator, m_textureImages[i], m_textureImageAllocations[i]);
 	}
 
-	// Destroy vertex and index buffers
+	// Destroy acceleration structures
+	for (size_t i = 0; i < m_accelerationStructures.size(); i++) {
+		m_vkDestroyAccelerationStructureKHR(m_device, m_accelerationStructures[i], nullptr);
+	}
+
+	// Destroy vertex, index and acceleration structure buffers
+	vmaDestroyBuffer(m_allocator, m_accelerationStructureBuffer, m_accelerationStructureBufferAllocation);
 	vmaDestroyBuffer(m_allocator, m_indexBuffer, m_indexBufferAllocation);
 	vmaDestroyBuffer(m_allocator, m_vertexBuffer, m_vertexBufferAllocation);
 
@@ -989,9 +999,6 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	if (m_meshAddresses.find(&mesh) != m_meshAddresses.end()) {
 		return m_meshAddresses[&mesh];
 	}
-
-	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset });
-	m_meshAddresses[&mesh] = static_cast<uint32_t>(m_meshes.size() - 1);
 
 	// Vertex and Index staging buffer
 	VkBuffer vertexAndIndexStagingBuffer;
@@ -1044,6 +1051,68 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	accelerationStructureBuildRangeInfo.firstVertex = 0;
 	accelerationStructureBuildRangeInfo.transformOffset = 0;
 
+	VkAccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo = {};
+	accelerationStructureBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+	accelerationStructureBuildGeometryInfo.pNext = nullptr;
+	accelerationStructureBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+	accelerationStructureBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+	accelerationStructureBuildGeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+	accelerationStructureBuildGeometryInfo.srcAccelerationStructure = VK_NULL_HANDLE;
+	accelerationStructureBuildGeometryInfo.dstAccelerationStructure = VK_NULL_HANDLE;
+	accelerationStructureBuildGeometryInfo.geometryCount = 1;
+	accelerationStructureBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
+	accelerationStructureBuildGeometryInfo.ppGeometries = nullptr;
+	accelerationStructureBuildGeometryInfo.scratchData = {};
+
+	VkAccelerationStructureBuildSizesInfoKHR accelerationStructureBuildSizesInfo = {};
+	accelerationStructureBuildSizesInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+	accelerationStructureBuildSizesInfo.pNext = nullptr;
+	m_vkGetAccelerationStructureBuildSizesKHR(m_device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &accelerationStructureBuildGeometryInfo, &accelerationStructureBuildRangeInfo.primitiveCount, &accelerationStructureBuildSizesInfo);
+
+	VkBuffer accelerationStructureScratchBuffer;
+	VmaAllocation accelerationStructureScratchBufferAllocation;
+
+	VkBufferCreateInfo accelerationStructureScratchBufferCreateInfo = {};
+	accelerationStructureScratchBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	accelerationStructureScratchBufferCreateInfo.pNext = nullptr;
+	accelerationStructureScratchBufferCreateInfo.flags = 0;
+	accelerationStructureScratchBufferCreateInfo.size = accelerationStructureBuildSizesInfo.buildScratchSize;
+	accelerationStructureScratchBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+	accelerationStructureScratchBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	accelerationStructureScratchBufferCreateInfo.queueFamilyIndexCount = 1;
+	accelerationStructureScratchBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+
+	VmaAllocationCreateInfo accelerationStructureScratchBufferAllocationCreateInfo = {};
+	accelerationStructureScratchBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+	accelerationStructureScratchBufferAllocationCreateInfo.flags = 0;
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &accelerationStructureScratchBufferCreateInfo, &accelerationStructureScratchBufferAllocationCreateInfo, &accelerationStructureScratchBuffer, &accelerationStructureScratchBufferAllocation, nullptr));
+
+	VkBufferDeviceAddressInfoKHR accelerationStructureScratchBufferDeviceAddressInfo = {};
+	accelerationStructureScratchBufferDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO_KHR;
+	accelerationStructureScratchBufferDeviceAddressInfo.pNext = nullptr;
+	accelerationStructureScratchBufferDeviceAddressInfo.buffer = accelerationStructureScratchBuffer;
+
+	VkDeviceAddress accelerationStructureScratchBufferDeviceAddress = m_vkGetBufferDeviceAddressKHR(m_device, &accelerationStructureScratchBufferDeviceAddressInfo);
+
+	accelerationStructureBuildGeometryInfo.scratchData.deviceAddress = accelerationStructureScratchBufferDeviceAddress;
+
+	VkAccelerationStructureKHR accelerationStructure;
+
+	VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo = {};
+	accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+	accelerationStructureCreateInfo.pNext = nullptr;
+	accelerationStructureCreateInfo.createFlags = 0;
+	accelerationStructureCreateInfo.buffer = m_accelerationStructureBuffer;
+	accelerationStructureCreateInfo.offset = m_currentAccelerationStructureOffset;
+	accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
+	accelerationStructureCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+	accelerationStructureCreateInfo.deviceAddress = 0;
+	m_vkCreateAccelerationStructureKHR(m_device, &accelerationStructureCreateInfo, nullptr, &accelerationStructure);
+
+	m_accelerationStructures.push_back(accelerationStructure);
+
+	accelerationStructureBuildGeometryInfo.dstAccelerationStructure = accelerationStructure;
+
 	// Copy staging buffer and build BLAS
 	VkCommandPool buffersCopyAndBLASCommandPool;
 
@@ -1083,6 +1152,47 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	indexBufferCopy.size = mesh.indices.size() * sizeof(uint32_t);
 	vkCmdCopyBuffer(buffersCopyAndBLASCommandBuffer, vertexAndIndexStagingBuffer, m_indexBuffer, 1, &indexBufferCopy);
 
+	VkBufferMemoryBarrier2 copyToBLASVertexBufferMemoryBarrier = {};
+	copyToBLASVertexBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+	copyToBLASVertexBufferMemoryBarrier.pNext = nullptr;
+	copyToBLASVertexBufferMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+	copyToBLASVertexBufferMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+	copyToBLASVertexBufferMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR;
+	copyToBLASVertexBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR;
+	copyToBLASVertexBufferMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	copyToBLASVertexBufferMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	copyToBLASVertexBufferMemoryBarrier.buffer = m_vertexBuffer;
+	copyToBLASVertexBufferMemoryBarrier.offset = m_currentVertexOffset * sizeof(NtshEngn::Vertex);
+	copyToBLASVertexBufferMemoryBarrier.size = mesh.vertices.size() * sizeof(NtshEngn::Vertex);
+
+	VkBufferMemoryBarrier2 copyToBLASIndexBufferMemoryBarrier = {};
+	copyToBLASIndexBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+	copyToBLASIndexBufferMemoryBarrier.pNext = nullptr;
+	copyToBLASIndexBufferMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+	copyToBLASIndexBufferMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+	copyToBLASIndexBufferMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR;
+	copyToBLASIndexBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR;
+	copyToBLASIndexBufferMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	copyToBLASIndexBufferMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	copyToBLASIndexBufferMemoryBarrier.buffer = m_indexBuffer;
+	copyToBLASIndexBufferMemoryBarrier.offset = m_currentIndexOffset * sizeof(uint32_t);
+	copyToBLASIndexBufferMemoryBarrier.size = mesh.indices.size() * sizeof(uint32_t);
+
+	std::array<VkBufferMemoryBarrier2, 2> copyToBLASBufferMemoryBarriers = { copyToBLASVertexBufferMemoryBarrier, copyToBLASIndexBufferMemoryBarrier };
+
+	VkDependencyInfo copyToBLASDependencyInfo = {};
+	copyToBLASDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	copyToBLASDependencyInfo.pNext = nullptr;
+	copyToBLASDependencyInfo.dependencyFlags = 0;
+	copyToBLASDependencyInfo.memoryBarrierCount = 0;
+	copyToBLASDependencyInfo.pMemoryBarriers = 0;
+	copyToBLASDependencyInfo.bufferMemoryBarrierCount = 2;
+	copyToBLASDependencyInfo.pBufferMemoryBarriers = copyToBLASBufferMemoryBarriers.data();
+	copyToBLASDependencyInfo.imageMemoryBarrierCount = 0;
+	copyToBLASDependencyInfo.pImageMemoryBarriers = nullptr;
+
+	m_vkCmdPipelineBarrier2KHR(buffersCopyAndBLASCommandBuffer, &copyToBLASDependencyInfo);
+
 	NTSHENGN_VK_CHECK(vkEndCommandBuffer(buffersCopyAndBLASCommandBuffer));
 
 	VkFence buffersCopyFence;
@@ -1108,10 +1218,15 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 
 	vkDestroyFence(m_device, buffersCopyFence, nullptr);
 	vkDestroyCommandPool(m_device, buffersCopyAndBLASCommandPool, nullptr);
+	vmaDestroyBuffer(m_allocator, accelerationStructureScratchBuffer, accelerationStructureScratchBufferAllocation);
 	vmaDestroyBuffer(m_allocator, vertexAndIndexStagingBuffer, vertexAndIndexStagingBufferAllocation);
+
+	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset, m_accelerationStructures.size() - 1 });
+	m_meshAddresses[&mesh] = static_cast<uint32_t>(m_meshes.size() - 1);
 
 	m_currentVertexOffset += static_cast<int32_t>(mesh.vertices.size());
 	m_currentIndexOffset += static_cast<uint32_t>(mesh.indices.size());
+	m_currentAccelerationStructureOffset = (m_currentAccelerationStructureOffset + accelerationStructureBuildSizesInfo.accelerationStructureSize) + ((m_currentAccelerationStructureOffset + accelerationStructureBuildSizesInfo.accelerationStructureSize) % 256);
 
 	return static_cast<uint32_t>(m_meshes.size() - 1);
 }
@@ -1793,35 +1908,41 @@ void NtshEngn::GraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
 	}
 }
 
-void NtshEngn::GraphicsModule::createVertexAndIndexBuffers() {
-	// Vertex and index buffers
-	VkBufferCreateInfo vertexAndIndexBufferCreateInfo = {};
-	vertexAndIndexBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	vertexAndIndexBufferCreateInfo.pNext = nullptr;
-	vertexAndIndexBufferCreateInfo.flags = 0;
-	vertexAndIndexBufferCreateInfo.size = 67108864;
-	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
-	vertexAndIndexBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	vertexAndIndexBufferCreateInfo.queueFamilyIndexCount = 1;
-	vertexAndIndexBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+void NtshEngn::GraphicsModule::createVertexIndexAndAccelerationStructureBuffers() {
+	// Vertex, index and acceleration structure buffers
+	VkBufferCreateInfo vertexIndexAndAccelerationStructureBufferCreateInfo = {};
+	vertexIndexAndAccelerationStructureBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	vertexIndexAndAccelerationStructureBufferCreateInfo.pNext = nullptr;
+	vertexIndexAndAccelerationStructureBufferCreateInfo.flags = 0;
+	vertexIndexAndAccelerationStructureBufferCreateInfo.size = 67108864;
+	vertexIndexAndAccelerationStructureBufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
+	vertexIndexAndAccelerationStructureBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	vertexIndexAndAccelerationStructureBufferCreateInfo.queueFamilyIndexCount = 1;
+	vertexIndexAndAccelerationStructureBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
-	VmaAllocationCreateInfo vertexAndIndexBufferAllocationCreateInfo = {};
-	vertexAndIndexBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+	VmaAllocationCreateInfo vertexIndexAndAccelerationStructureBufferAllocationCreateInfo = {};
+	vertexIndexAndAccelerationStructureBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_vertexBuffer, &m_vertexBufferAllocation, nullptr));
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexIndexAndAccelerationStructureBufferCreateInfo, &vertexIndexAndAccelerationStructureBufferAllocationCreateInfo, &m_vertexBuffer, &m_vertexBufferAllocation, nullptr));
 
-	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
-	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_indexBuffer, &m_indexBufferAllocation, nullptr));
+	vertexIndexAndAccelerationStructureBufferCreateInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexIndexAndAccelerationStructureBufferCreateInfo, &vertexIndexAndAccelerationStructureBufferAllocationCreateInfo, &m_indexBuffer, &m_indexBufferAllocation, nullptr));
 
-	VkBufferDeviceAddressInfoKHR vertexAndIndexBufferDeviceAddressInfo = {};
-	vertexAndIndexBufferDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO_KHR;
-	vertexAndIndexBufferDeviceAddressInfo.pNext = nullptr;
-	vertexAndIndexBufferDeviceAddressInfo.buffer = m_vertexBuffer;
+	vertexIndexAndAccelerationStructureBufferCreateInfo.usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexIndexAndAccelerationStructureBufferCreateInfo, &vertexIndexAndAccelerationStructureBufferAllocationCreateInfo, &m_accelerationStructureBuffer, &m_accelerationStructureBufferAllocation, nullptr));
 
-	m_vertexBufferDeviceAddress = m_vkGetBufferDeviceAddressKHR(m_device, &vertexAndIndexBufferDeviceAddressInfo);
+	VkBufferDeviceAddressInfoKHR vertexIndexAndAccelerationStructureBufferDeviceAddressInfo = {};
+	vertexIndexAndAccelerationStructureBufferDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO_KHR;
+	vertexIndexAndAccelerationStructureBufferDeviceAddressInfo.pNext = nullptr;
+	vertexIndexAndAccelerationStructureBufferDeviceAddressInfo.buffer = m_vertexBuffer;
 
-	vertexAndIndexBufferDeviceAddressInfo.buffer = m_indexBuffer;
-	m_indexBufferDeviceAddress = m_vkGetBufferDeviceAddressKHR(m_device, &vertexAndIndexBufferDeviceAddressInfo);
+	m_vertexBufferDeviceAddress = m_vkGetBufferDeviceAddressKHR(m_device, &vertexIndexAndAccelerationStructureBufferDeviceAddressInfo);
+
+	vertexIndexAndAccelerationStructureBufferDeviceAddressInfo.buffer = m_indexBuffer;
+	m_indexBufferDeviceAddress = m_vkGetBufferDeviceAddressKHR(m_device, &vertexIndexAndAccelerationStructureBufferDeviceAddressInfo);
+
+	vertexIndexAndAccelerationStructureBufferDeviceAddressInfo.buffer = m_accelerationStructureBuffer;
+	m_accelerationStructureBufferDeviceAddress = m_vkGetBufferDeviceAddressKHR(m_device, &vertexIndexAndAccelerationStructureBufferDeviceAddressInfo);
 }
 
 void NtshEngn::GraphicsModule::createColorImage() {

@@ -64,6 +64,8 @@ struct InternalMesh {
 	uint32_t indexCount;
 	uint32_t firstIndex;
 	int32_t vertexOffset;
+
+	size_t accelerationStructureIndex;
 };
 
 struct InternalTexture {
@@ -134,8 +136,8 @@ namespace NtshEngn {
 		// Swapchain creation
 		void createSwapchain(VkSwapchainKHR oldSwapchain);
 
-		// Vertex and index buffers creation
-		void createVertexAndIndexBuffers();
+		// Vertex, index and acceleration structure buffers creation
+		void createVertexIndexAndAccelerationStructureBuffers();
 
 		// Color image creation
 		void createColorImage();
@@ -202,6 +204,9 @@ namespace NtshEngn {
 		VkBuffer m_indexBuffer;
 		VmaAllocation m_indexBufferAllocation;
 		VkDeviceAddress m_indexBufferDeviceAddress;
+		VkBuffer m_accelerationStructureBuffer;
+		VmaAllocation m_accelerationStructureBufferAllocation;
+		VkDeviceAddress m_accelerationStructureBufferDeviceAddress;
 
 		bool m_glslangInitialized = false;
 
@@ -224,6 +229,10 @@ namespace NtshEngn {
 		PFN_vkCmdEndRenderingKHR m_vkCmdEndRenderingKHR;
 		PFN_vkCmdPipelineBarrier2KHR m_vkCmdPipelineBarrier2KHR;
 		PFN_vkGetBufferDeviceAddressKHR m_vkGetBufferDeviceAddressKHR;
+		PFN_vkGetAccelerationStructureBuildSizesKHR m_vkGetAccelerationStructureBuildSizesKHR;
+		PFN_vkCreateAccelerationStructureKHR m_vkCreateAccelerationStructureKHR;
+		PFN_vkDestroyAccelerationStructureKHR m_vkDestroyAccelerationStructureKHR;
+		PFN_vkCmdBuildAccelerationStructuresKHR m_vkCmdBuildAccelerationStructuresKHR;
 		PFN_vkCmdTraceRaysKHR m_vkCmdTraceRaysKHR;
 
 		uint32_t m_imageCount;
@@ -253,6 +262,8 @@ namespace NtshEngn {
 		std::vector<InternalMesh> m_meshes;
 		int32_t m_currentVertexOffset = 0;
 		uint32_t m_currentIndexOffset = 0;
+		VkDeviceSize m_currentAccelerationStructureOffset = 0;
+		std::vector<VkAccelerationStructureKHR> m_accelerationStructures;
 		std::unordered_map<const Mesh*, uint32_t> m_meshAddresses;
 
 		std::vector<VkImage> m_textureImages;
