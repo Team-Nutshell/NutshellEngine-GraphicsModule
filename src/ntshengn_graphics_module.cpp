@@ -1107,7 +1107,7 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
 	accelerationStructureCreateInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
 	accelerationStructureCreateInfo.deviceAddress = 0;
-	m_vkCreateAccelerationStructureKHR(m_device, &accelerationStructureCreateInfo, nullptr, &accelerationStructure);
+	NTSHENGN_VK_CHECK(m_vkCreateAccelerationStructureKHR(m_device, &accelerationStructureCreateInfo, nullptr, &accelerationStructure));
 
 	m_accelerationStructures.push_back(accelerationStructure);
 
