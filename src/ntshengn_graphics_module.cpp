@@ -301,6 +301,7 @@ void NtshEngn::GraphicsModule::init() {
 	m_vkCreateAccelerationStructureKHR = (PFN_vkCreateAccelerationStructureKHR)vkGetDeviceProcAddr(m_device, "vkCreateAccelerationStructureKHR");
 	m_vkDestroyAccelerationStructureKHR = (PFN_vkDestroyAccelerationStructureKHR)vkGetDeviceProcAddr(m_device, "vkDestroyAccelerationStructureKHR");
 	m_vkCmdBuildAccelerationStructuresKHR = (PFN_vkCmdBuildAccelerationStructuresKHR)vkGetDeviceProcAddr(m_device, "vkCmdBuildAccelerationStructuresKHR");
+	m_vkGetAccelerationStructureDeviceAddressKHR = (PFN_vkGetAccelerationStructureDeviceAddressKHR)vkGetDeviceProcAddr(m_device, "vkGetAccelerationStructureDeviceAddressKHR");
 	m_vkCmdTraceRaysKHR = (PFN_vkCmdTraceRaysKHR)vkGetDeviceProcAddr(m_device, "vkCmdTraceRaysKHR");
 
 	// Initialize VMA
@@ -1225,7 +1226,13 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	vmaDestroyBuffer(m_allocator, accelerationStructureScratchBuffer, accelerationStructureScratchBufferAllocation);
 	vmaDestroyBuffer(m_allocator, vertexAndIndexStagingBuffer, vertexAndIndexStagingBufferAllocation);
 
-	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset, m_accelerationStructures.size() - 1 });
+	VkAccelerationStructureDeviceAddressInfoKHR accelerationStructureDeviceAddressInfo = {};
+	accelerationStructureDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
+	accelerationStructureDeviceAddressInfo.pNext = nullptr;
+	accelerationStructureDeviceAddressInfo.accelerationStructure = accelerationStructure;
+	VkDeviceAddress accelerationStructureDeviceAddress = m_vkGetAccelerationStructureDeviceAddressKHR(m_device, &accelerationStructureDeviceAddressInfo);
+
+	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset, accelerationStructureDeviceAddress });
 	m_meshAddresses[&mesh] = static_cast<uint32_t>(m_meshes.size() - 1);
 
 	m_currentVertexOffset += static_cast<int32_t>(mesh.vertices.size());

@@ -65,7 +65,7 @@ struct InternalMesh {
 	uint32_t firstIndex;
 	int32_t vertexOffset;
 
-	size_t accelerationStructureIndex;
+	VkDeviceAddress accelerationStructureDeviceAddress;
 };
 
 struct InternalTexture {
@@ -233,6 +233,7 @@ namespace NtshEngn {
 		PFN_vkCreateAccelerationStructureKHR m_vkCreateAccelerationStructureKHR;
 		PFN_vkDestroyAccelerationStructureKHR m_vkDestroyAccelerationStructureKHR;
 		PFN_vkCmdBuildAccelerationStructuresKHR m_vkCmdBuildAccelerationStructuresKHR;
+		PFN_vkGetAccelerationStructureDeviceAddressKHR m_vkGetAccelerationStructureDeviceAddressKHR;
 		PFN_vkCmdTraceRaysKHR m_vkCmdTraceRaysKHR;
 
 		uint32_t m_imageCount;
