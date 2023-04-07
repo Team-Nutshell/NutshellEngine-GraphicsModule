@@ -693,6 +693,35 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	}
 	vmaUnmapMemory(m_allocator, m_lightBufferAllocations[m_currentFrameInFlight]);
 
+	// Update TLAS
+	std::vector<VkAccelerationStructureInstanceKHR> tlasInstances;
+	for (auto& it : m_objects) {
+		Transform objectTransform = m_ecs->getComponent<Transform>(it.first);
+		nml::vec3 objectPosition = nml::vec3(objectTransform.position[0], objectTransform.position[1], objectTransform.position[2]);
+		nml::vec3 objectRotation = nml::vec3(objectTransform.rotation[0], objectTransform.rotation[1], objectTransform.rotation[2]);
+		nml::vec3 objectScale = nml::vec3(objectTransform.scale[0], objectTransform.scale[1], objectTransform.scale[2]);
+
+		nml::mat4 objectModel = nml::transpose(nml::translate(objectPosition) *
+			nml::rotate(objectRotation.x, nml::vec3(1.0f, 0.0f, 0.0f)) *
+			nml::rotate(objectRotation.y, nml::vec3(0.0f, 1.0f, 0.0f)) *
+			nml::rotate(objectRotation.z, nml::vec3(0.0f, 0.0f, 1.0f)) *
+			nml::scale(objectScale));
+
+		VkTransformMatrixKHR objectTransformMatrix = { { { objectModel.x.x, objectModel.x.y, objectModel.x.z, objectModel.x.w },
+			{ objectModel.y.x, objectModel.y.y, objectModel.y.z, objectModel.y.w },
+			{ objectModel.z.x, objectModel.z.y, objectModel.z.z, objectModel.z.w }
+		} };
+
+		VkAccelerationStructureInstanceKHR accelerationStructureInstance = {};
+		accelerationStructureInstance.transform = objectTransformMatrix;
+		accelerationStructureInstance.instanceCustomIndex = it.second.index;
+		accelerationStructureInstance.mask = 0xFF;
+		accelerationStructureInstance.instanceShaderBindingTableRecordOffset = 0;
+		accelerationStructureInstance.flags = VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR;
+		accelerationStructureInstance.accelerationStructureReference = m_meshes[it.second.meshIndex].accelerationStructureDeviceAddress;
+		tlasInstances.push_back(accelerationStructureInstance);
+	}
+
 	// Update descriptor set if needed
 	if (m_descriptorSetsNeedUpdate[m_currentFrameInFlight]) {
 		updateDescriptorSet(m_currentFrameInFlight);
