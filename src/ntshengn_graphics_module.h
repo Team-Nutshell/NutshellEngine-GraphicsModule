@@ -139,6 +139,9 @@ namespace NtshEngn {
 		// Vertex, index and acceleration structure buffers creation
 		void createVertexIndexAndAccelerationStructureBuffers();
 
+		// Top-Level Acceleration Structure creation
+		void createTopLevelAccelerationStructure();
+
 		// Color image creation
 		void createColorImage();
 
@@ -204,9 +207,14 @@ namespace NtshEngn {
 		VkBuffer m_indexBuffer;
 		VmaAllocation m_indexBufferAllocation;
 		VkDeviceAddress m_indexBufferDeviceAddress;
-		VkBuffer m_accelerationStructureBuffer;
-		VmaAllocation m_accelerationStructureBufferAllocation;
-		VkDeviceAddress m_accelerationStructureBufferDeviceAddress;
+		VkBuffer m_bottomLevelAccelerationStructureBuffer;
+		VmaAllocation m_bottomLevelAccelerationStructureBufferAllocation;
+		VkDeviceAddress m_bottomLevelAccelerationStructureBufferDeviceAddress;
+		VkBuffer m_accelerationStructureInstancesBuffer;
+		VmaAllocation m_accelerationStructureInstancesBufferAllocation;
+		VkDeviceAddress m_accelerationStructureInstancesBufferDeviceAddress;
+		std::vector<VkBuffer> m_accelerationStructureInstancesStagingBuffers;
+		std::vector<VmaAllocation> m_accelerationStructureInstancesStagingBufferAllocations;
 
 		bool m_glslangInitialized = false;
 
@@ -263,8 +271,9 @@ namespace NtshEngn {
 		std::vector<InternalMesh> m_meshes;
 		int32_t m_currentVertexOffset = 0;
 		uint32_t m_currentIndexOffset = 0;
-		VkDeviceSize m_currentAccelerationStructureOffset = 0;
-		std::vector<VkAccelerationStructureKHR> m_accelerationStructures;
+		VkDeviceSize m_currentBottomLevelAccelerationStructureOffset = 0;
+		VkAccelerationStructureKHR m_topLevelAccelerationStructure;
+		std::vector<VkAccelerationStructureKHR> m_bottomLevelAccelerationStructures;
 		std::unordered_map<const Mesh*, uint32_t> m_meshAddresses;
 
 		std::vector<VkImage> m_textureImages;
