@@ -74,7 +74,7 @@ namespace NtshEngn {
 
 	class GraphicsModule : public GraphicsModuleInterface {
 	public:
-		GraphicsModule() : GraphicsModuleInterface("NutshellEngine Graphics Vulkan Raymarching Module") {}
+		GraphicsModule() : GraphicsModuleInterface("NutshellEngine Graphics Vulkan Ray Marching Module") {}
 
 		void init();
 		void update(double dt);
