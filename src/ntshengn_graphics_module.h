@@ -207,6 +207,11 @@ namespace NtshEngn {
 		VkBuffer m_indexBuffer;
 		VmaAllocation m_indexBufferAllocation;
 		VkDeviceAddress m_indexBufferDeviceAddress;
+
+		VkBuffer m_topLevelAccelerationStructureBuffer;
+		VmaAllocation m_topLevelAccelerationStructureBufferAllocation;
+		VkBuffer m_topLevelAccelerationStructureScratchBuffer;
+		VmaAllocation m_topLevelAccelerationStructureScratchBufferAllocation;
 		VkBuffer m_bottomLevelAccelerationStructureBuffer;
 		VmaAllocation m_bottomLevelAccelerationStructureBufferAllocation;
 		VkDeviceAddress m_bottomLevelAccelerationStructureBufferDeviceAddress;
