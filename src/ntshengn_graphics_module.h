@@ -212,14 +212,16 @@ namespace NtshEngn {
 		VmaAllocation m_topLevelAccelerationStructureBufferAllocation;
 		VkBuffer m_topLevelAccelerationStructureScratchBuffer;
 		VmaAllocation m_topLevelAccelerationStructureScratchBufferAllocation;
+		VkDeviceAddress m_topLevelAccelerationStructureScratchBufferDeviceAddress;
+		VkBuffer m_topLevelAccelerationStructureInstancesBuffer;
+		VmaAllocation m_topLevelAccelerationStructureInstancesBufferAllocation;
+		VkDeviceAddress m_topLevelAccelerationStructureInstancesBufferDeviceAddress;
+		std::vector<VkBuffer> m_topLevelAccelerationStructureInstancesStagingBuffers;
+		std::vector<VmaAllocation> m_topLevelAccelerationStructureInstancesStagingBufferAllocations;
+
 		VkBuffer m_bottomLevelAccelerationStructureBuffer;
 		VmaAllocation m_bottomLevelAccelerationStructureBufferAllocation;
 		VkDeviceAddress m_bottomLevelAccelerationStructureBufferDeviceAddress;
-		VkBuffer m_accelerationStructureInstancesBuffer;
-		VmaAllocation m_accelerationStructureInstancesBufferAllocation;
-		VkDeviceAddress m_accelerationStructureInstancesBufferDeviceAddress;
-		std::vector<VkBuffer> m_accelerationStructureInstancesStagingBuffers;
-		std::vector<VmaAllocation> m_accelerationStructureInstancesStagingBufferAllocations;
 
 		bool m_glslangInitialized = false;
 
