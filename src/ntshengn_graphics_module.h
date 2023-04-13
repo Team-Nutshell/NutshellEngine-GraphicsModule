@@ -65,7 +65,7 @@ struct InternalMesh {
 	uint32_t firstIndex;
 	int32_t vertexOffset;
 
-	VkDeviceAddress accelerationStructureDeviceAddress;
+	VkDeviceAddress blasDeviceAddress;
 };
 
 struct InternalTexture {

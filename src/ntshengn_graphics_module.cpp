@@ -720,7 +720,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		accelerationStructureInstance.mask = 0xFF;
 		accelerationStructureInstance.instanceShaderBindingTableRecordOffset = 0;
 		accelerationStructureInstance.flags = VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR;
-		accelerationStructureInstance.accelerationStructureReference = m_meshes[it.second.meshIndex].accelerationStructureDeviceAddress;
+		accelerationStructureInstance.accelerationStructureReference = m_meshes[it.second.meshIndex].blasDeviceAddress;
 		tlasInstances.push_back(accelerationStructureInstance);
 	}
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_topLevelAccelerationStructureInstancesStagingBufferAllocations[m_currentFrameInFlight], &data));
