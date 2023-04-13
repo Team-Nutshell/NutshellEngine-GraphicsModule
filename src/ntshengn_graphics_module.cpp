@@ -800,6 +800,40 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo.pImageMemoryBarriers = &undefinedToColorAttachmentOptimalImageMemoryBarrier;
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo);
 
+	// Build TLAS
+	VkAccelerationStructureGeometryInstancesDataKHR accelerationStructureGeometryInstancesData = {};
+	accelerationStructureGeometryInstancesData.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
+	accelerationStructureGeometryInstancesData.pNext = nullptr;
+	accelerationStructureGeometryInstancesData.arrayOfPointers = false;
+	accelerationStructureGeometryInstancesData.data.deviceAddress = m_topLevelAccelerationStructureInstancesBufferDeviceAddress;
+
+	VkAccelerationStructureGeometryKHR accelerationStructureGeometry = {};
+	accelerationStructureGeometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+	accelerationStructureGeometry.pNext = nullptr;
+	accelerationStructureGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+	accelerationStructureGeometry.geometry.instances = accelerationStructureGeometryInstancesData;
+	accelerationStructureGeometry.flags = 0;
+
+	VkAccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo = {};
+	accelerationStructureBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+	accelerationStructureBuildGeometryInfo.pNext = nullptr;
+	accelerationStructureBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+	accelerationStructureBuildGeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+	accelerationStructureBuildGeometryInfo.srcAccelerationStructure = VK_NULL_HANDLE;
+	accelerationStructureBuildGeometryInfo.dstAccelerationStructure = m_topLevelAccelerationStructure;
+	accelerationStructureBuildGeometryInfo.geometryCount = 1;
+	accelerationStructureBuildGeometryInfo.pGeometries = &accelerationStructureGeometry;
+	accelerationStructureBuildGeometryInfo.ppGeometries = nullptr;
+	accelerationStructureBuildGeometryInfo.scratchData.deviceAddress = m_topLevelAccelerationStructureScratchBufferDeviceAddress;
+
+	VkAccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo = {};
+	accelerationStructureBuildRangeInfo.primitiveCount = static_cast<uint32_t>(tlasInstances.size());
+	accelerationStructureBuildRangeInfo.primitiveOffset = 0;
+	accelerationStructureBuildRangeInfo.firstVertex = 0;
+	accelerationStructureBuildRangeInfo.transformOffset = 0;
+	std::array<VkAccelerationStructureBuildRangeInfoKHR*, 1> accelerationStructureBuildRangeInfos = { &accelerationStructureBuildRangeInfo };
+	m_vkCmdBuildAccelerationStructuresKHR(m_renderingCommandBuffers[m_currentFrameInFlight], 1, &accelerationStructureBuildGeometryInfo, accelerationStructureBuildRangeInfos.data());
+
 	// Bind vertex and index buffers
 	VkDeviceSize vertexBufferOffset = 0;
 	vkCmdBindVertexBuffers(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_vertexBuffer, &vertexBufferOffset);
