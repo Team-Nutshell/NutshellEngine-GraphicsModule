@@ -302,6 +302,7 @@ void NtshEngn::GraphicsModule::init() {
 	m_vkDestroyAccelerationStructureKHR = (PFN_vkDestroyAccelerationStructureKHR)vkGetDeviceProcAddr(m_device, "vkDestroyAccelerationStructureKHR");
 	m_vkCmdBuildAccelerationStructuresKHR = (PFN_vkCmdBuildAccelerationStructuresKHR)vkGetDeviceProcAddr(m_device, "vkCmdBuildAccelerationStructuresKHR");
 	m_vkGetAccelerationStructureDeviceAddressKHR = (PFN_vkGetAccelerationStructureDeviceAddressKHR)vkGetDeviceProcAddr(m_device, "vkGetAccelerationStructureDeviceAddressKHR");
+	m_vkCreateRayTracingPipelinesKHR = (PFN_vkCreateRayTracingPipelinesKHR)vkGetDeviceProcAddr(m_device, "vkCreateRayTracingPipelinesKHR");
 	m_vkCmdTraceRaysKHR = (PFN_vkCmdTraceRaysKHR)vkGetDeviceProcAddr(m_device, "vkCmdTraceRaysKHR");
 
 	// Initialize VMA
@@ -868,7 +869,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	vkCmdBindIndexBuffer(m_renderingCommandBuffers[m_currentFrameInFlight], m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 	// Bind descriptor set 0
-	vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipelineLayout, 0, 1, &m_descriptorSets[m_currentFrameInFlight], 0, nullptr);
+	vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_rayTracingPipelineLayout, 0, 1, &m_descriptorSets[m_currentFrameInFlight], 0, nullptr);
 
 	// Begin rendering
 	VkRenderingAttachmentInfo renderingSwapchainAttachmentInfo = {};
@@ -903,13 +904,13 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	m_vkCmdBeginRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight], &renderingInfo);
 
 	// Bind graphics pipeline
-	vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+	vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_rayTracingPipeline);
 	vkCmdSetViewport(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_viewport);
 	vkCmdSetScissor(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_scissor);
 
 	for (auto& it : m_objects) {
 		// Object index as push constant
-		vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_graphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &it.second.index);
+		vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_rayTracingPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &it.second.index);
 
 		// Draw
 		vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_meshes[it.second.meshIndex].indexCount, 1, m_meshes[it.second.meshIndex].firstIndex, m_meshes[it.second.meshIndex].vertexOffset, 0);
@@ -1044,11 +1045,11 @@ void NtshEngn::GraphicsModule::destroy() {
 	// Destroy descriptor pool
 	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
 
-	// Destroy graphics pipeline
-	vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
+	// Destroy ray tracing pipeline
+	vkDestroyPipeline(m_device, m_rayTracingPipeline, nullptr);
 
-	// Destroy graphics pipeline layout
-	vkDestroyPipelineLayout(m_device, m_graphicsPipelineLayout, nullptr);
+	// Destroy ray tracing pipeline layout
+	vkDestroyPipelineLayout(m_device, m_rayTracingPipelineLayout, nullptr);
 
 	// Destroy descriptor set layout
 	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
@@ -2554,6 +2555,16 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 	rayGenShaderStageCreateInfo.pName = "main";
 	rayGenShaderStageCreateInfo.pSpecializationInfo = nullptr;
 
+	VkRayTracingShaderGroupCreateInfoKHR rayGenShaderGroupCreateInfo = {};
+	rayGenShaderGroupCreateInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+	rayGenShaderGroupCreateInfo.pNext = nullptr;
+	rayGenShaderGroupCreateInfo.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+	rayGenShaderGroupCreateInfo.generalShader = 0;
+	rayGenShaderGroupCreateInfo.closestHitShader = VK_SHADER_UNUSED_KHR;
+	rayGenShaderGroupCreateInfo.anyHitShader = VK_SHADER_UNUSED_KHR;
+	rayGenShaderGroupCreateInfo.intersectionShader = VK_SHADER_UNUSED_KHR;
+	rayGenShaderGroupCreateInfo.pShaderGroupCaptureReplayHandle = nullptr;
+
 	const std::string rayMissShaderCode = R"GLSL(
 		#version 460
 		#extension GL_EXT_ray_tracing : require
@@ -2583,6 +2594,16 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 	rayMissShaderStageCreateInfo.module = rayMissShaderModule;
 	rayMissShaderStageCreateInfo.pName = "main";
 	rayMissShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	VkRayTracingShaderGroupCreateInfoKHR rayMissShaderGroupCreateInfo = {};
+	rayMissShaderGroupCreateInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+	rayMissShaderGroupCreateInfo.pNext = nullptr;
+	rayMissShaderGroupCreateInfo.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+	rayMissShaderGroupCreateInfo.generalShader = 1;
+	rayMissShaderGroupCreateInfo.closestHitShader = VK_SHADER_UNUSED_KHR;
+	rayMissShaderGroupCreateInfo.anyHitShader = VK_SHADER_UNUSED_KHR;
+	rayMissShaderGroupCreateInfo.intersectionShader = VK_SHADER_UNUSED_KHR;
+	rayMissShaderGroupCreateInfo.pShaderGroupCaptureReplayHandle = nullptr;
 
 	const std::string rayClosestHitShaderCode = R"GLSL(
 		#version 460
@@ -2617,7 +2638,49 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 	rayClosestHitShaderStageCreateInfo.pName = "main";
 	rayClosestHitShaderStageCreateInfo.pSpecializationInfo = nullptr;
 
+	VkRayTracingShaderGroupCreateInfoKHR rayClosestHitShaderGroupCreateInfo = {};
+	rayClosestHitShaderGroupCreateInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+	rayClosestHitShaderGroupCreateInfo.pNext = nullptr;
+	rayClosestHitShaderGroupCreateInfo.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+	rayClosestHitShaderGroupCreateInfo.generalShader = VK_SHADER_UNUSED_KHR;
+	rayClosestHitShaderGroupCreateInfo.closestHitShader = 2;
+	rayClosestHitShaderGroupCreateInfo.anyHitShader = VK_SHADER_UNUSED_KHR;
+	rayClosestHitShaderGroupCreateInfo.intersectionShader = VK_SHADER_UNUSED_KHR;
+	rayClosestHitShaderGroupCreateInfo.pShaderGroupCaptureReplayHandle = nullptr;
+
 	std::array<VkPipelineShaderStageCreateInfo, 3> shaderStageCreateInfos = { rayGenShaderStageCreateInfo, rayMissShaderStageCreateInfo, rayClosestHitShaderStageCreateInfo };
+	std::array<VkRayTracingShaderGroupCreateInfoKHR, 3> shaderGroupCreateInfos = { rayGenShaderGroupCreateInfo, rayMissShaderGroupCreateInfo, rayClosestHitShaderGroupCreateInfo };
+
+	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
+	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutCreateInfo.pNext = nullptr;
+	pipelineLayoutCreateInfo.flags = 0;
+	pipelineLayoutCreateInfo.setLayoutCount = 1;
+	pipelineLayoutCreateInfo.pSetLayouts = &m_descriptorSetLayout;
+	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
+	pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
+	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_rayTracingPipelineLayout));
+
+	VkRayTracingPipelineCreateInfoKHR rayTracingPipelineCreateInfo = {};
+	rayTracingPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
+	rayTracingPipelineCreateInfo.pNext = nullptr;
+	rayTracingPipelineCreateInfo.flags = 0;
+	rayTracingPipelineCreateInfo.stageCount = static_cast<uint32_t>(shaderStageCreateInfos.size());
+	rayTracingPipelineCreateInfo.pStages = shaderStageCreateInfos.data();
+	rayTracingPipelineCreateInfo.groupCount = static_cast<uint32_t>(shaderGroupCreateInfos.size());
+	rayTracingPipelineCreateInfo.pGroups = shaderGroupCreateInfos.data();
+	rayTracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 1;
+	rayTracingPipelineCreateInfo.pLibraryInfo = nullptr;
+	rayTracingPipelineCreateInfo.pLibraryInterface = nullptr;
+	rayTracingPipelineCreateInfo.pDynamicState = nullptr;
+	rayTracingPipelineCreateInfo.layout = m_rayTracingPipelineLayout;
+	rayTracingPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+	rayTracingPipelineCreateInfo.basePipelineIndex = 0;
+	NTSHENGN_VK_CHECK(m_vkCreateRayTracingPipelinesKHR(m_device, {}, {}, 1, &rayTracingPipelineCreateInfo, nullptr, &m_rayTracingPipeline));
+
+	vkDestroyShaderModule(m_device, rayGenShaderModule, nullptr);
+	vkDestroyShaderModule(m_device, rayMissShaderModule, nullptr);
+	vkDestroyShaderModule(m_device, rayClosestHitShaderModule, nullptr);
 }
 
 void NtshEngn::GraphicsModule::createDescriptorSets() {

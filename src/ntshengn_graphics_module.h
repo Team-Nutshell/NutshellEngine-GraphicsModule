@@ -225,8 +225,8 @@ namespace NtshEngn {
 
 		bool m_glslangInitialized = false;
 
-		VkPipeline m_graphicsPipeline;
-		VkPipelineLayout m_graphicsPipelineLayout;
+		VkPipeline m_rayTracingPipeline;
+		VkPipelineLayout m_rayTracingPipelineLayout;
 
 		VkDescriptorSetLayout m_descriptorSetLayout;
 		VkDescriptorPool m_descriptorPool;
@@ -249,6 +249,7 @@ namespace NtshEngn {
 		PFN_vkDestroyAccelerationStructureKHR m_vkDestroyAccelerationStructureKHR;
 		PFN_vkCmdBuildAccelerationStructuresKHR m_vkCmdBuildAccelerationStructuresKHR;
 		PFN_vkGetAccelerationStructureDeviceAddressKHR m_vkGetAccelerationStructureDeviceAddressKHR;
+		PFN_vkCreateRayTracingPipelinesKHR m_vkCreateRayTracingPipelinesKHR;
 		PFN_vkCmdTraceRaysKHR m_vkCmdTraceRaysKHR;
 
 		uint32_t m_imageCount;
