@@ -467,7 +467,7 @@ void NtshEngn::GraphicsModule::init() {
 	descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
 	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_descriptorSetLayout));
 
-	createGraphicsPipeline();
+	createRayTracingPipeline();
 
 	// Create camera uniform buffer
 	m_cameraBuffers.resize(m_framesInFlight);
@@ -2521,441 +2521,103 @@ std::vector<uint32_t> NtshEngn::GraphicsModule::compileShader(const std::string&
 	return spvCode;
 }
 
-void NtshEngn::GraphicsModule::createGraphicsPipeline() {
-	// Create graphics pipeline
-	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
-	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
-		pipelineRenderingColorFormat = m_swapchainFormat;
-	}
-
-	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
-	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-	pipelineRenderingCreateInfo.pNext = nullptr;
-	pipelineRenderingCreateInfo.viewMask = 0;
-	pipelineRenderingCreateInfo.colorAttachmentCount = 1;
-	pipelineRenderingCreateInfo.pColorAttachmentFormats = &pipelineRenderingColorFormat;
-	pipelineRenderingCreateInfo.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
-	pipelineRenderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
-
-	const std::string vertexShaderCode = R"GLSL(
+void NtshEngn::GraphicsModule::createRayTracingPipeline() {
+	// Create ray tracing pipeline
+	const std::string rayGenShaderCode = R"GLSL(
 		#version 460
+		#extension GL_EXT_ray_tracing : require
 
-		layout(set = 0, binding = 0) uniform Camera {
-			mat4 view;
-			mat4 projection;
-			vec3 position;
-		} camera;
-
-		struct ObjectInfo {
-			mat4 model;
-			uint materialID;
-		};
-
-		layout(std430, set = 0, binding = 1) restrict readonly buffer Objects {
-			ObjectInfo info[];
-		} objects;
-
-		layout(push_constant) uniform ObjectID {
-			uint objectID;
-		} oID;
-
-		layout(location = 0) in vec3 position;
-		layout(location = 1) in vec3 normal;
-		layout(location = 2) in vec2 uv;
-		layout(location = 3) in vec3 color;
-		layout(location = 4) in vec4 tangent;
-
-		layout(location = 0) out vec3 outPosition;
-		layout(location = 1) out vec2 outUV;
-		layout(location = 2) out flat uint outMaterialID;
-		layout(location = 3) out flat vec3 outCameraPosition;
-		layout(location = 4) out mat3 outTBN;
+		layout(set = 0, binding = 0, rgba32f) uniform image2D image; 
+		layout(set = 0, binding = 1) uniform accelerationStructureEXT tlas;
 
 		void main() {
-			outPosition = vec3(objects.info[oID.objectID].model * vec4(position, 1.0));
-			outUV = uv;
-			outMaterialID = objects.info[oID.objectID].materialID;
-			outCameraPosition = camera.position;
-
-			vec3 bitangent = cross(normal, tangent.xyz) * tangent.w;
-			vec3 T = vec3(objects.info[oID.objectID].model * vec4(tangent.xyz, 0.0));
-			vec3 B = vec3(objects.info[oID.objectID].model * vec4(bitangent, 0.0));
-			vec3 N = vec3(objects.info[oID.objectID].model * vec4(normal, 0.0));
-			outTBN = mat3(T, B, N);
-
-			gl_Position = camera.projection * camera.view * vec4(outPosition, 1.0);
+			imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0.5, 0.5, 0.5, 1.0));
 		}
 	)GLSL";
-	const std::vector<uint32_t> vertexShaderSpv = compileShader(vertexShaderCode, ShaderType::Vertex);
+	const std::vector<uint32_t> rayGenShaderSpv = compileShader(rayGenShaderCode, ShaderType::RayGeneration);
 
-	VkShaderModule vertexShaderModule;
-	VkShaderModuleCreateInfo vertexShaderModuleCreateInfo = {};
-	vertexShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	vertexShaderModuleCreateInfo.pNext = nullptr;
-	vertexShaderModuleCreateInfo.flags = 0;
-	vertexShaderModuleCreateInfo.codeSize = vertexShaderSpv.size() * sizeof(uint32_t);
-	vertexShaderModuleCreateInfo.pCode = vertexShaderSpv.data();
-	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &vertexShaderModuleCreateInfo, nullptr, &vertexShaderModule));
+	VkShaderModule rayGenShaderModule;
+	VkShaderModuleCreateInfo rayGenShaderModuleCreateInfo = {};
+	rayGenShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	rayGenShaderModuleCreateInfo.pNext = nullptr;
+	rayGenShaderModuleCreateInfo.flags = 0;
+	rayGenShaderModuleCreateInfo.codeSize = rayGenShaderSpv.size() * sizeof(uint32_t);
+	rayGenShaderModuleCreateInfo.pCode = rayGenShaderSpv.data();
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &rayGenShaderModuleCreateInfo, nullptr, &rayGenShaderModule));
 
-	VkPipelineShaderStageCreateInfo vertexShaderStageCreateInfo = {};
-	vertexShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	vertexShaderStageCreateInfo.pNext = nullptr;
-	vertexShaderStageCreateInfo.flags = 0;
-	vertexShaderStageCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-	vertexShaderStageCreateInfo.module = vertexShaderModule;
-	vertexShaderStageCreateInfo.pName = "main";
-	vertexShaderStageCreateInfo.pSpecializationInfo = nullptr;
+	VkPipelineShaderStageCreateInfo rayGenShaderStageCreateInfo = {};
+	rayGenShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	rayGenShaderStageCreateInfo.pNext = nullptr;
+	rayGenShaderStageCreateInfo.flags = 0;
+	rayGenShaderStageCreateInfo.stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+	rayGenShaderStageCreateInfo.module = rayGenShaderModule;
+	rayGenShaderStageCreateInfo.pName = "main";
+	rayGenShaderStageCreateInfo.pSpecializationInfo = nullptr;
 
-	const std::string fragmentShaderCode = R"GLSL(
+	const std::string rayMissShaderCode = R"GLSL(
 		#version 460
+		#extension GL_EXT_ray_tracing : require
+
+		layout(location = 0) rayPayloadInEXT vec3 hitValue;
+
+		void main() {
+			hitValue = vec3(0.0, 0.1, 0.3);
+		}
+	)GLSL";
+	const std::vector<uint32_t> rayMissShaderSpv = compileShader(rayMissShaderCode, ShaderType::RayMiss);
+
+	VkShaderModule rayMissShaderModule;
+	VkShaderModuleCreateInfo rayMissShaderModuleCreateInfo = {};
+	rayMissShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	rayMissShaderModuleCreateInfo.pNext = nullptr;
+	rayMissShaderModuleCreateInfo.flags = 0;
+	rayMissShaderModuleCreateInfo.codeSize = rayMissShaderSpv.size() * sizeof(uint32_t);
+	rayMissShaderModuleCreateInfo.pCode = rayMissShaderSpv.data();
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &rayMissShaderModuleCreateInfo, nullptr, &rayMissShaderModule));
+
+	VkPipelineShaderStageCreateInfo rayMissShaderStageCreateInfo = {};
+	rayMissShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	rayMissShaderStageCreateInfo.pNext = nullptr;
+	rayMissShaderStageCreateInfo.flags = 0;
+	rayMissShaderStageCreateInfo.stage = VK_SHADER_STAGE_MISS_BIT_KHR;
+	rayMissShaderStageCreateInfo.module = rayMissShaderModule;
+	rayMissShaderStageCreateInfo.pName = "main";
+	rayMissShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	const std::string rayClosestHitShaderCode = R"GLSL(
+		#version 460
+		#extension GL_EXT_ray_tracing : require
 		#extension GL_EXT_nonuniform_qualifier : enable
-
-		#define M_PI 3.1415926535897932384626433832795
-
-		// BRDF
-		float distribution(float NdotH, float roughness) {
-			const float a = roughness * roughness;
-			const float aSquare = a * a;
-			const float NdotHSquare = NdotH * NdotH;
-			const float denom = NdotHSquare * (aSquare - 1.0) + 1.0;
-
-			return aSquare / (M_PI * denom * denom);
-		}
-
-		vec3 fresnel(float cosTheta, vec3 f0) {
-			return f0 + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);
-		}
-
-		float g(float NdotV, float roughness) {
-			const float r = roughness + 1.0;
-			const float k = (r * r) / 8.0;
-			const float denom = NdotV * (1.0 - k) + k;
-
-			return NdotV / denom;
-		}
-
-		float smith(float LdotN, float VdotN, float roughness) {
-			const float gv = g(VdotN, roughness);
-			const float gl = g(LdotN, roughness);
-
-			return gv * gl;
-		}
-
-		vec3 diffuseFresnelCorrection(vec3 ior) {
-			const vec3 iorSquare = ior * ior;
-			const bvec3 TIR = lessThan(ior, vec3(1.0));
-			const vec3 invDenum = mix(vec3(1.0), vec3(1.0) / (iorSquare * iorSquare * (vec3(554.33) * 380.7 * ior)), TIR);
-			vec3 num = ior * mix(vec3(0.1921156102251088), ior * 298.25 - 261.38 * iorSquare + 138.43, TIR);
-			num += mix(vec3(0.8078843897748912), vec3(-1.07), TIR);
-
-			return num * invDenum;
-		}
-
-		vec3 brdf(float LdotH, float NdotH, float VdotH, float LdotN, float VdotN, vec3 diffuse, float metalness, float roughness) {
-			const float d = distribution(NdotH, roughness);
-			const vec3 f = fresnel(LdotH, mix(vec3(0.04), diffuse, metalness));
-			const vec3 fT = fresnel(LdotN, mix(vec3(0.04), diffuse, metalness));
-			const vec3 fTIR = fresnel(VdotN, mix(vec3(0.04), diffuse, metalness));
-			const float g = smith(LdotN, VdotN, roughness);
-			const vec3 dfc = diffuseFresnelCorrection(vec3(1.05));
-
-			const vec3 lambertian = diffuse / M_PI;
-
-			return (d * f * g) / max(4.0 * LdotN * VdotN, 0.001) + ((vec3(1.0) - fT) * (vec3(1.0 - fTIR)) * lambertian) * dfc;
-		}
-
-		vec3 shade(vec3 n, vec3 v, vec3 l, vec3 lc, vec3 diffuse, float metalness, float roughness) {
-			const vec3 h = normalize(v + l);
-
-			const float LdotH = max(dot(l, h), 0.0);
-			const float NdotH = max(dot(n, h), 0.0);
-			const float VdotH = max(dot(v, h), 0.0);
-			const float LdotN = max(dot(l, n), 0.0);
-			const float VdotN = max(dot(v, n), 0.0);
-
-			const vec3 brdf = brdf(LdotH, NdotH, VdotH, LdotN, VdotN, diffuse, metalness, roughness);
-	
-			return lc * brdf * LdotN;
-		}
-
-		struct MaterialInfo {
-			uint diffuseTextureIndex;
-			uint normalTextureIndex;
-			uint metalnessTextureIndex;
-			uint roughnessTextureIndex;
-			uint occlusionTextureIndex;
-			uint emissiveTextureIndex;
-		};
-
-		struct LightInfo {
-			vec3 position;
-			vec3 direction;
-			vec3 color;
-			vec2 cutoffs;
-		};
-
-		layout(set = 0, binding = 2) restrict readonly buffer Materials {
-			MaterialInfo info[];
-		} materials;
-
-		layout(set = 0, binding = 3) restrict readonly buffer Lights {
-			uvec3 count;
-			LightInfo info[];
-		} lights;
-
-		layout(set = 0, binding = 4) uniform sampler2D textures[];
-
-		layout(location = 0) in vec3 position;
-		layout(location = 1) in vec2 uv;
-		layout(location = 2) in flat uint materialID;
-		layout(location = 3) in flat vec3 cameraPosition;
-		layout(location = 4) in mat3 TBN;
-
-		layout(location = 0) out vec4 outColor;
+		
+		layout(location = 0) rayPayloadInEXT vec3 hitValue;
+		
+		hitAttributeEXT vec3 attribs;
 
 		void main() {
-			vec4 diffuseSample = texture(textures[materials.info[materialID].diffuseTextureIndex], uv);
-			vec3 normalSample = texture(textures[materials.info[materialID].normalTextureIndex], uv).xyz;
-			float metalnessSample = texture(textures[materials.info[materialID].metalnessTextureIndex], uv).b;
-			float roughnessSample = texture(textures[materials.info[materialID].roughnessTextureIndex], uv).g;
-			float occlusionSample = texture(textures[materials.info[materialID].occlusionTextureIndex], uv).r;
-			vec3 emissiveSample = texture(textures[materials.info[materialID].emissiveTextureIndex], uv).rgb;
-
-			vec3 d = vec3(diffuseSample);
-			vec3 n = normalize(TBN * (normalSample * 2.0 - 1.0));
-			vec3 v = normalize(cameraPosition - position);
-
-			vec3 color = vec3(0.0);
-
-			uint lightIndex = 0;
-			// Directional Lights
-			for (uint i = 0; i < lights.count.x; i++) {
-				vec3 l = normalize(-lights.info[lightIndex].direction);
-				color += shade(n, v, l, lights.info[lightIndex].color, d, metalnessSample, roughnessSample);
-
-				lightIndex++;
-			}
-			// Point Lights
-			for (uint i = 0; i < lights.count.y; i++) {
-				vec3 l = normalize(lights.info[lightIndex].position - position);
-				float distance = length(lights.info[lightIndex].position - position);
-				float attenuation = 1.0 / (distance * distance);
-				vec3 radiance = lights.info[lightIndex].color * attenuation;
-				color += shade(n, v, l, radiance, d, metalnessSample, roughnessSample);
-
-				lightIndex++;
-			}
-			// Spot Lights
-			for (uint i = 0; i < lights.count.z; i++) {
-				vec3 l = normalize(lights.info[lightIndex].position - position);
-				float theta = dot(l, normalize(-lights.info[lightIndex].direction));
-				float epsilon = cos(lights.info[lightIndex].cutoffs.y) - cos(lights.info[lightIndex].cutoffs.x);
-				float intensity = clamp((theta - cos(lights.info[lightIndex].cutoffs.x)) / epsilon, 0.0, 1.0);
-				intensity = 1.0 - intensity;
-				color += shade(n, v, l, lights.info[lightIndex].color * intensity, d * intensity, metalnessSample, roughnessSample);
-
-				lightIndex++;
-			}
-
-			color *= occlusionSample;
-			color += emissiveSample;
-
-			outColor = vec4(color, 1.0);
+			hitValue = vec3(0.2, 0.5, 0.5);
 		}
 	)GLSL";
-	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
+	const std::vector<uint32_t> rayClosestHitShaderSpv = compileShader(rayClosestHitShaderCode, ShaderType::RayClosestHit);
 
-	VkShaderModule fragmentShaderModule;
-	VkShaderModuleCreateInfo fragmentShaderModuleCreateInfo = {};
-	fragmentShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	fragmentShaderModuleCreateInfo.pNext = nullptr;
-	fragmentShaderModuleCreateInfo.flags = 0;
-	fragmentShaderModuleCreateInfo.codeSize = fragmentShaderSpv.size() * sizeof(uint32_t);
-	fragmentShaderModuleCreateInfo.pCode = fragmentShaderSpv.data();
-	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &fragmentShaderModuleCreateInfo, nullptr, &fragmentShaderModule));
+	VkShaderModule rayClosestHitShaderModule;
+	VkShaderModuleCreateInfo rayClosestHitShaderModuleCreateInfo = {};
+	rayClosestHitShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	rayClosestHitShaderModuleCreateInfo.pNext = nullptr;
+	rayClosestHitShaderModuleCreateInfo.flags = 0;
+	rayClosestHitShaderModuleCreateInfo.codeSize = rayClosestHitShaderSpv.size() * sizeof(uint32_t);
+	rayClosestHitShaderModuleCreateInfo.pCode = rayClosestHitShaderSpv.data();
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &rayClosestHitShaderModuleCreateInfo, nullptr, &rayClosestHitShaderModule));
 
-	VkPipelineShaderStageCreateInfo fragmentShaderStageCreateInfo = {};
-	fragmentShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	fragmentShaderStageCreateInfo.pNext = nullptr;
-	fragmentShaderStageCreateInfo.flags = 0;
-	fragmentShaderStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragmentShaderStageCreateInfo.module = fragmentShaderModule;
-	fragmentShaderStageCreateInfo.pName = "main";
-	fragmentShaderStageCreateInfo.pSpecializationInfo = nullptr;
+	VkPipelineShaderStageCreateInfo rayClosestHitShaderStageCreateInfo = {};
+	rayClosestHitShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	rayClosestHitShaderStageCreateInfo.pNext = nullptr;
+	rayClosestHitShaderStageCreateInfo.flags = 0;
+	rayClosestHitShaderStageCreateInfo.stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+	rayClosestHitShaderStageCreateInfo.module = rayClosestHitShaderModule;
+	rayClosestHitShaderStageCreateInfo.pName = "main";
+	rayClosestHitShaderStageCreateInfo.pSpecializationInfo = nullptr;
 
-	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStageCreateInfos = { vertexShaderStageCreateInfo, fragmentShaderStageCreateInfo };
-
-	VkVertexInputBindingDescription vertexInputBindingDescription = {};
-	vertexInputBindingDescription.binding = 0;
-	vertexInputBindingDescription.stride = sizeof(NtshEngn::Vertex);
-	vertexInputBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-	VkVertexInputAttributeDescription vertexPositionInputAttributeDescription = {};
-	vertexPositionInputAttributeDescription.location = 0;
-	vertexPositionInputAttributeDescription.binding = 0;
-	vertexPositionInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
-	vertexPositionInputAttributeDescription.offset = 0;
-
-	VkVertexInputAttributeDescription vertexNormalInputAttributeDescription = {};
-	vertexNormalInputAttributeDescription.location = 1;
-	vertexNormalInputAttributeDescription.binding = 0;
-	vertexNormalInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
-	vertexNormalInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, normal);
-
-	VkVertexInputAttributeDescription vertexUVInputAttributeDescription = {};
-	vertexUVInputAttributeDescription.location = 2;
-	vertexUVInputAttributeDescription.binding = 0;
-	vertexUVInputAttributeDescription.format = VK_FORMAT_R32G32_SFLOAT;
-	vertexUVInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, uv);
-
-	VkVertexInputAttributeDescription vertexColorInputAttributeDescription = {};
-	vertexColorInputAttributeDescription.location = 3;
-	vertexColorInputAttributeDescription.binding = 0;
-	vertexColorInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
-	vertexColorInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, color);
-
-	VkVertexInputAttributeDescription vertexTangentInputAttributeDescription = {};
-	vertexTangentInputAttributeDescription.location = 4;
-	vertexTangentInputAttributeDescription.binding = 0;
-	vertexTangentInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-	vertexTangentInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, tangent);
-
-	std::array<VkVertexInputAttributeDescription, 5> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexNormalInputAttributeDescription, vertexUVInputAttributeDescription, vertexColorInputAttributeDescription, vertexTangentInputAttributeDescription };
-
-	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
-	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexInputStateCreateInfo.pNext = nullptr;
-	vertexInputStateCreateInfo.flags = 0;
-	vertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
-	vertexInputStateCreateInfo.pVertexBindingDescriptions = &vertexInputBindingDescription;
-	vertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributeDescriptions.size());
-	vertexInputStateCreateInfo.pVertexAttributeDescriptions = vertexInputAttributeDescriptions.data();
-
-	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo = {};
-	inputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	inputAssemblyStateCreateInfo.pNext = nullptr;
-	inputAssemblyStateCreateInfo.flags = 0;
-	inputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-	inputAssemblyStateCreateInfo.primitiveRestartEnable = VK_FALSE;
-
-	VkPipelineViewportStateCreateInfo viewportStateCreateInfo = {};
-	viewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-	viewportStateCreateInfo.pNext = nullptr;
-	viewportStateCreateInfo.flags = 0;
-	viewportStateCreateInfo.viewportCount = 1;
-	viewportStateCreateInfo.pViewports = &m_viewport;
-	viewportStateCreateInfo.scissorCount = 1;
-	viewportStateCreateInfo.pScissors = &m_scissor;
-
-	VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo = {};
-	rasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-	rasterizationStateCreateInfo.pNext = nullptr;
-	rasterizationStateCreateInfo.flags = 0;
-	rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
-	rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
-	rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
-	rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-	rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-	rasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
-	rasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
-	rasterizationStateCreateInfo.depthBiasClamp = 0.0f;
-	rasterizationStateCreateInfo.depthBiasSlopeFactor = 0.0f;
-	rasterizationStateCreateInfo.lineWidth = 1.0f;
-
-	VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo = {};
-	multisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	multisampleStateCreateInfo.pNext = nullptr;
-	multisampleStateCreateInfo.flags = 0;
-	multisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-	multisampleStateCreateInfo.sampleShadingEnable = VK_FALSE;
-	multisampleStateCreateInfo.minSampleShading = 0.0f;
-	multisampleStateCreateInfo.pSampleMask = nullptr;
-	multisampleStateCreateInfo.alphaToCoverageEnable = VK_FALSE;
-	multisampleStateCreateInfo.alphaToOneEnable = VK_FALSE;
-
-	VkPipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo = {};
-	depthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-	depthStencilStateCreateInfo.pNext = nullptr;
-	depthStencilStateCreateInfo.flags = 0;
-	depthStencilStateCreateInfo.depthTestEnable = VK_TRUE;
-	depthStencilStateCreateInfo.depthWriteEnable = VK_TRUE;
-	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS;
-	depthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
-	depthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
-	depthStencilStateCreateInfo.front = {};
-	depthStencilStateCreateInfo.back = {};
-	depthStencilStateCreateInfo.minDepthBounds = 0.0f;
-	depthStencilStateCreateInfo.maxDepthBounds = 1.0f;
-
-	VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
-	colorBlendAttachmentState.blendEnable = VK_FALSE;
-	colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-	colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-	colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
-	colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-	colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
-	colorBlendAttachmentState.colorWriteMask = { VK_COLOR_COMPONENT_R_BIT |
-		VK_COLOR_COMPONENT_G_BIT |
-		VK_COLOR_COMPONENT_B_BIT |
-		VK_COLOR_COMPONENT_A_BIT };
-
-	VkPipelineColorBlendStateCreateInfo colorBlendStateCreateInfo = {};
-	colorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	colorBlendStateCreateInfo.pNext = nullptr;
-	colorBlendStateCreateInfo.flags = 0;
-	colorBlendStateCreateInfo.logicOpEnable = VK_FALSE;
-	colorBlendStateCreateInfo.logicOp = VK_LOGIC_OP_COPY;
-	colorBlendStateCreateInfo.attachmentCount = 1;
-	colorBlendStateCreateInfo.pAttachments = &colorBlendAttachmentState;
-
-	std::array<VkDynamicState, 2> dynamicStates = { VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_VIEWPORT };
-	VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = {};
-	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	dynamicStateCreateInfo.pNext = nullptr;
-	dynamicStateCreateInfo.flags = 0;
-	dynamicStateCreateInfo.dynamicStateCount = 2;
-	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
-
-	VkPushConstantRange pushConstantRange = {};
-	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	pushConstantRange.offset = 0;
-	pushConstantRange.size = sizeof(uint32_t);
-
-	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
-	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutCreateInfo.pNext = nullptr;
-	pipelineLayoutCreateInfo.flags = 0;
-	pipelineLayoutCreateInfo.setLayoutCount = 1;
-	pipelineLayoutCreateInfo.pSetLayouts = &m_descriptorSetLayout;
-	pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
-	pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
-	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_graphicsPipelineLayout));
-
-	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};
-	graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	graphicsPipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
-	graphicsPipelineCreateInfo.flags = 0;
-	graphicsPipelineCreateInfo.stageCount = 2;
-	graphicsPipelineCreateInfo.pStages = shaderStageCreateInfos.data();
-	graphicsPipelineCreateInfo.pVertexInputState = &vertexInputStateCreateInfo;
-	graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;
-	graphicsPipelineCreateInfo.pTessellationState = nullptr;
-	graphicsPipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
-	graphicsPipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
-	graphicsPipelineCreateInfo.pMultisampleState = &multisampleStateCreateInfo;
-	graphicsPipelineCreateInfo.pDepthStencilState = &depthStencilStateCreateInfo;
-	graphicsPipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
-	graphicsPipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
-	graphicsPipelineCreateInfo.layout = m_graphicsPipelineLayout;
-	graphicsPipelineCreateInfo.renderPass = VK_NULL_HANDLE;
-	graphicsPipelineCreateInfo.subpass = 0;
-	graphicsPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
-	graphicsPipelineCreateInfo.basePipelineIndex = 0;
-	NTSHENGN_VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_graphicsPipeline));
-
-	vkDestroyShaderModule(m_device, vertexShaderModule, nullptr);
-	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
+	std::array<VkPipelineShaderStageCreateInfo, 3> shaderStageCreateInfos = { rayGenShaderStageCreateInfo, rayMissShaderStageCreateInfo, rayClosestHitShaderStageCreateInfo };
 }
 
 void NtshEngn::GraphicsModule::createDescriptorSets() {

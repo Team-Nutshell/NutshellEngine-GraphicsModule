@@ -148,8 +148,8 @@ namespace NtshEngn {
 		// Shader compilation
 		std::vector<uint32_t> compileShader(const std::string& shaderCode, ShaderType type);
 
-		// Graphics pipeline creation
-		void createGraphicsPipeline();
+		// Ray tracing pipeline creation
+		void createRayTracingPipeline();
 
 		// Descriptor sets creation
 		void createDescriptorSets();
