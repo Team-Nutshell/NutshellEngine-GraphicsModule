@@ -863,6 +863,31 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	std::array<VkAccelerationStructureBuildRangeInfoKHR*, 1> accelerationStructureBuildRangeInfos = { &accelerationStructureBuildRangeInfo };
 	m_vkCmdBuildAccelerationStructuresKHR(m_renderingCommandBuffers[m_currentFrameInFlight], 1, &accelerationStructureBuildGeometryInfo, accelerationStructureBuildRangeInfos.data());
 
+	VkBufferMemoryBarrier2 tlasBuildBufferMemoryBarrier = {};
+	tlasBuildBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+	tlasBuildBufferMemoryBarrier.pNext = nullptr;
+	tlasBuildBufferMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR;
+	tlasBuildBufferMemoryBarrier.srcAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+	tlasBuildBufferMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
+	tlasBuildBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT_KHR;
+	tlasBuildBufferMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	tlasBuildBufferMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	tlasBuildBufferMemoryBarrier.buffer = m_topLevelAccelerationStructureBuffer;
+	tlasBuildBufferMemoryBarrier.offset = 0;
+	tlasBuildBufferMemoryBarrier.size = m_topLevelAccelerationStructureBufferAllocation->GetSize();
+
+	VkDependencyInfo tlasBuildDependencyInfo = {};
+	tlasBuildDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	tlasBuildDependencyInfo.pNext = nullptr;
+	tlasBuildDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	tlasBuildDependencyInfo.memoryBarrierCount = 0;
+	tlasBuildDependencyInfo.pMemoryBarriers = nullptr;
+	tlasBuildDependencyInfo.bufferMemoryBarrierCount = 1;
+	tlasBuildDependencyInfo.pBufferMemoryBarriers = &tlasBuildBufferMemoryBarrier;
+	tlasBuildDependencyInfo.imageMemoryBarrierCount = 0;
+	tlasBuildDependencyInfo.pImageMemoryBarriers = nullptr;
+	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &tlasBuildDependencyInfo);
+
 	// Bind vertex and index buffers
 	VkDeviceSize vertexBufferOffset = 0;
 	vkCmdBindVertexBuffers(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_vertexBuffer, &vertexBufferOffset);
