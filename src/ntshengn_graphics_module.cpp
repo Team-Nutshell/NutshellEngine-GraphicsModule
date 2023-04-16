@@ -193,6 +193,9 @@ void NtshEngn::GraphicsModule::init() {
 	NTSHENGN_MODULE_INFO("Max Geometry Count In BLAS: " + std::to_string(physicalDeviceAccelerationStructureProperties.maxGeometryCount));
 	NTSHENGN_MODULE_INFO("Max Triangle Or AABB Count In BLAS: " + std::to_string(physicalDeviceAccelerationStructureProperties.maxPrimitiveCount));
 
+	m_rayTracingPipelineShaderGroupHandleAlignment = physicalDeviceRayTracingPipelineProperties.shaderGroupHandleAlignment;
+	m_rayTracingPipelineShaderGroupBaseAlignment = physicalDeviceRayTracingPipelineProperties.shaderGroupBaseAlignment;
+
 	// Find a queue family supporting graphics
 	uint32_t queueFamilyPropertyCount;
 	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyPropertyCount, nullptr);
@@ -359,6 +362,7 @@ void NtshEngn::GraphicsModule::init() {
 		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 		VmaAllocationCreateInfo imageAllocationCreateInfo = {};
+		imageAllocationCreateInfo.flags = 0;
 		imageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
 		NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &imageCreateInfo, &imageAllocationCreateInfo, &m_drawImage, &m_drawImageAllocation, nullptr));
@@ -470,6 +474,8 @@ void NtshEngn::GraphicsModule::init() {
 
 	createRayTracingPipeline();
 
+	createRayTracingShaderBindingTable();
+
 	// Create camera uniform buffer
 	m_cameraBuffers.resize(m_framesInFlight);
 	m_cameraBufferAllocations.resize(m_framesInFlight);
@@ -484,8 +490,8 @@ void NtshEngn::GraphicsModule::init() {
 	cameraBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
 	VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
-	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &cameraBufferCreateInfo, &bufferAllocationCreateInfo, &m_cameraBuffers[i], &m_cameraBufferAllocations[i], nullptr));
@@ -874,7 +880,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	tlasBuildBufferMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 	tlasBuildBufferMemoryBarrier.buffer = m_topLevelAccelerationStructureBuffer;
 	tlasBuildBufferMemoryBarrier.offset = 0;
-	tlasBuildBufferMemoryBarrier.size = m_topLevelAccelerationStructureBufferAllocation->GetSize();
+	tlasBuildBufferMemoryBarrier.size = m_topLevelAccelerationStructureBufferSize;
 
 	VkDependencyInfo tlasBuildDependencyInfo = {};
 	tlasBuildDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
@@ -1166,8 +1172,8 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	vertexAndIndexStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
 	VmaAllocationCreateInfo vertexAndIndexStagingBufferAllocationCreateInfo = {};
-	vertexAndIndexStagingBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 	vertexAndIndexStagingBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+	vertexAndIndexStagingBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexStagingBufferCreateInfo, &vertexAndIndexStagingBufferAllocationCreateInfo, &vertexAndIndexStagingBuffer, &vertexAndIndexStagingBufferAllocation, nullptr));
 
 	void* data;
@@ -1234,8 +1240,8 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	blasScratchBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
 	VmaAllocationCreateInfo blasScratchBufferAllocationCreateInfo = {};
-	blasScratchBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 	blasScratchBufferAllocationCreateInfo.flags = 0;
+	blasScratchBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &blasScratchBufferCreateInfo, &blasScratchBufferAllocationCreateInfo, &blasScratchBuffer, &blasScratchBufferAllocation, nullptr));
 
 	VkBufferDeviceAddressInfoKHR blasScratchBufferDeviceAddressInfo = {};
@@ -1560,6 +1566,7 @@ NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image& image) {
 	textureImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 	VmaAllocationCreateInfo cubeTextureImageAllocationCreateInfo = {};
+	cubeTextureImageAllocationCreateInfo.flags = 0;
 	cubeTextureImageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
 	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &textureImageCreateInfo, &cubeTextureImageAllocationCreateInfo, &textureImage, &textureImageAllocation, nullptr));
@@ -1597,8 +1604,8 @@ NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image& image) {
 	textureStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
 	VmaAllocationCreateInfo textureStagingBufferAllocationCreateInfo = {};
-	textureStagingBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 	textureStagingBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+	textureStagingBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &textureStagingBufferCreateInfo, &textureStagingBufferAllocationCreateInfo, &textureStagingBuffer, &textureStagingBufferAllocation, nullptr));
 
 	void* data;
@@ -2082,28 +2089,28 @@ void NtshEngn::GraphicsModule::createVertexIndexAndAccelerationStructureBuffers(
 	VmaAllocationCreateInfo vertexIndexAndAccelerationStructureBufferAllocationCreateInfo = {};
 
 	vertexIndexAndAccelerationStructureBufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
-	vertexIndexAndAccelerationStructureBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 	vertexIndexAndAccelerationStructureBufferAllocationCreateInfo.flags = 0;
+	vertexIndexAndAccelerationStructureBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexIndexAndAccelerationStructureBufferCreateInfo, &vertexIndexAndAccelerationStructureBufferAllocationCreateInfo, &m_vertexBuffer, &m_vertexBufferAllocation, nullptr));
 
 	vertexIndexAndAccelerationStructureBufferCreateInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
-	vertexIndexAndAccelerationStructureBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 	vertexIndexAndAccelerationStructureBufferAllocationCreateInfo.flags = 0;
+	vertexIndexAndAccelerationStructureBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexIndexAndAccelerationStructureBufferCreateInfo, &vertexIndexAndAccelerationStructureBufferAllocationCreateInfo, &m_indexBuffer, &m_indexBufferAllocation, nullptr));
 
 	vertexIndexAndAccelerationStructureBufferCreateInfo.usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
-	vertexIndexAndAccelerationStructureBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 	vertexIndexAndAccelerationStructureBufferAllocationCreateInfo.flags = 0;
+	vertexIndexAndAccelerationStructureBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexIndexAndAccelerationStructureBufferCreateInfo, &vertexIndexAndAccelerationStructureBufferAllocationCreateInfo, &m_bottomLevelAccelerationStructureBuffer, &m_bottomLevelAccelerationStructureBufferAllocation, nullptr));
 
 	vertexIndexAndAccelerationStructureBufferCreateInfo.usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
-	vertexIndexAndAccelerationStructureBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 	vertexIndexAndAccelerationStructureBufferAllocationCreateInfo.flags = 0;
+	vertexIndexAndAccelerationStructureBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexIndexAndAccelerationStructureBufferCreateInfo, &vertexIndexAndAccelerationStructureBufferAllocationCreateInfo, &m_topLevelAccelerationStructureInstancesBuffer, &m_topLevelAccelerationStructureInstancesBufferAllocation, nullptr));
 
 	vertexIndexAndAccelerationStructureBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-	vertexIndexAndAccelerationStructureBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 	vertexIndexAndAccelerationStructureBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+	vertexIndexAndAccelerationStructureBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 	m_topLevelAccelerationStructureInstancesStagingBuffers.resize(m_framesInFlight);
 	m_topLevelAccelerationStructureInstancesStagingBufferAllocations.resize(m_framesInFlight);
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
@@ -2114,7 +2121,6 @@ void NtshEngn::GraphicsModule::createVertexIndexAndAccelerationStructureBuffers(
 	vertexIndexAndAccelerationStructureBufferDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO_KHR;
 	vertexIndexAndAccelerationStructureBufferDeviceAddressInfo.pNext = nullptr;
 	vertexIndexAndAccelerationStructureBufferDeviceAddressInfo.buffer = m_vertexBuffer;
-
 	m_vertexBufferDeviceAddress = m_vkGetBufferDeviceAddressKHR(m_device, &vertexIndexAndAccelerationStructureBufferDeviceAddressInfo);
 
 	vertexIndexAndAccelerationStructureBufferDeviceAddressInfo.buffer = m_indexBuffer;
@@ -2168,12 +2174,14 @@ void NtshEngn::GraphicsModule::createTopLevelAccelerationStructure() {
 	tlasBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
 	VmaAllocationCreateInfo tlasBufferAllocationCreateInfo = {};
-	tlasBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 	tlasBufferAllocationCreateInfo.flags = 0;
+	tlasBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
 	tlasBufferCreateInfo.size = tlasBuildSizesInfo.accelerationStructureSize;
 	tlasBufferCreateInfo.usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
 	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &tlasBufferCreateInfo, &tlasBufferAllocationCreateInfo, &m_topLevelAccelerationStructureBuffer, &m_topLevelAccelerationStructureBufferAllocation, nullptr));
+
+	m_topLevelAccelerationStructureBufferSize = tlasBuildSizesInfo.accelerationStructureSize;
 
 	tlasBufferCreateInfo.size = tlasBuildSizesInfo.buildScratchSize;
 	tlasBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
@@ -2226,6 +2234,7 @@ void NtshEngn::GraphicsModule::createColorImage() {
 	colorImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 	VmaAllocationCreateInfo colorImageAllocationCreateInfo = {};
+	colorImageAllocationCreateInfo.flags = 0;
 	colorImageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
 	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &colorImageCreateInfo, &colorImageAllocationCreateInfo, &m_colorImage, &m_colorImageAllocation, nullptr));
@@ -2706,6 +2715,30 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 	vkDestroyShaderModule(m_device, rayGenShaderModule, nullptr);
 	vkDestroyShaderModule(m_device, rayMissShaderModule, nullptr);
 	vkDestroyShaderModule(m_device, rayClosestHitShaderModule, nullptr);
+}
+
+void NtshEngn::GraphicsModule::createRayTracingShaderBindingTable() {
+	// Create ray tracing shader binding table
+	VkBufferCreateInfo rayTracingShaderBindingTableBufferCreateInfo = {};
+	rayTracingShaderBindingTableBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	rayTracingShaderBindingTableBufferCreateInfo.pNext = nullptr;
+	rayTracingShaderBindingTableBufferCreateInfo.flags = 0;
+	rayTracingShaderBindingTableBufferCreateInfo.size = 0;
+	rayTracingShaderBindingTableBufferCreateInfo.usage = VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
+	rayTracingShaderBindingTableBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	rayTracingShaderBindingTableBufferCreateInfo.queueFamilyIndexCount = 1;
+	rayTracingShaderBindingTableBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+
+	VmaAllocationCreateInfo rayTracingShaderBindingTableBufferAllocationCreateInfo = {};
+	rayTracingShaderBindingTableBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+	rayTracingShaderBindingTableBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &rayTracingShaderBindingTableBufferCreateInfo, &rayTracingShaderBindingTableBufferAllocationCreateInfo, &m_rayTracingShaderBindingTableBuffer, &m_rayTracingShaderBindingTableBufferAllocation, nullptr));
+
+	VkBufferDeviceAddressInfoKHR rayTracingShaderBindingTableBufferDeviceAddressInfo = {};
+	rayTracingShaderBindingTableBufferDeviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO_KHR;
+	rayTracingShaderBindingTableBufferDeviceAddressInfo.pNext = nullptr;
+	rayTracingShaderBindingTableBufferDeviceAddressInfo.buffer = m_rayTracingShaderBindingTableBuffer;
+	m_rayTracingShaderBindingTableBufferDeviceAddress = m_vkGetBufferDeviceAddressKHR(m_device, &rayTracingShaderBindingTableBufferDeviceAddressInfo);
 }
 
 void NtshEngn::GraphicsModule::createDescriptorSets() {

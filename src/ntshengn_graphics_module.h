@@ -151,6 +151,9 @@ namespace NtshEngn {
 		// Ray tracing pipeline creation
 		void createRayTracingPipeline();
 
+		// Ray tracing shader binding table creation
+		void createRayTracingShaderBindingTable();
+
 		// Descriptor sets creation
 		void createDescriptorSets();
 		void updateDescriptorSet(uint32_t frameInFlight);
@@ -210,6 +213,7 @@ namespace NtshEngn {
 
 		VkBuffer m_topLevelAccelerationStructureBuffer;
 		VmaAllocation m_topLevelAccelerationStructureBufferAllocation;
+		VkDeviceSize m_topLevelAccelerationStructureBufferSize;
 		VkBuffer m_topLevelAccelerationStructureScratchBuffer;
 		VmaAllocation m_topLevelAccelerationStructureScratchBufferAllocation;
 		VkDeviceAddress m_topLevelAccelerationStructureScratchBufferDeviceAddress;
@@ -227,6 +231,13 @@ namespace NtshEngn {
 
 		VkPipeline m_rayTracingPipeline;
 		VkPipelineLayout m_rayTracingPipelineLayout;
+
+		uint32_t m_rayTracingPipelineShaderGroupHandleAlignment;
+		uint32_t m_rayTracingPipelineShaderGroupBaseAlignment;
+
+		VkBuffer m_rayTracingShaderBindingTableBuffer;
+		VmaAllocation m_rayTracingShaderBindingTableBufferAllocation;
+		VkDeviceAddress m_rayTracingShaderBindingTableBufferDeviceAddress;
 
 		VkDescriptorSetLayout m_descriptorSetLayout;
 		VkDescriptorPool m_descriptorPool;
