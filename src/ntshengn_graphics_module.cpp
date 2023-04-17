@@ -193,6 +193,7 @@ void NtshEngn::GraphicsModule::init() {
 	NTSHENGN_MODULE_INFO("Max Geometry Count In BLAS: " + std::to_string(physicalDeviceAccelerationStructureProperties.maxGeometryCount));
 	NTSHENGN_MODULE_INFO("Max Triangle Or AABB Count In BLAS: " + std::to_string(physicalDeviceAccelerationStructureProperties.maxPrimitiveCount));
 
+	m_rayTracingPipelineShaderGroupHandleSize = physicalDeviceRayTracingPipelineProperties.shaderGroupHandleSize;
 	m_rayTracingPipelineShaderGroupHandleAlignment = physicalDeviceRayTracingPipelineProperties.shaderGroupHandleAlignment;
 	m_rayTracingPipelineShaderGroupBaseAlignment = physicalDeviceRayTracingPipelineProperties.shaderGroupBaseAlignment;
 
@@ -306,6 +307,7 @@ void NtshEngn::GraphicsModule::init() {
 	m_vkCmdBuildAccelerationStructuresKHR = (PFN_vkCmdBuildAccelerationStructuresKHR)vkGetDeviceProcAddr(m_device, "vkCmdBuildAccelerationStructuresKHR");
 	m_vkGetAccelerationStructureDeviceAddressKHR = (PFN_vkGetAccelerationStructureDeviceAddressKHR)vkGetDeviceProcAddr(m_device, "vkGetAccelerationStructureDeviceAddressKHR");
 	m_vkCreateRayTracingPipelinesKHR = (PFN_vkCreateRayTracingPipelinesKHR)vkGetDeviceProcAddr(m_device, "vkCreateRayTracingPipelinesKHR");
+	m_vkGetRayTracingShaderGroupHandlesKHR = (PFN_vkGetRayTracingShaderGroupHandlesKHR)vkGetDeviceProcAddr(m_device, "vkGetRayTracingShaderGroupHandlesKHR");
 	m_vkCmdTraceRaysKHR = (PFN_vkCmdTraceRaysKHR)vkGetDeviceProcAddr(m_device, "vkCmdTraceRaysKHR");
 
 	// Initialize VMA
@@ -1076,6 +1078,9 @@ void NtshEngn::GraphicsModule::destroy() {
 	// Destroy descriptor pool
 	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
 
+	// Destroy ray tracing shader binding table buffer
+	vmaDestroyBuffer(m_allocator, m_rayTracingShaderBindingTableBuffer, m_rayTracingShaderBindingTableBufferAllocation);
+
 	// Destroy ray tracing pipeline
 	vkDestroyPipeline(m_device, m_rayTracingPipeline, nullptr);
 
@@ -1392,7 +1397,9 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 
 	m_currentVertexOffset += static_cast<int32_t>(mesh.vertices.size());
 	m_currentIndexOffset += static_cast<uint32_t>(mesh.indices.size());
-	m_currentBottomLevelAccelerationStructureOffset = (m_currentBottomLevelAccelerationStructureOffset + blasBuildSizesInfo.accelerationStructureSize) + ((m_currentBottomLevelAccelerationStructureOffset + blasBuildSizesInfo.accelerationStructureSize) % 256);
+	VkDeviceSize bottomLevelAccelerationStructureOffsetWithSize = (m_currentBottomLevelAccelerationStructureOffset + blasBuildSizesInfo.accelerationStructureSize);
+	VkDeviceSize bottomLevelAccelerationStructureAlignment = 256;
+	m_currentBottomLevelAccelerationStructureOffset = (bottomLevelAccelerationStructureOffsetWithSize + (bottomLevelAccelerationStructureAlignment - 1)) & ~(bottomLevelAccelerationStructureAlignment - 1);
 
 	return static_cast<uint32_t>(m_meshes.size() - 1);
 }
@@ -2719,11 +2726,36 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 void NtshEngn::GraphicsModule::createRayTracingShaderBindingTable() {
 	// Create ray tracing shader binding table
+	uint32_t missShaderCount = 1;
+	uint32_t hitShaderCount = 1;
+	uint32_t callShaderCount = 0;
+	uint32_t shaderHandleCount = 1 + missShaderCount + hitShaderCount + callShaderCount;
+
+	uint32_t shaderGroupHandleSizeAligned = (m_rayTracingPipelineShaderGroupHandleSize + (m_rayTracingPipelineShaderGroupHandleAlignment - 1)) & ~(m_rayTracingPipelineShaderGroupHandleAlignment - 1);
+	uint32_t shaderGroupBaseAligned = (m_rayTracingPipelineShaderGroupHandleSize + (m_rayTracingPipelineShaderGroupBaseAlignment - 1)) & ~(m_rayTracingPipelineShaderGroupBaseAlignment - 1);
+
+	m_rayGenRegion.stride = shaderGroupBaseAligned;
+	m_rayGenRegion.size = m_rayGenRegion.stride;
+
+	m_rayMissRegion.stride = shaderGroupHandleSizeAligned;
+	m_rayMissRegion.size = ((missShaderCount * shaderGroupHandleSizeAligned) + (m_rayTracingPipelineShaderGroupBaseAlignment - 1)) & ~(m_rayTracingPipelineShaderGroupBaseAlignment - 1);
+
+	m_rayHitRegion.stride = shaderGroupHandleSizeAligned;
+	m_rayHitRegion.size = ((hitShaderCount * shaderGroupHandleSizeAligned) + (m_rayTracingPipelineShaderGroupBaseAlignment - 1)) & ~(m_rayTracingPipelineShaderGroupBaseAlignment - 1);
+
+	m_rayCallRegion.stride = shaderGroupHandleSizeAligned;
+	m_rayCallRegion.size = ((callShaderCount * shaderGroupHandleSizeAligned) + (m_rayTracingPipelineShaderGroupBaseAlignment - 1)) & ~(m_rayTracingPipelineShaderGroupBaseAlignment - 1);
+
+	size_t dataSize = static_cast<size_t>(shaderHandleCount) * m_rayTracingPipelineShaderGroupHandleSize;
+	std::vector<uint8_t> shaderHandles(dataSize);
+	NTSHENGN_VK_CHECK(m_vkGetRayTracingShaderGroupHandlesKHR(m_device, m_rayTracingPipeline, 0, shaderHandleCount, dataSize, shaderHandles.data()));
+
+	VkDeviceSize shaderBindingTableSize = m_rayGenRegion.size + m_rayMissRegion.size + m_rayHitRegion.size + m_rayCallRegion.size;
 	VkBufferCreateInfo rayTracingShaderBindingTableBufferCreateInfo = {};
 	rayTracingShaderBindingTableBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	rayTracingShaderBindingTableBufferCreateInfo.pNext = nullptr;
 	rayTracingShaderBindingTableBufferCreateInfo.flags = 0;
-	rayTracingShaderBindingTableBufferCreateInfo.size = 0;
+	rayTracingShaderBindingTableBufferCreateInfo.size = shaderBindingTableSize;
 	rayTracingShaderBindingTableBufferCreateInfo.usage = VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
 	rayTracingShaderBindingTableBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	rayTracingShaderBindingTableBufferCreateInfo.queueFamilyIndexCount = 1;
@@ -2739,6 +2771,29 @@ void NtshEngn::GraphicsModule::createRayTracingShaderBindingTable() {
 	rayTracingShaderBindingTableBufferDeviceAddressInfo.pNext = nullptr;
 	rayTracingShaderBindingTableBufferDeviceAddressInfo.buffer = m_rayTracingShaderBindingTableBuffer;
 	m_rayTracingShaderBindingTableBufferDeviceAddress = m_vkGetBufferDeviceAddressKHR(m_device, &rayTracingShaderBindingTableBufferDeviceAddressInfo);
+
+	m_rayGenRegion.deviceAddress = m_rayTracingShaderBindingTableBufferDeviceAddress;
+	m_rayMissRegion.deviceAddress = m_rayTracingShaderBindingTableBufferDeviceAddress + m_rayGenRegion.size;
+	m_rayHitRegion.deviceAddress = m_rayTracingShaderBindingTableBufferDeviceAddress + m_rayGenRegion.size + m_rayMissRegion.size;
+	m_rayCallRegion.deviceAddress = 0;
+
+	void* data;
+	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_rayTracingShaderBindingTableBufferAllocation, &data));
+	memcpy(data, shaderHandles.data(), m_rayTracingPipelineShaderGroupHandleSize); // Ray gen
+	size_t currentShaderHandle = 1;
+	for (size_t i = 0; i < missShaderCount; i++) { // Ray miss
+		memcpy(reinterpret_cast<char*>(data) + m_rayGenRegion.size + (m_rayMissRegion.stride * i), shaderHandles.data() + currentShaderHandle * m_rayTracingPipelineShaderGroupHandleSize, m_rayTracingPipelineShaderGroupHandleSize);
+		currentShaderHandle++;
+	}
+	for (size_t i = 0; i < hitShaderCount; i++) { // Ray hit
+		memcpy(reinterpret_cast<char*>(data) + m_rayGenRegion.size + m_rayMissRegion.size + (m_rayHitRegion.stride * i), shaderHandles.data() + currentShaderHandle * m_rayTracingPipelineShaderGroupHandleSize, m_rayTracingPipelineShaderGroupHandleSize);
+		currentShaderHandle++;
+	}
+	for (size_t i = 0; i < callShaderCount; i++) { // Ray call
+		memcpy(reinterpret_cast<char*>(data) + m_rayGenRegion.size + m_rayMissRegion.size + m_rayHitRegion.size + (m_rayCallRegion.stride * i), shaderHandles.data() + currentShaderHandle * m_rayTracingPipelineShaderGroupHandleSize, m_rayTracingPipelineShaderGroupHandleSize);
+		currentShaderHandle++;
+	}
+	vmaUnmapMemory(m_allocator, m_rayTracingShaderBindingTableBufferAllocation);
 }
 
 void NtshEngn::GraphicsModule::createDescriptorSets() {

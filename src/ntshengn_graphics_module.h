@@ -232,9 +232,14 @@ namespace NtshEngn {
 		VkPipeline m_rayTracingPipeline;
 		VkPipelineLayout m_rayTracingPipelineLayout;
 
+		uint32_t m_rayTracingPipelineShaderGroupHandleSize;
 		uint32_t m_rayTracingPipelineShaderGroupHandleAlignment;
 		uint32_t m_rayTracingPipelineShaderGroupBaseAlignment;
 
+		VkStridedDeviceAddressRegionKHR m_rayGenRegion;
+		VkStridedDeviceAddressRegionKHR m_rayMissRegion;
+		VkStridedDeviceAddressRegionKHR m_rayHitRegion;
+		VkStridedDeviceAddressRegionKHR m_rayCallRegion;
 		VkBuffer m_rayTracingShaderBindingTableBuffer;
 		VmaAllocation m_rayTracingShaderBindingTableBufferAllocation;
 		VkDeviceAddress m_rayTracingShaderBindingTableBufferDeviceAddress;
@@ -261,6 +266,7 @@ namespace NtshEngn {
 		PFN_vkCmdBuildAccelerationStructuresKHR m_vkCmdBuildAccelerationStructuresKHR;
 		PFN_vkGetAccelerationStructureDeviceAddressKHR m_vkGetAccelerationStructureDeviceAddressKHR;
 		PFN_vkCreateRayTracingPipelinesKHR m_vkCreateRayTracingPipelinesKHR;
+		PFN_vkGetRayTracingShaderGroupHandlesKHR m_vkGetRayTracingShaderGroupHandlesKHR;
 		PFN_vkCmdTraceRaysKHR m_vkCmdTraceRaysKHR;
 
 		uint32_t m_imageCount;
