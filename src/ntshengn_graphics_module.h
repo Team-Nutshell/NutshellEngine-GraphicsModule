@@ -161,6 +161,9 @@ namespace NtshEngn {
 		void createDescriptorSets();
 		void updateDescriptorSet(uint32_t frameInFlight);
 
+		// Tonemapping resources
+		void createTonemappingResources();
+
 		// Default resources
 		void createDefaultResources();
 
@@ -251,6 +254,13 @@ namespace NtshEngn {
 		VkDescriptorPool m_descriptorPool;
 		std::vector<VkDescriptorSet> m_descriptorSets;
 		std::vector<bool> m_descriptorSetsNeedUpdate;
+
+		VkSampler m_tonemappingSampler;
+		VkDescriptorSetLayout m_tonemappingDescriptorSetLayout;
+		VkDescriptorPool m_tonemappingDescriptorPool;
+		VkDescriptorSet m_tonemappingDescriptorSet;
+		VkPipeline m_tonemappingGraphicsPipeline;
+		VkPipelineLayout m_tonemappingGraphicsPipelineLayout;
 
 		std::vector<VkCommandPool> m_renderingCommandPools;
 		std::vector<VkCommandBuffer> m_renderingCommandBuffers;
