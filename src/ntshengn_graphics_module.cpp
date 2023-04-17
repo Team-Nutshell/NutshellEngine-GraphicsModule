@@ -2680,6 +2680,41 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		#version 460
 		#extension GL_EXT_ray_tracing : require
 
+		struct ObjectInfo {
+			uint materialID;
+		};
+
+		struct MaterialInfo {
+			uint diffuseTextureIndex;
+			uint normalTextureIndex;
+			uint metalnessTextureIndex;
+			uint roughnessTextureIndex;
+			uint occlusionTextureIndex;
+			uint emissiveTextureIndex;
+		};
+
+		struct LightInfo {
+			vec3 position;
+			vec3 direction;
+			vec3 color;
+			vec2 cutoffs;
+		};
+
+		layout(std430, set = 0, binding = 3) restrict readonly buffer Objects {
+			ObjectInfo info[];
+		} objects;
+
+		layout(set = 0, binding = 6) restrict readonly buffer Materials {
+			MaterialInfo info[];
+		} materials;
+
+		layout(set = 0, binding = 7) restrict readonly buffer Lights {
+			uvec3 count;
+			LightInfo info[];
+		} lights;
+
+		layout(set = 0, binding = 8) uniform sampler2D textures[];
+
 		layout(location = 0) rayPayloadInEXT vec3 hitValue;
 
 		void main() {
