@@ -1747,7 +1747,6 @@ void NtshEngn::GraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
 }
 
 void NtshEngn::GraphicsModule::createVertexAndIndexBuffers() {
-	// Vertex and index buffers
 	VkBufferCreateInfo vertexAndIndexBufferCreateInfo = {};
 	vertexAndIndexBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	vertexAndIndexBufferCreateInfo.pNext = nullptr;
@@ -2093,7 +2092,6 @@ std::vector<uint32_t> NtshEngn::GraphicsModule::compileShader(const std::string&
 }
 
 void NtshEngn::GraphicsModule::createGraphicsPipeline() {
-	// Create graphics pipeline
 	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
 	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		pipelineRenderingColorFormat = m_swapchainFormat;
