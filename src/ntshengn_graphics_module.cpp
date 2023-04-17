@@ -1171,7 +1171,7 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	blasGeometryTrianglesData.pNext = nullptr;
 	blasGeometryTrianglesData.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
 	blasGeometryTrianglesData.vertexData.deviceAddress = m_vertexBufferDeviceAddress + (static_cast<size_t>(m_currentVertexOffset) * sizeof(NtshEngn::Vertex));
-	blasGeometryTrianglesData.vertexStride = sizeof(Vertex);
+	blasGeometryTrianglesData.vertexStride = sizeof(NtshEngn::Vertex);
 	blasGeometryTrianglesData.maxVertex = static_cast<uint32_t>(mesh.vertices.size());
 	blasGeometryTrianglesData.indexType = VK_INDEX_TYPE_UINT32;
 	blasGeometryTrianglesData.indexData.deviceAddress = m_indexBufferDeviceAddress + (static_cast<size_t>(m_currentIndexOffset) * sizeof(uint32_t));
