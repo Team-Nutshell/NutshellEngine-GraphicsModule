@@ -2628,8 +2628,35 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		layout(set = 0, binding = 0, rgba32f) uniform image2D image; 
 		layout(set = 0, binding = 1) uniform accelerationStructureEXT tlas;
 
+		layout(set = 0, binding = 4) uniform Camera {
+			mat4 view;
+			mat4 projection;
+			vec3 position;
+		} camera;
+
+		struct HitPayload {
+			vec3 hitValue;
+		};
+
+		layout(location = 0) rayPayloadEXT HitPayload payload;
+
 		void main() {
-			imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(0.5, 0.5, 0.5, 1.0));
+			const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
+			const vec2 uv = pixelCenter / vec2(gl_LaunchIDEXT.xy);
+			vec2 d = uv * 2.0 - 1.0;
+
+			mat4 inverseView = inverse(camera.view);
+			mat4 inverseProjection = inverse(camera.projection);
+			vec4 origin = inverseView * vec4(0.0, 0.0, 0.0, 1.0);
+			vec4 target = inverseProjection * vec4(d, 1.0, 1.0);
+			vec4 direction = inverseView * vec4(normalize(target.xyz), 0.0);
+
+			uint rayFlags = gl_RayFlagsOpaqueEXT;
+			float tMin = 0.001;
+			float tMax = 10000.0;
+			traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 0, origin.xyz, tMin, direction.xyz, tMax, 0);
+
+			imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(payload.hitValue, 1.0));
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayGenShaderSpv = compileShader(rayGenShaderCode, ShaderType::RayGeneration);
