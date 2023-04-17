@@ -586,20 +586,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	// Update objects buffer
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight], &data));
 	for (auto& it : m_objects) {
-		Transform objectTransform = m_ecs->getComponent<Transform>(it.first);
-		nml::vec3 objectPosition = nml::vec3(objectTransform.position[0], objectTransform.position[1], objectTransform.position[2]);
-		nml::vec3 objectRotation = nml::vec3(objectTransform.rotation[0], objectTransform.rotation[1], objectTransform.rotation[2]);
-		nml::vec3 objectScale = nml::vec3(objectTransform.scale[0], objectTransform.scale[1], objectTransform.scale[2]);
-
-		nml::mat4 objectModel = nml::translate(objectPosition) *
-			nml::rotate(objectRotation.x, nml::vec3(1.0f, 0.0f, 0.0f)) *
-			nml::rotate(objectRotation.y, nml::vec3(0.0f, 1.0f, 0.0f)) *
-			nml::rotate(objectRotation.z, nml::vec3(0.0f, 0.0f, 1.0f)) *
-			nml::scale(objectScale);
-
-		size_t offset = (it.second.index * (sizeof(nml::mat4) + sizeof(nml::vec4))); // vec4 is used here for padding
-
-		memcpy(reinterpret_cast<char*>(data) + offset, objectModel.data(), sizeof(nml::mat4));
+		size_t offset = (it.second.index * sizeof(nml::vec4)); // vec4 is used here for padding
 		const uint32_t textureID = (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0;
 		memcpy(reinterpret_cast<char*>(data) + offset + sizeof(nml::mat4), &textureID, sizeof(uint32_t));
 	}
@@ -2339,33 +2326,33 @@ void NtshEngn::GraphicsModule::createDescriptorSetLayout() {
 	tlasDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
 	tlasDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
-	VkDescriptorSetLayoutBinding vertexDescriptorSetLayoutBinding = {};
-	vertexDescriptorSetLayoutBinding.binding = 2;
-	vertexDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	vertexDescriptorSetLayoutBinding.descriptorCount = 1;
-	vertexDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-	vertexDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
-	VkDescriptorSetLayoutBinding indexDescriptorSetLayoutBinding = {};
-	indexDescriptorSetLayoutBinding.binding = 3;
-	indexDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	indexDescriptorSetLayoutBinding.descriptorCount = 1;
-	indexDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-	indexDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
 	VkDescriptorSetLayoutBinding cameraDescriptorSetLayoutBinding = {};
-	cameraDescriptorSetLayoutBinding.binding = 4;
+	cameraDescriptorSetLayoutBinding.binding = 2;
 	cameraDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	cameraDescriptorSetLayoutBinding.descriptorCount = 1;
 	cameraDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
 	cameraDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding objectsDescriptorSetLayoutBinding = {};
-	objectsDescriptorSetLayoutBinding.binding = 5;
+	objectsDescriptorSetLayoutBinding.binding = 3;
 	objectsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	objectsDescriptorSetLayoutBinding.descriptorCount = 1;
 	objectsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
 	objectsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding vertexDescriptorSetLayoutBinding = {};
+	vertexDescriptorSetLayoutBinding.binding = 4;
+	vertexDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	vertexDescriptorSetLayoutBinding.descriptorCount = 1;
+	vertexDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+	vertexDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding indexDescriptorSetLayoutBinding = {};
+	indexDescriptorSetLayoutBinding.binding = 5;
+	indexDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	indexDescriptorSetLayoutBinding.descriptorCount = 1;
+	indexDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+	indexDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding materialsDescriptorSetLayoutBinding = {};
 	materialsDescriptorSetLayoutBinding.binding = 6;
@@ -2395,7 +2382,7 @@ void NtshEngn::GraphicsModule::createDescriptorSetLayout() {
 	descriptorSetLayoutBindingFlagsCreateInfo.bindingCount = static_cast<uint32_t>(descriptorBindingFlags.size());
 	descriptorSetLayoutBindingFlagsCreateInfo.pBindingFlags = descriptorBindingFlags.data();
 
-	std::array<VkDescriptorSetLayoutBinding, 9> descriptorSetLayoutBindings = { colorImageDescriptorSetLayoutBinding, tlasDescriptorSetLayoutBinding, vertexDescriptorSetLayoutBinding, indexDescriptorSetLayoutBinding, cameraDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding, materialsDescriptorSetLayoutBinding, lightsDescriptorSetLayoutBinding, texturesDescriptorSetLayoutBinding };
+	std::array<VkDescriptorSetLayoutBinding, 9> descriptorSetLayoutBindings = { colorImageDescriptorSetLayoutBinding, tlasDescriptorSetLayoutBinding, cameraDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding, vertexDescriptorSetLayoutBinding, indexDescriptorSetLayoutBinding, materialsDescriptorSetLayoutBinding, lightsDescriptorSetLayoutBinding, texturesDescriptorSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
 	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	descriptorSetLayoutCreateInfo.pNext = &descriptorSetLayoutBindingFlagsCreateInfo;
@@ -2628,7 +2615,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		layout(set = 0, binding = 0, rgba32f) uniform image2D image; 
 		layout(set = 0, binding = 1) uniform accelerationStructureEXT tlas;
 
-		layout(set = 0, binding = 4) uniform Camera {
+		layout(set = 0, binding = 2) uniform Camera {
 			mat4 view;
 			mat4 projection;
 			vec3 position;
@@ -2888,14 +2875,6 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 	tlasDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 	tlasDescriptorPoolSize.descriptorCount = m_framesInFlight;
 
-	VkDescriptorPoolSize vertexDescriptorPoolSize = {};
-	vertexDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	vertexDescriptorPoolSize.descriptorCount = m_framesInFlight;
-
-	VkDescriptorPoolSize indexDescriptorPoolSize = {};
-	indexDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	indexDescriptorPoolSize.descriptorCount = m_framesInFlight;
-
 	VkDescriptorPoolSize cameraDescriptorPoolSize = {};
 	cameraDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	cameraDescriptorPoolSize.descriptorCount = m_framesInFlight;
@@ -2903,6 +2882,14 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 	VkDescriptorPoolSize objectsDescriptorPoolSize = {};
 	objectsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	objectsDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	VkDescriptorPoolSize vertexDescriptorPoolSize = {};
+	vertexDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	vertexDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	VkDescriptorPoolSize indexDescriptorPoolSize = {};
+	indexDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	indexDescriptorPoolSize.descriptorCount = m_framesInFlight;
 	
 	VkDescriptorPoolSize materialsDescriptorPoolSize = {};
 	materialsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -2916,7 +2903,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 	texturesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	texturesDescriptorPoolSize.descriptorCount = 131072 * m_framesInFlight;
 
-	std::array<VkDescriptorPoolSize, 9> descriptorPoolSizes = { colorImageDescriptorPoolSize, tlasDescriptorPoolSize, vertexDescriptorPoolSize, indexDescriptorPoolSize, cameraDescriptorPoolSize, objectsDescriptorPoolSize, materialsDescriptorPoolSize, lightsDescriptorPoolSize, texturesDescriptorPoolSize };
+	std::array<VkDescriptorPoolSize, 9> descriptorPoolSizes = { colorImageDescriptorPoolSize, tlasDescriptorPoolSize, cameraDescriptorPoolSize, objectsDescriptorPoolSize, vertexDescriptorPoolSize, indexDescriptorPoolSize, materialsDescriptorPoolSize, lightsDescriptorPoolSize, texturesDescriptorPoolSize };
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.pNext = nullptr;
@@ -2942,10 +2929,10 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
 		VkDescriptorImageInfo colorImageDescriptorImageInfo;
-		VkDescriptorBufferInfo vertexDescriptorBufferInfo;
-		VkDescriptorBufferInfo indexDescriptorBufferInfo;
 		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
 		VkDescriptorBufferInfo objectsDescriptorBufferInfo;
+		VkDescriptorBufferInfo vertexDescriptorBufferInfo;
+		VkDescriptorBufferInfo indexDescriptorBufferInfo;
 		VkDescriptorBufferInfo materialsDescriptorBufferInfo;
 		VkDescriptorBufferInfo lightsDescriptorBufferInfo;
 
@@ -2985,40 +2972,6 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		tlasWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(tlasWriteDescriptorSet);
 
-		vertexDescriptorBufferInfo.buffer = m_vertexBuffer;
-		vertexDescriptorBufferInfo.offset = 0;
-		vertexDescriptorBufferInfo.range = 67108864;
-
-		VkWriteDescriptorSet vertexDescriptorWriteDescriptorSet = {};
-		vertexDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		vertexDescriptorWriteDescriptorSet.pNext = nullptr;
-		vertexDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		vertexDescriptorWriteDescriptorSet.dstBinding = 2;
-		vertexDescriptorWriteDescriptorSet.dstArrayElement = 0;
-		vertexDescriptorWriteDescriptorSet.descriptorCount = 1;
-		vertexDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		vertexDescriptorWriteDescriptorSet.pImageInfo = nullptr;
-		vertexDescriptorWriteDescriptorSet.pBufferInfo = &vertexDescriptorBufferInfo;
-		vertexDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
-		writeDescriptorSets.push_back(vertexDescriptorWriteDescriptorSet);
-
-		indexDescriptorBufferInfo.buffer = m_indexBuffer;
-		indexDescriptorBufferInfo.offset = 0;
-		indexDescriptorBufferInfo.range = 67108864;
-
-		VkWriteDescriptorSet indexDescriptorWriteDescriptorSet = {};
-		indexDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		indexDescriptorWriteDescriptorSet.pNext = nullptr;
-		indexDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		indexDescriptorWriteDescriptorSet.dstBinding = 3;
-		indexDescriptorWriteDescriptorSet.dstArrayElement = 0;
-		indexDescriptorWriteDescriptorSet.descriptorCount = 1;
-		indexDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		indexDescriptorWriteDescriptorSet.pImageInfo = nullptr;
-		indexDescriptorWriteDescriptorSet.pBufferInfo = &indexDescriptorBufferInfo;
-		indexDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
-		writeDescriptorSets.push_back(indexDescriptorWriteDescriptorSet);
-
 		cameraDescriptorBufferInfo.buffer = m_cameraBuffers[i];
 		cameraDescriptorBufferInfo.offset = 0;
 		cameraDescriptorBufferInfo.range = sizeof(nml::mat4) * 2 + sizeof(nml::vec4);
@@ -3027,7 +2980,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		cameraDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		cameraDescriptorWriteDescriptorSet.pNext = nullptr;
 		cameraDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		cameraDescriptorWriteDescriptorSet.dstBinding = 4;
+		cameraDescriptorWriteDescriptorSet.dstBinding = 2;
 		cameraDescriptorWriteDescriptorSet.dstArrayElement = 0;
 		cameraDescriptorWriteDescriptorSet.descriptorCount = 1;
 		cameraDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -3044,7 +2997,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		objectsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		objectsDescriptorWriteDescriptorSet.pNext = nullptr;
 		objectsDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		objectsDescriptorWriteDescriptorSet.dstBinding = 5;
+		objectsDescriptorWriteDescriptorSet.dstBinding = 3;
 		objectsDescriptorWriteDescriptorSet.dstArrayElement = 0;
 		objectsDescriptorWriteDescriptorSet.descriptorCount = 1;
 		objectsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -3052,6 +3005,40 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		objectsDescriptorWriteDescriptorSet.pBufferInfo = &objectsDescriptorBufferInfo;
 		objectsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(objectsDescriptorWriteDescriptorSet);
+
+		vertexDescriptorBufferInfo.buffer = m_vertexBuffer;
+		vertexDescriptorBufferInfo.offset = 0;
+		vertexDescriptorBufferInfo.range = 67108864;
+
+		VkWriteDescriptorSet vertexDescriptorWriteDescriptorSet = {};
+		vertexDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		vertexDescriptorWriteDescriptorSet.pNext = nullptr;
+		vertexDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		vertexDescriptorWriteDescriptorSet.dstBinding = 4;
+		vertexDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		vertexDescriptorWriteDescriptorSet.descriptorCount = 1;
+		vertexDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		vertexDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		vertexDescriptorWriteDescriptorSet.pBufferInfo = &vertexDescriptorBufferInfo;
+		vertexDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(vertexDescriptorWriteDescriptorSet);
+
+		indexDescriptorBufferInfo.buffer = m_indexBuffer;
+		indexDescriptorBufferInfo.offset = 0;
+		indexDescriptorBufferInfo.range = 67108864;
+
+		VkWriteDescriptorSet indexDescriptorWriteDescriptorSet = {};
+		indexDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		indexDescriptorWriteDescriptorSet.pNext = nullptr;
+		indexDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		indexDescriptorWriteDescriptorSet.dstBinding = 5;
+		indexDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		indexDescriptorWriteDescriptorSet.descriptorCount = 1;
+		indexDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		indexDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		indexDescriptorWriteDescriptorSet.pBufferInfo = &indexDescriptorBufferInfo;
+		indexDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(indexDescriptorWriteDescriptorSet);
 
 		materialsDescriptorBufferInfo.buffer = m_materialBuffers[i];
 		materialsDescriptorBufferInfo.offset = 0;
