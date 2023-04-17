@@ -2696,7 +2696,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		layout(location = 0) rayPayloadInEXT vec3 hitValue;
 
 		void main() {
-			hitValue = vec3(0.0, 0.1, 0.3);
+			hitValue = vec3(0.0, 0.0, 0.0);
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayMissShaderSpv = compileShader(rayMissShaderCode, ShaderType::RayMiss);
