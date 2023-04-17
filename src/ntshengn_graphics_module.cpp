@@ -2083,7 +2083,6 @@ void NtshEngn::GraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
 }
 
 void NtshEngn::GraphicsModule::createVertexIndexAndAccelerationStructureBuffers() {
-	// Vertex, index and acceleration structure buffers
 	VkBufferCreateInfo vertexIndexAndAccelerationStructureBufferCreateInfo = {};
 	vertexIndexAndAccelerationStructureBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	vertexIndexAndAccelerationStructureBufferCreateInfo.pNext = nullptr;
@@ -2564,7 +2563,6 @@ std::vector<uint32_t> NtshEngn::GraphicsModule::compileShader(const std::string&
 }
 
 void NtshEngn::GraphicsModule::createRayTracingPipeline() {
-	// Create ray tracing pipeline
 	const std::string rayGenShaderCode = R"GLSL(
 		#version 460
 		#extension GL_EXT_ray_tracing : require
@@ -2725,7 +2723,6 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 }
 
 void NtshEngn::GraphicsModule::createRayTracingShaderBindingTable() {
-	// Create ray tracing shader binding table
 	uint32_t missShaderCount = 1;
 	uint32_t hitShaderCount = 1;
 	uint32_t callShaderCount = 0;
