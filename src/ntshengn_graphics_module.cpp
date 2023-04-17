@@ -395,84 +395,7 @@ void NtshEngn::GraphicsModule::init() {
 
 	createColorImage();
 
-	VkDescriptorSetLayoutBinding colorImageDescriptorSetLayoutBinding = {};
-	colorImageDescriptorSetLayoutBinding.binding = 0;
-	colorImageDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-	colorImageDescriptorSetLayoutBinding.descriptorCount = 1;
-	colorImageDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
-	colorImageDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
-	VkDescriptorSetLayoutBinding tlasDescriptorSetLayoutBinding = {};
-	colorImageDescriptorSetLayoutBinding.binding = 1;
-	colorImageDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
-	colorImageDescriptorSetLayoutBinding.descriptorCount = 1;
-	colorImageDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
-	colorImageDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
-	VkDescriptorSetLayoutBinding vertexDescriptorSetLayoutBinding = {};
-	colorImageDescriptorSetLayoutBinding.binding = 2;
-	colorImageDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	colorImageDescriptorSetLayoutBinding.descriptorCount = 1;
-	colorImageDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-	colorImageDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
-	VkDescriptorSetLayoutBinding indexDescriptorSetLayoutBinding = {};
-	colorImageDescriptorSetLayoutBinding.binding = 3;
-	colorImageDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	colorImageDescriptorSetLayoutBinding.descriptorCount = 1;
-	colorImageDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-	colorImageDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
-	VkDescriptorSetLayoutBinding cameraDescriptorSetLayoutBinding = {};
-	cameraDescriptorSetLayoutBinding.binding = 4;
-	cameraDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	cameraDescriptorSetLayoutBinding.descriptorCount = 1;
-	cameraDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
-	cameraDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
-	VkDescriptorSetLayoutBinding objectsDescriptorSetLayoutBinding = {};
-	objectsDescriptorSetLayoutBinding.binding = 5;
-	objectsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	objectsDescriptorSetLayoutBinding.descriptorCount = 1;
-	objectsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-	objectsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
-	VkDescriptorSetLayoutBinding materialsDescriptorSetLayoutBinding = {};
-	materialsDescriptorSetLayoutBinding.binding = 6;
-	materialsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	materialsDescriptorSetLayoutBinding.descriptorCount = 1;
-	materialsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-	materialsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
-	VkDescriptorSetLayoutBinding lightsDescriptorSetLayoutBinding = {};
-	lightsDescriptorSetLayoutBinding.binding = 7;
-	lightsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	lightsDescriptorSetLayoutBinding.descriptorCount = 1;
-	lightsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-	lightsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
-	VkDescriptorSetLayoutBinding texturesDescriptorSetLayoutBinding = {};
-	texturesDescriptorSetLayoutBinding.binding = 8;
-	texturesDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	texturesDescriptorSetLayoutBinding.descriptorCount = 131072;
-	texturesDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-	texturesDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
-	std::array<VkDescriptorBindingFlags, 9> descriptorBindingFlags = { 0, 0, 0, 0, 0, 0, 0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
-	VkDescriptorSetLayoutBindingFlagsCreateInfo descriptorSetLayoutBindingFlagsCreateInfo = {};
-	descriptorSetLayoutBindingFlagsCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
-	descriptorSetLayoutBindingFlagsCreateInfo.pNext = nullptr;
-	descriptorSetLayoutBindingFlagsCreateInfo.bindingCount = static_cast<uint32_t>(descriptorBindingFlags.size());
-	descriptorSetLayoutBindingFlagsCreateInfo.pBindingFlags = descriptorBindingFlags.data();
-
-	std::array<VkDescriptorSetLayoutBinding, 9> descriptorSetLayoutBindings = { colorImageDescriptorSetLayoutBinding, tlasDescriptorSetLayoutBinding, vertexDescriptorSetLayoutBinding, indexDescriptorSetLayoutBinding, cameraDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding, materialsDescriptorSetLayoutBinding, lightsDescriptorSetLayoutBinding, texturesDescriptorSetLayoutBinding };
-	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
-	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	descriptorSetLayoutCreateInfo.pNext = &descriptorSetLayoutBindingFlagsCreateInfo;
-	descriptorSetLayoutCreateInfo.flags = 0;
-	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size());
-	descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
-	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_descriptorSetLayout));
+	createDescriptorSetLayout();
 
 	createRayTracingPipeline();
 
@@ -2345,6 +2268,87 @@ void NtshEngn::GraphicsModule::createColorImage() {
 
 	vkDestroyFence(m_device, colorImageTransitionFence, nullptr);
 	vkDestroyCommandPool(m_device, colorImageTransitionCommandPool, nullptr);
+}
+
+void NtshEngn::GraphicsModule::createDescriptorSetLayout() {
+	VkDescriptorSetLayoutBinding colorImageDescriptorSetLayoutBinding = {};
+	colorImageDescriptorSetLayoutBinding.binding = 0;
+	colorImageDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	colorImageDescriptorSetLayoutBinding.descriptorCount = 1;
+	colorImageDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+	colorImageDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding tlasDescriptorSetLayoutBinding = {};
+	colorImageDescriptorSetLayoutBinding.binding = 1;
+	colorImageDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+	colorImageDescriptorSetLayoutBinding.descriptorCount = 1;
+	colorImageDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+	colorImageDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding vertexDescriptorSetLayoutBinding = {};
+	colorImageDescriptorSetLayoutBinding.binding = 2;
+	colorImageDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	colorImageDescriptorSetLayoutBinding.descriptorCount = 1;
+	colorImageDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+	colorImageDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding indexDescriptorSetLayoutBinding = {};
+	colorImageDescriptorSetLayoutBinding.binding = 3;
+	colorImageDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	colorImageDescriptorSetLayoutBinding.descriptorCount = 1;
+	colorImageDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+	colorImageDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding cameraDescriptorSetLayoutBinding = {};
+	cameraDescriptorSetLayoutBinding.binding = 4;
+	cameraDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	cameraDescriptorSetLayoutBinding.descriptorCount = 1;
+	cameraDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+	cameraDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding objectsDescriptorSetLayoutBinding = {};
+	objectsDescriptorSetLayoutBinding.binding = 5;
+	objectsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	objectsDescriptorSetLayoutBinding.descriptorCount = 1;
+	objectsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+	objectsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding materialsDescriptorSetLayoutBinding = {};
+	materialsDescriptorSetLayoutBinding.binding = 6;
+	materialsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	materialsDescriptorSetLayoutBinding.descriptorCount = 1;
+	materialsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+	materialsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding lightsDescriptorSetLayoutBinding = {};
+	lightsDescriptorSetLayoutBinding.binding = 7;
+	lightsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	lightsDescriptorSetLayoutBinding.descriptorCount = 1;
+	lightsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+	lightsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding texturesDescriptorSetLayoutBinding = {};
+	texturesDescriptorSetLayoutBinding.binding = 8;
+	texturesDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	texturesDescriptorSetLayoutBinding.descriptorCount = 131072;
+	texturesDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+	texturesDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	std::array<VkDescriptorBindingFlags, 9> descriptorBindingFlags = { 0, 0, 0, 0, 0, 0, 0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
+	VkDescriptorSetLayoutBindingFlagsCreateInfo descriptorSetLayoutBindingFlagsCreateInfo = {};
+	descriptorSetLayoutBindingFlagsCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+	descriptorSetLayoutBindingFlagsCreateInfo.pNext = nullptr;
+	descriptorSetLayoutBindingFlagsCreateInfo.bindingCount = static_cast<uint32_t>(descriptorBindingFlags.size());
+	descriptorSetLayoutBindingFlagsCreateInfo.pBindingFlags = descriptorBindingFlags.data();
+
+	std::array<VkDescriptorSetLayoutBinding, 9> descriptorSetLayoutBindings = { colorImageDescriptorSetLayoutBinding, tlasDescriptorSetLayoutBinding, vertexDescriptorSetLayoutBinding, indexDescriptorSetLayoutBinding, cameraDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding, materialsDescriptorSetLayoutBinding, lightsDescriptorSetLayoutBinding, texturesDescriptorSetLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptorSetLayoutCreateInfo.pNext = &descriptorSetLayoutBindingFlagsCreateInfo;
+	descriptorSetLayoutCreateInfo.flags = 0;
+	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size());
+	descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
+	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_descriptorSetLayout));
 }
 
 std::vector<uint32_t> NtshEngn::GraphicsModule::compileShader(const std::string& shaderCode, ShaderType type) {
