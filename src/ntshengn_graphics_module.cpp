@@ -2642,7 +2642,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 		void main() {
 			const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
-			const vec2 uv = pixelCenter / vec2(gl_LaunchIDEXT.xy);
+			const vec2 uv = pixelCenter / vec2(gl_LaunchSizeEXT);
 			vec2 d = uv * 2.0 - 1.0;
 
 			mat4 inverseView = inverse(camera.view);
