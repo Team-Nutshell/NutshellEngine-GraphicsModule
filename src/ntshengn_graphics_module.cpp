@@ -2332,25 +2332,25 @@ void NtshEngn::GraphicsModule::createDescriptorSetLayout() {
 	colorImageDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding tlasDescriptorSetLayoutBinding = {};
-	colorImageDescriptorSetLayoutBinding.binding = 1;
-	colorImageDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
-	colorImageDescriptorSetLayoutBinding.descriptorCount = 1;
-	colorImageDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
-	colorImageDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+	tlasDescriptorSetLayoutBinding.binding = 1;
+	tlasDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+	tlasDescriptorSetLayoutBinding.descriptorCount = 1;
+	tlasDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+	tlasDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding vertexDescriptorSetLayoutBinding = {};
-	colorImageDescriptorSetLayoutBinding.binding = 2;
-	colorImageDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	colorImageDescriptorSetLayoutBinding.descriptorCount = 1;
-	colorImageDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-	colorImageDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+	vertexDescriptorSetLayoutBinding.binding = 2;
+	vertexDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	vertexDescriptorSetLayoutBinding.descriptorCount = 1;
+	vertexDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+	vertexDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding indexDescriptorSetLayoutBinding = {};
-	colorImageDescriptorSetLayoutBinding.binding = 3;
-	colorImageDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	colorImageDescriptorSetLayoutBinding.descriptorCount = 1;
-	colorImageDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-	colorImageDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+	indexDescriptorSetLayoutBinding.binding = 3;
+	indexDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	indexDescriptorSetLayoutBinding.descriptorCount = 1;
+	indexDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+	indexDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding cameraDescriptorSetLayoutBinding = {};
 	cameraDescriptorSetLayoutBinding.binding = 4;
@@ -2465,7 +2465,7 @@ std::vector<uint32_t> NtshEngn::GraphicsModule::compileShader(const std::string&
 	shader.setStrings(&shaderCodeCharPtr, 1);
 	int clientInputSemanticsVersion = 110;
 	glslang::EshTargetClientVersion vulkanClientVersion = glslang::EShTargetVulkan_1_1;
-	glslang::EShTargetLanguageVersion spvLanguageVersion = glslang::EShTargetSpv_1_2;
+	glslang::EShTargetLanguageVersion spvLanguageVersion = glslang::EShTargetSpv_1_4;
 	shader.setEnvInput(glslang::EShSourceGlsl, shaderType, glslang::EShClientVulkan, clientInputSemanticsVersion);
 	shader.setEnvClient(glslang::EShClientVulkan, vulkanClientVersion);
 	shader.setEnvTarget(glslang::EshTargetSpv, spvLanguageVersion);
@@ -3080,7 +3080,7 @@ void NtshEngn::GraphicsModule::updateDescriptorSet(uint32_t frameInFlight) {
 	texturesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	texturesDescriptorWriteDescriptorSet.pNext = nullptr;
 	texturesDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[frameInFlight];
-	texturesDescriptorWriteDescriptorSet.dstBinding = 4;
+	texturesDescriptorWriteDescriptorSet.dstBinding = 8;
 	texturesDescriptorWriteDescriptorSet.dstArrayElement = 0;
 	texturesDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(texturesDescriptorImageInfos.size());
 	texturesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
