@@ -2753,6 +2753,8 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 		#extension GL_EXT_buffer_reference2 : require
 
+		#define M_PI 3.1415926535897932384626433832795
+
 		struct ObjectInfo {
 			uint meshID;
 			uint materialID;
@@ -2820,6 +2822,72 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 		hitAttributeEXT vec2 attribs;
 
+		// BRDF
+		float distribution(float NdotH, float roughness) {
+			const float a = roughness * roughness;
+			const float aSquare = a * a;
+			const float NdotHSquare = NdotH * NdotH;
+			const float denom = NdotHSquare * (aSquare - 1.0) + 1.0;
+
+			return aSquare / (M_PI * denom * denom);
+		}
+
+		vec3 fresnel(float cosTheta, vec3 f0) {
+			return f0 + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);
+		}
+
+		float g(float NdotV, float roughness) {
+			const float r = roughness + 1.0;
+			const float k = (r * r) / 8.0;
+			const float denom = NdotV * (1.0 - k) + k;
+
+			return NdotV / denom;
+		}
+
+		float smith(float LdotN, float VdotN, float roughness) {
+			const float gv = g(VdotN, roughness);
+			const float gl = g(LdotN, roughness);
+
+			return gv * gl;
+		}
+
+		vec3 diffuseFresnelCorrection(vec3 ior) {
+			const vec3 iorSquare = ior * ior;
+			const bvec3 TIR = lessThan(ior, vec3(1.0));
+			const vec3 invDenum = mix(vec3(1.0), vec3(1.0) / (iorSquare * iorSquare * (vec3(554.33) * 380.7 * ior)), TIR);
+			vec3 num = ior * mix(vec3(0.1921156102251088), ior * 298.25 - 261.38 * iorSquare + 138.43, TIR);
+			num += mix(vec3(0.8078843897748912), vec3(-1.07), TIR);
+
+			return num * invDenum;
+		}
+
+		vec3 brdf(float LdotH, float NdotH, float VdotH, float LdotN, float VdotN, vec3 diffuse, float metalness, float roughness) {
+			const float d = distribution(NdotH, roughness);
+			const vec3 f = fresnel(LdotH, mix(vec3(0.04), diffuse, metalness));
+			const vec3 fT = fresnel(LdotN, mix(vec3(0.04), diffuse, metalness));
+			const vec3 fTIR = fresnel(VdotN, mix(vec3(0.04), diffuse, metalness));
+			const float g = smith(LdotN, VdotN, roughness);
+			const vec3 dfc = diffuseFresnelCorrection(vec3(1.05));
+
+			const vec3 lambertian = diffuse / M_PI;
+
+			return (d * f * g) / max(4.0 * LdotN * VdotN, 0.001) + ((vec3(1.0) - fT) * (vec3(1.0 - fTIR)) * lambertian) * dfc;
+		}
+
+		vec3 shade(vec3 n, vec3 v, vec3 l, vec3 lc, vec3 diffuse, float metalness, float roughness) {
+			const vec3 h = normalize(v + l);
+
+			const float LdotH = max(dot(l, h), 0.0);
+			const float NdotH = max(dot(n, h), 0.0);
+			const float VdotH = max(dot(v, h), 0.0);
+			const float LdotN = max(dot(l, n), 0.0);
+			const float VdotN = max(dot(v, n), 0.0);
+
+			const vec3 brdf = brdf(LdotH, NdotH, VdotH, LdotN, VdotN, diffuse, metalness, roughness);
+	
+			return lc * brdf * LdotN;
+		}
+
 		void main() {
 			ObjectInfo object = objects.info[gl_InstanceCustomIndexEXT];
 			MeshInfo mesh = meshes.info[object.meshID];
@@ -2835,11 +2903,19 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 			vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
 
-			vec3 pos = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
-			vec3 worldPos = vec3(gl_ObjectToWorldEXT * vec4(pos, 1.0));
+			vec3 position = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
+			vec3 worldPosition = vec3(gl_ObjectToWorldEXT * vec4(position, 1.0));
 
-			vec3 norm = v0.normal * barycentrics.x + v1.normal * barycentrics.y + v2.normal * barycentrics.z;
-			vec3 worldNorm = normalize(vec3(norm * gl_WorldToObjectEXT));
+			vec3 normal = v0.normal * barycentrics.x + v1.normal * barycentrics.y + v2.normal * barycentrics.z;
+			vec3 worldNormal = normalize(vec3(normal * gl_WorldToObjectEXT));
+
+			vec3 tangent = v0.tangent.xyz * barycentrics.x + v1.tangent.xyz * barycentrics.y + v2.tangent.xyz * barycentrics.z;
+			vec3 worldTangent = vec3(gl_ObjectToWorldEXT * vec4(tangent, 0.0));
+
+			vec3 bitangent = cross(normal, tangent.xyz) * v0.tangent.w;
+			vec3 worldBitangent =  vec3(gl_ObjectToWorldEXT * vec4(bitangent, 0.0));
+
+			mat3 TBN = mat3(worldTangent, worldBitangent, worldNormal);
 
 			vec2 uv = v0.uv * barycentrics.x + v1.uv * barycentrics.y + v2.uv * barycentrics.z;
 
@@ -2851,10 +2927,46 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			float occlusionSample = texture(textures[material.occlusionTextureIndex], uv).r;
 			vec3 emissiveSample = texture(textures[material.emissiveTextureIndex], uv).rgb;
 
+			vec3 d = diffuseSample.rgb;
+			vec3 n = normalize(TBN * (normalSample * 2.0 - 1.0));
 			vec3 l = normalize(-lights.info[0].direction);
-			
+			vec3 v = -gl_WorldRayDirectionEXT;
 
-			hitValue = vec3(dot(worldNorm, l) * diffuseSample.rgb);
+			vec3 color = vec3(0.0);
+
+			uint lightIndex = 0;
+			// Directional Lights
+			for (int i = 0; i < lights.count.x; i++) {
+				vec3 l = normalize(-lights.info[lightIndex].direction);
+				vec3 lc = lights.info[lightIndex].color;
+				color += shade(n, v, l, lc, d, metalnessSample, roughnessSample);
+
+				lightIndex++;
+			}
+			// Point Lights
+			for (int i = 0; i < lights.count.y; i++) {
+				vec3 l = normalize(lights.info[lightIndex].position - worldPosition);
+				float distance = length(lights.info[lightIndex].position - worldPosition);
+				float attenuation = 1.0 / (distance * distance);
+				vec3 radiance = lights.info[lightIndex].color * attenuation;
+				color += shade(n, v, l, radiance, d, metalnessSample, roughnessSample);
+
+				lightIndex++;
+			}
+			// Spot Lights
+			for (int i = 0; i < lights.count.z; i++) {
+				vec3 l = normalize(lights.info[lightIndex].position - worldPosition);
+				vec3 lc = lights.info[lightIndex].color;
+				float theta = dot(l, normalize(-lights.info[lightIndex].direction));
+				float epsilon = cos(lights.info[lightIndex].cutoffs.y) - cos(lights.info[lightIndex].cutoffs.x);
+				float intensity = clamp((theta - cos(lights.info[lightIndex].cutoffs.x)) / epsilon, 0.0, 1.0);
+				intensity = 1.0 - intensity;
+				color += shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample);
+
+				lightIndex++;
+			}
+
+			hitValue = color;
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayClosestHitShaderSpv = compileShader(rayClosestHitShaderCode, ShaderType::RayClosestHit);
