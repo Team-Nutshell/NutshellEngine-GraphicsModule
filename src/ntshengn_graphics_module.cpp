@@ -2818,16 +2818,43 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 		layout(location = 0) rayPayloadInEXT vec3 hitValue;
 
-		hitAttributeEXT vec3 attribs;
+		hitAttributeEXT vec2 attribs;
 
 		void main() {
 			ObjectInfo object = objects.info[gl_InstanceCustomIndexEXT];
 			MeshInfo mesh = meshes.info[object.meshID];
-			MaterialInfo material = materials.info[object.meshID];
+			MaterialInfo material = materials.info[object.materialID];
 			Vertices vertices = Vertices(mesh.vertexAddress);
 			Indices indices = Indices(mesh.indexAddress);
 
-			hitValue = vec3(0.2, 0.5, 0.5);
+			// Vertices
+			uvec3 ind = indices.index[gl_PrimitiveID];
+			Vertex v0 = vertices.vertex[ind.x];
+			Vertex v1 = vertices.vertex[ind.y];
+			Vertex v2 = vertices.vertex[ind.z];
+
+			vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
+
+			vec3 pos = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
+			vec3 worldPos = vec3(gl_ObjectToWorldEXT * vec4(pos, 1.0));
+
+			vec3 norm = v0.normal * barycentrics.x + v1.normal * barycentrics.y + v2.normal * barycentrics.z;
+			vec3 worldNorm = normalize(vec3(norm * gl_WorldToObjectEXT));
+
+			vec2 uv = v0.uv * barycentrics.x + v1.uv * barycentrics.y + v2.uv * barycentrics.z;
+
+			// Material
+			vec4 diffuseSample = texture(textures[material.diffuseTextureIndex], uv);
+			vec3 normalSample = texture(textures[material.normalTextureIndex], uv).xyz;
+			float metalnessSample = texture(textures[material.metalnessTextureIndex], uv).b;
+			float roughnessSample = texture(textures[material.roughnessTextureIndex], uv).g;
+			float occlusionSample = texture(textures[material.occlusionTextureIndex], uv).r;
+			vec3 emissiveSample = texture(textures[material.emissiveTextureIndex], uv).rgb;
+
+			vec3 l = normalize(-lights.info[0].direction);
+			
+
+			hitValue = vec3(dot(worldNorm, l) * diffuseSample.rgb);
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayClosestHitShaderSpv = compileShader(rayClosestHitShaderCode, ShaderType::RayClosestHit);
