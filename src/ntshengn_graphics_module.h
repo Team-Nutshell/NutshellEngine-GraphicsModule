@@ -65,6 +65,8 @@ struct InternalMesh {
 	uint32_t firstIndex;
 	int32_t vertexOffset;
 
+	VkDeviceAddress vertexDeviceAddress;
+	VkDeviceAddress indexDeviceAddress;
 	VkDeviceAddress blasDeviceAddress;
 };
 
@@ -291,6 +293,9 @@ namespace NtshEngn {
 
 		std::vector<VkBuffer> m_objectBuffers;
 		std::vector<VmaAllocation> m_objectBufferAllocations;
+
+		std::vector<VkBuffer> m_meshBuffers;
+		std::vector<VmaAllocation> m_meshBufferAllocations;
 
 		std::vector<VkBuffer> m_materialBuffers;
 		std::vector<VmaAllocation> m_materialBufferAllocations;

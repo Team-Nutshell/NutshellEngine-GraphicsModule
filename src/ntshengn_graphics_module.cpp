@@ -265,6 +265,7 @@ void NtshEngn::GraphicsModule::init() {
 
 	VkPhysicalDeviceFeatures physicalDeviceFeatures = {};
 	physicalDeviceFeatures.samplerAnisotropy = VK_TRUE;
+	physicalDeviceFeatures.shaderInt64 = VK_TRUE;
 	
 	// Create the logical device
 	VkDeviceCreateInfo deviceCreateInfo = {};
@@ -441,6 +442,23 @@ void NtshEngn::GraphicsModule::init() {
 		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &objectBufferCreateInfo, &bufferAllocationCreateInfo, &m_objectBuffers[i], &m_objectBufferAllocations[i], nullptr));
 	}
 
+	// Create mesh storage buffer
+	m_meshBuffers.resize(m_framesInFlight);
+	m_meshBufferAllocations.resize(m_framesInFlight);
+	VkBufferCreateInfo meshBufferCreateInfo = {};
+	meshBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	meshBufferCreateInfo.pNext = nullptr;
+	meshBufferCreateInfo.flags = 0;
+	meshBufferCreateInfo.size = 32768;
+	meshBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+	meshBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	meshBufferCreateInfo.queueFamilyIndexCount = 1;
+	meshBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &meshBufferCreateInfo, &bufferAllocationCreateInfo, &m_meshBuffers[i], &m_meshBufferAllocations[i], nullptr));
+	}
+
 	// Create material storage buffer
 	m_materialBuffers.resize(m_framesInFlight);
 	m_materialBufferAllocations.resize(m_framesInFlight);
@@ -587,10 +605,23 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight], &data));
 	for (auto& it : m_objects) {
 		size_t offset = (it.second.index * sizeof(nml::vec4)); // vec4 is used here for padding
+
+		const uint32_t meshID = (it.second.meshIndex < m_meshes.size()) ? static_cast<uint32_t>(it.second.meshIndex) : 0;
 		const uint32_t textureID = (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0;
-		memcpy(reinterpret_cast<char*>(data) + offset + sizeof(nml::mat4), &textureID, sizeof(uint32_t));
+		std::array<uint32_t, 2> meshAndTextureID = { meshID, textureID };
+
+		memcpy(reinterpret_cast<char*>(data) + offset, meshAndTextureID.data(), 2 * sizeof(uint32_t));
 	}
 	vmaUnmapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight]);
+
+	// Update mesh buffer
+	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_meshBufferAllocations[m_currentFrameInFlight], &data));
+	for (size_t i = 0; i < m_meshes.size(); i++) {
+		size_t offset = i * 2 * sizeof(VkDeviceAddress);
+
+		memcpy(reinterpret_cast<char*>(data) + offset, &m_meshes[i].vertexDeviceAddress, 2 * sizeof(VkDeviceAddress));
+	}
+	vmaUnmapMemory(m_allocator, m_meshBufferAllocations[m_currentFrameInFlight]);
 
 	// Update material buffer
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_materialBufferAllocations[m_currentFrameInFlight], &data));
@@ -1022,6 +1053,11 @@ void NtshEngn::GraphicsModule::destroy() {
 		vmaDestroyBuffer(m_allocator, m_materialBuffers[i], m_materialBufferAllocations[i]);
 	}
 
+	// Destroy meshes buffers
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		vmaDestroyBuffer(m_allocator, m_meshBuffers[i], m_meshBufferAllocations[i]);
+	}
+
 	// Destroy objects buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		vmaDestroyBuffer(m_allocator, m_objectBuffers[i], m_objectBufferAllocations[i]);
@@ -1356,7 +1392,7 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	blasDeviceAddressInfo.accelerationStructure = blas;
 	VkDeviceAddress blasDeviceAddress = m_vkGetAccelerationStructureDeviceAddressKHR(m_device, &blasDeviceAddressInfo);
 
-	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset, blasDeviceAddress });
+	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset, m_vertexBufferDeviceAddress + (static_cast<size_t>(m_currentVertexOffset) * sizeof(NtshEngn::Vertex)), m_indexBufferDeviceAddress + (static_cast<size_t>(m_currentIndexOffset) * sizeof(uint32_t)), blasDeviceAddress });
 	m_meshAddresses[&mesh] = static_cast<uint32_t>(m_meshes.size() - 1);
 
 	m_currentVertexOffset += static_cast<int32_t>(mesh.vertices.size());
@@ -2340,49 +2376,42 @@ void NtshEngn::GraphicsModule::createDescriptorSetLayout() {
 	objectsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
 	objectsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
-	VkDescriptorSetLayoutBinding vertexDescriptorSetLayoutBinding = {};
-	vertexDescriptorSetLayoutBinding.binding = 4;
-	vertexDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	vertexDescriptorSetLayoutBinding.descriptorCount = 1;
-	vertexDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-	vertexDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
-	VkDescriptorSetLayoutBinding indexDescriptorSetLayoutBinding = {};
-	indexDescriptorSetLayoutBinding.binding = 5;
-	indexDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	indexDescriptorSetLayoutBinding.descriptorCount = 1;
-	indexDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-	indexDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+	VkDescriptorSetLayoutBinding meshDescriptorSetLayoutBinding = {};
+	meshDescriptorSetLayoutBinding.binding = 4;
+	meshDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	meshDescriptorSetLayoutBinding.descriptorCount = 1;
+	meshDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+	meshDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding materialsDescriptorSetLayoutBinding = {};
-	materialsDescriptorSetLayoutBinding.binding = 6;
+	materialsDescriptorSetLayoutBinding.binding = 5;
 	materialsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	materialsDescriptorSetLayoutBinding.descriptorCount = 1;
 	materialsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
 	materialsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding lightsDescriptorSetLayoutBinding = {};
-	lightsDescriptorSetLayoutBinding.binding = 7;
+	lightsDescriptorSetLayoutBinding.binding = 6;
 	lightsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	lightsDescriptorSetLayoutBinding.descriptorCount = 1;
 	lightsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
 	lightsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding texturesDescriptorSetLayoutBinding = {};
-	texturesDescriptorSetLayoutBinding.binding = 8;
+	texturesDescriptorSetLayoutBinding.binding = 7;
 	texturesDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	texturesDescriptorSetLayoutBinding.descriptorCount = 131072;
 	texturesDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
 	texturesDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
-	std::array<VkDescriptorBindingFlags, 9> descriptorBindingFlags = { 0, 0, 0, 0, 0, 0, 0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
+	std::array<VkDescriptorBindingFlags, 8> descriptorBindingFlags = { 0, 0, 0, 0, 0, 0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
 	VkDescriptorSetLayoutBindingFlagsCreateInfo descriptorSetLayoutBindingFlagsCreateInfo = {};
 	descriptorSetLayoutBindingFlagsCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
 	descriptorSetLayoutBindingFlagsCreateInfo.pNext = nullptr;
 	descriptorSetLayoutBindingFlagsCreateInfo.bindingCount = static_cast<uint32_t>(descriptorBindingFlags.size());
 	descriptorSetLayoutBindingFlagsCreateInfo.pBindingFlags = descriptorBindingFlags.data();
 
-	std::array<VkDescriptorSetLayoutBinding, 9> descriptorSetLayoutBindings = { colorImageDescriptorSetLayoutBinding, tlasDescriptorSetLayoutBinding, cameraDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding, vertexDescriptorSetLayoutBinding, indexDescriptorSetLayoutBinding, materialsDescriptorSetLayoutBinding, lightsDescriptorSetLayoutBinding, texturesDescriptorSetLayoutBinding };
+	std::array<VkDescriptorSetLayoutBinding, 8> descriptorSetLayoutBindings = { colorImageDescriptorSetLayoutBinding, tlasDescriptorSetLayoutBinding, cameraDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding, meshDescriptorSetLayoutBinding, materialsDescriptorSetLayoutBinding, lightsDescriptorSetLayoutBinding, texturesDescriptorSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
 	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	descriptorSetLayoutCreateInfo.pNext = &descriptorSetLayoutBindingFlagsCreateInfo;
@@ -2680,41 +2709,6 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		#version 460
 		#extension GL_EXT_ray_tracing : require
 
-		struct ObjectInfo {
-			uint materialID;
-		};
-
-		struct MaterialInfo {
-			uint diffuseTextureIndex;
-			uint normalTextureIndex;
-			uint metalnessTextureIndex;
-			uint roughnessTextureIndex;
-			uint occlusionTextureIndex;
-			uint emissiveTextureIndex;
-		};
-
-		struct LightInfo {
-			vec3 position;
-			vec3 direction;
-			vec3 color;
-			vec2 cutoffs;
-		};
-
-		layout(std430, set = 0, binding = 3) restrict readonly buffer Objects {
-			ObjectInfo info[];
-		} objects;
-
-		layout(set = 0, binding = 6) restrict readonly buffer Materials {
-			MaterialInfo info[];
-		} materials;
-
-		layout(set = 0, binding = 7) restrict readonly buffer Lights {
-			uvec3 count;
-			LightInfo info[];
-		} lights;
-
-		layout(set = 0, binding = 8) uniform sampler2D textures[];
-
 		layout(location = 0) rayPayloadInEXT vec3 hitValue;
 
 		void main() {
@@ -2755,12 +2749,84 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		#version 460
 		#extension GL_EXT_ray_tracing : require
 		#extension GL_EXT_nonuniform_qualifier : enable
-		
+		#extension GL_EXT_scalar_block_layout : enable
+		#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+		#extension GL_EXT_buffer_reference2 : require
+
+		struct ObjectInfo {
+			uint meshID;
+			uint materialID;
+		};
+
+		struct MeshInfo {
+			uint64_t vertexAddress;
+			uint64_t indexAddress;
+		};
+
+		struct MaterialInfo {
+			uint diffuseTextureIndex;
+			uint normalTextureIndex;
+			uint metalnessTextureIndex;
+			uint roughnessTextureIndex;
+			uint occlusionTextureIndex;
+			uint emissiveTextureIndex;
+		};
+
+		struct LightInfo {
+			vec3 position;
+			vec3 direction;
+			vec3 color;
+			vec2 cutoffs;
+		};
+
+		struct Vertex {
+			vec3 position;
+			vec3 normal;
+			vec2 uv;
+			vec3 color;
+			vec4 tangent;
+			vec4 joints;
+			vec4 weights;
+		};
+
+		layout(std430, set = 0, binding = 3) restrict readonly buffer Objects {
+			ObjectInfo info[];
+		} objects;
+
+		layout(set = 0, binding = 4) restrict readonly buffer Meshes {
+			MeshInfo info[];
+		} meshes;
+
+		layout(set = 0, binding = 5) restrict readonly buffer Materials {
+			MaterialInfo info[];
+		} materials;
+
+		layout(set = 0, binding = 6) restrict readonly buffer Lights {
+			uvec3 count;
+			LightInfo info[];
+		} lights;
+
+		layout(set = 0, binding = 7) uniform sampler2D textures[];
+
+		layout(buffer_reference, scalar) buffer Vertices {
+			Vertex vertex[];
+		};
+
+		layout(buffer_reference, scalar) buffer Indices {
+			uvec3 index[];
+		};
+
 		layout(location = 0) rayPayloadInEXT vec3 hitValue;
-		
+
 		hitAttributeEXT vec3 attribs;
 
 		void main() {
+			ObjectInfo object = objects.info[gl_InstanceCustomIndexEXT];
+			MeshInfo mesh = meshes.info[object.meshID];
+			MaterialInfo material = materials.info[object.meshID];
+			Vertices vertices = Vertices(mesh.vertexAddress);
+			Indices indices = Indices(mesh.indexAddress);
+
 			hitValue = vec3(0.2, 0.5, 0.5);
 		}
 	)GLSL";
@@ -2918,13 +2984,9 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 	objectsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	objectsDescriptorPoolSize.descriptorCount = m_framesInFlight;
 
-	VkDescriptorPoolSize vertexDescriptorPoolSize = {};
-	vertexDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	vertexDescriptorPoolSize.descriptorCount = m_framesInFlight;
-
-	VkDescriptorPoolSize indexDescriptorPoolSize = {};
-	indexDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	indexDescriptorPoolSize.descriptorCount = m_framesInFlight;
+	VkDescriptorPoolSize meshDescriptorPoolSize = {};
+	meshDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	meshDescriptorPoolSize.descriptorCount = m_framesInFlight;
 	
 	VkDescriptorPoolSize materialsDescriptorPoolSize = {};
 	materialsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -2938,7 +3000,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 	texturesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	texturesDescriptorPoolSize.descriptorCount = 131072 * m_framesInFlight;
 
-	std::array<VkDescriptorPoolSize, 9> descriptorPoolSizes = { colorImageDescriptorPoolSize, tlasDescriptorPoolSize, cameraDescriptorPoolSize, objectsDescriptorPoolSize, vertexDescriptorPoolSize, indexDescriptorPoolSize, materialsDescriptorPoolSize, lightsDescriptorPoolSize, texturesDescriptorPoolSize };
+	std::array<VkDescriptorPoolSize, 8> descriptorPoolSizes = { colorImageDescriptorPoolSize, tlasDescriptorPoolSize, cameraDescriptorPoolSize, objectsDescriptorPoolSize, meshDescriptorPoolSize, materialsDescriptorPoolSize, lightsDescriptorPoolSize, texturesDescriptorPoolSize };
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.pNext = nullptr;
@@ -2966,8 +3028,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		VkDescriptorImageInfo colorImageDescriptorImageInfo;
 		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
 		VkDescriptorBufferInfo objectsDescriptorBufferInfo;
-		VkDescriptorBufferInfo vertexDescriptorBufferInfo;
-		VkDescriptorBufferInfo indexDescriptorBufferInfo;
+		VkDescriptorBufferInfo meshDescriptorBufferInfo;
 		VkDescriptorBufferInfo materialsDescriptorBufferInfo;
 		VkDescriptorBufferInfo lightsDescriptorBufferInfo;
 
@@ -3041,39 +3102,22 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		objectsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(objectsDescriptorWriteDescriptorSet);
 
-		vertexDescriptorBufferInfo.buffer = m_vertexBuffer;
-		vertexDescriptorBufferInfo.offset = 0;
-		vertexDescriptorBufferInfo.range = 67108864;
+		meshDescriptorBufferInfo.buffer = m_meshBuffers[i];
+		meshDescriptorBufferInfo.offset = 0;
+		meshDescriptorBufferInfo.range = 32768;
 
-		VkWriteDescriptorSet vertexDescriptorWriteDescriptorSet = {};
-		vertexDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		vertexDescriptorWriteDescriptorSet.pNext = nullptr;
-		vertexDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		vertexDescriptorWriteDescriptorSet.dstBinding = 4;
-		vertexDescriptorWriteDescriptorSet.dstArrayElement = 0;
-		vertexDescriptorWriteDescriptorSet.descriptorCount = 1;
-		vertexDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		vertexDescriptorWriteDescriptorSet.pImageInfo = nullptr;
-		vertexDescriptorWriteDescriptorSet.pBufferInfo = &vertexDescriptorBufferInfo;
-		vertexDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
-		writeDescriptorSets.push_back(vertexDescriptorWriteDescriptorSet);
-
-		indexDescriptorBufferInfo.buffer = m_indexBuffer;
-		indexDescriptorBufferInfo.offset = 0;
-		indexDescriptorBufferInfo.range = 67108864;
-
-		VkWriteDescriptorSet indexDescriptorWriteDescriptorSet = {};
-		indexDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		indexDescriptorWriteDescriptorSet.pNext = nullptr;
-		indexDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		indexDescriptorWriteDescriptorSet.dstBinding = 5;
-		indexDescriptorWriteDescriptorSet.dstArrayElement = 0;
-		indexDescriptorWriteDescriptorSet.descriptorCount = 1;
-		indexDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		indexDescriptorWriteDescriptorSet.pImageInfo = nullptr;
-		indexDescriptorWriteDescriptorSet.pBufferInfo = &indexDescriptorBufferInfo;
-		indexDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
-		writeDescriptorSets.push_back(indexDescriptorWriteDescriptorSet);
+		VkWriteDescriptorSet meshDescriptorWriteDescriptorSet = {};
+		meshDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		meshDescriptorWriteDescriptorSet.pNext = nullptr;
+		meshDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		meshDescriptorWriteDescriptorSet.dstBinding = 4;
+		meshDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		meshDescriptorWriteDescriptorSet.descriptorCount = 1;
+		meshDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		meshDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		meshDescriptorWriteDescriptorSet.pBufferInfo = &meshDescriptorBufferInfo;
+		meshDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(meshDescriptorWriteDescriptorSet);
 
 		materialsDescriptorBufferInfo.buffer = m_materialBuffers[i];
 		materialsDescriptorBufferInfo.offset = 0;
@@ -3083,7 +3127,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		materialsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		materialsDescriptorWriteDescriptorSet.pNext = nullptr;
 		materialsDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		materialsDescriptorWriteDescriptorSet.dstBinding = 6;
+		materialsDescriptorWriteDescriptorSet.dstBinding = 5;
 		materialsDescriptorWriteDescriptorSet.dstArrayElement = 0;
 		materialsDescriptorWriteDescriptorSet.descriptorCount = 1;
 		materialsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -3100,7 +3144,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		lightsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		lightsDescriptorWriteDescriptorSet.pNext = nullptr;
 		lightsDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		lightsDescriptorWriteDescriptorSet.dstBinding = 7;
+		lightsDescriptorWriteDescriptorSet.dstBinding = 6;
 		lightsDescriptorWriteDescriptorSet.dstArrayElement = 0;
 		lightsDescriptorWriteDescriptorSet.descriptorCount = 1;
 		lightsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -3130,7 +3174,7 @@ void NtshEngn::GraphicsModule::updateDescriptorSet(uint32_t frameInFlight) {
 	texturesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	texturesDescriptorWriteDescriptorSet.pNext = nullptr;
 	texturesDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[frameInFlight];
-	texturesDescriptorWriteDescriptorSet.dstBinding = 8;
+	texturesDescriptorWriteDescriptorSet.dstBinding = 7;
 	texturesDescriptorWriteDescriptorSet.dstArrayElement = 0;
 	texturesDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(texturesDescriptorImageInfos.size());
 	texturesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
