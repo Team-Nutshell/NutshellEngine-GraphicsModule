@@ -604,7 +604,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	// Update objects buffer
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight], &data));
 	for (auto& it : m_objects) {
-		size_t offset = (it.second.index * sizeof(nml::vec4)); // vec4 is used here for padding
+		size_t offset = (it.second.index * sizeof(nml::vec2));
 
 		const uint32_t meshID = (it.second.meshIndex < m_meshes.size()) ? static_cast<uint32_t>(it.second.meshIndex) : 0;
 		const uint32_t textureID = (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0;
