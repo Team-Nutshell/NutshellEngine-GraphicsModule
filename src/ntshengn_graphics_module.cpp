@@ -2359,7 +2359,7 @@ void NtshEngn::GraphicsModule::createDescriptorSetLayout() {
 	tlasDescriptorSetLayoutBinding.binding = 1;
 	tlasDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 	tlasDescriptorSetLayoutBinding.descriptorCount = 1;
-	tlasDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+	tlasDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
 	tlasDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding cameraDescriptorSetLayoutBinding = {};
@@ -2745,6 +2745,46 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 	rayMissShaderGroupCreateInfo.intersectionShader = VK_SHADER_UNUSED_KHR;
 	rayMissShaderGroupCreateInfo.pShaderGroupCaptureReplayHandle = nullptr;
 
+	const std::string rayShadowMissShaderCode = R"GLSL(
+		#version 460
+		#extension GL_EXT_ray_tracing : require
+
+		layout(location = 1) rayPayloadInEXT bool isShadowed;
+
+		void main() {
+			isShadowed = false;
+		}
+	)GLSL";
+	const std::vector<uint32_t> rayShadowMissShaderSpv = compileShader(rayShadowMissShaderCode, ShaderType::RayMiss);
+
+	VkShaderModule rayShadowMissShaderModule;
+	VkShaderModuleCreateInfo rayShadowMissShaderModuleCreateInfo = {};
+	rayShadowMissShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	rayShadowMissShaderModuleCreateInfo.pNext = nullptr;
+	rayShadowMissShaderModuleCreateInfo.flags = 0;
+	rayShadowMissShaderModuleCreateInfo.codeSize = rayShadowMissShaderSpv.size() * sizeof(uint32_t);
+	rayShadowMissShaderModuleCreateInfo.pCode = rayShadowMissShaderSpv.data();
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &rayShadowMissShaderModuleCreateInfo, nullptr, &rayShadowMissShaderModule));
+
+	VkPipelineShaderStageCreateInfo rayShadowMissShaderStageCreateInfo = {};
+	rayShadowMissShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	rayShadowMissShaderStageCreateInfo.pNext = nullptr;
+	rayShadowMissShaderStageCreateInfo.flags = 0;
+	rayShadowMissShaderStageCreateInfo.stage = VK_SHADER_STAGE_MISS_BIT_KHR;
+	rayShadowMissShaderStageCreateInfo.module = rayShadowMissShaderModule;
+	rayShadowMissShaderStageCreateInfo.pName = "main";
+	rayShadowMissShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	VkRayTracingShaderGroupCreateInfoKHR rayShadowMissShaderGroupCreateInfo = {};
+	rayShadowMissShaderGroupCreateInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+	rayShadowMissShaderGroupCreateInfo.pNext = nullptr;
+	rayShadowMissShaderGroupCreateInfo.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+	rayShadowMissShaderGroupCreateInfo.generalShader = 2;
+	rayShadowMissShaderGroupCreateInfo.closestHitShader = VK_SHADER_UNUSED_KHR;
+	rayShadowMissShaderGroupCreateInfo.anyHitShader = VK_SHADER_UNUSED_KHR;
+	rayShadowMissShaderGroupCreateInfo.intersectionShader = VK_SHADER_UNUSED_KHR;
+	rayShadowMissShaderGroupCreateInfo.pShaderGroupCaptureReplayHandle = nullptr;
+
 	const std::string rayClosestHitShaderCode = R"GLSL(
 		#version 460
 		#extension GL_EXT_ray_tracing : require
@@ -2791,6 +2831,8 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec4 weights;
 		};
 
+		layout(set = 0, binding = 1) uniform accelerationStructureEXT tlas;
+
 		layout(std430, set = 0, binding = 3) restrict readonly buffer Objects {
 			ObjectInfo info[];
 		} objects;
@@ -2819,6 +2861,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		};
 
 		layout(location = 0) rayPayloadInEXT vec3 hitValue;
+		layout(location = 1) rayPayloadInEXT bool isShadowed;
 
 		hitAttributeEXT vec2 attribs;
 
@@ -2888,6 +2931,21 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			return lc * brdf * LdotN;
 		}
 
+		float shadows(vec3 l, float distanceToLight) {
+			isShadowed = true;
+			float tMin = 0.001;
+			float tMax = distanceToLight;
+			vec3 origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+			vec3 direction = l;
+			uint rayFlags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
+			traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 1, origin, tMin, direction, tMax, 1);
+
+			if (isShadowed) {
+				return 0.0;
+			}
+			return 1.0;
+		}
+
 		void main() {
 			ObjectInfo object = objects.info[gl_InstanceCustomIndexEXT];
 			MeshInfo mesh = meshes.info[object.meshID];
@@ -2939,7 +2997,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			for (int i = 0; i < lights.count.x; i++) {
 				vec3 l = normalize(-lights.info[lightIndex].direction);
 				vec3 lc = lights.info[lightIndex].color;
-				color += shade(n, v, l, lc, d, metalnessSample, roughnessSample);
+				color += shade(n, v, l, lc, d, metalnessSample, roughnessSample) * shadows(l, 10000.0);
 
 				lightIndex++;
 			}
@@ -2949,7 +3007,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 				float distance = length(lights.info[lightIndex].position - worldPosition);
 				float attenuation = 1.0 / (distance * distance);
 				vec3 radiance = lights.info[lightIndex].color * attenuation;
-				color += shade(n, v, l, radiance, d, metalnessSample, roughnessSample);
+				color += shade(n, v, l, radiance, d, metalnessSample, roughnessSample) * shadows(l, distance);
 
 				lightIndex++;
 			}
@@ -2961,7 +3019,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 				float epsilon = cos(lights.info[lightIndex].cutoffs.y) - cos(lights.info[lightIndex].cutoffs.x);
 				float intensity = clamp((theta - cos(lights.info[lightIndex].cutoffs.x)) / epsilon, 0.0, 1.0);
 				intensity = 1.0 - intensity;
-				color += shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample);
+				color += shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample) * shadows(l, length(lights.info[lightIndex].position - worldPosition));
 
 				lightIndex++;
 			}
@@ -2994,13 +3052,13 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 	rayClosestHitShaderGroupCreateInfo.pNext = nullptr;
 	rayClosestHitShaderGroupCreateInfo.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
 	rayClosestHitShaderGroupCreateInfo.generalShader = VK_SHADER_UNUSED_KHR;
-	rayClosestHitShaderGroupCreateInfo.closestHitShader = 2;
+	rayClosestHitShaderGroupCreateInfo.closestHitShader = 3;
 	rayClosestHitShaderGroupCreateInfo.anyHitShader = VK_SHADER_UNUSED_KHR;
 	rayClosestHitShaderGroupCreateInfo.intersectionShader = VK_SHADER_UNUSED_KHR;
 	rayClosestHitShaderGroupCreateInfo.pShaderGroupCaptureReplayHandle = nullptr;
 
-	std::array<VkPipelineShaderStageCreateInfo, 3> shaderStageCreateInfos = { rayGenShaderStageCreateInfo, rayMissShaderStageCreateInfo, rayClosestHitShaderStageCreateInfo };
-	std::array<VkRayTracingShaderGroupCreateInfoKHR, 3> shaderGroupCreateInfos = { rayGenShaderGroupCreateInfo, rayMissShaderGroupCreateInfo, rayClosestHitShaderGroupCreateInfo };
+	std::array<VkPipelineShaderStageCreateInfo, 4> shaderStageCreateInfos = { rayGenShaderStageCreateInfo, rayMissShaderStageCreateInfo, rayShadowMissShaderStageCreateInfo, rayClosestHitShaderStageCreateInfo };
+	std::array<VkRayTracingShaderGroupCreateInfoKHR, 4> shaderGroupCreateInfos = { rayGenShaderGroupCreateInfo, rayMissShaderGroupCreateInfo, rayShadowMissShaderGroupCreateInfo, rayClosestHitShaderGroupCreateInfo };
 
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -3020,7 +3078,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 	rayTracingPipelineCreateInfo.pStages = shaderStageCreateInfos.data();
 	rayTracingPipelineCreateInfo.groupCount = static_cast<uint32_t>(shaderGroupCreateInfos.size());
 	rayTracingPipelineCreateInfo.pGroups = shaderGroupCreateInfos.data();
-	rayTracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 1;
+	rayTracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 2;
 	rayTracingPipelineCreateInfo.pLibraryInfo = nullptr;
 	rayTracingPipelineCreateInfo.pLibraryInterface = nullptr;
 	rayTracingPipelineCreateInfo.pDynamicState = nullptr;
@@ -3031,11 +3089,12 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 	vkDestroyShaderModule(m_device, rayGenShaderModule, nullptr);
 	vkDestroyShaderModule(m_device, rayMissShaderModule, nullptr);
+	vkDestroyShaderModule(m_device, rayShadowMissShaderModule, nullptr);
 	vkDestroyShaderModule(m_device, rayClosestHitShaderModule, nullptr);
 }
 
 void NtshEngn::GraphicsModule::createRayTracingShaderBindingTable() {
-	uint32_t missShaderCount = 1;
+	uint32_t missShaderCount = 2;
 	uint32_t hitShaderCount = 1;
 	uint32_t callShaderCount = 0;
 	uint32_t shaderHandleCount = 1 + missShaderCount + hitShaderCount + callShaderCount;
