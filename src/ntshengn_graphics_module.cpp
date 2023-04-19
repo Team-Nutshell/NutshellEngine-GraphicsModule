@@ -3024,6 +3024,9 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 				lightIndex++;
 			}
 
+			color *= occlusionSample;
+			color += emissiveSample;
+
 			hitValue = color;
 		}
 	)GLSL";
