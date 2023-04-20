@@ -402,7 +402,7 @@ void NtshEngn::GraphicsModule::init() {
 
 	createRayTracingShaderBindingTable();
 
-	createTonemappingResources();
+	createToneMappingResources();
 
 	// Create camera uniform buffer
 	m_cameraBuffers.resize(m_framesInFlight);
@@ -796,7 +796,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo.bufferMemoryBarrierCount = 1;
 	undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo.pBufferMemoryBarriers = &tlasInstancesCopyBufferMemoryBarrier;
-	undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo.imageMemoryBarrierCount = 2;
+	undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(imageMemoryBarriers.size());
 	undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo.pImageMemoryBarriers = imageMemoryBarriers.data();
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo);
 
@@ -899,7 +899,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	generalToShaderReadOnlyOptimalDependencyInfo.pImageMemoryBarriers = &generalToShaderReadOnlyOptimalImageMemoryBarrier;
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &generalToShaderReadOnlyOptimalDependencyInfo);
 
-	// Tonemapping
+	// Tone mapping
 	VkRenderingAttachmentInfo renderingSwapchainAttachmentInfo = {};
 	renderingSwapchainAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	renderingSwapchainAttachmentInfo.pNext = nullptr;
@@ -931,8 +931,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	renderingInfo.pStencilAttachment = nullptr;
 	m_vkCmdBeginRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight], &renderingInfo);
 
-	vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_tonemappingGraphicsPipelineLayout, 0, 1, &m_tonemappingDescriptorSet, 0, nullptr);
-	vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_tonemappingGraphicsPipeline);
+	vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_toneMappingGraphicsPipelineLayout, 0, 1, &m_toneMappingDescriptorSet, 0, nullptr);
+	vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_toneMappingGraphicsPipeline);
 	vkCmdSetViewport(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_viewport);
 	vkCmdSetScissor(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_scissor);
 
@@ -1068,12 +1068,12 @@ void NtshEngn::GraphicsModule::destroy() {
 		vmaDestroyBuffer(m_allocator, m_cameraBuffers[i], m_cameraBufferAllocations[i]);
 	}
 
-	// Destroy tonemapping resources
-	vkDestroyDescriptorPool(m_device, m_tonemappingDescriptorPool, nullptr);
-	vkDestroyPipeline(m_device, m_tonemappingGraphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(m_device, m_tonemappingGraphicsPipelineLayout, nullptr);
-	vkDestroyDescriptorSetLayout(m_device, m_tonemappingDescriptorSetLayout, nullptr);
-	vkDestroySampler(m_device, m_tonemappingSampler, nullptr);
+	// Destroy tone mapping resources
+	vkDestroyDescriptorPool(m_device, m_toneMappingDescriptorPool, nullptr);
+	vkDestroyPipeline(m_device, m_toneMappingGraphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(m_device, m_toneMappingGraphicsPipelineLayout, nullptr);
+	vkDestroyDescriptorSetLayout(m_device, m_toneMappingDescriptorSetLayout, nullptr);
+	vkDestroySampler(m_device, m_toneMappingSampler, nullptr);
 
 	// Destroy descriptor pool
 	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
@@ -3386,7 +3386,7 @@ void NtshEngn::GraphicsModule::updateDescriptorSet(uint32_t frameInFlight) {
 	vkUpdateDescriptorSets(m_device, 1, &texturesDescriptorWriteDescriptorSet, 0, nullptr);
 }
 
-void NtshEngn::GraphicsModule::createTonemappingResources() {
+void NtshEngn::GraphicsModule::createToneMappingResources() {
 	// Create descriptor set layout
 	VkDescriptorSetLayoutBinding colorImageDescriptorSetLayoutBinding = {};
 	colorImageDescriptorSetLayoutBinding.binding = 0;
@@ -3401,7 +3401,7 @@ void NtshEngn::GraphicsModule::createTonemappingResources() {
 	descriptorSetLayoutCreateInfo.flags = 0;
 	descriptorSetLayoutCreateInfo.bindingCount = 1;
 	descriptorSetLayoutCreateInfo.pBindings = &colorImageDescriptorSetLayoutBinding;
-	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_tonemappingDescriptorSetLayout));
+	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_toneMappingDescriptorSetLayout));
 
 	// Create graphics pipeline
 	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
@@ -3586,10 +3586,10 @@ void NtshEngn::GraphicsModule::createTonemappingResources() {
 	pipelineLayoutCreateInfo.pNext = nullptr;
 	pipelineLayoutCreateInfo.flags = 0;
 	pipelineLayoutCreateInfo.setLayoutCount = 1;
-	pipelineLayoutCreateInfo.pSetLayouts = &m_tonemappingDescriptorSetLayout;
+	pipelineLayoutCreateInfo.pSetLayouts = &m_toneMappingDescriptorSetLayout;
 	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
 	pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
-	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_tonemappingGraphicsPipelineLayout));
+	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_toneMappingGraphicsPipelineLayout));
 
 	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};
 	graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -3606,12 +3606,12 @@ void NtshEngn::GraphicsModule::createTonemappingResources() {
 	graphicsPipelineCreateInfo.pDepthStencilState = &depthStencilStateCreateInfo;
 	graphicsPipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
 	graphicsPipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
-	graphicsPipelineCreateInfo.layout = m_tonemappingGraphicsPipelineLayout;
+	graphicsPipelineCreateInfo.layout = m_toneMappingGraphicsPipelineLayout;
 	graphicsPipelineCreateInfo.renderPass = VK_NULL_HANDLE;
 	graphicsPipelineCreateInfo.subpass = 0;
 	graphicsPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
 	graphicsPipelineCreateInfo.basePipelineIndex = 0;
-	NTSHENGN_VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_tonemappingGraphicsPipeline));
+	NTSHENGN_VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_toneMappingGraphicsPipeline));
 
 	vkDestroyShaderModule(m_device, vertexShaderModule, nullptr);
 	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
@@ -3635,7 +3635,7 @@ void NtshEngn::GraphicsModule::createTonemappingResources() {
 	samplerCreateInfo.minLod = 0.0f;
 	samplerCreateInfo.maxLod = 0.0f;
 	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_tonemappingSampler));
+	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_toneMappingSampler));
 
 	// Create descriptor pool
 	VkDescriptorPoolSize colorImageDescriptorPoolSize = {};
@@ -3649,27 +3649,27 @@ void NtshEngn::GraphicsModule::createTonemappingResources() {
 	descriptorPoolCreateInfo.maxSets = 1;
 	descriptorPoolCreateInfo.poolSizeCount = 1;
 	descriptorPoolCreateInfo.pPoolSizes = &colorImageDescriptorPoolSize;
-	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_tonemappingDescriptorPool));
+	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_toneMappingDescriptorPool));
 
 	// Allocate descriptor set
 	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
 	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	descriptorSetAllocateInfo.pNext = nullptr;
-	descriptorSetAllocateInfo.descriptorPool = m_tonemappingDescriptorPool;
+	descriptorSetAllocateInfo.descriptorPool = m_toneMappingDescriptorPool;
 	descriptorSetAllocateInfo.descriptorSetCount = 1;
-	descriptorSetAllocateInfo.pSetLayouts = &m_tonemappingDescriptorSetLayout;
-	NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_tonemappingDescriptorSet));
+	descriptorSetAllocateInfo.pSetLayouts = &m_toneMappingDescriptorSetLayout;
+	NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_toneMappingDescriptorSet));
 
 	// Update descriptor set
 	VkDescriptorImageInfo colorImageDescriptorImageInfo;
 	colorImageDescriptorImageInfo.imageView = m_colorImageView;
 	colorImageDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	colorImageDescriptorImageInfo.sampler = m_tonemappingSampler;
+	colorImageDescriptorImageInfo.sampler = m_toneMappingSampler;
 
 	VkWriteDescriptorSet colorImageDescriptorWriteDescriptorSet = {};
 	colorImageDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	colorImageDescriptorWriteDescriptorSet.pNext = nullptr;
-	colorImageDescriptorWriteDescriptorSet.dstSet = m_tonemappingDescriptorSet;
+	colorImageDescriptorWriteDescriptorSet.dstSet = m_toneMappingDescriptorSet;
 	colorImageDescriptorWriteDescriptorSet.dstBinding = 0;
 	colorImageDescriptorWriteDescriptorSet.dstArrayElement = 0;
 	colorImageDescriptorWriteDescriptorSet.descriptorCount = 1;
@@ -3833,14 +3833,14 @@ void NtshEngn::GraphicsModule::resize() {
 			vkUpdateDescriptorSets(m_device, 1, &colorImageDescriptorWriteDescriptorSet, 0, nullptr);
 		}
 
-		// Update tonemapping descriptor set
+		// Update tone mapping descriptor set
 		colorImageDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		colorImageDescriptorImageInfo.sampler = m_tonemappingSampler;
+		colorImageDescriptorImageInfo.sampler = m_toneMappingSampler;
 
 		VkWriteDescriptorSet colorImageDescriptorWriteDescriptorSet = {};
 		colorImageDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		colorImageDescriptorWriteDescriptorSet.pNext = nullptr;
-		colorImageDescriptorWriteDescriptorSet.dstSet = m_tonemappingDescriptorSet;
+		colorImageDescriptorWriteDescriptorSet.dstSet = m_toneMappingDescriptorSet;
 		colorImageDescriptorWriteDescriptorSet.dstBinding = 0;
 		colorImageDescriptorWriteDescriptorSet.dstArrayElement = 0;
 		colorImageDescriptorWriteDescriptorSet.descriptorCount = 1;
