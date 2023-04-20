@@ -343,11 +343,13 @@ void NtshEngn::GraphicsModule::init() {
 
 	createVertexAndIndexBuffers();
 
-	createDepthImage();
+	createColorAndDepthImages();
 
 	createDescriptorSetLayout();
 
 	createGraphicsPipeline();
+
+	createToneMappingResources();
 
 	// Create camera uniform buffer
 	m_cameraBuffers.resize(m_framesInFlight);
@@ -621,28 +623,48 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(m_renderingCommandBuffers[m_currentFrameInFlight], &commandBufferBeginInfo));
 
 	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+	VkImageMemoryBarrier2 swapchainOrDrawImageMemoryBarrier = {};
+	swapchainOrDrawImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	swapchainOrDrawImageMemoryBarrier.pNext = nullptr;
+	swapchainOrDrawImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+	swapchainOrDrawImageMemoryBarrier.srcAccessMask = 0;
+	swapchainOrDrawImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	swapchainOrDrawImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	swapchainOrDrawImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	swapchainOrDrawImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	swapchainOrDrawImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	swapchainOrDrawImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+		swapchainOrDrawImageMemoryBarrier.image = m_swapchainImages[imageIndex];
+	}
+	else {
+		swapchainOrDrawImageMemoryBarrier.image = m_drawImage;
+	}
+	swapchainOrDrawImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	swapchainOrDrawImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	swapchainOrDrawImageMemoryBarrier.subresourceRange.levelCount = 1;
+	swapchainOrDrawImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	swapchainOrDrawImageMemoryBarrier.subresourceRange.layerCount = 1;
+
 	VkImageMemoryBarrier2 undefinedToColorAttachmentOptimalImageMemoryBarrier = {};
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.pNext = nullptr;
-	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
-	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcAccessMask = 0;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
-		undefinedToColorAttachmentOptimalImageMemoryBarrier.image = m_swapchainImages[imageIndex];
-	}
-	else {
-		undefinedToColorAttachmentOptimalImageMemoryBarrier.image = m_drawImage;
-	}
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.image = m_colorImage;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.levelCount = 1;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	std::array<VkImageMemoryBarrier2, 2> imageMemoryBarriers = { swapchainOrDrawImageMemoryBarrier, undefinedToColorAttachmentOptimalImageMemoryBarrier };
 
 	VkDependencyInfo undefinedToColorAttachmentOptimalDependencyInfo = {};
 	undefinedToColorAttachmentOptimalDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
@@ -652,8 +674,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	undefinedToColorAttachmentOptimalDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToColorAttachmentOptimalDependencyInfo.bufferMemoryBarrierCount = 0;
 	undefinedToColorAttachmentOptimalDependencyInfo.pBufferMemoryBarriers = nullptr;
-	undefinedToColorAttachmentOptimalDependencyInfo.imageMemoryBarrierCount = 1;
-	undefinedToColorAttachmentOptimalDependencyInfo.pImageMemoryBarriers = &undefinedToColorAttachmentOptimalImageMemoryBarrier;
+	undefinedToColorAttachmentOptimalDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(imageMemoryBarriers.size());
+	undefinedToColorAttachmentOptimalDependencyInfo.pImageMemoryBarriers = imageMemoryBarriers.data();
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &undefinedToColorAttachmentOptimalDependencyInfo);
 
 	// Bind vertex and index buffers
@@ -665,23 +687,18 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipelineLayout, 0, 1, &m_descriptorSets[m_currentFrameInFlight], 0, nullptr);
 
 	// Begin rendering
-	VkRenderingAttachmentInfo renderingSwapchainAttachmentInfo = {};
-	renderingSwapchainAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	renderingSwapchainAttachmentInfo.pNext = nullptr;
-	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
-		renderingSwapchainAttachmentInfo.imageView = m_swapchainImageViews[imageIndex];
-	}
-	else {
-		renderingSwapchainAttachmentInfo.imageView = m_drawImageView;
-	}
-	renderingSwapchainAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	renderingSwapchainAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
-	renderingSwapchainAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
-	renderingSwapchainAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	renderingSwapchainAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	renderingSwapchainAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	renderingSwapchainAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
-	renderingSwapchainAttachmentInfo.clearValue.depthStencil = { 0.0f, 0 };
+	VkRenderingAttachmentInfo renderingColorAttachmentInfo = {};
+	renderingColorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	renderingColorAttachmentInfo.pNext = nullptr;
+	renderingColorAttachmentInfo.imageView = m_colorImageView;
+	renderingColorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	renderingColorAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+	renderingColorAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
+	renderingColorAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	renderingColorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	renderingColorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	renderingColorAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
+	renderingColorAttachmentInfo.clearValue.depthStencil = { 0.0f, 0 };
 
 	VkRenderingAttachmentInfo renderingDepthAttachmentInfo = {};
 	renderingDepthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -704,7 +721,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	renderingInfo.layerCount = 1;
 	renderingInfo.viewMask = 0;
 	renderingInfo.colorAttachmentCount = 1;
-	renderingInfo.pColorAttachments = &renderingSwapchainAttachmentInfo;
+	renderingInfo.pColorAttachments = &renderingColorAttachmentInfo;
 	renderingInfo.pDepthAttachment = &renderingDepthAttachmentInfo;
 	renderingInfo.pStencilAttachment = nullptr;
 	m_vkCmdBeginRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight], &renderingInfo);
@@ -723,6 +740,78 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	}
 
 	// End rendering
+	m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight]);
+
+	// Layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+	VkImageMemoryBarrier2 colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier = {};
+	colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier.pNext = nullptr;
+	colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+	colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier.image = m_colorImage;
+	colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier.subresourceRange.levelCount = 1;
+	colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	VkDependencyInfo generalToShaderReadOnlyOptimalDependencyInfo = {};
+	generalToShaderReadOnlyOptimalDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	generalToShaderReadOnlyOptimalDependencyInfo.pNext = nullptr;
+	generalToShaderReadOnlyOptimalDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	generalToShaderReadOnlyOptimalDependencyInfo.memoryBarrierCount = 0;
+	generalToShaderReadOnlyOptimalDependencyInfo.pMemoryBarriers = nullptr;
+	generalToShaderReadOnlyOptimalDependencyInfo.bufferMemoryBarrierCount = 0;
+	generalToShaderReadOnlyOptimalDependencyInfo.pBufferMemoryBarriers = nullptr;
+	generalToShaderReadOnlyOptimalDependencyInfo.imageMemoryBarrierCount = 1;
+	generalToShaderReadOnlyOptimalDependencyInfo.pImageMemoryBarriers = &colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier;
+	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &generalToShaderReadOnlyOptimalDependencyInfo);
+
+	// Tonemapping
+	VkRenderingAttachmentInfo renderingSwapchainAttachmentInfo = {};
+	renderingSwapchainAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	renderingSwapchainAttachmentInfo.pNext = nullptr;
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+		renderingSwapchainAttachmentInfo.imageView = m_swapchainImageViews[imageIndex];
+	}
+	else {
+		renderingSwapchainAttachmentInfo.imageView = m_drawImageView;
+	}
+	renderingSwapchainAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	renderingSwapchainAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+	renderingSwapchainAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
+	renderingSwapchainAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	renderingSwapchainAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	renderingSwapchainAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	renderingSwapchainAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
+	renderingSwapchainAttachmentInfo.clearValue.depthStencil = { 0.0f, 0 };
+
+	VkRenderingInfo toneMappingRenderingInfo = {};
+	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	renderingInfo.pNext = nullptr;
+	renderingInfo.flags = 0;
+	renderingInfo.renderArea = m_scissor;
+	renderingInfo.layerCount = 1;
+	renderingInfo.viewMask = 0;
+	renderingInfo.colorAttachmentCount = 1;
+	renderingInfo.pColorAttachments = &renderingSwapchainAttachmentInfo;
+	renderingInfo.pDepthAttachment = nullptr;
+	renderingInfo.pStencilAttachment = nullptr;
+	m_vkCmdBeginRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight], &renderingInfo);
+
+	vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_toneMappingGraphicsPipelineLayout, 0, 1, &m_toneMappingDescriptorSet, 0, nullptr);
+	vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_toneMappingGraphicsPipeline);
+	vkCmdSetViewport(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_viewport);
+	vkCmdSetScissor(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_scissor);
+
+	vkCmdDraw(m_renderingCommandBuffers[m_currentFrameInFlight], 3, 1, 0, 0);
+
 	m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight]);
 
 	// Layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
@@ -848,6 +937,13 @@ void NtshEngn::GraphicsModule::destroy() {
 		vmaDestroyBuffer(m_allocator, m_cameraBuffers[i], m_cameraBufferAllocations[i]);
 	}
 
+	// Destroy tone mapping resources
+	vkDestroyDescriptorPool(m_device, m_toneMappingDescriptorPool, nullptr);
+	vkDestroyPipeline(m_device, m_toneMappingGraphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(m_device, m_toneMappingGraphicsPipelineLayout, nullptr);
+	vkDestroyDescriptorSetLayout(m_device, m_toneMappingDescriptorSetLayout, nullptr);
+	vkDestroySampler(m_device, m_toneMappingSampler, nullptr);
+
 	// Destroy descriptor pool
 	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
 
@@ -863,6 +959,10 @@ void NtshEngn::GraphicsModule::destroy() {
 	// Destroy depth image and image view
 	vkDestroyImageView(m_device, m_depthImageView, nullptr);
 	vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
+
+	// Destroy color image and image view
+	vkDestroyImageView(m_device, m_colorImageView, nullptr);
+	vmaDestroyImage(m_allocator, m_colorImage, m_colorImageAllocation);
 
 	// Destroy samplers
 	for (size_t i = 0; i < m_textureSamplers.size(); i++) {
@@ -1717,7 +1817,56 @@ void NtshEngn::GraphicsModule::createVertexAndIndexBuffers() {
 	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_indexBuffer, &m_indexBufferAllocation, nullptr));
 }
 
-void NtshEngn::GraphicsModule::createDepthImage() {
+void NtshEngn::GraphicsModule::createColorAndDepthImages() {
+	VkImageCreateInfo colorImageCreateInfo = {};
+	colorImageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	colorImageCreateInfo.pNext = nullptr;
+	colorImageCreateInfo.flags = 0;
+	colorImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	colorImageCreateInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+		colorImageCreateInfo.extent.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW));
+		colorImageCreateInfo.extent.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW));
+	}
+	else {
+		colorImageCreateInfo.extent.width = 1280;
+		colorImageCreateInfo.extent.height = 720;
+	}
+	colorImageCreateInfo.extent.depth = 1;
+	colorImageCreateInfo.mipLevels = 1;
+	colorImageCreateInfo.arrayLayers = 1;
+	colorImageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	colorImageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	colorImageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	colorImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	colorImageCreateInfo.queueFamilyIndexCount = 1;
+	colorImageCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	colorImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+	VmaAllocationCreateInfo colorImageAllocationCreateInfo = {};
+	colorImageAllocationCreateInfo.flags = 0;
+	colorImageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &colorImageCreateInfo, &colorImageAllocationCreateInfo, &m_colorImage, &m_colorImageAllocation, nullptr));
+
+	VkImageViewCreateInfo colorImageViewCreateInfo = {};
+	colorImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	colorImageViewCreateInfo.pNext = nullptr;
+	colorImageViewCreateInfo.flags = 0;
+	colorImageViewCreateInfo.image = m_colorImage;
+	colorImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	colorImageViewCreateInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	colorImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+	colorImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+	colorImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+	colorImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+	colorImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	colorImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+	colorImageViewCreateInfo.subresourceRange.levelCount = 1;
+	colorImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+	colorImageViewCreateInfo.subresourceRange.layerCount = 1;
+	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &colorImageViewCreateInfo, nullptr, &m_colorImageView));
+
 	VkImageCreateInfo depthImageCreateInfo = {};
 	depthImageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	depthImageCreateInfo.pNext = nullptr;
@@ -1767,32 +1916,50 @@ void NtshEngn::GraphicsModule::createDepthImage() {
 	depthImageViewCreateInfo.subresourceRange.layerCount = 1;
 	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &depthImageViewCreateInfo, nullptr, &m_depthImageView));
 
-	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-	VkCommandPool depthImageTransitionCommandPool;
+	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL and VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+	VkCommandPool colorAndDepthImagesTransitionCommandPool;
 
-	VkCommandPoolCreateInfo depthImageTransitionCommandPoolCreateInfo = {};
-	depthImageTransitionCommandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	depthImageTransitionCommandPoolCreateInfo.pNext = nullptr;
-	depthImageTransitionCommandPoolCreateInfo.flags = 0;
-	depthImageTransitionCommandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
-	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &depthImageTransitionCommandPoolCreateInfo, nullptr, &depthImageTransitionCommandPool));
+	VkCommandPoolCreateInfo colorAndDepthImagesTransitionCommandPoolCreateInfo = {};
+	colorAndDepthImagesTransitionCommandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	colorAndDepthImagesTransitionCommandPoolCreateInfo.pNext = nullptr;
+	colorAndDepthImagesTransitionCommandPoolCreateInfo.flags = 0;
+	colorAndDepthImagesTransitionCommandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
+	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &colorAndDepthImagesTransitionCommandPoolCreateInfo, nullptr, &colorAndDepthImagesTransitionCommandPool));
 
-	VkCommandBuffer depthImageTransitionCommandBuffer;
+	VkCommandBuffer colorAndDepthImagesTransitionCommandBuffer;
 
-	VkCommandBufferAllocateInfo depthImageTransitionCommandBufferAllocateInfo = {};
-	depthImageTransitionCommandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	depthImageTransitionCommandBufferAllocateInfo.pNext = nullptr;
-	depthImageTransitionCommandBufferAllocateInfo.commandPool = depthImageTransitionCommandPool;
-	depthImageTransitionCommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	depthImageTransitionCommandBufferAllocateInfo.commandBufferCount = 1;
-	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &depthImageTransitionCommandBufferAllocateInfo, &depthImageTransitionCommandBuffer));
+	VkCommandBufferAllocateInfo colorAndDepthImagesTransitionCommandBufferAllocateInfo = {};
+	colorAndDepthImagesTransitionCommandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	colorAndDepthImagesTransitionCommandBufferAllocateInfo.pNext = nullptr;
+	colorAndDepthImagesTransitionCommandBufferAllocateInfo.commandPool = colorAndDepthImagesTransitionCommandPool;
+	colorAndDepthImagesTransitionCommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	colorAndDepthImagesTransitionCommandBufferAllocateInfo.commandBufferCount = 1;
+	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &colorAndDepthImagesTransitionCommandBufferAllocateInfo, &colorAndDepthImagesTransitionCommandBuffer));
 
-	VkCommandBufferBeginInfo depthImageTransitionBeginInfo = {};
-	depthImageTransitionBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	depthImageTransitionBeginInfo.pNext = nullptr;
-	depthImageTransitionBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-	depthImageTransitionBeginInfo.pInheritanceInfo = nullptr;
-	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(depthImageTransitionCommandBuffer, &depthImageTransitionBeginInfo));
+	VkCommandBufferBeginInfo colorAndDepthImagesTransitionBeginInfo = {};
+	colorAndDepthImagesTransitionBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	colorAndDepthImagesTransitionBeginInfo.pNext = nullptr;
+	colorAndDepthImagesTransitionBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	colorAndDepthImagesTransitionBeginInfo.pInheritanceInfo = nullptr;
+	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(colorAndDepthImagesTransitionCommandBuffer, &colorAndDepthImagesTransitionBeginInfo));
+
+	VkImageMemoryBarrier2 undefinedToColorAttachmentOptimalImageMemoryBarrier = {};
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.pNext = nullptr;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcAccessMask = 0;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.image = m_colorImage;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.levelCount = 1;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.layerCount = 1;
 
 	VkImageMemoryBarrier2 undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier = {};
 	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -1812,43 +1979,45 @@ void NtshEngn::GraphicsModule::createDepthImage() {
 	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	VkDependencyInfo undefinedToDepthStencilAttachmentOptimalDependencyInfo = {};
-	undefinedToDepthStencilAttachmentOptimalDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-	undefinedToDepthStencilAttachmentOptimalDependencyInfo.pNext = nullptr;
-	undefinedToDepthStencilAttachmentOptimalDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-	undefinedToDepthStencilAttachmentOptimalDependencyInfo.memoryBarrierCount = 0;
-	undefinedToDepthStencilAttachmentOptimalDependencyInfo.pMemoryBarriers = nullptr;
-	undefinedToDepthStencilAttachmentOptimalDependencyInfo.bufferMemoryBarrierCount = 0;
-	undefinedToDepthStencilAttachmentOptimalDependencyInfo.pBufferMemoryBarriers = nullptr;
-	undefinedToDepthStencilAttachmentOptimalDependencyInfo.imageMemoryBarrierCount = 1;
-	undefinedToDepthStencilAttachmentOptimalDependencyInfo.pImageMemoryBarriers = &undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(depthImageTransitionCommandBuffer, &undefinedToDepthStencilAttachmentOptimalDependencyInfo);
+	std::array<VkImageMemoryBarrier2, 2> imageMemoryBarriers = { undefinedToColorAttachmentOptimalImageMemoryBarrier, undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier };
 
-	NTSHENGN_VK_CHECK(vkEndCommandBuffer(depthImageTransitionCommandBuffer));
+	VkDependencyInfo undefinedToColorAttachmentOptimalAndUndefinedToDepthStencilAttachmentOptimalDependencyInfo = {};
+	undefinedToColorAttachmentOptimalAndUndefinedToDepthStencilAttachmentOptimalDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	undefinedToColorAttachmentOptimalAndUndefinedToDepthStencilAttachmentOptimalDependencyInfo.pNext = nullptr;
+	undefinedToColorAttachmentOptimalAndUndefinedToDepthStencilAttachmentOptimalDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToColorAttachmentOptimalAndUndefinedToDepthStencilAttachmentOptimalDependencyInfo.memoryBarrierCount = 0;
+	undefinedToColorAttachmentOptimalAndUndefinedToDepthStencilAttachmentOptimalDependencyInfo.pMemoryBarriers = nullptr;
+	undefinedToColorAttachmentOptimalAndUndefinedToDepthStencilAttachmentOptimalDependencyInfo.bufferMemoryBarrierCount = 0;
+	undefinedToColorAttachmentOptimalAndUndefinedToDepthStencilAttachmentOptimalDependencyInfo.pBufferMemoryBarriers = nullptr;
+	undefinedToColorAttachmentOptimalAndUndefinedToDepthStencilAttachmentOptimalDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(imageMemoryBarriers.size());
+	undefinedToColorAttachmentOptimalAndUndefinedToDepthStencilAttachmentOptimalDependencyInfo.pImageMemoryBarriers = imageMemoryBarriers.data();
+	m_vkCmdPipelineBarrier2KHR(colorAndDepthImagesTransitionCommandBuffer, &undefinedToColorAttachmentOptimalAndUndefinedToDepthStencilAttachmentOptimalDependencyInfo);
 
-	VkFence depthImageTransitionFence;
+	NTSHENGN_VK_CHECK(vkEndCommandBuffer(colorAndDepthImagesTransitionCommandBuffer));
 
-	VkFenceCreateInfo depthImageTransitionFenceCreateInfo = {};
-	depthImageTransitionFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	depthImageTransitionFenceCreateInfo.pNext = nullptr;
-	depthImageTransitionFenceCreateInfo.flags = 0;
-	NTSHENGN_VK_CHECK(vkCreateFence(m_device, &depthImageTransitionFenceCreateInfo, nullptr, &depthImageTransitionFence));
+	VkFence colorAndDepthImagesTransitionFence;
 
-	VkSubmitInfo depthImageTransitionSubmitInfo = {};
-	depthImageTransitionSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	depthImageTransitionSubmitInfo.pNext = nullptr;
-	depthImageTransitionSubmitInfo.waitSemaphoreCount = 0;
-	depthImageTransitionSubmitInfo.pWaitSemaphores = nullptr;
-	depthImageTransitionSubmitInfo.pWaitDstStageMask = nullptr;
-	depthImageTransitionSubmitInfo.commandBufferCount = 1;
-	depthImageTransitionSubmitInfo.pCommandBuffers = &depthImageTransitionCommandBuffer;
-	depthImageTransitionSubmitInfo.signalSemaphoreCount = 0;
-	depthImageTransitionSubmitInfo.pSignalSemaphores = nullptr;
-	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &depthImageTransitionSubmitInfo, depthImageTransitionFence));
-	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &depthImageTransitionFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	VkFenceCreateInfo colorAndDepthImagesTransitionFenceCreateInfo = {};
+	colorAndDepthImagesTransitionFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	colorAndDepthImagesTransitionFenceCreateInfo.pNext = nullptr;
+	colorAndDepthImagesTransitionFenceCreateInfo.flags = 0;
+	NTSHENGN_VK_CHECK(vkCreateFence(m_device, &colorAndDepthImagesTransitionFenceCreateInfo, nullptr, &colorAndDepthImagesTransitionFence));
 
-	vkDestroyFence(m_device, depthImageTransitionFence, nullptr);
-	vkDestroyCommandPool(m_device, depthImageTransitionCommandPool, nullptr);
+	VkSubmitInfo colorAndDepthImagesTransitionSubmitInfo = {};
+	colorAndDepthImagesTransitionSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	colorAndDepthImagesTransitionSubmitInfo.pNext = nullptr;
+	colorAndDepthImagesTransitionSubmitInfo.waitSemaphoreCount = 0;
+	colorAndDepthImagesTransitionSubmitInfo.pWaitSemaphores = nullptr;
+	colorAndDepthImagesTransitionSubmitInfo.pWaitDstStageMask = nullptr;
+	colorAndDepthImagesTransitionSubmitInfo.commandBufferCount = 1;
+	colorAndDepthImagesTransitionSubmitInfo.pCommandBuffers = &colorAndDepthImagesTransitionCommandBuffer;
+	colorAndDepthImagesTransitionSubmitInfo.signalSemaphoreCount = 0;
+	colorAndDepthImagesTransitionSubmitInfo.pSignalSemaphores = nullptr;
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &colorAndDepthImagesTransitionSubmitInfo, colorAndDepthImagesTransitionFence));
+	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &colorAndDepthImagesTransitionFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+
+	vkDestroyFence(m_device, colorAndDepthImagesTransitionFence, nullptr);
+	vkDestroyCommandPool(m_device, colorAndDepthImagesTransitionCommandPool, nullptr);
 }
 
 void NtshEngn::GraphicsModule::createDescriptorSetLayout() {
@@ -2096,10 +2265,7 @@ std::vector<uint32_t> NtshEngn::GraphicsModule::compileShader(const std::string&
 }
 
 void NtshEngn::GraphicsModule::createGraphicsPipeline() {
-	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
-	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
-		pipelineRenderingColorFormat = m_swapchainFormat;
-	}
+	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
 
 	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
 	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
@@ -2683,6 +2849,302 @@ void NtshEngn::GraphicsModule::updateDescriptorSet(uint32_t frameInFlight) {
 	vkUpdateDescriptorSets(m_device, 1, &texturesDescriptorWriteDescriptorSet, 0, nullptr);
 }
 
+void NtshEngn::GraphicsModule::createToneMappingResources() {
+	// Create descriptor set layout
+	VkDescriptorSetLayoutBinding colorImageDescriptorSetLayoutBinding = {};
+	colorImageDescriptorSetLayoutBinding.binding = 0;
+	colorImageDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	colorImageDescriptorSetLayoutBinding.descriptorCount = 1;
+	colorImageDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	colorImageDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptorSetLayoutCreateInfo.pNext = nullptr;
+	descriptorSetLayoutCreateInfo.flags = 0;
+	descriptorSetLayoutCreateInfo.bindingCount = 1;
+	descriptorSetLayoutCreateInfo.pBindings = &colorImageDescriptorSetLayoutBinding;
+	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_toneMappingDescriptorSetLayout));
+
+	// Create graphics pipeline
+	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
+	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+		pipelineRenderingColorFormat = m_swapchainFormat;
+	}
+
+	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
+	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+	pipelineRenderingCreateInfo.pNext = nullptr;
+	pipelineRenderingCreateInfo.viewMask = 0;
+	pipelineRenderingCreateInfo.colorAttachmentCount = 1;
+	pipelineRenderingCreateInfo.pColorAttachmentFormats = &pipelineRenderingColorFormat;
+	pipelineRenderingCreateInfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+	pipelineRenderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+
+	const std::string vertexShaderCode = R"GLSL(
+		#version 460
+
+		layout(location = 0) out vec2 outUv;
+
+		void main() {
+			outUv = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2);
+			gl_Position = vec4(outUv * 2.0 + -1.0, 0.0, 1.0);
+		}
+	)GLSL";
+	const std::vector<uint32_t> vertexShaderSpv = compileShader(vertexShaderCode, ShaderType::Vertex);
+
+	VkShaderModule vertexShaderModule;
+	VkShaderModuleCreateInfo vertexShaderModuleCreateInfo = {};
+	vertexShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	vertexShaderModuleCreateInfo.pNext = nullptr;
+	vertexShaderModuleCreateInfo.flags = 0;
+	vertexShaderModuleCreateInfo.codeSize = vertexShaderSpv.size() * sizeof(uint32_t);
+	vertexShaderModuleCreateInfo.pCode = vertexShaderSpv.data();
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &vertexShaderModuleCreateInfo, nullptr, &vertexShaderModule));
+
+	VkPipelineShaderStageCreateInfo vertexShaderStageCreateInfo = {};
+	vertexShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vertexShaderStageCreateInfo.pNext = nullptr;
+	vertexShaderStageCreateInfo.flags = 0;
+	vertexShaderStageCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	vertexShaderStageCreateInfo.module = vertexShaderModule;
+	vertexShaderStageCreateInfo.pName = "main";
+	vertexShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	const std::string fragmentShaderCode = R"GLSL(
+		#version 460
+
+		layout(set = 0, binding = 0) uniform sampler2D imageSampler;
+
+		layout(location = 0) in vec2 uv;
+
+		layout(location = 0) out vec4 outColor;
+
+		void main() {
+			vec3 color = texture(imageSampler, uv).rgb;
+			color /= color + vec3(1.0);
+
+			outColor = vec4(color, 1.0);
+		}
+	)GLSL";
+	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
+
+	VkShaderModule fragmentShaderModule;
+	VkShaderModuleCreateInfo fragmentShaderModuleCreateInfo = {};
+	fragmentShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	fragmentShaderModuleCreateInfo.pNext = nullptr;
+	fragmentShaderModuleCreateInfo.flags = 0;
+	fragmentShaderModuleCreateInfo.codeSize = fragmentShaderSpv.size() * sizeof(uint32_t);
+	fragmentShaderModuleCreateInfo.pCode = fragmentShaderSpv.data();
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &fragmentShaderModuleCreateInfo, nullptr, &fragmentShaderModule));
+
+	VkPipelineShaderStageCreateInfo fragmentShaderStageCreateInfo = {};
+	fragmentShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fragmentShaderStageCreateInfo.pNext = nullptr;
+	fragmentShaderStageCreateInfo.flags = 0;
+	fragmentShaderStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragmentShaderStageCreateInfo.module = fragmentShaderModule;
+	fragmentShaderStageCreateInfo.pName = "main";
+	fragmentShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStageCreateInfos = { vertexShaderStageCreateInfo, fragmentShaderStageCreateInfo };
+
+	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
+	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInputStateCreateInfo.pNext = nullptr;
+	vertexInputStateCreateInfo.flags = 0;
+	vertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
+	vertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr;
+	vertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
+	vertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr;
+
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo = {};
+	inputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	inputAssemblyStateCreateInfo.pNext = nullptr;
+	inputAssemblyStateCreateInfo.flags = 0;
+	inputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	inputAssemblyStateCreateInfo.primitiveRestartEnable = VK_FALSE;
+
+	VkPipelineViewportStateCreateInfo viewportStateCreateInfo = {};
+	viewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewportStateCreateInfo.pNext = nullptr;
+	viewportStateCreateInfo.flags = 0;
+	viewportStateCreateInfo.viewportCount = 1;
+	viewportStateCreateInfo.pViewports = &m_viewport;
+	viewportStateCreateInfo.scissorCount = 1;
+	viewportStateCreateInfo.pScissors = &m_scissor;
+
+	VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo = {};
+	rasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizationStateCreateInfo.pNext = nullptr;
+	rasterizationStateCreateInfo.flags = 0;
+	rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
+	rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
+	rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
+	rasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
+	rasterizationStateCreateInfo.depthBiasClamp = 0.0f;
+	rasterizationStateCreateInfo.depthBiasSlopeFactor = 0.0f;
+	rasterizationStateCreateInfo.lineWidth = 1.0f;
+
+	VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo = {};
+	multisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampleStateCreateInfo.pNext = nullptr;
+	multisampleStateCreateInfo.flags = 0;
+	multisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	multisampleStateCreateInfo.sampleShadingEnable = VK_FALSE;
+	multisampleStateCreateInfo.minSampleShading = 0.0f;
+	multisampleStateCreateInfo.pSampleMask = nullptr;
+	multisampleStateCreateInfo.alphaToCoverageEnable = VK_FALSE;
+	multisampleStateCreateInfo.alphaToOneEnable = VK_FALSE;
+
+	VkPipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo = {};
+	depthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencilStateCreateInfo.pNext = nullptr;
+	depthStencilStateCreateInfo.flags = 0;
+	depthStencilStateCreateInfo.depthTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.depthWriteEnable = VK_FALSE;
+	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_NEVER;
+	depthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.front = {};
+	depthStencilStateCreateInfo.back = {};
+	depthStencilStateCreateInfo.minDepthBounds = 0.0f;
+	depthStencilStateCreateInfo.maxDepthBounds = 1.0f;
+
+	VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
+	colorBlendAttachmentState.blendEnable = VK_FALSE;
+	colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachmentState.colorWriteMask = { VK_COLOR_COMPONENT_R_BIT |
+		VK_COLOR_COMPONENT_G_BIT |
+		VK_COLOR_COMPONENT_B_BIT |
+		VK_COLOR_COMPONENT_A_BIT };
+
+	VkPipelineColorBlendStateCreateInfo colorBlendStateCreateInfo = {};
+	colorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	colorBlendStateCreateInfo.pNext = nullptr;
+	colorBlendStateCreateInfo.flags = 0;
+	colorBlendStateCreateInfo.logicOpEnable = VK_FALSE;
+	colorBlendStateCreateInfo.logicOp = VK_LOGIC_OP_COPY;
+	colorBlendStateCreateInfo.attachmentCount = 1;
+	colorBlendStateCreateInfo.pAttachments = &colorBlendAttachmentState;
+
+	std::array<VkDynamicState, 2> dynamicStates = { VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_VIEWPORT };
+	VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = {};
+	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynamicStateCreateInfo.pNext = nullptr;
+	dynamicStateCreateInfo.flags = 0;
+	dynamicStateCreateInfo.dynamicStateCount = 2;
+	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
+
+	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
+	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutCreateInfo.pNext = nullptr;
+	pipelineLayoutCreateInfo.flags = 0;
+	pipelineLayoutCreateInfo.setLayoutCount = 1;
+	pipelineLayoutCreateInfo.pSetLayouts = &m_toneMappingDescriptorSetLayout;
+	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
+	pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
+	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_toneMappingGraphicsPipelineLayout));
+
+	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};
+	graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	graphicsPipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
+	graphicsPipelineCreateInfo.flags = 0;
+	graphicsPipelineCreateInfo.stageCount = 2;
+	graphicsPipelineCreateInfo.pStages = shaderStageCreateInfos.data();
+	graphicsPipelineCreateInfo.pVertexInputState = &vertexInputStateCreateInfo;
+	graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;
+	graphicsPipelineCreateInfo.pTessellationState = nullptr;
+	graphicsPipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
+	graphicsPipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
+	graphicsPipelineCreateInfo.pMultisampleState = &multisampleStateCreateInfo;
+	graphicsPipelineCreateInfo.pDepthStencilState = &depthStencilStateCreateInfo;
+	graphicsPipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
+	graphicsPipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
+	graphicsPipelineCreateInfo.layout = m_toneMappingGraphicsPipelineLayout;
+	graphicsPipelineCreateInfo.renderPass = VK_NULL_HANDLE;
+	graphicsPipelineCreateInfo.subpass = 0;
+	graphicsPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+	graphicsPipelineCreateInfo.basePipelineIndex = 0;
+	NTSHENGN_VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_toneMappingGraphicsPipeline));
+
+	vkDestroyShaderModule(m_device, vertexShaderModule, nullptr);
+	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
+
+	// Create sampler
+	VkSamplerCreateInfo samplerCreateInfo = {};
+	samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerCreateInfo.pNext = nullptr;
+	samplerCreateInfo.flags = 0;
+	samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+	samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+	samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+	samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerCreateInfo.mipLodBias = 0.0f;
+	samplerCreateInfo.anisotropyEnable = VK_FALSE;
+	samplerCreateInfo.maxAnisotropy = 0.0f;
+	samplerCreateInfo.compareEnable = VK_FALSE;
+	samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
+	samplerCreateInfo.minLod = 0.0f;
+	samplerCreateInfo.maxLod = 0.0f;
+	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_toneMappingSampler));
+
+	// Create descriptor pool
+	VkDescriptorPoolSize colorImageDescriptorPoolSize = {};
+	colorImageDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	colorImageDescriptorPoolSize.descriptorCount = 1;
+
+	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
+	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	descriptorPoolCreateInfo.pNext = nullptr;
+	descriptorPoolCreateInfo.flags = 0;
+	descriptorPoolCreateInfo.maxSets = 1;
+	descriptorPoolCreateInfo.poolSizeCount = 1;
+	descriptorPoolCreateInfo.pPoolSizes = &colorImageDescriptorPoolSize;
+	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_toneMappingDescriptorPool));
+
+	// Allocate descriptor set
+	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
+	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	descriptorSetAllocateInfo.pNext = nullptr;
+	descriptorSetAllocateInfo.descriptorPool = m_toneMappingDescriptorPool;
+	descriptorSetAllocateInfo.descriptorSetCount = 1;
+	descriptorSetAllocateInfo.pSetLayouts = &m_toneMappingDescriptorSetLayout;
+	NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_toneMappingDescriptorSet));
+
+	// Update descriptor set
+	VkDescriptorImageInfo colorImageDescriptorImageInfo;
+	colorImageDescriptorImageInfo.sampler = m_toneMappingSampler;
+	colorImageDescriptorImageInfo.imageView = m_colorImageView;
+	colorImageDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+	VkWriteDescriptorSet colorImageDescriptorWriteDescriptorSet = {};
+	colorImageDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	colorImageDescriptorWriteDescriptorSet.pNext = nullptr;
+	colorImageDescriptorWriteDescriptorSet.dstSet = m_toneMappingDescriptorSet;
+	colorImageDescriptorWriteDescriptorSet.dstBinding = 0;
+	colorImageDescriptorWriteDescriptorSet.dstArrayElement = 0;
+	colorImageDescriptorWriteDescriptorSet.descriptorCount = 1;
+	colorImageDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	colorImageDescriptorWriteDescriptorSet.pImageInfo = &colorImageDescriptorImageInfo;
+	colorImageDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
+	colorImageDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+
+	vkUpdateDescriptorSets(m_device, 1, &colorImageDescriptorWriteDescriptorSet, 0, nullptr);
+}
+
+
 void NtshEngn::GraphicsModule::createDefaultResources() {
 	// Default mesh
 	m_defaultMesh.vertices = {
@@ -2810,8 +3272,32 @@ void NtshEngn::GraphicsModule::resize() {
 		vkDestroyImageView(m_device, m_depthImageView, nullptr);
 		vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
 
-		// Recreate depth image
-		createDepthImage();
+		// Destroy color image and image view
+		vkDestroyImageView(m_device, m_colorImageView, nullptr);
+		vmaDestroyImage(m_allocator, m_colorImage, m_colorImageAllocation);
+
+		// Recreate color and depth images
+		createColorAndDepthImages();
+
+		// Update tone mapping descriptor set
+		VkDescriptorImageInfo colorImageDescriptorImageInfo;
+		colorImageDescriptorImageInfo.sampler = m_toneMappingSampler;
+		colorImageDescriptorImageInfo.imageView = m_colorImageView;
+		colorImageDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		VkWriteDescriptorSet colorImageDescriptorWriteDescriptorSet = {};
+		colorImageDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		colorImageDescriptorWriteDescriptorSet.pNext = nullptr;
+		colorImageDescriptorWriteDescriptorSet.dstSet = m_toneMappingDescriptorSet;
+		colorImageDescriptorWriteDescriptorSet.dstBinding = 0;
+		colorImageDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		colorImageDescriptorWriteDescriptorSet.descriptorCount = 1;
+		colorImageDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		colorImageDescriptorWriteDescriptorSet.pImageInfo = &colorImageDescriptorImageInfo;
+		colorImageDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
+		colorImageDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+
+		vkUpdateDescriptorSets(m_device, 1, &colorImageDescriptorWriteDescriptorSet, 0, nullptr);
 	}
 }
 

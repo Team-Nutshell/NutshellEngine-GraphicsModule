@@ -131,8 +131,8 @@ namespace NtshEngn {
 		// Vertex and index buffers creation
 		void createVertexAndIndexBuffers();
 
-		// Depth image creation
-		void createDepthImage();
+		// Color and depth images creation
+		void createColorAndDepthImages();
 
 		// Descriptor set layout creation
 		void createDescriptorSetLayout();
@@ -146,6 +146,9 @@ namespace NtshEngn {
 		// Descriptor sets creation
 		void createDescriptorSets();
 		void updateDescriptorSet(uint32_t frameInFlight);
+
+		// Tone mapping resources
+		void createToneMappingResources();
 
 		// Default resources
 		void createDefaultResources();
@@ -187,6 +190,10 @@ namespace NtshEngn {
 		VmaAllocation m_drawImageAllocation;
 		VkImageView m_drawImageView;
 
+		VkImage m_colorImage;
+		VmaAllocation m_colorImageAllocation;
+		VkImageView m_colorImageView;
+
 		VkImage m_depthImage;
 		VmaAllocation m_depthImageAllocation;
 		VkImageView m_depthImageView;
@@ -207,6 +214,13 @@ namespace NtshEngn {
 		VkDescriptorPool m_descriptorPool;
 		std::vector<VkDescriptorSet> m_descriptorSets;
 		std::vector<bool> m_descriptorSetsNeedUpdate;
+
+		VkSampler m_toneMappingSampler;
+		VkDescriptorSetLayout m_toneMappingDescriptorSetLayout;
+		VkDescriptorPool m_toneMappingDescriptorPool;
+		VkDescriptorSet m_toneMappingDescriptorSet;
+		VkPipeline m_toneMappingGraphicsPipeline;
+		VkPipelineLayout m_toneMappingGraphicsPipelineLayout;
 
 		std::vector<VkCommandPool> m_renderingCommandPools;
 		std::vector<VkCommandBuffer> m_renderingCommandBuffers;
