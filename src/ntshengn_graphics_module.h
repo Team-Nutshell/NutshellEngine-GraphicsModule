@@ -93,6 +93,9 @@ namespace NtshEngn {
 
 		VkPhysicalDeviceMemoryProperties getMemoryProperties();
 
+		// Descriptor set layout creation
+		void createDescriptorSetLayout();
+
 		std::vector<uint32_t> compileFragmentShader();
 		bool recreateGraphicsPipeline();
 
