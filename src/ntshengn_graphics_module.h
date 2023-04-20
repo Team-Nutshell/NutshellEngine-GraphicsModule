@@ -93,6 +93,9 @@ namespace NtshEngn {
 
 		VkPhysicalDeviceMemoryProperties getMemoryProperties();
 
+		// Color image creation
+		void createColorImage();
+
 		// Descriptor set layout creation
 		void createDescriptorSetLayout();
 
@@ -101,6 +104,9 @@ namespace NtshEngn {
 
 		// Swapchain creation
 		void createSwapchain(VkSwapchainKHR oldSwapchain);
+
+		// Tone mapping resources
+		void createToneMappingResources();
 
 		// On window resize
 		void resize();
@@ -136,6 +142,10 @@ namespace NtshEngn {
 		VmaAllocation m_drawImageAllocation;
 		VkImageView m_drawImageView;
 
+		VkImage m_colorImage;
+		VmaAllocation m_colorImageAllocation;
+		VkImageView m_colorImageView;
+
 		VmaAllocator m_allocator;
 
 		bool m_glslangInitialized = false;
@@ -145,7 +155,7 @@ namespace NtshEngn {
 		std::filesystem::file_time_type m_fragmentShaderLastModified;
 		std::filesystem::file_time_type m_raymarchingHelperLastModified;
 		std::filesystem::file_time_type m_sceneLastModified;
-		VkFormat m_pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
+		VkFormat m_pipelineRenderingColorFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
 		VkPipelineRenderingCreateInfo m_pipelineRenderingCreateInfo{};
 		VkShaderModule m_vertexShaderModule;
 		VkPipelineShaderStageCreateInfo m_vertexShaderStageCreateInfo{};
@@ -166,6 +176,13 @@ namespace NtshEngn {
 		VkDescriptorSetLayout m_descriptorSetLayout;
 		VkDescriptorPool m_descriptorPool;
 		std::vector<VkDescriptorSet> m_descriptorSets;
+
+		VkSampler m_toneMappingSampler;
+		VkDescriptorSetLayout m_toneMappingDescriptorSetLayout;
+		VkDescriptorPool m_toneMappingDescriptorPool;
+		VkDescriptorSet m_toneMappingDescriptorSet;
+		VkPipeline m_toneMappingGraphicsPipeline;
+		VkPipelineLayout m_toneMappingGraphicsPipelineLayout;
 
 		std::vector<VkCommandPool> m_renderingCommandPools;
 		std::vector<VkCommandBuffer> m_renderingCommandBuffers;
