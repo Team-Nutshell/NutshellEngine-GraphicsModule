@@ -3459,6 +3459,7 @@ void NtshEngn::GraphicsModule::createTonemappingResources() {
 
 		void main() {
 			vec3 color = texture(imageSampler, uv).rgb;
+			color /= color + vec3(1.0);
 
 			outColor = vec4(color, 1.0);
 		}
