@@ -3233,9 +3233,9 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		VkDescriptorBufferInfo materialsDescriptorBufferInfo;
 		VkDescriptorBufferInfo lightsDescriptorBufferInfo;
 
+		colorImageDescriptorImageInfo.sampler = VK_NULL_HANDLE;
 		colorImageDescriptorImageInfo.imageView = m_colorImageView;
 		colorImageDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-		colorImageDescriptorImageInfo.sampler = VK_NULL_HANDLE;
 
 		VkWriteDescriptorSet colorImageDescriptorWriteDescriptorSet = {};
 		colorImageDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -3662,9 +3662,9 @@ void NtshEngn::GraphicsModule::createToneMappingResources() {
 
 	// Update descriptor set
 	VkDescriptorImageInfo colorImageDescriptorImageInfo;
+	colorImageDescriptorImageInfo.sampler = m_toneMappingSampler;
 	colorImageDescriptorImageInfo.imageView = m_colorImageView;
 	colorImageDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	colorImageDescriptorImageInfo.sampler = m_toneMappingSampler;
 
 	VkWriteDescriptorSet colorImageDescriptorWriteDescriptorSet = {};
 	colorImageDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -3813,9 +3813,9 @@ void NtshEngn::GraphicsModule::resize() {
 
 		// Update descriptor sets
 		VkDescriptorImageInfo colorImageDescriptorImageInfo;
+		colorImageDescriptorImageInfo.sampler = VK_NULL_HANDLE;
 		colorImageDescriptorImageInfo.imageView = m_colorImageView;
 		colorImageDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-		colorImageDescriptorImageInfo.sampler = VK_NULL_HANDLE;
 
 		for (uint32_t i = 0; i < m_framesInFlight; i++) {
 			VkWriteDescriptorSet colorImageDescriptorWriteDescriptorSet = {};
@@ -3834,8 +3834,8 @@ void NtshEngn::GraphicsModule::resize() {
 		}
 
 		// Update tone mapping descriptor set
-		colorImageDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		colorImageDescriptorImageInfo.sampler = m_toneMappingSampler;
+		colorImageDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkWriteDescriptorSet colorImageDescriptorWriteDescriptorSet = {};
 		colorImageDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
