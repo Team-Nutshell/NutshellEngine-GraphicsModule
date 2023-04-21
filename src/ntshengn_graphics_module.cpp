@@ -2691,14 +2691,15 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		void main() {
 			payload.rngState = (pC.sampleBatch * gl_LaunchSizeEXT.y + gl_LaunchIDEXT.y) * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x;
 
-			const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5); // + 0.375 * randomGaussian(payload.rngState)
-			const vec2 uv = pixelCenter / vec2(gl_LaunchSizeEXT);
-			vec2 d = uv * 2.0 - 1.0;
+			const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
+			const vec2 pixelCenterGaussianOffset = pixelCenter + 0.375 * randomGaussian(payload.rngState);
+			const vec2 uv = pixelCenterGaussianOffset / vec2(gl_LaunchSizeEXT);
+			const vec2 d = uv * 2.0 - 1.0;
 
-			mat4 inverseView = inverse(camera.view);
-			mat4 inverseProjection = inverse(camera.projection);
+			const mat4 inverseView = inverse(camera.view);
+			const mat4 inverseProjection = inverse(camera.projection);
 			vec3 origin = vec3(inverseView * vec4(0.0, 0.0, 0.0, 1.0));
-			vec4 target = inverseProjection * vec4(d, 1.0, 1.0);
+			const vec4 target = inverseProjection * vec4(d, 1.0, 1.0);
 			vec3 direction = vec3(inverseView * vec4(normalize(target.xyz), 0.0));
 
 			vec3 color = vec3(1.0);
