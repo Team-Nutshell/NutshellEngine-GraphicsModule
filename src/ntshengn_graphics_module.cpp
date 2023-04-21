@@ -3079,7 +3079,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			color *= occlusionSample;
 			color += emissiveSample;
 
-			payload.hitValue = vec3(0.5);
+			payload.hitValue = color;
 			payload.rayOrigin = offsetPositionAlongNormal(worldPosition, n);
 			payload.rayDirection = randomDiffuseDirection(n, payload.rngState);
 			payload.hitSky = false;
