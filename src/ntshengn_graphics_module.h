@@ -108,7 +108,7 @@ namespace NtshEngn {
 
 	class GraphicsModule : public GraphicsModuleInterface {
 	public:
-		GraphicsModule() : GraphicsModuleInterface("NutshellEngine Graphics Vulkan Ray Tracing Module") {}
+		GraphicsModule() : GraphicsModuleInterface("NutshellEngine Graphics Vulkan Path Tracing Module") {}
 
 		void init();
 		void update(double dt);
@@ -334,6 +334,8 @@ namespace NtshEngn {
 		Entity m_mainCamera = std::numeric_limits<uint32_t>::max();
 
 		InternalLights m_lights;
+
+		uint32_t m_sampleBatch = 0;
 	};
 
 }

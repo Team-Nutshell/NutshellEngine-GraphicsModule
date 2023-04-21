@@ -761,7 +761,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	undefinedToGeneralImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
 	undefinedToGeneralImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
 	undefinedToGeneralImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
-	undefinedToGeneralImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+	undefinedToGeneralImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
 	undefinedToGeneralImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	undefinedToGeneralImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
 	undefinedToGeneralImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
@@ -865,6 +865,9 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	// Bind ray tracing pipeline
 	vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rayTracingPipeline);
 
+	// Push constant
+	vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_rayTracingPipelineLayout, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(uint32_t), &m_sampleBatch);
+
 	// Trace rays
 	m_vkCmdTraceRaysKHR(m_renderingCommandBuffers[m_currentFrameInFlight], &m_rayGenRegion, &m_rayMissRegion, &m_rayHitRegion, &m_rayCallRegion, static_cast<uint32_t>(m_viewport.width), static_cast<uint32_t>(m_viewport.height), 1);
 
@@ -873,7 +876,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	generalToShaderReadOnlyOptimalImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	generalToShaderReadOnlyOptimalImageMemoryBarrier.pNext = nullptr;
 	generalToShaderReadOnlyOptimalImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
-	generalToShaderReadOnlyOptimalImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+	generalToShaderReadOnlyOptimalImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
 	generalToShaderReadOnlyOptimalImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
 	generalToShaderReadOnlyOptimalImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
 	generalToShaderReadOnlyOptimalImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -1023,6 +1026,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		emptyWaitSubmitInfo.pSignalSemaphores = nullptr;
 		NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptyWaitSubmitInfo, VK_NULL_HANDLE));
 	}
+
+	m_sampleBatch++;
 
 	m_currentFrameInFlight = (m_currentFrameInFlight + 1) % m_framesInFlight;
 }
@@ -2641,7 +2646,9 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		#version 460
 		#extension GL_EXT_ray_tracing : require
 
-		layout(set = 0, binding = 0, rgba32f) uniform writeonly image2D image; 
+		#define M_PI 3.1415926535897932384626433832795
+
+		layout(set = 0, binding = 0, rgba32f) uniform image2D image; 
 		layout(set = 0, binding = 1) uniform accelerationStructureEXT tlas;
 
 		layout(set = 0, binding = 2) uniform Camera {
@@ -2650,29 +2657,76 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 position;
 		} camera;
 
+		layout(push_constant) uniform PushConstants {
+			uint sampleBatch;
+		} pC;
+
 		struct HitPayload {
 			vec3 hitValue;
+			vec3 rayOrigin;
+			vec3 rayDirection;
+			uint rngState;
+			bool hitSky;
 		};
 
 		layout(location = 0) rayPayloadEXT HitPayload payload;
 
+		float rngFloat(inout uint rngState) {
+			rngState = rngState * 747796405 + 1;
+			uint word = ((rngState >> ((rngState >> 28) + 4)) ^ rngState) * 277803737;
+			word = (word >> 22) ^ word;
+	
+			return float(word) / 4294967295.0f;
+		}
+
+		vec2 randomGaussian(inout uint rngState) {
+			const float u1 = max(1e-38, rngFloat(rngState));
+			const float u2 = rngFloat(rngState);
+			const float r = sqrt(-2.0 * log(u1));
+			const float theta = 2.0 * M_PI * u2;
+	
+			return r * vec2(cos(theta), sin(theta));
+		}
+
 		void main() {
-			const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
+			payload.rngState = (pC.sampleBatch * gl_LaunchSizeEXT.y + gl_LaunchIDEXT.y) * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x;
+
+			const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5); // + 0.375 * randomGaussian(payload.rngState)
 			const vec2 uv = pixelCenter / vec2(gl_LaunchSizeEXT);
 			vec2 d = uv * 2.0 - 1.0;
 
 			mat4 inverseView = inverse(camera.view);
 			mat4 inverseProjection = inverse(camera.projection);
-			vec4 origin = inverseView * vec4(0.0, 0.0, 0.0, 1.0);
+			vec3 origin = vec3(inverseView * vec4(0.0, 0.0, 0.0, 1.0));
 			vec4 target = inverseProjection * vec4(d, 1.0, 1.0);
-			vec4 direction = inverseView * vec4(normalize(target.xyz), 0.0);
+			vec3 direction = vec3(inverseView * vec4(normalize(target.xyz), 0.0));
 
-			uint rayFlags = gl_RayFlagsOpaqueEXT;
-			float tMin = 0.001;
-			float tMax = 10000.0;
-			traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 0, origin.xyz, tMin, direction.xyz, tMax, 0);
+			vec3 color = vec3(1.0);
 
-			imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(payload.hitValue, 1.0));
+			const uint rayFlags = gl_RayFlagsOpaqueEXT;
+			const float tMin = 0.001;
+			const float tMax = 10000.0;
+
+			const uint NUM_BOUNCES = 1;
+			for (uint j = 0; j < NUM_BOUNCES; j++) {
+				traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 0, origin, tMin, direction, tMax, 0);
+
+				color *= payload.hitValue;
+
+				if (payload.hitSky) {
+					break;
+				}
+
+				origin = payload.rayOrigin;
+				direction = payload.rayDirection;
+			}
+
+			if (pC.sampleBatch != 0) {
+				vec3 previousColor = imageLoad(image, ivec2(gl_LaunchIDEXT.xy)).rgb;
+
+				color = (pC.sampleBatch * previousColor + color) / (pC.sampleBatch + 1);
+			}
+			imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(color, 1.0));
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayGenShaderSpv = compileShader(rayGenShaderCode, ShaderType::RayGeneration);
@@ -2709,10 +2763,19 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		#version 460
 		#extension GL_EXT_ray_tracing : require
 
-		layout(location = 0) rayPayloadInEXT vec3 hitValue;
+		struct HitPayload {
+			vec3 hitValue;
+			vec3 rayOrigin;
+			vec3 rayDirection;
+			uint rngState;
+			bool hitSky;
+		};
+
+		layout(location = 0) rayPayloadEXT HitPayload payload;
 
 		void main() {
-			hitValue = vec3(0.0, 0.0, 0.0);
+			payload.hitValue = vec3(0.0);
+			payload.hitSky = true;
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayMissShaderSpv = compileShader(rayMissShaderCode, ShaderType::RayMiss);
@@ -2744,46 +2807,6 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 	rayMissShaderGroupCreateInfo.anyHitShader = VK_SHADER_UNUSED_KHR;
 	rayMissShaderGroupCreateInfo.intersectionShader = VK_SHADER_UNUSED_KHR;
 	rayMissShaderGroupCreateInfo.pShaderGroupCaptureReplayHandle = nullptr;
-
-	const std::string rayShadowMissShaderCode = R"GLSL(
-		#version 460
-		#extension GL_EXT_ray_tracing : require
-
-		layout(location = 1) rayPayloadInEXT bool isShadowed;
-
-		void main() {
-			isShadowed = false;
-		}
-	)GLSL";
-	const std::vector<uint32_t> rayShadowMissShaderSpv = compileShader(rayShadowMissShaderCode, ShaderType::RayMiss);
-
-	VkShaderModule rayShadowMissShaderModule;
-	VkShaderModuleCreateInfo rayShadowMissShaderModuleCreateInfo = {};
-	rayShadowMissShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	rayShadowMissShaderModuleCreateInfo.pNext = nullptr;
-	rayShadowMissShaderModuleCreateInfo.flags = 0;
-	rayShadowMissShaderModuleCreateInfo.codeSize = rayShadowMissShaderSpv.size() * sizeof(uint32_t);
-	rayShadowMissShaderModuleCreateInfo.pCode = rayShadowMissShaderSpv.data();
-	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &rayShadowMissShaderModuleCreateInfo, nullptr, &rayShadowMissShaderModule));
-
-	VkPipelineShaderStageCreateInfo rayShadowMissShaderStageCreateInfo = {};
-	rayShadowMissShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	rayShadowMissShaderStageCreateInfo.pNext = nullptr;
-	rayShadowMissShaderStageCreateInfo.flags = 0;
-	rayShadowMissShaderStageCreateInfo.stage = VK_SHADER_STAGE_MISS_BIT_KHR;
-	rayShadowMissShaderStageCreateInfo.module = rayShadowMissShaderModule;
-	rayShadowMissShaderStageCreateInfo.pName = "main";
-	rayShadowMissShaderStageCreateInfo.pSpecializationInfo = nullptr;
-
-	VkRayTracingShaderGroupCreateInfoKHR rayShadowMissShaderGroupCreateInfo = {};
-	rayShadowMissShaderGroupCreateInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
-	rayShadowMissShaderGroupCreateInfo.pNext = nullptr;
-	rayShadowMissShaderGroupCreateInfo.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-	rayShadowMissShaderGroupCreateInfo.generalShader = 2;
-	rayShadowMissShaderGroupCreateInfo.closestHitShader = VK_SHADER_UNUSED_KHR;
-	rayShadowMissShaderGroupCreateInfo.anyHitShader = VK_SHADER_UNUSED_KHR;
-	rayShadowMissShaderGroupCreateInfo.intersectionShader = VK_SHADER_UNUSED_KHR;
-	rayShadowMissShaderGroupCreateInfo.pShaderGroupCaptureReplayHandle = nullptr;
 
 	const std::string rayClosestHitShaderCode = R"GLSL(
 		#version 460
@@ -2860,10 +2883,54 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			uvec3 index[];
 		};
 
-		layout(location = 0) rayPayloadInEXT vec3 hitValue;
-		layout(location = 1) rayPayloadInEXT bool isShadowed;
+		struct HitPayload {
+			vec3 hitValue;
+			vec3 rayOrigin;
+			vec3 rayDirection;
+			uint rngState;
+			bool hitSky;
+		};
+
+		layout(location = 0) rayPayloadEXT HitPayload payload;
 
 		hitAttributeEXT vec2 attribs;
+
+		float rngFloat(inout uint rngState) {
+			rngState = rngState * 747796405 + 1;
+			uint word = ((rngState >> ((rngState >> 28) + 4)) ^ rngState) * 277803737;
+			word = (word >> 22) ^ word;
+	
+			return float(word) / 4294967295.0f;
+		}
+
+		vec3 offsetPositionAlongNormal(vec3 worldPosition, vec3 normal) {
+			const float intScale = 256.0;
+			const ivec3 intNormal = ivec3(intScale * normal);
+
+			const vec3 p = vec3(
+				intBitsToFloat(floatBitsToInt(worldPosition.x) + ((worldPosition.x < 0) ? -intNormal.x : intNormal.x)),
+				intBitsToFloat(floatBitsToInt(worldPosition.y) + ((worldPosition.y < 0) ? -intNormal.y : intNormal.y)),
+				intBitsToFloat(floatBitsToInt(worldPosition.z) + ((worldPosition.z < 0) ? -intNormal.z : intNormal.z))
+				);
+
+			const float origin = 1.0 / 32.0;
+			const float floatScale = 1.0 / 65536.0;
+
+			return vec3(
+				abs(worldPosition.x) < origin ? worldPosition.x + floatScale * normal.x : p.x,
+				abs(worldPosition.y) < origin ? worldPosition.y + floatScale * normal.y : p.y,
+				abs(worldPosition.z) < origin ? worldPosition.z + floatScale * normal.z : p.z
+				);
+		}
+
+		vec3 randomDiffuseDirection(vec3 normal, inout uint rngState) {
+			const float theta = 2.0 * M_PI * rngFloat(rngState);
+			const float u = 2.0 * rngFloat(rngState) - 1.0;
+			const float r = sqrt(1.0 - u * u);
+			const vec3 direction = normal + vec3(r * cos(theta), r * sin(theta), u);
+
+			return normalize(direction);
+		}
 
 		// BRDF
 		float distribution(float NdotH, float roughness) {
@@ -2931,21 +2998,6 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			return lc * brdf * LdotN;
 		}
 
-		float shadows(vec3 l, float distanceToLight) {
-			isShadowed = true;
-			float tMin = 0.001;
-			float tMax = distanceToLight;
-			vec3 origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
-			vec3 direction = l;
-			uint rayFlags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
-			traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 1, origin, tMin, direction, tMax, 1);
-
-			if (isShadowed) {
-				return 0.0;
-			}
-			return 1.0;
-		}
-
 		void main() {
 			ObjectInfo object = objects.info[gl_InstanceCustomIndexEXT];
 			MeshInfo mesh = meshes.info[object.meshID];
@@ -2997,7 +3049,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			for (int i = 0; i < lights.count.x; i++) {
 				vec3 l = normalize(-lights.info[lightIndex].direction);
 				vec3 lc = lights.info[lightIndex].color;
-				color += shade(n, v, l, lc, d, metalnessSample, roughnessSample) * shadows(l, 10000.0);
+				color += shade(n, v, l, lc, d, metalnessSample, roughnessSample);
 
 				lightIndex++;
 			}
@@ -3007,7 +3059,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 				float distance = length(lights.info[lightIndex].position - worldPosition);
 				float attenuation = 1.0 / (distance * distance);
 				vec3 radiance = lights.info[lightIndex].color * attenuation;
-				color += shade(n, v, l, radiance, d, metalnessSample, roughnessSample) * shadows(l, distance);
+				color += shade(n, v, l, radiance, d, metalnessSample, roughnessSample);
 
 				lightIndex++;
 			}
@@ -3019,7 +3071,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 				float epsilon = cos(lights.info[lightIndex].cutoffs.y) - cos(lights.info[lightIndex].cutoffs.x);
 				float intensity = clamp((theta - cos(lights.info[lightIndex].cutoffs.x)) / epsilon, 0.0, 1.0);
 				intensity = 1.0 - intensity;
-				color += shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample) * shadows(l, length(lights.info[lightIndex].position - worldPosition));
+				color += shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample);
 
 				lightIndex++;
 			}
@@ -3027,7 +3079,10 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			color *= occlusionSample;
 			color += emissiveSample;
 
-			hitValue = color;
+			payload.hitValue = vec3(0.5);
+			payload.rayOrigin = offsetPositionAlongNormal(worldPosition, n);
+			payload.rayDirection = randomDiffuseDirection(n, payload.rngState);
+			payload.hitSky = false;
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayClosestHitShaderSpv = compileShader(rayClosestHitShaderCode, ShaderType::RayClosestHit);
@@ -3055,13 +3110,18 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 	rayClosestHitShaderGroupCreateInfo.pNext = nullptr;
 	rayClosestHitShaderGroupCreateInfo.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
 	rayClosestHitShaderGroupCreateInfo.generalShader = VK_SHADER_UNUSED_KHR;
-	rayClosestHitShaderGroupCreateInfo.closestHitShader = 3;
+	rayClosestHitShaderGroupCreateInfo.closestHitShader = 2;
 	rayClosestHitShaderGroupCreateInfo.anyHitShader = VK_SHADER_UNUSED_KHR;
 	rayClosestHitShaderGroupCreateInfo.intersectionShader = VK_SHADER_UNUSED_KHR;
 	rayClosestHitShaderGroupCreateInfo.pShaderGroupCaptureReplayHandle = nullptr;
 
-	std::array<VkPipelineShaderStageCreateInfo, 4> shaderStageCreateInfos = { rayGenShaderStageCreateInfo, rayMissShaderStageCreateInfo, rayShadowMissShaderStageCreateInfo, rayClosestHitShaderStageCreateInfo };
-	std::array<VkRayTracingShaderGroupCreateInfoKHR, 4> shaderGroupCreateInfos = { rayGenShaderGroupCreateInfo, rayMissShaderGroupCreateInfo, rayShadowMissShaderGroupCreateInfo, rayClosestHitShaderGroupCreateInfo };
+	std::array<VkPipelineShaderStageCreateInfo, 3> shaderStageCreateInfos = { rayGenShaderStageCreateInfo, rayMissShaderStageCreateInfo, rayClosestHitShaderStageCreateInfo };
+	std::array<VkRayTracingShaderGroupCreateInfoKHR, 3> shaderGroupCreateInfos = { rayGenShaderGroupCreateInfo, rayMissShaderGroupCreateInfo, rayClosestHitShaderGroupCreateInfo };
+
+	VkPushConstantRange pushConstantRange = {};
+	pushConstantRange.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+	pushConstantRange.offset = 0;
+	pushConstantRange.size = sizeof(uint32_t);
 
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -3069,8 +3129,8 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 	pipelineLayoutCreateInfo.flags = 0;
 	pipelineLayoutCreateInfo.setLayoutCount = 1;
 	pipelineLayoutCreateInfo.pSetLayouts = &m_descriptorSetLayout;
-	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
-	pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
+	pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+	pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
 	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_rayTracingPipelineLayout));
 
 	VkRayTracingPipelineCreateInfoKHR rayTracingPipelineCreateInfo = {};
@@ -3081,7 +3141,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 	rayTracingPipelineCreateInfo.pStages = shaderStageCreateInfos.data();
 	rayTracingPipelineCreateInfo.groupCount = static_cast<uint32_t>(shaderGroupCreateInfos.size());
 	rayTracingPipelineCreateInfo.pGroups = shaderGroupCreateInfos.data();
-	rayTracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 2;
+	rayTracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 1;
 	rayTracingPipelineCreateInfo.pLibraryInfo = nullptr;
 	rayTracingPipelineCreateInfo.pLibraryInterface = nullptr;
 	rayTracingPipelineCreateInfo.pDynamicState = nullptr;
@@ -3092,12 +3152,11 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 	vkDestroyShaderModule(m_device, rayGenShaderModule, nullptr);
 	vkDestroyShaderModule(m_device, rayMissShaderModule, nullptr);
-	vkDestroyShaderModule(m_device, rayShadowMissShaderModule, nullptr);
 	vkDestroyShaderModule(m_device, rayClosestHitShaderModule, nullptr);
 }
 
 void NtshEngn::GraphicsModule::createRayTracingShaderBindingTable() {
-	uint32_t missShaderCount = 2;
+	uint32_t missShaderCount = 1;
 	uint32_t hitShaderCount = 1;
 	uint32_t callShaderCount = 0;
 	uint32_t shaderHandleCount = 1 + missShaderCount + hitShaderCount + callShaderCount;
