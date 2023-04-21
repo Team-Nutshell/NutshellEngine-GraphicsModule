@@ -2707,8 +2707,8 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			const float tMin = 0.001;
 			const float tMax = 10000.0;
 
-			const uint NUM_BOUNCES = 1;
-			for (uint j = 0; j < NUM_BOUNCES; j++) {
+			const uint NUM_BOUNCES = 0;
+			for (uint j = 0; j < NUM_BOUNCES + 1; j++) {
 				traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 0, origin, tMin, direction, tMax, 0);
 
 				color *= payload.hitValue;
