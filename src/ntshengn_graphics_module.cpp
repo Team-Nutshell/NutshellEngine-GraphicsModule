@@ -607,8 +607,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		size_t offset = (it.second.index * sizeof(nml::vec2));
 
 		const uint32_t meshID = (it.second.meshIndex < m_meshes.size()) ? static_cast<uint32_t>(it.second.meshIndex) : 0;
-		const uint32_t textureID = (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0;
-		std::array<uint32_t, 2> meshAndTextureID = { meshID, textureID };
+		const uint32_t materialID = (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0;
+		std::array<uint32_t, 2> meshAndTextureID = { meshID, materialID };
 
 		memcpy(reinterpret_cast<char*>(data) + offset, meshAndTextureID.data(), 2 * sizeof(uint32_t));
 	}
