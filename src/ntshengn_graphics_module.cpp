@@ -599,6 +599,19 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		memcpy(data, cameraMatrices.data(), sizeof(nml::mat4) * 2);
 		memcpy(reinterpret_cast<char*>(data) + sizeof(nml::mat4) * 2, cameraPositionAsVec4.data(), sizeof(nml::vec4));
 		vmaUnmapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight]);
+
+		if (m_sampleBatch != 0) {
+			if (cameraPosition != nml::vec3(m_previousCamera.transform.position.data()) ||
+				cameraRotation != nml::vec3(m_previousCamera.transform.rotation.data()) ||
+				camera.fov != m_previousCamera.camera.fov ||
+				camera.nearPlane != m_previousCamera.camera.nearPlane ||
+				camera.farPlane != m_previousCamera.camera.farPlane) {
+				m_sampleBatch = 0;
+			}
+		}
+
+		m_previousCamera.transform = cameraTransform;
+		m_previousCamera.camera = camera;
 	}
 
 	// Update objects buffer
@@ -607,10 +620,27 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		size_t offset = (it.second.index * sizeof(nml::vec2));
 
 		const uint32_t meshID = (it.second.meshIndex < m_meshes.size()) ? static_cast<uint32_t>(it.second.meshIndex) : 0;
-		const uint32_t textureID = (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0;
-		std::array<uint32_t, 2> meshAndTextureID = { meshID, textureID };
+		const uint32_t materialID = (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0;
+		std::array<uint32_t, 2> meshAndTextureID = { meshID, materialID };
 
 		memcpy(reinterpret_cast<char*>(data) + offset, meshAndTextureID.data(), 2 * sizeof(uint32_t));
+
+		PreviousObject& previousObject = m_previousObjects[it.first];
+		Transform objectTransform = m_ecs->getComponent<Transform>(it.first);
+		if (m_sampleBatch != 0) {
+			if (nml::vec3(objectTransform.position.data()) != nml::vec3(previousObject.transform.position.data()) ||
+				nml::vec3(objectTransform.rotation.data()) != nml::vec3(previousObject.transform.rotation.data()) ||
+				nml::vec3(objectTransform.scale.data()) != nml::vec3(previousObject.transform.scale.data()) ||
+				meshID != previousObject.meshIndex ||
+				materialID != previousObject.materialIndex) {
+				m_sampleBatch = 0;
+
+			}
+		}
+
+		previousObject.transform = objectTransform;
+		previousObject.meshIndex = meshID;
+		previousObject.materialIndex = materialID;
 	}
 	vmaUnmapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight]);
 
@@ -1866,30 +1896,48 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		m_materials.push_back(material);
 		object.materialIndex = static_cast<uint32_t>(m_materials.size() - 1);
 		m_objects[entity] = object;
+
+		PreviousObject previousObject;
+		previousObject.transform = m_ecs->getComponent<Transform>(entity);
+		previousObject.meshIndex = object.meshIndex;
+		previousObject.materialIndex = object.materialIndex;
+		m_previousObjects[entity] = previousObject;
 	}
 	else if (componentID == m_ecs->getComponentId<Camera>()) {
 		if (m_mainCamera == std::numeric_limits<uint32_t>::max()) {
 			m_mainCamera = entity;
+			
+			PreviousCamera previousCamera;
+			previousCamera.transform = m_ecs->getComponent<Transform>(entity);
+			previousCamera.camera = m_ecs->getComponent<Camera>(entity);
 		}
 	}
 	else if (componentID == m_ecs->getComponentId<Light>()) {
 		const Light& light = m_ecs->getComponent<Light>(entity);
 
+		PreviousLight previousLight;
+		previousLight.transform = m_ecs->getComponent<Transform>(entity);
+		previousLight.light = light;
+
 		switch (light.type) {
 		case LightType::Directional:
 			m_lights.directionalLights.insert(entity);
+			m_previousDirectionalLights[entity] = previousLight;
 			break;
 			
 		case LightType::Point:
 			m_lights.pointLights.insert(entity);
+			m_previousPointLights[entity] = previousLight;
 			break;
 
 		case LightType::Spot:
 			m_lights.spotLights.insert(entity);
+			m_previousSpotLights[entity] = previousLight;
 			break;
 
 		default: // Arbitrarily consider it a directional light
 			m_lights.directionalLights.insert(entity);
+			m_previousDirectionalLights[entity] = previousLight;
 			break;
 		}
 	}
@@ -1901,6 +1949,8 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 		retrieveObjectIndex(object.index);
 
 		m_objects.erase(entity);
+
+		m_previousObjects.erase(entity);
 	}
 	else if (componentID == m_ecs->getComponentId<Camera>()) {
 		if (m_mainCamera == entity) {
@@ -1913,18 +1963,22 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 		switch (light.type) {
 		case LightType::Directional:
 			m_lights.directionalLights.erase(entity);
+			m_previousDirectionalLights.erase(entity);
 			break;
 
 		case LightType::Point:
 			m_lights.pointLights.erase(entity);
+			m_previousPointLights.erase(entity);
 			break;
 
 		case LightType::Spot:
 			m_lights.spotLights.erase(entity);
+			m_previousSpotLights.erase(entity);
 			break;
 
 		default: // Arbitrarily consider it a directional light
 			m_lights.directionalLights.erase(entity);
+			m_previousDirectionalLights.erase(entity);
 			break;
 		}
 	}

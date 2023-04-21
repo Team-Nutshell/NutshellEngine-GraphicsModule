@@ -46,6 +46,22 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBits
 
 const float toRad = 3.1415926535897932384626433832795f / 180.0f;
 
+struct PreviousCamera {
+	NtshEngn::Transform transform;
+	NtshEngn::Camera camera;
+};
+
+struct PreviousObject {
+	NtshEngn::Transform transform;
+	size_t meshIndex;
+	uint32_t materialIndex;
+};
+
+struct PreviousLight {
+	NtshEngn::Transform transform;
+	NtshEngn::Light light;
+};
+
 enum class ShaderType {
 	Vertex,
 	TesselationControl,
@@ -336,6 +352,12 @@ namespace NtshEngn {
 		InternalLights m_lights;
 
 		uint32_t m_sampleBatch = 0;
+
+		PreviousCamera m_previousCamera;
+		std::unordered_map<Entity, PreviousObject> m_previousObjects;
+		std::unordered_map<Entity, PreviousLight> m_previousDirectionalLights;
+		std::unordered_map<Entity, PreviousLight> m_previousPointLights;
+		std::unordered_map<Entity, PreviousLight> m_previousSpotLights;
 	};
 
 }
