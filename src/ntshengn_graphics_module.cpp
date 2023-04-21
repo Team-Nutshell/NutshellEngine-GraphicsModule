@@ -2650,11 +2650,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 position;
 		} camera;
 
-		struct HitPayload {
-			vec3 hitValue;
-		};
-
-		layout(location = 0) rayPayloadEXT HitPayload payload;
+		layout(location = 0) rayPayloadEXT vec3 hitValue;
 
 		void main() {
 			const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
@@ -2672,7 +2668,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			float tMax = 10000.0;
 			traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 0, origin.xyz, tMin, direction.xyz, tMax, 0);
 
-			imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(payload.hitValue, 1.0));
+			imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(hitValue, 1.0));
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayGenShaderSpv = compileShader(rayGenShaderCode, ShaderType::RayGeneration);
