@@ -2655,17 +2655,17 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		void main() {
 			const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
 			const vec2 uv = pixelCenter / vec2(gl_LaunchSizeEXT);
-			vec2 d = uv * 2.0 - 1.0;
+			const vec2 d = uv * 2.0 - 1.0;
 
-			mat4 inverseView = inverse(camera.view);
-			mat4 inverseProjection = inverse(camera.projection);
-			vec4 origin = inverseView * vec4(0.0, 0.0, 0.0, 1.0);
-			vec4 target = inverseProjection * vec4(d, 1.0, 1.0);
-			vec4 direction = inverseView * vec4(normalize(target.xyz), 0.0);
+			const mat4 inverseView = inverse(camera.view);
+			const mat4 inverseProjection = inverse(camera.projection);
+			const vec4 origin = inverseView * vec4(0.0, 0.0, 0.0, 1.0);
+			const vec4 target = inverseProjection * vec4(d, 1.0, 1.0);
+			const vec4 direction = inverseView * vec4(normalize(target.xyz), 0.0);
 
 			uint rayFlags = gl_RayFlagsOpaqueEXT;
-			float tMin = 0.001;
-			float tMax = 10000.0;
+			const float tMin = 0.001;
+			const float tMax = 10000.0;
 			traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 0, origin.xyz, tMin, direction.xyz, tMax, 0);
 
 			imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(hitValue, 1.0));
