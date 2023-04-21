@@ -548,8 +548,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		size_t offset = (it.second.index * (sizeof(nml::mat4) + sizeof(nml::vec4))); // vec4 is used here for padding
 
 		memcpy(reinterpret_cast<char*>(data) + offset, objectModel.data(), sizeof(nml::mat4));
-		const uint32_t textureID = (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0;
-		memcpy(reinterpret_cast<char*>(data) + offset + sizeof(nml::mat4), &textureID, sizeof(uint32_t));
+		const uint32_t materialID = (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0;
+		memcpy(reinterpret_cast<char*>(data) + offset + sizeof(nml::mat4), &materialID, sizeof(uint32_t));
 	}
 	vmaUnmapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight]);
 
