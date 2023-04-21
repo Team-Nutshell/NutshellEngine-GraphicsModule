@@ -2675,7 +2675,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			rngState = rngState * 747796405 + 1;
 			uint word = ((rngState >> ((rngState >> 28) + 4)) ^ rngState) * 277803737;
 			word = (word >> 22) ^ word;
-	
+
 			return float(word) / 4294967295.0f;
 		}
 
@@ -2771,7 +2771,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			bool hitSky;
 		};
 
-		layout(location = 0) rayPayloadEXT HitPayload payload;
+		layout(location = 0) rayPayloadInEXT HitPayload payload;
 
 		void main() {
 			payload.hitValue = vec3(0.0);
@@ -2891,7 +2891,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			bool hitSky;
 		};
 
-		layout(location = 0) rayPayloadEXT HitPayload payload;
+		layout(location = 0) rayPayloadInEXT HitPayload payload;
 
 		hitAttributeEXT vec2 attribs;
 
