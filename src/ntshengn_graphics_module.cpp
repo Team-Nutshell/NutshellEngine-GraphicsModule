@@ -2900,7 +2900,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		};
 
 		layout(location = 0) rayPayloadInEXT HitPayload payload;
-		layout(location = 1) rayPayloadInEXT bool isShadowed;
+		layout(location = 1) rayPayloadEXT bool isShadowed;
 
 		hitAttributeEXT vec2 attribs;
 
