@@ -233,7 +233,6 @@ namespace NtshEngn {
 
 		VkBuffer m_bottomLevelAccelerationStructureBuffer;
 		VmaAllocation m_bottomLevelAccelerationStructureBufferAllocation;
-		VkDeviceAddress m_bottomLevelAccelerationStructureBufferDeviceAddress;
 
 		bool m_glslangInitialized = false;
 
