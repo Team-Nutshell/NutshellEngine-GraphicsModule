@@ -2650,7 +2650,15 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 position;
 		} camera;
 
-		layout(location = 0) rayPayloadEXT vec3 hitValue;
+		struct HitPayload {
+			vec3 hitValue;
+			vec3 rayOrigin;
+			vec3 rayDirection;
+			float materialMetalness;
+			bool hitSky;
+		};
+
+		layout(location = 0) rayPayloadEXT HitPayload payload;
 
 		void main() {
 			const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
@@ -2659,16 +2667,33 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 			const mat4 inverseView = inverse(camera.view);
 			const mat4 inverseProjection = inverse(camera.projection);
-			const vec4 origin = inverseView * vec4(0.0, 0.0, 0.0, 1.0);
+			vec3 origin = vec3(inverseView * vec4(0.0, 0.0, 0.0, 1.0));
 			const vec4 target = inverseProjection * vec4(d, 1.0, 1.0);
-			const vec4 direction = inverseView * vec4(normalize(target.xyz), 0.0);
+			vec3 direction = vec3(inverseView * vec4(normalize(target.xyz), 0.0));
 
-			uint rayFlags = gl_RayFlagsOpaqueEXT;
+			vec3 color = vec3(0.0);
+			float frac = 1.0;
+
+			const uint rayFlags = gl_RayFlagsOpaqueEXT;
 			const float tMin = 0.001;
 			const float tMax = 10000.0;
-			traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 0, origin.xyz, tMin, direction.xyz, tMax, 0);
 
-			imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(hitValue, 1.0));
+			const uint NUM_BOUNCES = 2;
+			for (uint i = 0; i < NUM_BOUNCES + 1; i++) {
+				traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 0, origin, tMin, direction, tMax, 0);
+
+				color += payload.hitValue * frac;
+				frac *= payload.materialMetalness;
+
+				if (payload.hitSky || frac < 0.05) {
+					break;
+				}
+
+				origin = payload.rayOrigin;
+				direction = payload.rayDirection;
+			}
+
+			imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(color, 1.0));
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayGenShaderSpv = compileShader(rayGenShaderCode, ShaderType::RayGeneration);
@@ -2705,10 +2730,20 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		#version 460
 		#extension GL_EXT_ray_tracing : require
 
-		layout(location = 0) rayPayloadInEXT vec3 hitValue;
+		struct HitPayload {
+			vec3 hitValue;
+			vec3 rayOrigin;
+			vec3 rayDirection;
+			float materialMetalness;
+			bool hitSky;
+		};
+
+		layout(location = 0) rayPayloadInEXT HitPayload payload;
 
 		void main() {
-			hitValue = vec3(0.0, 0.0, 0.0);
+			payload.hitValue = vec3(0.0, 0.0, 0.0);
+			payload.materialMetalness = 1.0;
+			payload.hitSky = true;
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayMissShaderSpv = compileShader(rayMissShaderCode, ShaderType::RayMiss);
@@ -2856,10 +2891,38 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			uvec3 index[];
 		};
 
-		layout(location = 0) rayPayloadInEXT vec3 hitValue;
+		struct HitPayload {
+			vec3 hitValue;
+			vec3 rayOrigin;
+			vec3 rayDirection;
+			float materialMetalness;
+			bool hitSky;
+		};
+
+		layout(location = 0) rayPayloadInEXT HitPayload payload;
 		layout(location = 1) rayPayloadInEXT bool isShadowed;
 
 		hitAttributeEXT vec2 attribs;
+
+		vec3 offsetPositionAlongNormal(vec3 worldPosition, vec3 normal) {
+			const float intScale = 256.0;
+			const ivec3 intNormal = ivec3(intScale * normal);
+
+			const vec3 p = vec3(
+				intBitsToFloat(floatBitsToInt(worldPosition.x) + ((worldPosition.x < 0) ? -intNormal.x : intNormal.x)),
+				intBitsToFloat(floatBitsToInt(worldPosition.y) + ((worldPosition.y < 0) ? -intNormal.y : intNormal.y)),
+				intBitsToFloat(floatBitsToInt(worldPosition.z) + ((worldPosition.z < 0) ? -intNormal.z : intNormal.z))
+				);
+
+			const float origin = 1.0 / 32.0;
+			const float floatScale = 1.0 / 65536.0;
+
+			return vec3(
+				abs(worldPosition.x) < origin ? worldPosition.x + floatScale * normal.x : p.x,
+				abs(worldPosition.y) < origin ? worldPosition.y + floatScale * normal.y : p.y,
+				abs(worldPosition.z) < origin ? worldPosition.z + floatScale * normal.z : p.z
+				);
+		}
 
 		// BRDF
 		float distribution(float NdotH, float roughness) {
@@ -3023,7 +3086,11 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			color *= occlusionSample;
 			color += emissiveSample;
 
-			hitValue = color;
+			payload.hitValue = color;
+			payload.rayOrigin = offsetPositionAlongNormal(worldPosition, n);
+			payload.rayDirection = reflect(gl_WorldRayDirectionEXT, n);
+			payload.materialMetalness = metalnessSample;
+			payload.hitSky = false;
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayClosestHitShaderSpv = compileShader(rayClosestHitShaderCode, ShaderType::RayClosestHit);
