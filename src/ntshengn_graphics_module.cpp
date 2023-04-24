@@ -2860,6 +2860,46 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 	rayMissShaderGroupCreateInfo.intersectionShader = VK_SHADER_UNUSED_KHR;
 	rayMissShaderGroupCreateInfo.pShaderGroupCaptureReplayHandle = nullptr;
 
+	const std::string rayShadowMissShaderCode = R"GLSL(
+		#version 460
+		#extension GL_EXT_ray_tracing : require
+
+		layout(location = 1) rayPayloadInEXT bool isShadowed;
+
+		void main() {
+			isShadowed = false;
+		}
+	)GLSL";
+	const std::vector<uint32_t> rayShadowMissShaderSpv = compileShader(rayShadowMissShaderCode, ShaderType::RayMiss);
+
+	VkShaderModule rayShadowMissShaderModule;
+	VkShaderModuleCreateInfo rayShadowMissShaderModuleCreateInfo = {};
+	rayShadowMissShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	rayShadowMissShaderModuleCreateInfo.pNext = nullptr;
+	rayShadowMissShaderModuleCreateInfo.flags = 0;
+	rayShadowMissShaderModuleCreateInfo.codeSize = rayShadowMissShaderSpv.size() * sizeof(uint32_t);
+	rayShadowMissShaderModuleCreateInfo.pCode = rayShadowMissShaderSpv.data();
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &rayShadowMissShaderModuleCreateInfo, nullptr, &rayShadowMissShaderModule));
+
+	VkPipelineShaderStageCreateInfo rayShadowMissShaderStageCreateInfo = {};
+	rayShadowMissShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	rayShadowMissShaderStageCreateInfo.pNext = nullptr;
+	rayShadowMissShaderStageCreateInfo.flags = 0;
+	rayShadowMissShaderStageCreateInfo.stage = VK_SHADER_STAGE_MISS_BIT_KHR;
+	rayShadowMissShaderStageCreateInfo.module = rayShadowMissShaderModule;
+	rayShadowMissShaderStageCreateInfo.pName = "main";
+	rayShadowMissShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	VkRayTracingShaderGroupCreateInfoKHR rayShadowMissShaderGroupCreateInfo = {};
+	rayShadowMissShaderGroupCreateInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+	rayShadowMissShaderGroupCreateInfo.pNext = nullptr;
+	rayShadowMissShaderGroupCreateInfo.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+	rayShadowMissShaderGroupCreateInfo.generalShader = 2;
+	rayShadowMissShaderGroupCreateInfo.closestHitShader = VK_SHADER_UNUSED_KHR;
+	rayShadowMissShaderGroupCreateInfo.anyHitShader = VK_SHADER_UNUSED_KHR;
+	rayShadowMissShaderGroupCreateInfo.intersectionShader = VK_SHADER_UNUSED_KHR;
+	rayShadowMissShaderGroupCreateInfo.pShaderGroupCaptureReplayHandle = nullptr;
+
 	const std::string rayClosestHitShaderCode = R"GLSL(
 		#version 460
 		#extension GL_EXT_ray_tracing : require
@@ -2944,6 +2984,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		};
 
 		layout(location = 0) rayPayloadInEXT HitPayload payload;
+		layout(location = 1) rayPayloadEXT bool isShadowed;
 
 		hitAttributeEXT vec2 attribs;
 
@@ -3050,6 +3091,21 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			return lc * brdf * LdotN;
 		}
 
+		float shadows(vec3 l, float distanceToLight) {
+			isShadowed = true;
+			float tMin = 0.001;
+			float tMax = distanceToLight;
+			vec3 origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+			vec3 direction = l;
+			uint rayFlags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
+			traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 1, origin, tMin, direction, tMax, 1);
+
+			if (isShadowed) {
+				return 0.0;
+			}
+			return 1.0;
+		}
+
 		void main() {
 			ObjectInfo object = objects.info[gl_InstanceCustomIndexEXT];
 			MeshInfo mesh = meshes.info[object.meshID];
@@ -3091,42 +3147,48 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 			vec3 d = diffuseSample.rgb;
 			vec3 n = normalize(TBN * (normalSample * 2.0 - 1.0));
-			vec3 l = normalize(-lights.info[0].direction);
 			vec3 v = -gl_WorldRayDirectionEXT;
 
 			vec3 color = vec3(0.0);
+			
+			// Pick a random light
+			uint lightCount = lights.count.x + lights.count.y + lights.count.z;
+			uint lightIndex = uint(floor(rngFloat(payload.rngState) * lightCount));
 
-			uint lightIndex = 0;
-			// Directional Lights
-			for (int i = 0; i < lights.count.x; i++) {
-				vec3 l = normalize(-lights.info[lightIndex].direction);
-				vec3 lc = lights.info[lightIndex].color;
-				color += shade(n, v, l, lc, d, metalnessSample, roughnessSample);
-
-				lightIndex++;
+			vec3 l;
+			vec3 lc;
+			float intensity = 1.0;
+			float distance = 10000.0;
+			
+			// Directional light
+			if (lightIndex < lights.count.x) {
+				l = normalize(-lights.info[lightIndex].direction);
+				lc = lights.info[lightIndex].color;
 			}
-			// Point Lights
-			for (int i = 0; i < lights.count.y; i++) {
-				vec3 l = normalize(lights.info[lightIndex].position - worldPosition);
-				float distance = length(lights.info[lightIndex].position - worldPosition);
+			// Point light
+			else if (lightIndex < (lights.count.x + lights.count.y)) {
+				l = normalize(lights.info[lightIndex].position - worldPosition);
+				distance = length(lights.info[lightIndex].position - worldPosition);
 				float attenuation = 1.0 / (distance * distance);
-				vec3 radiance = lights.info[lightIndex].color * attenuation;
-				color += shade(n, v, l, radiance, d, metalnessSample, roughnessSample);
-
-				lightIndex++;
+				lc = lights.info[lightIndex].color * attenuation;
 			}
-			// Spot Lights
-			for (int i = 0; i < lights.count.z; i++) {
-				vec3 l = normalize(lights.info[lightIndex].position - worldPosition);
-				vec3 lc = lights.info[lightIndex].color;
+			// Spot light
+			else {
+				// If the random float between 0.0 and 1.0 is 1.0
+				if (lightIndex == lightCount) {
+					lightIndex--;
+				}
+
+				l = normalize(lights.info[lightIndex].position - worldPosition);
+				lc = lights.info[lightIndex].color;
 				float theta = dot(l, normalize(-lights.info[lightIndex].direction));
 				float epsilon = cos(lights.info[lightIndex].cutoffs.y) - cos(lights.info[lightIndex].cutoffs.x);
-				float intensity = clamp((theta - cos(lights.info[lightIndex].cutoffs.x)) / epsilon, 0.0, 1.0);
+				intensity = clamp((theta - cos(lights.info[lightIndex].cutoffs.x)) / epsilon, 0.0, 1.0);
 				intensity = 1.0 - intensity;
-				color += shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample);
-
-				lightIndex++;
+				distance = length(lights.info[lightIndex].position - worldPosition);
 			}
+
+			color += shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample) * shadows(l, distance);
 
 			color *= occlusionSample;
 			color += emissiveSample;
@@ -3162,13 +3224,13 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 	rayClosestHitShaderGroupCreateInfo.pNext = nullptr;
 	rayClosestHitShaderGroupCreateInfo.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
 	rayClosestHitShaderGroupCreateInfo.generalShader = VK_SHADER_UNUSED_KHR;
-	rayClosestHitShaderGroupCreateInfo.closestHitShader = 2;
+	rayClosestHitShaderGroupCreateInfo.closestHitShader = 3;
 	rayClosestHitShaderGroupCreateInfo.anyHitShader = VK_SHADER_UNUSED_KHR;
 	rayClosestHitShaderGroupCreateInfo.intersectionShader = VK_SHADER_UNUSED_KHR;
 	rayClosestHitShaderGroupCreateInfo.pShaderGroupCaptureReplayHandle = nullptr;
 
-	std::array<VkPipelineShaderStageCreateInfo, 3> shaderStageCreateInfos = { rayGenShaderStageCreateInfo, rayMissShaderStageCreateInfo, rayClosestHitShaderStageCreateInfo };
-	std::array<VkRayTracingShaderGroupCreateInfoKHR, 3> shaderGroupCreateInfos = { rayGenShaderGroupCreateInfo, rayMissShaderGroupCreateInfo, rayClosestHitShaderGroupCreateInfo };
+	std::array<VkPipelineShaderStageCreateInfo, 4> shaderStageCreateInfos = { rayGenShaderStageCreateInfo, rayMissShaderStageCreateInfo, rayShadowMissShaderStageCreateInfo, rayClosestHitShaderStageCreateInfo };
+	std::array<VkRayTracingShaderGroupCreateInfoKHR, 4> shaderGroupCreateInfos = { rayGenShaderGroupCreateInfo, rayMissShaderGroupCreateInfo, rayShadowMissShaderGroupCreateInfo, rayClosestHitShaderGroupCreateInfo };
 
 	VkPushConstantRange pushConstantRange = {};
 	pushConstantRange.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
@@ -3193,7 +3255,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 	rayTracingPipelineCreateInfo.pStages = shaderStageCreateInfos.data();
 	rayTracingPipelineCreateInfo.groupCount = static_cast<uint32_t>(shaderGroupCreateInfos.size());
 	rayTracingPipelineCreateInfo.pGroups = shaderGroupCreateInfos.data();
-	rayTracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 1;
+	rayTracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 2;
 	rayTracingPipelineCreateInfo.pLibraryInfo = nullptr;
 	rayTracingPipelineCreateInfo.pLibraryInterface = nullptr;
 	rayTracingPipelineCreateInfo.pDynamicState = nullptr;
@@ -3208,7 +3270,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 }
 
 void NtshEngn::GraphicsModule::createRayTracingShaderBindingTable() {
-	uint32_t missShaderCount = 1;
+	uint32_t missShaderCount = 2;
 	uint32_t hitShaderCount = 1;
 	uint32_t callShaderCount = 0;
 	uint32_t shaderHandleCount = 1 + missShaderCount + hitShaderCount + callShaderCount;
