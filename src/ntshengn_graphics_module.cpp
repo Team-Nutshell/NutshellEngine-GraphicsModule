@@ -2717,7 +2717,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 rayOrigin;
 			vec3 rayDirection;
 			uint rngState;
-			bool hitSky;
+			bool hitBackground;
 		};
 
 		layout(location = 0) rayPayloadEXT HitPayload payload;
@@ -2765,7 +2765,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 				color += payload.hitValue;
 
-				if (payload.hitSky) {
+				if (payload.hitBackground) {
 					break;
 				}
 
@@ -2820,14 +2820,14 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 rayOrigin;
 			vec3 rayDirection;
 			uint rngState;
-			bool hitSky;
+			bool hitBackground;
 		};
 
 		layout(location = 0) rayPayloadInEXT HitPayload payload;
 
 		void main() {
 			payload.hitValue = vec3(0.0);
-			payload.hitSky = true;
+			payload.hitBackground = true;
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayMissShaderSpv = compileShader(rayMissShaderCode, ShaderType::RayMiss);
@@ -2980,7 +2980,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 rayOrigin;
 			vec3 rayDirection;
 			uint rngState;
-			bool hitSky;
+			bool hitBackground;
 		};
 
 		layout(location = 0) rayPayloadInEXT HitPayload payload;
@@ -3196,7 +3196,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			payload.hitValue = color;
 			payload.rayOrigin = offsetPositionAlongNormal(worldPosition, n);
 			payload.rayDirection = randomDiffuseDirection(n, payload.rngState);
-			payload.hitSky = false;
+			payload.hitBackground = false;
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayClosestHitShaderSpv = compileShader(rayClosestHitShaderCode, ShaderType::RayClosestHit);
