@@ -2652,7 +2652,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 rayOrigin;
 			vec3 rayDirection;
 			float materialMetalness;
-			bool hitSky;
+			bool hitBackground;
 		};
 
 		layout(location = 0) rayPayloadEXT HitPayload payload;
@@ -2682,7 +2682,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 				color += payload.hitValue * frac;
 				frac *= payload.materialMetalness;
 
-				if (payload.hitSky || frac < 0.05) {
+				if (payload.hitBackground || frac < 0.05) {
 					break;
 				}
 
@@ -2732,7 +2732,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 rayOrigin;
 			vec3 rayDirection;
 			float materialMetalness;
-			bool hitSky;
+			bool hitBackground;
 		};
 
 		layout(location = 0) rayPayloadInEXT HitPayload payload;
@@ -2740,7 +2740,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		void main() {
 			payload.hitValue = vec3(0.0, 0.0, 0.0);
 			payload.materialMetalness = 1.0;
-			payload.hitSky = true;
+			payload.hitBackground = true;
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayMissShaderSpv = compileShader(rayMissShaderCode, ShaderType::RayMiss);
@@ -2893,7 +2893,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 rayOrigin;
 			vec3 rayDirection;
 			float materialMetalness;
-			bool hitSky;
+			bool hitBackground;
 		};
 
 		layout(location = 0) rayPayloadInEXT HitPayload payload;
@@ -3086,7 +3086,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			payload.rayOrigin = offsetPositionAlongNormal(worldPosition, n);
 			payload.rayDirection = reflect(gl_WorldRayDirectionEXT, n);
 			payload.materialMetalness = metalnessSample;
-			payload.hitSky = false;
+			payload.hitBackground = false;
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayClosestHitShaderSpv = compileShader(rayClosestHitShaderCode, ShaderType::RayClosestHit);
