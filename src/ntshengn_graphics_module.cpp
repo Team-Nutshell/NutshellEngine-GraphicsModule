@@ -2759,7 +2759,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			const float tMin = 0.001;
 			const float tMax = 10000.0;
 
-			const uint NUM_BOUNCES = 1;
+			const uint NUM_BOUNCES = 2;
 			for (uint i = 0; i < NUM_BOUNCES + 1; i++) {
 				traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 0, origin, tMin, direction, tMax, 0);
 
@@ -3266,6 +3266,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 	vkDestroyShaderModule(m_device, rayGenShaderModule, nullptr);
 	vkDestroyShaderModule(m_device, rayMissShaderModule, nullptr);
+	vkDestroyShaderModule(m_device, rayShadowMissShaderModule, nullptr);
 	vkDestroyShaderModule(m_device, rayClosestHitShaderModule, nullptr);
 }
 
