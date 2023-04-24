@@ -3043,7 +3043,6 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 			vec3 d = diffuseSample.rgb;
 			vec3 n = normalize(TBN * (normalSample * 2.0 - 1.0));
-			vec3 l = normalize(-lights.info[0].direction);
 			vec3 v = -gl_WorldRayDirectionEXT;
 
 			vec3 color = vec3(0.0);
