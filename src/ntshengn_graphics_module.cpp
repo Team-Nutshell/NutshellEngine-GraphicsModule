@@ -4024,6 +4024,8 @@ void NtshEngn::GraphicsModule::resize() {
 		colorImageDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
 		vkUpdateDescriptorSets(m_device, 1, &colorImageDescriptorWriteDescriptorSet, 0, nullptr);
+
+		m_sampleBatch = 0;
 	}
 }
 
