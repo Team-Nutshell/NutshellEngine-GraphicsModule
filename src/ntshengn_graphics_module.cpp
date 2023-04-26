@@ -3030,7 +3030,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			const float a = roughness * roughness;
 			const float aSquare = a * a;
 			const float NdotHSquare = NdotH * NdotH;
-			const float denom = NdotHSquare * (aSquare - 1.0) + 1.0;
+			const float denom = max(NdotHSquare * (aSquare - 1.0) + 1.0, 0.001);
 
 			return aSquare / (M_PI * denom * denom);
 		}
