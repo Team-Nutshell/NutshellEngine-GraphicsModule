@@ -1902,6 +1902,8 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		previousObject.meshIndex = object.meshIndex;
 		previousObject.materialIndex = object.materialIndex;
 		m_previousObjects[entity] = previousObject;
+
+		m_sampleBatch = 0;
 	}
 	else if (componentID == m_ecs->getComponentId<Camera>()) {
 		if (m_mainCamera == std::numeric_limits<uint32_t>::max()) {
@@ -1910,6 +1912,8 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 			PreviousCamera previousCamera;
 			previousCamera.transform = m_ecs->getComponent<Transform>(entity);
 			previousCamera.camera = m_ecs->getComponent<Camera>(entity);
+
+			m_sampleBatch = 0;
 		}
 	}
 	else if (componentID == m_ecs->getComponentId<Light>()) {
@@ -1940,6 +1944,8 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 			m_previousDirectionalLights[entity] = previousLight;
 			break;
 		}
+
+		m_sampleBatch = 0;
 	}
 }
 
@@ -1951,10 +1957,14 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 		m_objects.erase(entity);
 
 		m_previousObjects.erase(entity);
+
+		m_sampleBatch = 0;
 	}
 	else if (componentID == m_ecs->getComponentId<Camera>()) {
 		if (m_mainCamera == entity) {
 			m_mainCamera = std::numeric_limits<uint32_t>::max();
+
+			m_sampleBatch = 0;
 		}
 	}
 	else if (componentID == m_ecs->getComponentId<Light>()) {
@@ -1981,6 +1991,8 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 			m_previousDirectionalLights.erase(entity);
 			break;
 		}
+
+		m_sampleBatch = 0;
 	}
 }
 
