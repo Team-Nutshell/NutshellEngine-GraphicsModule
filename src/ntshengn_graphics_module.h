@@ -191,6 +191,8 @@ namespace NtshEngn {
 		std::vector<VkSemaphore> m_imageAvailableSemaphores;
 		std::vector<VkSemaphore> m_renderFinishedSemaphores;
 
+		VkFence m_initializationFence;
+
 		PFN_vkCmdBeginRenderingKHR m_vkCmdBeginRenderingKHR;
 		PFN_vkCmdEndRenderingKHR m_vkCmdEndRenderingKHR;
 		PFN_vkCmdPipelineBarrier2KHR m_vkCmdPipelineBarrier2KHR;
