@@ -390,6 +390,13 @@ void NtshEngn::GraphicsModule::init() {
 		NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &imageViewCreateInfo, nullptr, &m_drawImageView));
 	}
 
+	// Create initialization fence
+	VkFenceCreateInfo initializationFenceCreateInfo = {};
+	initializationFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	initializationFenceCreateInfo.pNext = nullptr;
+	initializationFenceCreateInfo.flags = 0;
+	NTSHENGN_VK_CHECK(vkCreateFence(m_device, &initializationFenceCreateInfo, nullptr, &m_initializationFence));
+
 	createVertexIndexAndAccelerationStructureBuffers();
 
 	createTopLevelAccelerationStructure();
@@ -1123,6 +1130,9 @@ void NtshEngn::GraphicsModule::destroy() {
 	vmaDestroyBuffer(m_allocator, m_indexBuffer, m_indexBufferAllocation);
 	vmaDestroyBuffer(m_allocator, m_vertexBuffer, m_vertexBufferAllocation);
 
+	// Destroy initialization fence
+	vkDestroyFence(m_device, m_initializationFence, nullptr);
+
 	// Destroy swapchain
 	if (m_swapchain != VK_NULL_HANDLE) {
 		for (VkImageView& swapchainImageView : m_swapchainImageViews) {
@@ -1360,14 +1370,6 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 
 	NTSHENGN_VK_CHECK(vkEndCommandBuffer(buffersCopyAndBLASCommandBuffer));
 
-	VkFence buffersCopyFence;
-
-	VkFenceCreateInfo buffersCopyFenceCreateInfo = {};
-	buffersCopyFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	buffersCopyFenceCreateInfo.pNext = nullptr;
-	buffersCopyFenceCreateInfo.flags = 0;
-	NTSHENGN_VK_CHECK(vkCreateFence(m_device, &buffersCopyFenceCreateInfo, nullptr, &buffersCopyFence));
-
 	VkSubmitInfo buffersCopySubmitInfo = {};
 	buffersCopySubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	buffersCopySubmitInfo.pNext = nullptr;
@@ -1378,10 +1380,10 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	buffersCopySubmitInfo.pCommandBuffers = &buffersCopyAndBLASCommandBuffer;
 	buffersCopySubmitInfo.signalSemaphoreCount = 0;
 	buffersCopySubmitInfo.pSignalSemaphores = nullptr;
-	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, buffersCopyFence));
-	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &buffersCopyFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, m_initializationFence));
+	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 
-	vkDestroyFence(m_device, buffersCopyFence, nullptr);
 	vkDestroyCommandPool(m_device, buffersCopyAndBLASCommandPool, nullptr);
 	vmaDestroyBuffer(m_allocator, blasScratchBuffer, blasScratchBufferAllocation);
 	vmaDestroyBuffer(m_allocator, vertexAndIndexStagingBuffer, vertexAndIndexStagingBufferAllocation);
@@ -1766,14 +1768,6 @@ NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image& image) {
 
 	NTSHENGN_VK_CHECK(vkEndCommandBuffer(commandBuffer));
 
-	VkFence buffersCopyFence;
-
-	VkFenceCreateInfo buffersCopyFenceCreateInfo = {};
-	buffersCopyFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	buffersCopyFenceCreateInfo.pNext = nullptr;
-	buffersCopyFenceCreateInfo.flags = 0;
-	NTSHENGN_VK_CHECK(vkCreateFence(m_device, &buffersCopyFenceCreateInfo, nullptr, &buffersCopyFence));
-
 	VkSubmitInfo buffersCopySubmitInfo = {};
 	buffersCopySubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	buffersCopySubmitInfo.pNext = nullptr;
@@ -1784,10 +1778,10 @@ NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image& image) {
 	buffersCopySubmitInfo.pCommandBuffers = &commandBuffer;
 	buffersCopySubmitInfo.signalSemaphoreCount = 0;
 	buffersCopySubmitInfo.pSignalSemaphores = nullptr;
-	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, buffersCopyFence));
-	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &buffersCopyFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, m_initializationFence));
+	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 
-	vkDestroyFence(m_device, buffersCopyFence, nullptr);
 	vkDestroyCommandPool(m_device, commandPool, nullptr);
 	vmaDestroyBuffer(m_allocator, textureStagingBuffer, textureStagingBufferAllocation);
 
@@ -2319,14 +2313,6 @@ void NtshEngn::GraphicsModule::createColorImage() {
 
 	NTSHENGN_VK_CHECK(vkEndCommandBuffer(colorImageTransitionCommandBuffer));
 
-	VkFence colorImageTransitionFence;
-
-	VkFenceCreateInfo colorImageTransitionFenceCreateInfo = {};
-	colorImageTransitionFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	colorImageTransitionFenceCreateInfo.pNext = nullptr;
-	colorImageTransitionFenceCreateInfo.flags = 0;
-	NTSHENGN_VK_CHECK(vkCreateFence(m_device, &colorImageTransitionFenceCreateInfo, nullptr, &colorImageTransitionFence));
-
 	VkSubmitInfo colorImageTransitionSubmitInfo = {};
 	colorImageTransitionSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	colorImageTransitionSubmitInfo.pNext = nullptr;
@@ -2337,10 +2323,10 @@ void NtshEngn::GraphicsModule::createColorImage() {
 	colorImageTransitionSubmitInfo.pCommandBuffers = &colorImageTransitionCommandBuffer;
 	colorImageTransitionSubmitInfo.signalSemaphoreCount = 0;
 	colorImageTransitionSubmitInfo.pSignalSemaphores = nullptr;
-	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &colorImageTransitionSubmitInfo, colorImageTransitionFence));
-	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &colorImageTransitionFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &colorImageTransitionSubmitInfo, m_initializationFence));
+	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 
-	vkDestroyFence(m_device, colorImageTransitionFence, nullptr);
 	vkDestroyCommandPool(m_device, colorImageTransitionCommandPool, nullptr);
 }
 
