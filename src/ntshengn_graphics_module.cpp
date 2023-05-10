@@ -341,6 +341,13 @@ void NtshEngn::GraphicsModule::init() {
 		NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &imageViewCreateInfo, nullptr, &m_drawImageView));
 	}
 
+	// Create initialization fence
+	VkFenceCreateInfo initializationFenceCreateInfo = {};
+	initializationFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	initializationFenceCreateInfo.pNext = nullptr;
+	initializationFenceCreateInfo.flags = 0;
+	NTSHENGN_VK_CHECK(vkCreateFence(m_device, &initializationFenceCreateInfo, nullptr, &m_initializationFence));
+
 	createVertexAndIndexBuffers();
 
 	createColorAndDepthImages();
@@ -979,6 +986,9 @@ void NtshEngn::GraphicsModule::destroy() {
 	vmaDestroyBuffer(m_allocator, m_indexBuffer, m_indexBufferAllocation);
 	vmaDestroyBuffer(m_allocator, m_vertexBuffer, m_vertexBufferAllocation);
 
+	// Destroy initialization fence
+	vkDestroyFence(m_device, m_initializationFence, nullptr);
+
 	// Destroy swapchain
 	if (m_swapchain != VK_NULL_HANDLE) {
 		for (VkImageView& swapchainImageView : m_swapchainImageViews) {
@@ -1088,14 +1098,6 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 
 	NTSHENGN_VK_CHECK(vkEndCommandBuffer(buffersCopyCommandBuffer));
 
-	VkFence buffersCopyFence;
-
-	VkFenceCreateInfo buffersCopyFenceCreateInfo = {};
-	buffersCopyFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	buffersCopyFenceCreateInfo.pNext = nullptr;
-	buffersCopyFenceCreateInfo.flags = 0;
-	NTSHENGN_VK_CHECK(vkCreateFence(m_device, &buffersCopyFenceCreateInfo, nullptr, &buffersCopyFence));
-
 	VkSubmitInfo buffersCopySubmitInfo = {};
 	buffersCopySubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	buffersCopySubmitInfo.pNext = nullptr;
@@ -1106,10 +1108,10 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	buffersCopySubmitInfo.pCommandBuffers = &buffersCopyCommandBuffer;
 	buffersCopySubmitInfo.signalSemaphoreCount = 0;
 	buffersCopySubmitInfo.pSignalSemaphores = nullptr;
-	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, buffersCopyFence));
-	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &buffersCopyFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, m_initializationFence));
+	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 
-	vkDestroyFence(m_device, buffersCopyFence, nullptr);
 	vkDestroyCommandPool(m_device, buffersCopyCommandPool, nullptr);
 	vmaDestroyBuffer(m_allocator, vertexAndIndexStagingBuffer, vertexAndIndexStagingBufferAllocation);
 
@@ -1481,14 +1483,6 @@ NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image& image) {
 
 	NTSHENGN_VK_CHECK(vkEndCommandBuffer(commandBuffer));
 
-	VkFence buffersCopyFence;
-
-	VkFenceCreateInfo buffersCopyFenceCreateInfo = {};
-	buffersCopyFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	buffersCopyFenceCreateInfo.pNext = nullptr;
-	buffersCopyFenceCreateInfo.flags = 0;
-	NTSHENGN_VK_CHECK(vkCreateFence(m_device, &buffersCopyFenceCreateInfo, nullptr, &buffersCopyFence));
-
 	VkSubmitInfo buffersCopySubmitInfo = {};
 	buffersCopySubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	buffersCopySubmitInfo.pNext = nullptr;
@@ -1499,10 +1493,10 @@ NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image& image) {
 	buffersCopySubmitInfo.pCommandBuffers = &commandBuffer;
 	buffersCopySubmitInfo.signalSemaphoreCount = 0;
 	buffersCopySubmitInfo.pSignalSemaphores = nullptr;
-	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, buffersCopyFence));
-	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &buffersCopyFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, m_initializationFence));
+	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 
-	vkDestroyFence(m_device, buffersCopyFence, nullptr);
 	vkDestroyCommandPool(m_device, commandPool, nullptr);
 	vmaDestroyBuffer(m_allocator, textureStagingBuffer, textureStagingBufferAllocation);
 
@@ -1995,14 +1989,6 @@ void NtshEngn::GraphicsModule::createColorAndDepthImages() {
 
 	NTSHENGN_VK_CHECK(vkEndCommandBuffer(colorAndDepthImagesTransitionCommandBuffer));
 
-	VkFence colorAndDepthImagesTransitionFence;
-
-	VkFenceCreateInfo colorAndDepthImagesTransitionFenceCreateInfo = {};
-	colorAndDepthImagesTransitionFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	colorAndDepthImagesTransitionFenceCreateInfo.pNext = nullptr;
-	colorAndDepthImagesTransitionFenceCreateInfo.flags = 0;
-	NTSHENGN_VK_CHECK(vkCreateFence(m_device, &colorAndDepthImagesTransitionFenceCreateInfo, nullptr, &colorAndDepthImagesTransitionFence));
-
 	VkSubmitInfo colorAndDepthImagesTransitionSubmitInfo = {};
 	colorAndDepthImagesTransitionSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	colorAndDepthImagesTransitionSubmitInfo.pNext = nullptr;
@@ -2013,10 +1999,10 @@ void NtshEngn::GraphicsModule::createColorAndDepthImages() {
 	colorAndDepthImagesTransitionSubmitInfo.pCommandBuffers = &colorAndDepthImagesTransitionCommandBuffer;
 	colorAndDepthImagesTransitionSubmitInfo.signalSemaphoreCount = 0;
 	colorAndDepthImagesTransitionSubmitInfo.pSignalSemaphores = nullptr;
-	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &colorAndDepthImagesTransitionSubmitInfo, colorAndDepthImagesTransitionFence));
-	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &colorAndDepthImagesTransitionFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &colorAndDepthImagesTransitionSubmitInfo, m_initializationFence));
+	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 
-	vkDestroyFence(m_device, colorAndDepthImagesTransitionFence, nullptr);
 	vkDestroyCommandPool(m_device, colorAndDepthImagesTransitionCommandPool, nullptr);
 }
 
