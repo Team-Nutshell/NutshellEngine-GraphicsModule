@@ -335,6 +335,7 @@ void NtshEngn::GraphicsModule::init() {
 		NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &imageViewCreateInfo, nullptr, &m_drawImageView));
 	}
 
+	// Create initialization fence
 	VkFenceCreateInfo initializationFenceCreateInfo = {};
 	initializationFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	initializationFenceCreateInfo.pNext = nullptr;
