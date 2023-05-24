@@ -2996,6 +2996,37 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			return float(word) / 4294967295.0f;
 		}
 
+		// https://graphics.pixar.com/library/OrthonormalB/paper.pdf
+		void pixarBasis(vec3 normal, inout vec3 b1, inout vec3 b2) {
+			const float s = sign(normal.z);
+			const float a = -1.0 / (s + normal.z);
+			const float b = normal.x * normal.y * a;
+			b1 = vec3(1.0 + s * normal.x * normal.x * a, s * b, -s * normal.x);
+			b2 = vec3(b, s + normal.y * normal.y * a, -normal.y);
+		}
+
+		// https://www.jcgt.org/published/0007/04/01/sampleGGXVNDF.h
+		vec3 sampleGGXVNDF(vec3 v, float r1, float r2, float u1, float u2) {
+			const vec3 vh = normalize(vec3(r1 * v.x, r2 * v.y, v.z));
+	
+			const float lensq = vh.x * vh.x + vh.y * vh.y;
+			const vec3 T1 = lensq > 0.0 ? vec3(-vh.y, vh.x, 0.0) * inversesqrt(lensq) : vec3(1.0, 0.0, 0.0);
+			const vec3 T2 = cross(vh, T1);
+
+			const float r = sqrt(u1);
+			const float phi = 2.0 * M_PI * u2;
+			const float t1 = r * cos(phi);
+			float t2 = r * sin(phi);
+			const float s = 0.5 * (1.0 + vh.z);
+			t2 = (1.0 - s) * sqrt(1.0 - t1 * t1) + s * t2;
+	
+			const vec3 nh = t1 * T1 + t2 * T2 + sqrt(max(0.0, 1.0 - t1 * t1 - t2 * t2)) * vh;
+
+			const vec3 n = normalize(vec3(r1 * nh.x, r2 * nh.y, max(0.0, nh.z)));
+	
+			return n;
+		}
+
 		vec3 offsetPositionAlongNormal(vec3 worldPosition, vec3 normal) {
 			const float intScale = 256.0;
 			const ivec3 intNormal = ivec3(intScale * normal);
@@ -3054,6 +3085,10 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			return gv * gl;
 		}
 
+		float GGXVNDFpdf(float VdotN, float d, float g) {
+			return (d * g) / max(4.0 * VdotN, 0.00001);
+		}
+
 		vec3 diffuseFresnelCorrection(vec3 ior) {
 			const vec3 iorSquare = ior * ior;
 			const bvec3 TIR = lessThan(ior, vec3(1.0));
@@ -3064,46 +3099,80 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			return num * invDenum;
 		}
 
-		vec3 brdf(float LdotH, float NdotH, float VdotH, float LdotN, float VdotN, vec3 diffuse, float metalness, float roughness) {
-			const float d = distribution(NdotH, roughness);
-			const vec3 f = fresnel(LdotH, mix(vec3(0.04), diffuse, metalness));
-			const vec3 fT = fresnel(LdotN, mix(vec3(0.04), diffuse, metalness));
-			const vec3 fTIR = fresnel(VdotN, mix(vec3(0.04), diffuse, metalness));
-			const float g = smith(LdotN, VdotN, roughness);
-			const vec3 dfc = diffuseFresnelCorrection(vec3(1.05));
-
-			const vec3 lambertian = diffuse / M_PI;
-
-			return (d * f * g) / max(4.0 * LdotN * VdotN, 0.001) + ((vec3(1.0) - fT) * (vec3(1.0 - fTIR)) * lambertian) * dfc;
-		}
-
-		vec3 shade(vec3 n, vec3 v, vec3 l, vec3 lc, vec3 diffuse, float metalness, float roughness) {
-			const vec3 h = normalize(v + l);
-
-			const float LdotH = max(dot(l, h), 0.0);
-			const float NdotH = max(dot(n, h), 0.0);
-			const float VdotH = max(dot(v, h), 0.0);
-			const float LdotN = max(dot(l, n), 0.0);
-			const float VdotN = max(dot(v, n), 0.0);
-
-			const vec3 brdf = brdf(LdotH, NdotH, VdotH, LdotN, VdotN, diffuse, metalness, roughness);
-	
-			return lc * brdf * LdotN;
-		}
-
-		float shadows(vec3 l, float distanceToLight) {
-			isShadowed = true;
-			float tMin = 0.001;
-			float tMax = distanceToLight;
-			vec3 origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
-			vec3 direction = l;
-			uint rayFlags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
-			traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 1, origin, tMin, direction, tMax, 1);
-
-			if (isShadowed) {
-				return 0.0;
+		vec4 sampleBRDF(vec3 n, vec3 v, vec3 l, vec3 diffuse, float metalness, float roughness, inout uint rngState, inout vec3 nextRayDirection) {
+			vec3 t;
+			vec3 b;
+			pixarBasis(n, t, b);
+			vec3 h = sampleGGXVNDF(vec3(dot(v, t), dot(v, b), dot(v, n)), roughness, roughness, rngFloat(rngState), rngFloat(rngState));
+			if (h.z < 0.0) {
+				h = -h;
 			}
-			return 1.0;
+			h = h.x * t + h.y * b + h.z * n;
+
+			const vec3 f = fresnel(dot(l, h), mix(vec3(0.04), diffuse, metalness));
+
+			float diffw = (1.0 - metalness);
+			float specw = dot(f, vec3(0.299, 0.587, 0.114));
+			const float invw = 1.0 / (diffw + specw);
+			diffw *= invw;
+			specw *= invw;
+
+			const float LdotN = dot(l, n);
+			const float VdotN = dot(v, n);
+
+			vec4 brdf;
+			const float partSample = rngFloat(rngState);
+			if (partSample < diffw) {
+				// Diffuse
+				nextRayDirection = randomDiffuseDirection(n, rngState);
+				
+				if (LdotN <= 0.0 || VdotN <= 0.0) {
+					return vec4(0.0);
+				}
+
+				vec3 h = vec3(v + l);
+				const float LdotH = dot(l, h);
+				const float pdf = LdotN / M_PI;
+
+				const vec3 fT = fresnel(LdotN, mix(vec3(0.04), diffuse, metalness));
+				const vec3 fTIR = fresnel(VdotN, mix(vec3(0.04), diffuse, metalness));
+				const vec3 dfc = diffuseFresnelCorrection(vec3(1.05));
+
+				const vec3 lambertian = diffuse / M_PI;
+
+				const vec3 diff = ((vec3(1.0) - fT) * (vec3(1.0 - fTIR)) * lambertian) * dfc;
+				brdf.rgb = diff;
+				brdf.a = diffw * pdf;
+			}
+			else {
+				// Specular
+				nextRayDirection = reflect(-v, h);
+
+				if (LdotN <= 0.0 || VdotN <= 0.0) {
+					return vec4(0.0);
+				}
+
+				const float NdotH = dot(n, h);
+				const float d = distribution(NdotH, roughness);
+				const float g = smith(LdotN, VdotN, roughness);
+				const float pdf = GGXVNDFpdf(VdotN, d, g);
+
+				const vec3 spec = (d * f * g) / max(4.0 * LdotN * VdotN, 0.001);
+				brdf.rgb = spec;
+				brdf.a = specw * pdf;
+			}
+
+			return brdf;
+		}
+
+		vec3 shade(vec3 n, vec3 v, vec3 l, vec3 lc, vec3 diffuse, float metalness, float roughness, inout uint rngState, inout vec3 nextRayDirection) {
+			vec4 brdf = sampleBRDF(n, v, l, diffuse, metalness, roughness, rngState, nextRayDirection);
+			vec3 color = vec3(0.0);
+
+			if (brdf.a > 0.0) {
+				color = lc * (brdf.rgb / brdf.a) * dot(l, n);
+			}
+			return color;
 		}
 
 		void main() {
@@ -3188,14 +3257,13 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 				distance = length(lights.info[lightIndex].position - worldPosition);
 			}
 
-			color += shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample) * shadows(l, distance);
+			color += shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample, payload.rngState, payload.rayDirection);
 
 			color *= occlusionSample;
 			color += emissiveSample;
 
 			payload.hitValue = color;
 			payload.rayOrigin = offsetPositionAlongNormal(worldPosition, n);
-			payload.rayDirection = randomDiffuseDirection(n, payload.rngState);
 			payload.hitBackground = false;
 		}
 	)GLSL";
@@ -3255,7 +3323,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 	rayTracingPipelineCreateInfo.pStages = shaderStageCreateInfos.data();
 	rayTracingPipelineCreateInfo.groupCount = static_cast<uint32_t>(shaderGroupCreateInfos.size());
 	rayTracingPipelineCreateInfo.pGroups = shaderGroupCreateInfos.data();
-	rayTracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 2;
+	rayTracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 1;
 	rayTracingPipelineCreateInfo.pLibraryInfo = nullptr;
 	rayTracingPipelineCreateInfo.pLibraryInterface = nullptr;
 	rayTracingPipelineCreateInfo.pDynamicState = nullptr;
