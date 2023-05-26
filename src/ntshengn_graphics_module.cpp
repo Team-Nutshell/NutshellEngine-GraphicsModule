@@ -138,17 +138,7 @@ void NtshEngn::GraphicsModule::init() {
 
 	NTSHENGN_WEBGPU_ASSIGN_CHECK(m_queue, wgpuDeviceGetQueue(m_device));
 
-	// Create swapchain
-	WGPUTextureFormat swapChainFormat = WGPUTextureFormat_BGRA8UnormSrgb;
-	WGPUSwapChainDescriptor swapChainDescriptor = {};
-	swapChainDescriptor.nextInChain = nullptr;
-	swapChainDescriptor.label = "SwapChain";
-	swapChainDescriptor.usage = WGPUTextureUsage_RenderAttachment;
-	swapChainDescriptor.format = swapChainFormat;
-	swapChainDescriptor.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW));
-	swapChainDescriptor.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW));
-	swapChainDescriptor.presentMode = WGPUPresentMode_Mailbox;
-	NTSHENGN_WEBGPU_ASSIGN_CHECK(m_swapChain, wgpuDeviceCreateSwapChain(m_device, m_surface, &swapChainDescriptor));
+	createSwapChain();
 
 	// Create render pipeline
 	const char* vertexShader = R"WGSL(
@@ -231,7 +221,7 @@ void NtshEngn::GraphicsModule::init() {
 
 	WGPUColorTargetState swapChainColorTargetState = {};
 	swapChainColorTargetState.nextInChain = nullptr;
-	swapChainColorTargetState.format = swapChainFormat;
+	swapChainColorTargetState.format = m_swapChainFormat;
 	swapChainColorTargetState.blend = &blendState;
 	swapChainColorTargetState.writeMask = WGPUColorWriteMask_All;
 
@@ -269,8 +259,16 @@ void NtshEngn::GraphicsModule::init() {
 void NtshEngn::GraphicsModule::update(double dt) {
 	NTSHENGN_UNUSED(dt);
 
-	WGPUTextureView swapChainTextureView;
-	NTSHENGN_WEBGPU_ASSIGN_CHECK(swapChainTextureView, wgpuSwapChainGetCurrentTextureView(m_swapChain));
+	if (m_swapChainWidth != static_cast<uint32_t>(m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW)) ||
+		m_swapChainHeight != static_cast<uint32_t>(m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW))) {
+		resize();
+	}
+
+	WGPUTextureView swapChainTextureView = wgpuSwapChainGetCurrentTextureView(m_swapChain);
+	if (!swapChainTextureView) {
+		resize();
+		NTSHENGN_WEBGPU_ASSIGN_CHECK(swapChainTextureView, wgpuSwapChainGetCurrentTextureView(m_swapChain));
+	}
 
 	WGPUCommandEncoder commandEncoder;
 	WGPUCommandEncoderDescriptor commandEncoderDescriptor = {};
@@ -350,6 +348,34 @@ NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image& image) {
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 
 	return std::numeric_limits<NtshEngn::ImageId>::max();
+}
+
+void NtshEngn::GraphicsModule::createSwapChain() {
+	// Create swapchain
+	m_swapChainFormat = WGPUTextureFormat_BGRA8UnormSrgb;
+	m_swapChainWidth = static_cast<uint32_t>(m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW));
+	m_swapChainHeight = static_cast<uint32_t>(m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW));
+	WGPUSwapChainDescriptor swapChainDescriptor = {};
+	swapChainDescriptor.nextInChain = nullptr;
+	swapChainDescriptor.label = "SwapChain";
+	swapChainDescriptor.usage = WGPUTextureUsage_RenderAttachment;
+	swapChainDescriptor.format = m_swapChainFormat;
+	swapChainDescriptor.width = m_swapChainWidth;
+	swapChainDescriptor.height = m_swapChainHeight;
+	swapChainDescriptor.presentMode = WGPUPresentMode_Mailbox;
+	NTSHENGN_WEBGPU_ASSIGN_CHECK(m_swapChain, wgpuDeviceCreateSwapChain(m_device, m_surface, &swapChainDescriptor));
+}
+
+void NtshEngn::GraphicsModule::resize() {
+	while (m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW) == 0 || m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW) == 0) {
+		m_windowModule->pollEvents();
+	}
+
+	// Destroy swapchain
+	wgpuSwapChainDrop(m_swapChain);
+
+	// Recreate swapchain
+	createSwapChain();
 }
 
 extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface* createModule() {

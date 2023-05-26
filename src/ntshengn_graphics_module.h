@@ -63,6 +63,13 @@ namespace NtshEngn {
 		NtshEngn::ImageId load(const NtshEngn::Image& image);
 
 	private:
+		// Create swapchain
+		void createSwapChain();
+
+		// On window resize
+		void resize();
+
+	private:
 		WGPUInstance m_instance;
 
 		WGPUSurface m_surface;
@@ -73,6 +80,9 @@ namespace NtshEngn {
 		WGPUQueue m_queue;
 
 		WGPUSwapChain m_swapChain;
+		WGPUTextureFormat m_swapChainFormat;
+		uint32_t m_swapChainWidth;
+		uint32_t m_swapChainHeight;
 
 		WGPURenderPipeline m_renderPipeline;
 	};
