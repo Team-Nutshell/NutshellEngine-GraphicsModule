@@ -274,7 +274,6 @@ Object opOnion(Object o, float t) {
 }
 
 // Transform
-
 vec2 rotate(vec2 p, float angle) {
 	return cos(angle) * p + sin(angle) * vec2(p.y, -p.x);
 }
