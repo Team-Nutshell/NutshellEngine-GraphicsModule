@@ -203,7 +203,7 @@ vec3 render(vec3 o, vec3 d) {
 				float epsilon = cos(lights.info[lightIndex].cutoffs.y - lights.info[lightIndex].cutoffs.x);
 				float intensity = clamp((theta - cos(lights.info[lightIndex].cutoffs.x)) / epsilon, 0.0, 1.0);
 				vec3 lc = lights.info[lightIndex].color;
-				localColor += shade(p, d * intensity, n, l, lc * intensity, diffuse, metallic, roughness) * shadows(p, n, l);
+				localColor += shade(p, d, n, l, lc * intensity, diffuse * intensity, metallic, roughness) * shadows(p, n, l);
 
 				lightIndex++;
 			}
