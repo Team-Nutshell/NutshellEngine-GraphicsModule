@@ -516,13 +516,7 @@ void NtshEngn::GraphicsModule::init() {
 	}
 	else {
 		const std::filesystem::path absolutePath = std::filesystem::absolute(std::filesystem::current_path());
-		NTSHENGN_MODULE_ERROR("Fragment shader \"raymarching.frag\" does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NtshEngn::Result::ModuleError);
-	}
-	if (std::filesystem::exists(m_raymarchingHelperFileName)) {
-		m_raymarchingHelperLastModified = std::filesystem::last_write_time(m_raymarchingHelperFileName);
-	}
-	if (std::filesystem::exists(m_sceneFileName)) {
-		m_sceneLastModified = std::filesystem::last_write_time(m_sceneFileName);
+		NTSHENGN_MODULE_ERROR("Fragment shader \"shader.frag\" does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NtshEngn::Result::ModuleError);
 	}
 	recreateGraphicsPipeline();
 
@@ -675,21 +669,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	}
 	else {
 		const std::filesystem::path absolutePath = std::filesystem::absolute(std::filesystem::current_path());
-		NTSHENGN_MODULE_ERROR("Fragment shader \"raymarching.frag\" does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NtshEngn::Result::ModuleError);
-	}
-	if (std::filesystem::exists(m_raymarchingHelperFileName)) {
-		fileLastModified = std::filesystem::last_write_time(m_raymarchingHelperFileName);
-		if ((fileLastModified > m_raymarchingHelperLastModified) && (timeNow > (fileLastModified + std::chrono::milliseconds(250)))) {
-			shaderModified = true;
-			m_raymarchingHelperLastModified = fileLastModified;
-		}
-	}
-	if (std::filesystem::exists(m_sceneFileName)) {
-		fileLastModified = std::filesystem::last_write_time(m_sceneFileName);
-		if ((fileLastModified > m_sceneLastModified) && (timeNow > (fileLastModified + std::chrono::milliseconds(250)))) {
-			shaderModified = true;
-			m_sceneLastModified = fileLastModified;
-		}
+		NTSHENGN_MODULE_ERROR("Fragment shader \"shader.frag\" does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NtshEngn::Result::ModuleError);
 	}
 
 	if (shaderModified) {
@@ -1351,9 +1331,9 @@ std::vector<uint32_t> NtshEngn::GraphicsModule::compileFragmentShader() {
 
 	if (!std::filesystem::exists(m_fragmentShaderName)) {
 		const std::filesystem::path absolutePath = std::filesystem::absolute(std::filesystem::current_path());
-		NTSHENGN_MODULE_ERROR("Fragment shader raymarching.frag does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NtshEngn::Result::ModuleError);
+		NTSHENGN_MODULE_ERROR("Fragment shader shader.frag does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NtshEngn::Result::ModuleError);
 	}
-	std::string shaderCode = NtshEngn::readAscii(m_fragmentShaderName);
+	std::string shaderCode = m_fragmentShaderPrefix + NtshEngn::readAscii(m_fragmentShaderName);
 	const char* shaderCodeCharPtr = shaderCode.c_str();
 
 	EShLanguage shaderType = EShLangFragment;

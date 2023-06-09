@@ -1,16 +1,15 @@
-# NutshellEngine-GraphicsModule - Vulkan Ray Marching
-![Vulkan Ray Marching](https://i.imgur.com/7JPWwwL.png)
+# NutshellEngine-GraphicsModule - Vulkan Shader Editor
+![Vulkan Shader Editor](https://i.imgur.com/GW6aKyf.png)
 
-NutshellEngine Graphics Module using ray marching to draw.
+NutshellEngine Graphics Module using a fragment shader to draw.
 
-Place ``raymarching.frag``, ``raymarching_helper.glsl`` and ``scene.glsl``, found in the ``shaders`` directory, near NutshellEngine's executable to use and edit them.
+Place ``shader.frag`` found in the ``shaders`` directory, near NutshellEngine's executable to use and edit it.
 
-``raymarching.frag``, ``raymarching_helper.glsl`` and ``scene.glsl`` can be edited in real-time and saving one of them will automatically recompile the shader and the pipeline.
+``shader.frag`` can be edited in real-time and saving it will automatically recompile the shader and the pipeline.
 
-- ``raymarching.frag`` is the fragment shader and contains the ``main`` function, the ``raymarch`` function and the lighting functions.
-- ``raymarching_helper.glsl`` is included by ``raymarching.frag`` and contains some random and noise functions, basic shape functions, combination operators and values that can be used in the ray marching.
-- ``scene.glsl`` is included by ``raymarching.frag`` and contains the scene, with objects, materials, camera and lights, used to draw.
-
-Compilation errors are written in the console.
-
-Uses NutshellEngine's ECS.
+Pre-defined variables:
+- **uv** (*vec2*): texture coordinates, (0.0, 0.0) being the top-left corner.
+- **time** (*float*): current time, in seconds.
+- **pC.width** (*uint*) and **pC.height** (*uint*): window size.
+- **pC.cameraPosition** (*vec3*) and **pC.cameraDirection** (*vec3*): camera position and direction, if the ECS contains one.
+- **outColor** (*vec4*): output color.

@@ -74,7 +74,7 @@ namespace NtshEngn {
 
 	class GraphicsModule : public GraphicsModuleInterface {
 	public:
-		GraphicsModule() : GraphicsModuleInterface("NutshellEngine Graphics Vulkan Ray Marching Module") {}
+		GraphicsModule() : GraphicsModuleInterface("NutshellEngine Graphics Vulkan Shader Editor Module") {}
 
 		void init();
 		void update(double dt);
@@ -149,12 +149,23 @@ namespace NtshEngn {
 		VmaAllocator m_allocator;
 
 		bool m_glslangInitialized = false;
-		const std::string m_fragmentShaderName = "raymarching.frag";
-		const std::string m_raymarchingHelperFileName = "raymarching_helper.glsl";
-		const std::string m_sceneFileName = "scene.glsl";
+		const std::string m_fragmentShaderPrefix = R"GLSL(
+		#version 460
+
+		layout(push_constant) uniform PushConstants {
+			float time;
+			uint width;
+			uint height;
+			vec3 cameraPosition;
+			vec3 cameraDirection;
+		} pC;
+
+		layout(location = 0) in vec2 uv;
+
+		layout(location = 0) out vec4 outColor;
+		)GLSL";
+		const std::string m_fragmentShaderName = "shader.frag";
 		std::filesystem::file_time_type m_fragmentShaderLastModified;
-		std::filesystem::file_time_type m_raymarchingHelperLastModified;
-		std::filesystem::file_time_type m_sceneLastModified;
 		VkFormat m_pipelineRenderingColorFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
 		VkPipelineRenderingCreateInfo m_pipelineRenderingCreateInfo{};
 		VkShaderModule m_vertexShaderModule;
