@@ -1531,39 +1531,39 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 			object.meshIndex = load(*renderable.mesh);
 		}
 		InternalMaterial material;
-		if (renderable.material->diffuseTexture.first) {
-			ImageId imageId = static_cast<uint32_t>(load(*renderable.material->diffuseTexture.first));
-			uint32_t samplerId = createSampler(renderable.material->diffuseTexture.second);
+		if (renderable.material->diffuseTexture.image) {
+			ImageId imageId = static_cast<uint32_t>(load(*renderable.material->diffuseTexture.image));
+			uint32_t samplerId = createSampler(renderable.material->diffuseTexture.imageSampler);
 			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerId });
 			material.diffuseTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
 		}
-		if (renderable.material->normalTexture.first) {
-			ImageId imageId = static_cast<uint32_t>(load(*renderable.material->normalTexture.first));
-			uint32_t samplerId = createSampler(renderable.material->normalTexture.second);
+		if (renderable.material->normalTexture.image) {
+			ImageId imageId = static_cast<uint32_t>(load(*renderable.material->normalTexture.image));
+			uint32_t samplerId = createSampler(renderable.material->normalTexture.imageSampler);
 			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerId });
 			material.normalTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
 		}
-		if (renderable.material->metalnessTexture.first) {
-			ImageId imageId = static_cast<uint32_t>(load(*renderable.material->metalnessTexture.first));
-			uint32_t samplerId = createSampler(renderable.material->metalnessTexture.second);
+		if (renderable.material->metalnessTexture.image) {
+			ImageId imageId = static_cast<uint32_t>(load(*renderable.material->metalnessTexture.image));
+			uint32_t samplerId = createSampler(renderable.material->metalnessTexture.imageSampler);
 			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerId });
 			material.metalnessTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
 		}
-		if (renderable.material->roughnessTexture.first) {
-			ImageId imageId = static_cast<uint32_t>(load(*renderable.material->roughnessTexture.first));
-			uint32_t samplerId = createSampler(renderable.material->roughnessTexture.second);
+		if (renderable.material->roughnessTexture.image) {
+			ImageId imageId = static_cast<uint32_t>(load(*renderable.material->roughnessTexture.image));
+			uint32_t samplerId = createSampler(renderable.material->roughnessTexture.imageSampler);
 			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerId });
 			material.roughnessTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
 		}
-		if (renderable.material->occlusionTexture.first) {
-			ImageId imageId = static_cast<uint32_t>(load(*renderable.material->occlusionTexture.first));
-			uint32_t samplerId = createSampler(renderable.material->occlusionTexture.second);
+		if (renderable.material->occlusionTexture.image) {
+			ImageId imageId = static_cast<uint32_t>(load(*renderable.material->occlusionTexture.image));
+			uint32_t samplerId = createSampler(renderable.material->occlusionTexture.imageSampler);
 			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerId });
 			material.occlusionTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
 		}
-		if (renderable.material->emissiveTexture.first) {
-			ImageId imageId = static_cast<uint32_t>(load(*renderable.material->emissiveTexture.first));
-			uint32_t samplerId = createSampler(renderable.material->emissiveTexture.second);
+		if (renderable.material->emissiveTexture.image) {
+			ImageId imageId = static_cast<uint32_t>(load(*renderable.material->emissiveTexture.image));
+			uint32_t samplerId = createSampler(renderable.material->emissiveTexture.imageSampler);
 			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerId });
 			material.emissiveTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
 		}
