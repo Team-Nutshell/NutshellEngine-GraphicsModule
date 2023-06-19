@@ -1,6 +1,0 @@
-[submodule "external/Module"]
-	path = external/Module
-	url = https://github.com/Team-Nutshell/NutshellEngine-Module
-[submodule "external/Common"]
-	path = external/Common
-	url = https://github.com/Team-Nutshell/NutshellEngine-Common
