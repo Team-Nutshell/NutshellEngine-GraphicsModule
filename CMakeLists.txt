@@ -11,8 +11,26 @@ endif()
 
 set(NTSHENGN_DEFINES "")
 
-add_subdirectory(external/Module)
+set(NTSHENGN_COMMON_PATH "NtshEngn_Common_NOTFOUND" CACHE PATH "The directory containing NutshellEngine's common resources.")
+if(NOT ${NTSHENGN_COMMON_PATH} STREQUAL "NtshEngn_Common_NOTFOUND" AND EXISTS ${NTSHENGN_COMMON_PATH})
+	file(COPY ${NTSHENGN_COMMON_PATH}/ DESTINATION ${CMAKE_SOURCE_DIR}/external/Common)
+	message(STATUS "Copy NutshellEngine's common resources from ${NTSHENGN_COMMON_PATH} to ${CMAKE_SOURCE_DIR}/external/Common")
+else()
+	message(SEND_ERROR "Could not find the directory containing NutshellEngine's common resources.")
+endif()
+
 add_subdirectory(external/Common)
+
+set(NTSHENGN_MODULE_PATH "NtshEngn_Module_NOTFOUND" CACHE PATH "The directory containing NutshellEngine's common module resources.")
+if(NOT ${NTSHENGN_MODULE_PATH} STREQUAL "NtshEngn_Module_NOTFOUND" AND EXISTS ${NTSHENGN_MODULE_PATH})
+	file(COPY ${NTSHENGN_MODULE_PATH}/ DESTINATION ${CMAKE_SOURCE_DIR}/external/Module)
+	message(STATUS "Copy NutshellEngine's common module resources from ${NTSHENGN_MODULE_PATH} to ${CMAKE_SOURCE_DIR}/external/Module")
+else()
+	message(SEND_ERROR "Could not find the directory containing NutshellEngine's common module resources.")
+endif()
+
+add_subdirectory(external/Module)
+
 add_subdirectory(external/glslang)
 add_subdirectory(external/VulkanMemoryAllocator)
 add_subdirectory(external/nml)
@@ -55,19 +73,19 @@ set_target_properties(${PROJECT_NAME}
     PROPERTIES
     DEFINE_SYMBOL "NutshellEngineModule_EXPORTS")
 
-set(NTSHENGN_MODULES_DIRECTORY "" CACHE PATH "Give the option to install the built module into NutshellEngine\'s modules directory.")
-if(EXISTS ${NTSHENGN_MODULES_DIRECTORY})
-	message(STATUS "Found NutshellEngine\'s modules directory at ${NTSHENGN_MODULES_DIRECTORY}.")
-	set(CMAKE_INSTALL_PREFIX ${NTSHENGN_MODULES_DIRECTORY})
+set(NTSHENGN_INSTALL_MODULE_PATH "NtshEngn_InstallModule_NOTFOUND" CACHE PATH "Give the option to install the built module into NutshellEngine\'s modules directory.")
+if(EXISTS ${NTSHENGN_INSTALL_MODULE_PATH})
+	message(STATUS "Found NutshellEngine\'s modules directory at ${NTSHENGN_INSTALL_MODULE_PATH}.")
+	set(CMAKE_INSTALL_PREFIX ${NTSHENGN_INSTALL_MODULE_PATH})
 	if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
 		install(TARGETS ${PROJECT_NAME}
 			RUNTIME
-			DESTINATION ${NTSHENGN_MODULES_DIRECTORY})
+			DESTINATION ${NTSHENGN_INSTALL_MODULE_PATH})
 	else()
 		install(TARGETS ${PROJECT_NAME}
 			LIBRARY
-			DESTINATION ${NTSHENGN_MODULES_DIRECTORY})
+			DESTINATION ${NTSHENGN_INSTALL_MODULE_PATH})
 	endif()
-elseif(NOT NTSHENGN_MODULES_DIRECTORY STREQUAL "")
-	message(WARNING "Could not find NutshellEngine\'s modules directory at ${NTSHENGN_MODULES_DIRECTORY}.")
+elseif(NOT NTSHENGN_INSTALL_MODULE_PATH STREQUAL "NtshEngn_InstallModule_NOTFOUND")
+	message(WARNING "Could not find NutshellEngine\'s modules directory at ${NTSHENGN_INSTALL_MODULE_PATH}.")
 endif()
