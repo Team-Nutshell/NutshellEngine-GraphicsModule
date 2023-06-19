@@ -1742,7 +1742,7 @@ void NtshEngn::GraphicsModule::retrieveObjectIndex(uint32_t objectIndex) {
 NtshEngn::MeshId NtshEngn::GraphicsModule::createAABB(const nml::vec3& min, const nml::vec3& max) {
 	Model* cubeModel = m_assetManager->createModel();
 	cubeModel->primitives.resize(1);
-	Mesh& cubeMesh = cubeModel->primitives[0].first;
+	Mesh& cubeMesh = cubeModel->primitives[0].mesh;
 	cubeMesh.vertices.resize(8);
 	cubeMesh.vertices[0].position = { min.x, min.y, min.z };
 	cubeMesh.vertices[0].color = { 1.0f, 0.0f, 0.0f };
@@ -1782,7 +1782,7 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::createAABB(const nml::vec3& min, cons
 NtshEngn::MeshId NtshEngn::GraphicsModule::createSphere(const nml::vec3& center, float radius) {
 	Model* sphereModel = m_assetManager->createModel();
 	sphereModel->primitives.resize(1);
-	Mesh& sphereMesh = sphereModel->primitives[0].first;
+	Mesh& sphereMesh = sphereModel->primitives[0].mesh;
 	const float pi = 3.1415926535897932384626433832795f;
 	const size_t nbLongLat = 25;
 	const float thetaStep = pi / static_cast<size_t>(nbLongLat);
@@ -1822,7 +1822,7 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::createSphere(const nml::vec3& center,
 NtshEngn::MeshId NtshEngn::GraphicsModule::createCapsule(const nml::vec3& base, const nml::vec3& tip, float radius) {
 	Model* capsuleModel = m_assetManager->createModel();
 	capsuleModel->primitives.resize(1);
-	Mesh& capsuleMesh = capsuleModel->primitives[0].first;
+	Mesh& capsuleMesh = capsuleModel->primitives[0].mesh;
 	const float pi = 3.1415926535897932384626433832795f;
 	const size_t nbLongLat = 25;
 	const float thetaStep = pi / static_cast<size_t>(nbLongLat);
