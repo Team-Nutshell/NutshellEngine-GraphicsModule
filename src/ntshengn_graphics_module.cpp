@@ -4,7 +4,7 @@
 #include "../external/Module/utils/ntshengn_dynamic_library.h"
 
 void NtshEngn::GraphicsModule::init() {
-	// Create instace
+	// Create instance
 	WGPUInstanceDescriptor instanceDescriptor = {};
 	instanceDescriptor.nextInChain = nullptr;
 	NTSHENGN_WEBGPU_ASSIGN_CHECK(m_instance, wgpuCreateInstance(&instanceDescriptor));
