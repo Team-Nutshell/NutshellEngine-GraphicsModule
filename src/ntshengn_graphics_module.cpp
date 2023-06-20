@@ -3289,26 +3289,26 @@ void NtshEngn::GraphicsModule::resize() {
 
 uint32_t NtshEngn::GraphicsModule::createSampler(const NtshEngn::ImageSampler& sampler) {
 	const std::unordered_map<NtshEngn::ImageSamplerFilter, VkFilter> filterMap{ { NtshEngn::ImageSamplerFilter::Linear, VK_FILTER_LINEAR },
-	{ NtshEngn::ImageSamplerFilter::Nearest, VK_FILTER_NEAREST },
-	{ NtshEngn::ImageSamplerFilter::Unknown, VK_FILTER_LINEAR }
+		{ NtshEngn::ImageSamplerFilter::Nearest, VK_FILTER_NEAREST },
+		{ NtshEngn::ImageSamplerFilter::Unknown, VK_FILTER_LINEAR }
 	};
 	const std::unordered_map<NtshEngn::ImageSamplerFilter, VkSamplerMipmapMode> mipmapFilterMap{ { NtshEngn::ImageSamplerFilter::Linear, VK_SAMPLER_MIPMAP_MODE_LINEAR },
-	{ NtshEngn::ImageSamplerFilter::Nearest, VK_SAMPLER_MIPMAP_MODE_NEAREST },
-	{ NtshEngn::ImageSamplerFilter::Unknown, VK_SAMPLER_MIPMAP_MODE_LINEAR }
+		{ NtshEngn::ImageSamplerFilter::Nearest, VK_SAMPLER_MIPMAP_MODE_NEAREST },
+		{ NtshEngn::ImageSamplerFilter::Unknown, VK_SAMPLER_MIPMAP_MODE_LINEAR }
 	};
 	const std::unordered_map<NtshEngn::ImageSamplerAddressMode, VkSamplerAddressMode> addressModeMap{ { NtshEngn::ImageSamplerAddressMode::Repeat, VK_SAMPLER_ADDRESS_MODE_REPEAT },
-	{ NtshEngn::ImageSamplerAddressMode::MirroredRepeat, VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT },
-	{ NtshEngn::ImageSamplerAddressMode::ClampToEdge, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE },
-	{ NtshEngn::ImageSamplerAddressMode::ClampToBorder, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER },
-	{ NtshEngn::ImageSamplerAddressMode::Unknown, VK_SAMPLER_ADDRESS_MODE_REPEAT }
+		{ NtshEngn::ImageSamplerAddressMode::MirroredRepeat, VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT },
+		{ NtshEngn::ImageSamplerAddressMode::ClampToEdge, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE },
+		{ NtshEngn::ImageSamplerAddressMode::ClampToBorder, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER },
+		{ NtshEngn::ImageSamplerAddressMode::Unknown, VK_SAMPLER_ADDRESS_MODE_REPEAT }
 	};
 	const std::unordered_map<NtshEngn::ImageSamplerBorderColor, VkBorderColor> borderColorMap{ { NtshEngn::ImageSamplerBorderColor::FloatTransparentBlack, VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK },
-	{ NtshEngn::ImageSamplerBorderColor::IntTransparentBlack, VK_BORDER_COLOR_INT_TRANSPARENT_BLACK },
-	{ NtshEngn::ImageSamplerBorderColor::FloatOpaqueBlack, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK },
-	{ NtshEngn::ImageSamplerBorderColor::IntOpaqueBlack, VK_BORDER_COLOR_INT_OPAQUE_BLACK },
-	{ NtshEngn::ImageSamplerBorderColor::FloatOpaqueWhite, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE },
-	{ NtshEngn::ImageSamplerBorderColor::IntOpaqueWhite, VK_BORDER_COLOR_INT_OPAQUE_WHITE },
-	{ NtshEngn::ImageSamplerBorderColor::Unknown, VK_BORDER_COLOR_INT_OPAQUE_BLACK },
+		{ NtshEngn::ImageSamplerBorderColor::IntTransparentBlack, VK_BORDER_COLOR_INT_TRANSPARENT_BLACK },
+		{ NtshEngn::ImageSamplerBorderColor::FloatOpaqueBlack, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK },
+		{ NtshEngn::ImageSamplerBorderColor::IntOpaqueBlack, VK_BORDER_COLOR_INT_OPAQUE_BLACK },
+		{ NtshEngn::ImageSamplerBorderColor::FloatOpaqueWhite, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE },
+		{ NtshEngn::ImageSamplerBorderColor::IntOpaqueWhite, VK_BORDER_COLOR_INT_OPAQUE_WHITE },
+		{ NtshEngn::ImageSamplerBorderColor::Unknown, VK_BORDER_COLOR_INT_OPAQUE_BLACK }
 	};
 
 	VkSampler newSampler;
