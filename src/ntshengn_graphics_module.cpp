@@ -9,7 +9,7 @@
 #include <cmath>
 
 void NtshEngn::GraphicsModule::init() {
-	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		m_framesInFlight = 2;
 	}
 	else {
@@ -20,7 +20,7 @@ void NtshEngn::GraphicsModule::init() {
 	VkApplicationInfo applicationInfo = {};
 	applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	applicationInfo.pNext = nullptr;
-	applicationInfo.pApplicationName = m_name.c_str();
+	applicationInfo.pApplicationName = getName().c_str();
 	applicationInfo.applicationVersion = VK_MAKE_VERSION(0, 0, 1);
 	applicationInfo.pEngineName = "NutshellEngine";
 	applicationInfo.engineVersion = VK_MAKE_VERSION(0, 0, 1);
@@ -63,7 +63,7 @@ void NtshEngn::GraphicsModule::init() {
 #if defined(NTSHENGN_DEBUG)
 	instanceExtensions.push_back("VK_EXT_debug_utils");
 #endif
-	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		instanceExtensions.push_back("VK_KHR_surface");
 		instanceExtensions.push_back("VK_KHR_get_surface_capabilities2");
 #if defined(NTSHENGN_OS_WINDOWS)
@@ -95,24 +95,24 @@ void NtshEngn::GraphicsModule::init() {
 #endif
 
 	// Create surface
-	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 #if defined(NTSHENGN_OS_WINDOWS)
-		HWND windowHandle = reinterpret_cast<HWND>(m_windowModule->getNativeHandle(NTSHENGN_MAIN_WINDOW));
+		HWND windowHandle = reinterpret_cast<HWND>(windowModule->getNativeHandle(NTSHENGN_MAIN_WINDOW));
 		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.pNext = nullptr;
 		surfaceCreateInfo.flags = 0;
-		surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(m_windowModule->getNativeAdditionalInformation(NTSHENGN_MAIN_WINDOW));
+		surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(windowModule->getNativeAdditionalInformation(NTSHENGN_MAIN_WINDOW));
 		surfaceCreateInfo.hwnd = windowHandle;
 		auto createWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateWin32SurfaceKHR");
 		NTSHENGN_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
 #elif defined(NTSHENGN_OS_LINUX)
-		Window windowHandle = reinterpret_cast<Window>(m_windowModule->getNativeHandle(NTSHENGN_MAIN_WINDOW));
+		Window windowHandle = reinterpret_cast<Window>(windowModule->getNativeHandle(NTSHENGN_MAIN_WINDOW));
 		VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.pNext = nullptr;
 		surfaceCreateInfo.flags = 0;
-		surfaceCreateInfo.dpy = reinterpret_cast<Display*>(m_windowModule->getNativeAdditionalInformation(NTSHENGN_MAIN_WINDOW));
+		surfaceCreateInfo.dpy = reinterpret_cast<Display*>(windowModule->getNativeAdditionalInformation(NTSHENGN_MAIN_WINDOW));
 		surfaceCreateInfo.window = windowHandle;
 		auto createXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateXlibSurfaceKHR");
 		NTSHENGN_VK_CHECK(createXlibSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
@@ -187,7 +187,7 @@ void NtshEngn::GraphicsModule::init() {
 	m_graphicsQueueFamilyIndex = 0;
 	for (const VkQueueFamilyProperties& queueFamilyProperty : queueFamilyProperties) {
 		if (queueFamilyProperty.queueCount > 0 && queueFamilyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-			if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+			if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 				VkBool32 presentSupport;
 				vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsQueueFamilyIndex, m_surface, &presentSupport);
 				if (presentSupport) {
@@ -240,7 +240,7 @@ void NtshEngn::GraphicsModule::init() {
 		"VK_KHR_depth_stencil_resolve",
 		"VK_KHR_dynamic_rendering",
 		"VK_KHR_maintenance4" };
-	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		deviceExtensions.push_back("VK_KHR_swapchain");
 	}
 	deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
@@ -270,7 +270,7 @@ void NtshEngn::GraphicsModule::init() {
 	NTSHENGN_VK_CHECK(vmaCreateAllocator(&vmaAllocatorCreateInfo, &m_allocator));
 
 	// Create the swapchain
-	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		createSwapchain(VK_NULL_HANDLE);
 	}
 	// Or create an image to draw on
@@ -645,12 +645,12 @@ void NtshEngn::GraphicsModule::init() {
 void NtshEngn::GraphicsModule::update(double dt) {
 	NTSHENGN_UNUSED(dt);
 
-	if (m_windowModule && !m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && !windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		// Do not update if the main window got closed
 		return;
 	}
 
-	const NtshEngn::Transform& cameraTransform = m_ecs->getComponent<Transform>(m_mainCamera);
+	const NtshEngn::Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
 	nml::vec4 cameraPosition = nml::vec4(cameraTransform.position.data(), 0.0f);
 	nml::vec4 cameraDirection = nml::vec4(cameraTransform.rotation.data(), 0.0f);
 
@@ -685,7 +685,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 
 	uint32_t imageIndex = m_imageCount - 1;
-	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		VkResult acquireNextImageResult = vkAcquireNextImageKHR(m_device, m_swapchain, std::numeric_limits<uint64_t>::max(), m_imageAvailableSemaphores[m_currentFrameInFlight], VK_NULL_HANDLE, &imageIndex);
 		if (acquireNextImageResult == VK_ERROR_OUT_OF_DATE_KHR) {
 			resize();
@@ -716,8 +716,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 	size_t offset = sizeof(nml::vec4);
 	for (Entity light : m_lights.directionalLights) {
-		const Light& lightLight = m_ecs->getComponent<Light>(light);
-		const Transform& lightTransform = m_ecs->getComponent<Transform>(light);
+		const Light& lightLight = ecs->getComponent<Light>(light);
+		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
 		InternalLight internalLight;
 		internalLight.direction = nml::vec4(lightTransform.rotation.data(), 0.0f);
@@ -727,8 +727,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		offset += sizeof(InternalLight);
 	}
 	for (Entity light : m_lights.pointLights) {
-		const Light& lightLight = m_ecs->getComponent<Light>(light);
-		const Transform& lightTransform = m_ecs->getComponent<Transform>(light);
+		const Light& lightLight = ecs->getComponent<Light>(light);
+		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
 		InternalLight internalLight;
 		internalLight.position = nml::vec4(lightTransform.position.data(), 0.0f);
@@ -738,8 +738,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		offset += sizeof(InternalLight);
 	}
 	for (Entity light : m_lights.spotLights) {
-		const Light& lightLight = m_ecs->getComponent<Light>(light);
-		const Transform& lightTransform = m_ecs->getComponent<Transform>(light);
+		const Light& lightLight = ecs->getComponent<Light>(light);
+		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
 		InternalLight internalLight;
 		internalLight.position = nml::vec4(lightTransform.position.data(), 0.0f);
@@ -774,7 +774,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	swapchainOrDrawImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	swapchainOrDrawImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 	swapchainOrDrawImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		swapchainOrDrawImageMemoryBarrier.image = m_swapchainImages[imageIndex];
 	}
 	else {
@@ -900,7 +900,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	VkRenderingAttachmentInfo renderingSwapchainAttachmentInfo = {};
 	renderingSwapchainAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	renderingSwapchainAttachmentInfo.pNext = nullptr;
-	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		renderingSwapchainAttachmentInfo.imageView = m_swapchainImageViews[imageIndex];
 	}
 	else {
@@ -938,7 +938,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight]);
 
 	// Layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		VkImageMemoryBarrier2 colorAttachmentOptimalToPresentSrcImageMemoryBarrier = {};
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.pNext = nullptr;
@@ -989,7 +989,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	submitInfo.pSignalSemaphores = &m_renderFinishedSemaphores[imageIndex];
 	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fences[m_currentFrameInFlight]));
 
-	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		VkPresentInfoKHR presentInfo = {};
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		presentInfo.pNext = nullptr;
@@ -1184,9 +1184,9 @@ void NtshEngn::GraphicsModule::createColorImage() {
 	colorImageCreateInfo.flags = 0;
 	colorImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 	colorImageCreateInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
-		colorImageCreateInfo.extent.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW));
-		colorImageCreateInfo.extent.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW));
+	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+		colorImageCreateInfo.extent.width = static_cast<uint32_t>(windowModule->getWidth(NTSHENGN_MAIN_WINDOW));
+		colorImageCreateInfo.extent.height = static_cast<uint32_t>(windowModule->getHeight(NTSHENGN_MAIN_WINDOW));
 	}
 	else {
 		colorImageCreateInfo.extent.width = 1280;
@@ -1588,8 +1588,8 @@ void NtshEngn::GraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
 	}
 
 	VkExtent2D swapchainExtent = {};
-	swapchainExtent.width = static_cast<uint32_t>(m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW));
-	swapchainExtent.height = static_cast<uint32_t>(m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW));
+	swapchainExtent.width = static_cast<uint32_t>(windowModule->getWidth(NTSHENGN_MAIN_WINDOW));
+	swapchainExtent.height = static_cast<uint32_t>(windowModule->getHeight(NTSHENGN_MAIN_WINDOW));
 
 	m_viewport.x = 0.0f;
 	m_viewport.y = 0.0f;
@@ -1674,7 +1674,7 @@ void NtshEngn::GraphicsModule::createToneMappingResources() {
 
 	// Create graphics pipeline
 	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
-	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
 		pipelineRenderingColorFormat = m_swapchainFormat;
 	}
 
@@ -1988,9 +1988,9 @@ void NtshEngn::GraphicsModule::createToneMappingResources() {
 }
 
 void NtshEngn::GraphicsModule::resize() {
-	if (m_windowModule && m_windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
-		while (m_windowModule->getWidth(NTSHENGN_MAIN_WINDOW) == 0 || m_windowModule->getHeight(NTSHENGN_MAIN_WINDOW) == 0) {
-			m_windowModule->pollEvents();
+	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+		while (windowModule->getWidth(NTSHENGN_MAIN_WINDOW) == 0 || windowModule->getHeight(NTSHENGN_MAIN_WINDOW) == 0) {
+			windowModule->pollEvents();
 		}
 
 		NTSHENGN_VK_CHECK(vkQueueWaitIdle(m_graphicsQueue));
@@ -2034,20 +2034,20 @@ void NtshEngn::GraphicsModule::resize() {
 
 const NtshEngn::ComponentMask NtshEngn::GraphicsModule::getComponentMask() const {
 	ComponentMask componentMask;
-	componentMask.set(m_ecs->getComponentId<Camera>());
-	componentMask.set(m_ecs->getComponentId<Light>());
+	componentMask.set(ecs->getComponentId<Camera>());
+	componentMask.set(ecs->getComponentId<Light>());
 
 	return componentMask;
 }
 
 void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component componentID) {
-	if (componentID == m_ecs->getComponentId<Camera>()) {
+	if (componentID == ecs->getComponentId<Camera>()) {
 		if (m_mainCamera == std::numeric_limits<uint32_t>::max()) {
 			m_mainCamera = entity;
 		}
 	}
-	else if (componentID == m_ecs->getComponentId<Light>()) {
-		const Light& light = m_ecs->getComponent<Light>(entity);
+	else if (componentID == ecs->getComponentId<Light>()) {
+		const Light& light = ecs->getComponent<Light>(entity);
 
 		switch (light.type) {
 		case LightType::Directional:
@@ -2070,13 +2070,13 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 }
 
 void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component componentID) {
-	if (componentID == m_ecs->getComponentId<Camera>()) {
+	if (componentID == ecs->getComponentId<Camera>()) {
 		if (m_mainCamera == entity) {
 			m_mainCamera = std::numeric_limits<uint32_t>::max();
 		}
 	}
-	else if (componentID == m_ecs->getComponentId<Light>()) {
-		const Light& light = m_ecs->getComponent<Light>(entity);
+	else if (componentID == ecs->getComponentId<Light>()) {
+		const Light& light = ecs->getComponent<Light>(entity);
 
 		switch (light.type) {
 		case LightType::Directional:
