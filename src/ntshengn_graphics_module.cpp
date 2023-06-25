@@ -524,7 +524,13 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		Transform objectTransform = ecs->getComponent<Transform>(it.first);
 		nml::vec3 objectPosition = nml::vec3(objectTransform.position[0], objectTransform.position[1], objectTransform.position[2]);
 		nml::vec3 objectRotation = nml::vec3(objectTransform.rotation[0], objectTransform.rotation[1], objectTransform.rotation[2]);
-		nml::vec3 objectScale = nml::vec3(objectTransform.scale[0], objectTransform.scale[1], objectTransform.scale[2]);
+		nml::vec3 objectScale;
+		if (it.second.sphereMeshIndex != std::numeric_limits<size_t>::max()) {
+			objectScale = nml::vec3(std::max(objectTransform.scale[0], std::max(objectTransform.scale[1], objectTransform.scale[2])));
+		}
+		else {
+			objectScale = nml::vec3(objectTransform.scale[0], objectTransform.scale[1], objectTransform.scale[2]);
+		}
 
 		nml::mat4 objectModel = nml::translate(objectPosition) *
 			nml::rotate(objectRotation.x, nml::vec3(1.0f, 0.0f, 0.0f)) *
