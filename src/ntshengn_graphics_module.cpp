@@ -119,7 +119,7 @@ void NtshEngn::GraphicsModule::init() {
 	uint32_t deviceCount;
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
 	if (deviceCount == 0) {
-		NTSHENGN_MODULE_ERROR("Vulkan: Found no suitable GPU.", NtshEngn::Result::ModuleError);
+		NTSHENGN_MODULE_ERROR("Vulkan: Found no suitable GPU.", Result::ModuleError);
 	}
 	std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, physicalDevices.data());
@@ -653,7 +653,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			resize();
 		}
 		else if (acquireNextImageResult != VK_SUCCESS && acquireNextImageResult != VK_SUBOPTIMAL_KHR) {
-			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.", NtshEngn::Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.", Result::ModuleError);
 		}
 	}
 	else {
@@ -827,7 +827,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			resize();
 		}
 		else if (queuePresentResult != VK_SUCCESS) {
-			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.", NtshEngn::Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.", Result::ModuleError);
 		}
 	}
 	else {
@@ -899,16 +899,18 @@ void NtshEngn::GraphicsModule::destroy() {
 	vkDestroyInstance(m_instance, nullptr);
 }
 
-NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
+NtshEngn::MeshId NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	NTSHENGN_UNUSED(mesh);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
-	return 0;
+
+	return std::numeric_limits<MeshId>::max();
 }
 
-NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image& image) {
+NtshEngn::ImageId NtshEngn::GraphicsModule::load(const Image& image) {
 	NTSHENGN_UNUSED(image);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
-	return 0;
+
+	return std::numeric_limits<ImageId>::max();
 }
 
 VkSurfaceCapabilitiesKHR NtshEngn::GraphicsModule::getSurfaceCapabilities() {
