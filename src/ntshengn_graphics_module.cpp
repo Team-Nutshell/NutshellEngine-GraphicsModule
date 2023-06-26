@@ -123,7 +123,7 @@ void NtshEngn::GraphicsModule::init() {
 	uint32_t deviceCount;
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
 	if (deviceCount == 0) {
-		NTSHENGN_MODULE_ERROR("Vulkan: Found no suitable GPU.", NtshEngn::Result::ModuleError);
+		NTSHENGN_MODULE_ERROR("Vulkan: Found no suitable GPU.", Result::ModuleError);
 	}
 	std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, physicalDevices.data());
@@ -516,7 +516,7 @@ void NtshEngn::GraphicsModule::init() {
 	}
 	else {
 		const std::filesystem::path absolutePath = std::filesystem::absolute(std::filesystem::current_path());
-		NTSHENGN_MODULE_ERROR("Fragment shader \"shader.frag\" does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NtshEngn::Result::ModuleError);
+		NTSHENGN_MODULE_ERROR("Fragment shader \"shader.frag\" does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", Result::ModuleError);
 	}
 	recreateGraphicsPipeline();
 
@@ -650,7 +650,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		return;
 	}
 
-	const NtshEngn::Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
+	const Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
 	nml::vec4 cameraPosition = nml::vec4(cameraTransform.position.data(), 0.0f);
 	nml::vec4 cameraDirection = nml::vec4(cameraTransform.rotation.data(), 0.0f);
 
@@ -669,7 +669,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	}
 	else {
 		const std::filesystem::path absolutePath = std::filesystem::absolute(std::filesystem::current_path());
-		NTSHENGN_MODULE_ERROR("Fragment shader \"shader.frag\" does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NtshEngn::Result::ModuleError);
+		NTSHENGN_MODULE_ERROR("Fragment shader \"shader.frag\" does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", Result::ModuleError);
 	}
 
 	if (shaderModified) {
@@ -691,7 +691,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			resize();
 		}
 		else if (acquireNextImageResult != VK_SUCCESS && acquireNextImageResult != VK_SUBOPTIMAL_KHR) {
-			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.", NtshEngn::Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.", Result::ModuleError);
 		}
 	}
 	else {
@@ -1004,7 +1004,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			resize();
 		}
 		else if (queuePresentResult != VK_SUCCESS) {
-			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.", NtshEngn::Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.", Result::ModuleError);
 		}
 	}
 	else {
@@ -1110,16 +1110,84 @@ void NtshEngn::GraphicsModule::destroy() {
 	vkDestroyInstance(m_instance, nullptr);
 }
 
-NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
+NtshEngn::MeshId NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	NTSHENGN_UNUSED(mesh);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
-	return 0;
+
+	return std::numeric_limits<MeshId>::max();
 }
 
-NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image& image) {
+NtshEngn::ImageId NtshEngn::GraphicsModule::load(const Image& image) {
 	NTSHENGN_UNUSED(image);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
-	return 0;
+
+	return std::numeric_limits<ImageId>::max();
+}
+
+const NtshEngn::ComponentMask NtshEngn::GraphicsModule::getComponentMask() const {
+	ComponentMask componentMask;
+	componentMask.set(ecs->getComponentId<Camera>());
+	componentMask.set(ecs->getComponentId<Light>());
+
+	return componentMask;
+}
+
+void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component componentID) {
+	if (componentID == ecs->getComponentId<Camera>()) {
+		if (m_mainCamera == std::numeric_limits<uint32_t>::max()) {
+			m_mainCamera = entity;
+		}
+	}
+	else if (componentID == ecs->getComponentId<Light>()) {
+		const Light& light = ecs->getComponent<Light>(entity);
+
+		switch (light.type) {
+		case LightType::Directional:
+			m_lights.directionalLights.insert(entity);
+			break;
+
+		case LightType::Point:
+			m_lights.pointLights.insert(entity);
+			break;
+
+		case LightType::Spot:
+			m_lights.spotLights.insert(entity);
+			break;
+
+		default: // Arbitrarily consider it a directional light
+			m_lights.directionalLights.insert(entity);
+			break;
+		}
+	}
+}
+
+void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component componentID) {
+	if (componentID == ecs->getComponentId<Camera>()) {
+		if (m_mainCamera == entity) {
+			m_mainCamera = std::numeric_limits<uint32_t>::max();
+		}
+	}
+	else if (componentID == ecs->getComponentId<Light>()) {
+		const Light& light = ecs->getComponent<Light>(entity);
+
+		switch (light.type) {
+		case LightType::Directional:
+			m_lights.directionalLights.erase(entity);
+			break;
+
+		case LightType::Point:
+			m_lights.pointLights.erase(entity);
+			break;
+
+		case LightType::Spot:
+			m_lights.spotLights.erase(entity);
+			break;
+
+		default: // Arbitrarily consider it a directional light
+			m_lights.directionalLights.erase(entity);
+			break;
+		}
+	}
 }
 
 VkSurfaceCapabilitiesKHR NtshEngn::GraphicsModule::getSurfaceCapabilities() {
@@ -1331,9 +1399,9 @@ std::vector<uint32_t> NtshEngn::GraphicsModule::compileFragmentShader() {
 
 	if (!std::filesystem::exists(m_fragmentShaderName)) {
 		const std::filesystem::path absolutePath = std::filesystem::absolute(std::filesystem::current_path());
-		NTSHENGN_MODULE_ERROR("Fragment shader shader.frag does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", NtshEngn::Result::ModuleError);
+		NTSHENGN_MODULE_ERROR("Fragment shader shader.frag does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", Result::ModuleError);
 	}
-	std::string shaderCode = m_fragmentShaderPrefix + NtshEngn::readAscii(m_fragmentShaderName);
+	std::string shaderCode = m_fragmentShaderPrefix + readAscii(m_fragmentShaderName);
 	const char* shaderCodeCharPtr = shaderCode.c_str();
 
 	EShLanguage shaderType = EShLangFragment;
@@ -2029,72 +2097,6 @@ void NtshEngn::GraphicsModule::resize() {
 		colorImageDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
 		vkUpdateDescriptorSets(m_device, 1, &colorImageDescriptorWriteDescriptorSet, 0, nullptr);
-	}
-}
-
-const NtshEngn::ComponentMask NtshEngn::GraphicsModule::getComponentMask() const {
-	ComponentMask componentMask;
-	componentMask.set(ecs->getComponentId<Camera>());
-	componentMask.set(ecs->getComponentId<Light>());
-
-	return componentMask;
-}
-
-void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component componentID) {
-	if (componentID == ecs->getComponentId<Camera>()) {
-		if (m_mainCamera == std::numeric_limits<uint32_t>::max()) {
-			m_mainCamera = entity;
-		}
-	}
-	else if (componentID == ecs->getComponentId<Light>()) {
-		const Light& light = ecs->getComponent<Light>(entity);
-
-		switch (light.type) {
-		case LightType::Directional:
-			m_lights.directionalLights.insert(entity);
-			break;
-
-		case LightType::Point:
-			m_lights.pointLights.insert(entity);
-			break;
-
-		case LightType::Spot:
-			m_lights.spotLights.insert(entity);
-			break;
-
-		default: // Arbitrarily consider it a directional light
-			m_lights.directionalLights.insert(entity);
-			break;
-		}
-	}
-}
-
-void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component componentID) {
-	if (componentID == ecs->getComponentId<Camera>()) {
-		if (m_mainCamera == entity) {
-			m_mainCamera = std::numeric_limits<uint32_t>::max();
-		}
-	}
-	else if (componentID == ecs->getComponentId<Light>()) {
-		const Light& light = ecs->getComponent<Light>(entity);
-
-		switch (light.type) {
-		case LightType::Directional:
-			m_lights.directionalLights.erase(entity);
-			break;
-
-		case LightType::Point:
-			m_lights.pointLights.erase(entity);
-			break;
-
-		case LightType::Spot:
-			m_lights.spotLights.erase(entity);
-			break;
-
-		default: // Arbitrarily consider it a directional light
-			m_lights.directionalLights.erase(entity);
-			break;
-		}
 	}
 }
 
