@@ -22,16 +22,16 @@ namespace NtshEngn {
 
 	class GraphicsModule : public GraphicsModuleInterface {
 	public:
-		GraphicsModule() : GraphicsModuleInterface("NutshellEngine Graphics Direct3D 12 Triangle") {}
+		GraphicsModule() : GraphicsModuleInterface("NutshellEngine Direct3D 12 Graphics Triangle") {}
 
 		void init();
 		void update(double dt);
 		void destroy();
 
 		// Loads the mesh described in the mesh parameter in the internal format and returns a unique identifier
-		NtshEngn::MeshId load(const NtshEngn::Mesh& mesh);
+		MeshId load(const Mesh& mesh);
 		// Loads the image described in the image parameter in the internal format and returns a unique identifier
-		NtshEngn::ImageId load(const NtshEngn::Image& image);
+		ImageId load(const Image& image);
 
 	private:
 		void getHardwareAdapter(IDXGIFactory1* factory, IDXGIAdapter1** hardwareAdapter);
