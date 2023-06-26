@@ -8,7 +8,7 @@ void NtshEngn::GraphicsModule::init() {
 		m_framesInFlight = 2;
 	}
 	else {
-		NTSHENGN_MODULE_ERROR(getName() + " requires a window module and at least one open window.", NtshEngn::Result::ModuleError);
+		NTSHENGN_MODULE_ERROR(getName() + " requires a window module and at least one open window.", Result::ModuleError);
 	}
 
 	// Create instance
@@ -119,7 +119,7 @@ void NtshEngn::GraphicsModule::init() {
 	uint32_t deviceCount;
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
 	if (deviceCount == 0) {
-		NTSHENGN_MODULE_ERROR("Vulkan: Found no suitable GPU.", NtshEngn::Result::ModuleError);
+		NTSHENGN_MODULE_ERROR("Vulkan: Found no suitable GPU.", Result::ModuleError);
 	}
 	std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, physicalDevices.data());
@@ -542,7 +542,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		return;
 	}
 
-	if (windowModule->getKeyState(NTSHENGN_MAIN_WINDOW, NtshEngn::InputKeyboardKey::Space) == NtshEngn::InputState::Pressed) {
+	if (windowModule->getKeyState(NTSHENGN_MAIN_WINDOW, InputKeyboardKey::Space) == InputState::Pressed) {
 		createWindowResources(windowModule->open(300, 300, "New Window"));
 	}
 
@@ -575,7 +575,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			resize(i);
 		}
 		else if (acquireNextImageResult != VK_SUCCESS && acquireNextImageResult != VK_SUBOPTIMAL_KHR) {
-			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.", NtshEngn::Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.", Result::ModuleError);
 		}
 	}
 
@@ -732,7 +732,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			resize(i);
 		}
 		else if (presentResults[i] != VK_SUCCESS) {
-			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.", NtshEngn::Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.", Result::ModuleError);
 		}
 	}
 
@@ -770,13 +770,13 @@ void NtshEngn::GraphicsModule::destroy() {
 	vkDestroyInstance(m_instance, nullptr);
 }
 
-NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
+NtshEngn::MeshId NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	NTSHENGN_UNUSED(mesh);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 	return 0;
 }
 
-NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image& image) {
+NtshEngn::ImageId NtshEngn::GraphicsModule::load(const Image& image) {
 	NTSHENGN_UNUSED(image);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 	return 0;
@@ -937,7 +937,7 @@ void NtshEngn::GraphicsModule::createSwapchain(size_t index) {
 	}
 }
 
-void NtshEngn::GraphicsModule::createWindowResources(NtshEngn::WindowId windowId) {
+void NtshEngn::GraphicsModule::createWindowResources(WindowId windowId) {
 	size_t index = 0;
 	if (windowId != NTSHENGN_MAIN_WINDOW) {
 		PerWindowResources newWindowResources;
