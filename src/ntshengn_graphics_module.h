@@ -98,16 +98,16 @@ namespace NtshEngn {
 
 	class GraphicsModule : public GraphicsModuleInterface {
 	public:
-		GraphicsModule() : GraphicsModuleInterface("NutshellEngine Graphics Vulkan Renderer Module") {}
+		GraphicsModule() : GraphicsModuleInterface("NutshellEngine Vulkan Renderer Graphics Module") {}
 
 		void init();
 		void update(double dt);
 		void destroy();
 
 		// Loads the mesh described in the mesh parameter in the internal format and returns a unique identifier
-		NtshEngn::MeshId load(const NtshEngn::Mesh& mesh);
+		MeshId load(const Mesh& mesh);
 		// Loads the image described in the image parameter in the internal format and returns a unique identifier
-		NtshEngn::ImageId load(const NtshEngn::Image& image);
+		ImageId load(const Image& image);
 
 	public:
 		const ComponentMask getComponentMask() const;
@@ -157,7 +157,7 @@ namespace NtshEngn {
 		void resize();
 
 		// Create sampler
-		uint32_t createSampler(const NtshEngn::ImageSampler& sampler);
+		uint32_t createSampler(const ImageSampler& sampler);
 
 		// Attribute an InternalObject index
 		uint32_t attributeObjectIndex();
