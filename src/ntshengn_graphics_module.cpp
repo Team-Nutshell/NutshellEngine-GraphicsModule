@@ -120,7 +120,7 @@ void NtshEngn::GraphicsModule::init() {
 	uint32_t deviceCount;
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
 	if (deviceCount == 0) {
-		NTSHENGN_MODULE_ERROR("Vulkan: Found no suitable GPU.", NtshEngn::Result::ModuleError);
+		NTSHENGN_MODULE_ERROR("Vulkan: Found no suitable GPU.", Result::ModuleError);
 	}
 	std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, physicalDevices.data());
@@ -482,7 +482,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			resize();
 		}
 		else if (acquireNextImageResult != VK_SUCCESS && acquireNextImageResult != VK_SUBOPTIMAL_KHR) {
-			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.", NtshEngn::Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.", Result::ModuleError);
 		}
 	}
 	else {
@@ -733,7 +733,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			resize();
 		}
 		else if (queuePresentResult != VK_SUCCESS) {
-			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.", NtshEngn::Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.", Result::ModuleError);
 		}
 	}
 	else {
@@ -837,7 +837,7 @@ void NtshEngn::GraphicsModule::destroy() {
 	vkDestroyInstance(m_instance, nullptr);
 }
 
-NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
+NtshEngn::MeshId NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	if (m_meshAddresses.find(&mesh) != m_meshAddresses.end()) {
 		return m_meshAddresses[&mesh];
 	}
@@ -853,7 +853,7 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	vertexAndIndexStagingBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	vertexAndIndexStagingBufferCreateInfo.pNext = nullptr;
 	vertexAndIndexStagingBufferCreateInfo.flags = 0;
-	vertexAndIndexStagingBufferCreateInfo.size = (mesh.vertices.size() * sizeof(NtshEngn::Vertex)) + (mesh.indices.size() * sizeof(uint32_t));
+	vertexAndIndexStagingBufferCreateInfo.size = (mesh.vertices.size() * sizeof(Vertex)) + (mesh.indices.size() * sizeof(uint32_t));
 	vertexAndIndexStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	vertexAndIndexStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	vertexAndIndexStagingBufferCreateInfo.queueFamilyIndexCount = 1;
@@ -867,8 +867,8 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	void* data;
 
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, vertexAndIndexStagingBufferAllocation, &data));
-	memcpy(data, mesh.vertices.data(), mesh.vertices.size() * sizeof(NtshEngn::Vertex));
-	memcpy(reinterpret_cast<char*>(data) + (mesh.vertices.size() * sizeof(NtshEngn::Vertex)), mesh.indices.data(), mesh.indices.size() * sizeof(uint32_t));
+	memcpy(data, mesh.vertices.data(), mesh.vertices.size() * sizeof(Vertex));
+	memcpy(reinterpret_cast<char*>(data) + (mesh.vertices.size() * sizeof(Vertex)), mesh.indices.data(), mesh.indices.size() * sizeof(uint32_t));
 	vmaUnmapMemory(m_allocator, vertexAndIndexStagingBufferAllocation);
 
 	// Copy staging buffer
@@ -900,12 +900,12 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 
 	VkBufferCopy vertexBufferCopy = {};
 	vertexBufferCopy.srcOffset = 0;
-	vertexBufferCopy.dstOffset = m_currentVertexOffset * sizeof(NtshEngn::Vertex);
-	vertexBufferCopy.size = mesh.vertices.size() * sizeof(NtshEngn::Vertex);
+	vertexBufferCopy.dstOffset = m_currentVertexOffset * sizeof(Vertex);
+	vertexBufferCopy.size = mesh.vertices.size() * sizeof(Vertex);
 	vkCmdCopyBuffer(buffersCopyCommandBuffer, vertexAndIndexStagingBuffer, m_vertexBuffer, 1, &vertexBufferCopy);
 
 	VkBufferCopy indexBufferCopy = {};
-	indexBufferCopy.srcOffset = mesh.vertices.size() * sizeof(NtshEngn::Vertex);
+	indexBufferCopy.srcOffset = mesh.vertices.size() * sizeof(Vertex);
 	indexBufferCopy.dstOffset = m_currentIndexOffset * sizeof(uint32_t);
 	indexBufferCopy.size = mesh.indices.size() * sizeof(uint32_t);
 	vkCmdCopyBuffer(buffersCopyCommandBuffer, vertexAndIndexStagingBuffer, m_indexBuffer, 1, &indexBufferCopy);
@@ -935,11 +935,11 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	return static_cast<uint32_t>(m_meshes.size() - 1);
 }
 
-NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image& image) {
+NtshEngn::ImageId NtshEngn::GraphicsModule::load(const Image& image) {
 	NTSHENGN_UNUSED(image);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 
-	return 0;
+	return std::numeric_limits<ImageId>::max();
 }
 
 const NtshEngn::ComponentMask NtshEngn::GraphicsModule::getComponentMask() const {
@@ -1444,7 +1444,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 
 	VkVertexInputBindingDescription vertexInputBindingDescription = {};
 	vertexInputBindingDescription.binding = 0;
-	vertexInputBindingDescription.stride = sizeof(NtshEngn::Vertex);
+	vertexInputBindingDescription.stride = sizeof(Vertex);
 	vertexInputBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
 	VkVertexInputAttributeDescription vertexPositionInputAttributeDescription = {};
@@ -1457,25 +1457,25 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 	vertexNormalInputAttributeDescription.location = 1;
 	vertexNormalInputAttributeDescription.binding = 0;
 	vertexNormalInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
-	vertexNormalInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, normal);
+	vertexNormalInputAttributeDescription.offset = offsetof(Vertex, normal);
 
 	VkVertexInputAttributeDescription vertexUVInputAttributeDescription = {};
 	vertexUVInputAttributeDescription.location = 2;
 	vertexUVInputAttributeDescription.binding = 0;
 	vertexUVInputAttributeDescription.format = VK_FORMAT_R32G32_SFLOAT;
-	vertexUVInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, uv);
+	vertexUVInputAttributeDescription.offset = offsetof(Vertex, uv);
 
 	VkVertexInputAttributeDescription vertexColorInputAttributeDescription = {};
 	vertexColorInputAttributeDescription.location = 3;
 	vertexColorInputAttributeDescription.binding = 0;
 	vertexColorInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
-	vertexColorInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, color);
+	vertexColorInputAttributeDescription.offset = offsetof(Vertex, color);
 
 	VkVertexInputAttributeDescription vertexTangentInputAttributeDescription = {};
 	vertexTangentInputAttributeDescription.location = 4;
 	vertexTangentInputAttributeDescription.binding = 0;
 	vertexTangentInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-	vertexTangentInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, tangent);
+	vertexTangentInputAttributeDescription.offset = offsetof(Vertex, tangent);
 
 	std::array<VkVertexInputAttributeDescription, 5> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexNormalInputAttributeDescription, vertexUVInputAttributeDescription, vertexColorInputAttributeDescription, vertexTangentInputAttributeDescription };
 

@@ -64,16 +64,16 @@ namespace NtshEngn {
 
 	class GraphicsModule : public GraphicsModuleInterface {
 	public:
-		GraphicsModule() : GraphicsModuleInterface("NutshellEngine Graphics Vulkan ECS Collider Module") {}
+		GraphicsModule() : GraphicsModuleInterface("NutshellEngine Vulkan Collider Graphics Module") {}
 
 		void init();
 		void update(double dt);
 		void destroy();
 
 		// Loads the mesh described in the mesh parameter in the internal format and returns a unique identifier
-		NtshEngn::MeshId load(const NtshEngn::Mesh& mesh);
+		MeshId load(const Mesh& mesh);
 		// Loads the image described in the image parameter in the internal format and returns a unique identifier
-		NtshEngn::ImageId load(const NtshEngn::Image& image);
+		ImageId load(const Image& image);
 
 	public:
 		const ComponentMask getComponentMask() const;
@@ -119,9 +119,9 @@ namespace NtshEngn {
 		void retrieveObjectIndex(uint32_t objectIndex);
 
 		// Create meshes for colliders
-		NtshEngn::MeshId createAABB(const nml::vec3& min, const nml::vec3& max);
-		NtshEngn::MeshId createSphere(const nml::vec3& center, float radius);
-		NtshEngn::MeshId createCapsule(const nml::vec3& base, const nml::vec3& tip, float radius);
+		MeshId createAABB(const nml::vec3& min, const nml::vec3& max);
+		MeshId createSphere(const nml::vec3& center, float radius);
+		MeshId createCapsule(const nml::vec3& base, const nml::vec3& tip, float radius);
 
 	private:
 		VkInstance m_instance;
