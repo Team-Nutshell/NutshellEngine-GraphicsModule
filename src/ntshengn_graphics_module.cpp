@@ -123,7 +123,7 @@ void NtshEngn::GraphicsModule::init() {
 	uint32_t deviceCount;
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
 	if (deviceCount == 0) {
-		NTSHENGN_MODULE_ERROR("Vulkan: Found no suitable GPU.", NtshEngn::Result::ModuleError);
+		NTSHENGN_MODULE_ERROR("Vulkan: Found no suitable GPU.", Result::ModuleError);
 	}
 	std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, physicalDevices.data());
@@ -570,7 +570,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			resize();
 		}
 		else if (acquireNextImageResult != VK_SUCCESS && acquireNextImageResult != VK_SUBOPTIMAL_KHR) {
-			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.", NtshEngn::Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.", Result::ModuleError);
 		}
 	}
 	else {
@@ -1015,7 +1015,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			resize();
 		}
 		else if (queuePresentResult != VK_SUCCESS) {
-			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.", NtshEngn::Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.", Result::ModuleError);
 		}
 	}
 	else {
@@ -1169,7 +1169,7 @@ void NtshEngn::GraphicsModule::destroy() {
 	vkDestroyInstance(m_instance, nullptr);
 }
 
-NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
+NtshEngn::MeshId NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	if (m_meshAddresses.find(&mesh) != m_meshAddresses.end()) {
 		return m_meshAddresses[&mesh];
 	}
@@ -1182,7 +1182,7 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	vertexAndIndexStagingBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	vertexAndIndexStagingBufferCreateInfo.pNext = nullptr;
 	vertexAndIndexStagingBufferCreateInfo.flags = 0;
-	vertexAndIndexStagingBufferCreateInfo.size = (mesh.vertices.size() * sizeof(NtshEngn::Vertex)) + (mesh.indices.size() * sizeof(uint32_t));
+	vertexAndIndexStagingBufferCreateInfo.size = (mesh.vertices.size() * sizeof(Vertex)) + (mesh.indices.size() * sizeof(uint32_t));
 	vertexAndIndexStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	vertexAndIndexStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	vertexAndIndexStagingBufferCreateInfo.queueFamilyIndexCount = 1;
@@ -1196,8 +1196,8 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	void* data;
 
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, vertexAndIndexStagingBufferAllocation, &data));
-	memcpy(data, mesh.vertices.data(), mesh.vertices.size() * sizeof(NtshEngn::Vertex));
-	memcpy(reinterpret_cast<char*>(data) + (mesh.vertices.size() * sizeof(NtshEngn::Vertex)), mesh.indices.data(), mesh.indices.size() * sizeof(uint32_t));
+	memcpy(data, mesh.vertices.data(), mesh.vertices.size() * sizeof(Vertex));
+	memcpy(reinterpret_cast<char*>(data) + (mesh.vertices.size() * sizeof(Vertex)), mesh.indices.data(), mesh.indices.size() * sizeof(uint32_t));
 	vmaUnmapMemory(m_allocator, vertexAndIndexStagingBufferAllocation);
 
 	// BLAS
@@ -1205,8 +1205,8 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	blasGeometryTrianglesData.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
 	blasGeometryTrianglesData.pNext = nullptr;
 	blasGeometryTrianglesData.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
-	blasGeometryTrianglesData.vertexData.deviceAddress = m_vertexBufferDeviceAddress + (static_cast<size_t>(m_currentVertexOffset) * sizeof(NtshEngn::Vertex));
-	blasGeometryTrianglesData.vertexStride = sizeof(NtshEngn::Vertex);
+	blasGeometryTrianglesData.vertexData.deviceAddress = m_vertexBufferDeviceAddress + (static_cast<size_t>(m_currentVertexOffset) * sizeof(Vertex));
+	blasGeometryTrianglesData.vertexStride = sizeof(Vertex);
 	blasGeometryTrianglesData.maxVertex = static_cast<uint32_t>(mesh.vertices.size());
 	blasGeometryTrianglesData.indexType = VK_INDEX_TYPE_UINT32;
 	blasGeometryTrianglesData.indexData.deviceAddress = m_indexBufferDeviceAddress + (static_cast<size_t>(m_currentIndexOffset) * sizeof(uint32_t));
@@ -1315,12 +1315,12 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 
 	VkBufferCopy vertexBufferCopy = {};
 	vertexBufferCopy.srcOffset = 0;
-	vertexBufferCopy.dstOffset = m_currentVertexOffset * sizeof(NtshEngn::Vertex);
-	vertexBufferCopy.size = mesh.vertices.size() * sizeof(NtshEngn::Vertex);
+	vertexBufferCopy.dstOffset = m_currentVertexOffset * sizeof(Vertex);
+	vertexBufferCopy.size = mesh.vertices.size() * sizeof(Vertex);
 	vkCmdCopyBuffer(buffersCopyAndBLASCommandBuffer, vertexAndIndexStagingBuffer, m_vertexBuffer, 1, &vertexBufferCopy);
 
 	VkBufferCopy indexBufferCopy = {};
-	indexBufferCopy.srcOffset = mesh.vertices.size() * sizeof(NtshEngn::Vertex);
+	indexBufferCopy.srcOffset = mesh.vertices.size() * sizeof(Vertex);
 	indexBufferCopy.dstOffset = m_currentIndexOffset * sizeof(uint32_t);
 	indexBufferCopy.size = mesh.indices.size() * sizeof(uint32_t);
 	vkCmdCopyBuffer(buffersCopyAndBLASCommandBuffer, vertexAndIndexStagingBuffer, m_indexBuffer, 1, &indexBufferCopy);
@@ -1335,8 +1335,8 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	copyToBLASVertexBufferMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 	copyToBLASVertexBufferMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 	copyToBLASVertexBufferMemoryBarrier.buffer = m_vertexBuffer;
-	copyToBLASVertexBufferMemoryBarrier.offset = m_currentVertexOffset * sizeof(NtshEngn::Vertex);
-	copyToBLASVertexBufferMemoryBarrier.size = mesh.vertices.size() * sizeof(NtshEngn::Vertex);
+	copyToBLASVertexBufferMemoryBarrier.offset = m_currentVertexOffset * sizeof(Vertex);
+	copyToBLASVertexBufferMemoryBarrier.size = mesh.vertices.size() * sizeof(Vertex);
 
 	VkBufferMemoryBarrier2 copyToBLASIndexBufferMemoryBarrier = {};
 	copyToBLASIndexBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
@@ -1396,7 +1396,7 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	blasDeviceAddressInfo.accelerationStructure = blas;
 	VkDeviceAddress blasDeviceAddress = m_vkGetAccelerationStructureDeviceAddressKHR(m_device, &blasDeviceAddressInfo);
 
-	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset, m_vertexBufferDeviceAddress + (static_cast<size_t>(m_currentVertexOffset) * sizeof(NtshEngn::Vertex)), m_indexBufferDeviceAddress + (static_cast<size_t>(m_currentIndexOffset) * sizeof(uint32_t)), blasDeviceAddress });
+	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset, m_vertexBufferDeviceAddress + (static_cast<size_t>(m_currentVertexOffset) * sizeof(Vertex)), m_indexBufferDeviceAddress + (static_cast<size_t>(m_currentIndexOffset) * sizeof(uint32_t)), blasDeviceAddress });
 	m_meshAddresses[&mesh] = static_cast<uint32_t>(m_meshes.size() - 1);
 
 	m_currentVertexOffset += static_cast<int32_t>(mesh.vertices.size());
@@ -1408,7 +1408,7 @@ NtshEngn::MeshId NtshEngn::GraphicsModule::load(const NtshEngn::Mesh& mesh) {
 	return static_cast<uint32_t>(m_meshes.size() - 1);
 }
 
-NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image& image) {
+NtshEngn::ImageId NtshEngn::GraphicsModule::load(const Image& image) {
 	if (m_imageAddresses.find(&image) != m_imageAddresses.end()) {
 		return m_imageAddresses[&image];
 	}
@@ -1419,136 +1419,136 @@ NtshEngn::ImageId NtshEngn::GraphicsModule::load(const NtshEngn::Image& image) {
 	size_t numComponents = 4;
 	size_t sizeComponent = 1;
 
-	if (image.colorSpace == NtshEngn::ImageColorSpace::SRGB) {
+	if (image.colorSpace == ImageColorSpace::SRGB) {
 		switch (image.format) {
-		case NtshEngn::ImageFormat::R8:
+		case ImageFormat::R8:
 			imageFormat = VK_FORMAT_R8_SRGB;
 			numComponents = 1;
 			sizeComponent = 1;
 			break;
-		case NtshEngn::ImageFormat::R8G8:
+		case ImageFormat::R8G8:
 			imageFormat = VK_FORMAT_R8G8_SRGB;
 			numComponents = 2;
 			sizeComponent = 1;
 			break;
-		case NtshEngn::ImageFormat::R8G8B8:
+		case ImageFormat::R8G8B8:
 			imageFormat = VK_FORMAT_R8G8B8_SRGB;
 			numComponents = 3;
 			sizeComponent = 1;
 			break;
-		case NtshEngn::ImageFormat::R8G8B8A8:
+		case ImageFormat::R8G8B8A8:
 			imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
 			numComponents = 4;
 			sizeComponent = 1;
 			break;
-		case NtshEngn::ImageFormat::R16:
+		case ImageFormat::R16:
 			imageFormat = VK_FORMAT_R16_SFLOAT;
 			numComponents = 1;
 			sizeComponent = 2;
 			break;
-		case NtshEngn::ImageFormat::R16G16:
+		case ImageFormat::R16G16:
 			imageFormat = VK_FORMAT_R16G16_SFLOAT;
 			numComponents = 2;
 			sizeComponent = 2;
 			break;
-		case NtshEngn::ImageFormat::R16G16B16:
+		case ImageFormat::R16G16B16:
 			imageFormat = VK_FORMAT_R16G16B16_SFLOAT;
 			numComponents = 3;
 			sizeComponent = 2;
 			break;
-		case NtshEngn::ImageFormat::R16G16B16A16:
+		case ImageFormat::R16G16B16A16:
 			imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 			numComponents = 4;
 			sizeComponent = 2;
 			break;
-		case NtshEngn::ImageFormat::R32:
+		case ImageFormat::R32:
 			imageFormat = VK_FORMAT_R32_SFLOAT;
 			numComponents = 1;
 			sizeComponent = 4;
 			break;
-		case NtshEngn::ImageFormat::R32G32:
+		case ImageFormat::R32G32:
 			imageFormat = VK_FORMAT_R32G32_SFLOAT;
 			numComponents = 2;
 			sizeComponent = 4;
 			break;
-		case NtshEngn::ImageFormat::R32G32B32:
+		case ImageFormat::R32G32B32:
 			imageFormat = VK_FORMAT_R32G32B32_SFLOAT;
 			numComponents = 3;
 			sizeComponent = 4;
 			break;
-		case NtshEngn::ImageFormat::R32G32B32A32:
+		case ImageFormat::R32G32B32A32:
 			imageFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
 			numComponents = 4;
 			sizeComponent = 4;
 			break;
 		default:
-			NTSHENGN_MODULE_ERROR("Image format unrecognized.", NtshEngn::Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Image format unrecognized.", Result::ModuleError);
 		}
 	}
-	else if (image.colorSpace == NtshEngn::ImageColorSpace::Linear) {
+	else if (image.colorSpace == ImageColorSpace::Linear) {
 		switch (image.format) {
-		case NtshEngn::ImageFormat::R8:
+		case ImageFormat::R8:
 			imageFormat = VK_FORMAT_R8_UNORM;
 			numComponents = 1;
 			sizeComponent = 1;
 			break;
-		case NtshEngn::ImageFormat::R8G8:
+		case ImageFormat::R8G8:
 			imageFormat = VK_FORMAT_R8G8_UNORM;
 			numComponents = 2;
 			sizeComponent = 1;
 			break;
-		case NtshEngn::ImageFormat::R8G8B8:
+		case ImageFormat::R8G8B8:
 			imageFormat = VK_FORMAT_R8G8B8_UNORM;
 			numComponents = 3;
 			sizeComponent = 1;
 			break;
-		case NtshEngn::ImageFormat::R8G8B8A8:
+		case ImageFormat::R8G8B8A8:
 			imageFormat = VK_FORMAT_R8G8B8A8_UNORM;
 			numComponents = 4;
 			sizeComponent = 1;
 			break;
-		case NtshEngn::ImageFormat::R16:
+		case ImageFormat::R16:
 			imageFormat = VK_FORMAT_R16_UNORM;
 			numComponents = 1;
 			sizeComponent = 2;
 			break;
-		case NtshEngn::ImageFormat::R16G16:
+		case ImageFormat::R16G16:
 			imageFormat = VK_FORMAT_R16G16_UNORM;
 			numComponents = 2;
 			sizeComponent = 2;
 			break;
-		case NtshEngn::ImageFormat::R16G16B16:
+		case ImageFormat::R16G16B16:
 			imageFormat = VK_FORMAT_R16G16B16_UNORM;
 			numComponents = 3;
 			sizeComponent = 2;
 			break;
-		case NtshEngn::ImageFormat::R16G16B16A16:
+		case ImageFormat::R16G16B16A16:
 			imageFormat = VK_FORMAT_R16G16B16A16_UNORM;
 			numComponents = 4;
 			sizeComponent = 2;
 			break;
-		case NtshEngn::ImageFormat::R32:
+		case ImageFormat::R32:
 			imageFormat = VK_FORMAT_R32_SFLOAT;
 			numComponents = 1;
 			sizeComponent = 4;
 			break;
-		case NtshEngn::ImageFormat::R32G32:
+		case ImageFormat::R32G32:
 			imageFormat = VK_FORMAT_R32G32_SFLOAT;
 			numComponents = 2;
 			sizeComponent = 4;
 			break;
-		case NtshEngn::ImageFormat::R32G32B32:
+		case ImageFormat::R32G32B32:
 			imageFormat = VK_FORMAT_R32G32B32_SFLOAT;
 			numComponents = 3;
 			sizeComponent = 4;
 			break;
-		case NtshEngn::ImageFormat::R32G32B32A32:
+		case ImageFormat::R32G32B32A32:
 			imageFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
 			numComponents = 4;
 			sizeComponent = 4;
 			break;
 		default:
-			NTSHENGN_MODULE_ERROR("Image format unrecognized.", NtshEngn::Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Image format unrecognized.", Result::ModuleError);
 		}
 	}
 
@@ -3771,8 +3771,8 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	// Default diffuse texture
 	m_defaultDiffuseTexture.width = 16;
 	m_defaultDiffuseTexture.height = 16;
-	m_defaultDiffuseTexture.format = NtshEngn::ImageFormat::R8G8B8A8;
-	m_defaultDiffuseTexture.colorSpace = NtshEngn::ImageColorSpace::SRGB;
+	m_defaultDiffuseTexture.format = ImageFormat::R8G8B8A8;
+	m_defaultDiffuseTexture.colorSpace = ImageColorSpace::SRGB;
 	m_defaultDiffuseTexture.data.resize(m_defaultDiffuseTexture.width * m_defaultDiffuseTexture.height * 4 * 1);
 	for (size_t i = 0; i < 256; i++) {
 		m_defaultDiffuseTexture.data[i * 4 + 0] = static_cast<uint8_t>(255 - i);
@@ -3787,8 +3787,8 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	// Default normal texture
 	m_defaultNormalTexture.width = 1;
 	m_defaultNormalTexture.height = 1;
-	m_defaultNormalTexture.format = NtshEngn::ImageFormat::R8G8B8A8;
-	m_defaultNormalTexture.colorSpace = NtshEngn::ImageColorSpace::Linear;
+	m_defaultNormalTexture.format = ImageFormat::R8G8B8A8;
+	m_defaultNormalTexture.colorSpace = ImageColorSpace::Linear;
 	m_defaultNormalTexture.data = { 127, 127, 255, 255 };
 
 	load(m_defaultNormalTexture);
@@ -3797,8 +3797,8 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	// Default metalness texture
 	m_defaultMetalnessTexture.width = 1;
 	m_defaultMetalnessTexture.height = 1;
-	m_defaultMetalnessTexture.format = NtshEngn::ImageFormat::R8G8B8A8;
-	m_defaultMetalnessTexture.colorSpace = NtshEngn::ImageColorSpace::Linear;
+	m_defaultMetalnessTexture.format = ImageFormat::R8G8B8A8;
+	m_defaultMetalnessTexture.colorSpace = ImageColorSpace::Linear;
 	m_defaultMetalnessTexture.data = { 0, 0, 0, 255 };
 
 	load(m_defaultMetalnessTexture);
@@ -3807,8 +3807,8 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	// Default roughness texture
 	m_defaultRoughnessTexture.width = 1;
 	m_defaultRoughnessTexture.height = 1;
-	m_defaultRoughnessTexture.format = NtshEngn::ImageFormat::R8G8B8A8;
-	m_defaultRoughnessTexture.colorSpace = NtshEngn::ImageColorSpace::Linear;
+	m_defaultRoughnessTexture.format = ImageFormat::R8G8B8A8;
+	m_defaultRoughnessTexture.colorSpace = ImageColorSpace::Linear;
 	m_defaultRoughnessTexture.data = { 0, 0, 0, 255 };
 
 	load(m_defaultRoughnessTexture);
@@ -3817,8 +3817,8 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	// Default occlusion texture
 	m_defaultOcclusionTexture.width = 1;
 	m_defaultOcclusionTexture.height = 1;
-	m_defaultOcclusionTexture.format = NtshEngn::ImageFormat::R8G8B8A8;
-	m_defaultOcclusionTexture.colorSpace = NtshEngn::ImageColorSpace::Linear;
+	m_defaultOcclusionTexture.format = ImageFormat::R8G8B8A8;
+	m_defaultOcclusionTexture.colorSpace = ImageColorSpace::Linear;
 	m_defaultOcclusionTexture.data = { 255, 255, 255, 255 };
 
 	load(m_defaultOcclusionTexture);
@@ -3827,8 +3827,8 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	// Default emissive texture
 	m_defaultEmissiveTexture.width = 1;
 	m_defaultEmissiveTexture.height = 1;
-	m_defaultEmissiveTexture.format = NtshEngn::ImageFormat::R8G8B8A8;
-	m_defaultEmissiveTexture.colorSpace = NtshEngn::ImageColorSpace::SRGB;
+	m_defaultEmissiveTexture.format = ImageFormat::R8G8B8A8;
+	m_defaultEmissiveTexture.colorSpace = ImageColorSpace::SRGB;
 	m_defaultEmissiveTexture.data = { 0, 0, 0, 255 };
 
 	load(m_defaultEmissiveTexture);
@@ -3901,27 +3901,27 @@ void NtshEngn::GraphicsModule::resize() {
 }
 
 uint32_t NtshEngn::GraphicsModule::createSampler(const NtshEngn::ImageSampler& sampler) {
-	const std::unordered_map<NtshEngn::ImageSamplerFilter, VkFilter> filterMap{ { NtshEngn::ImageSamplerFilter::Linear, VK_FILTER_LINEAR },
-		{ NtshEngn::ImageSamplerFilter::Nearest, VK_FILTER_NEAREST },
-		{ NtshEngn::ImageSamplerFilter::Unknown, VK_FILTER_LINEAR }
+	const std::unordered_map<ImageSamplerFilter, VkFilter> filterMap{ { ImageSamplerFilter::Linear, VK_FILTER_LINEAR },
+		{ ImageSamplerFilter::Nearest, VK_FILTER_NEAREST },
+		{ ImageSamplerFilter::Unknown, VK_FILTER_LINEAR }
 	};
-	const std::unordered_map<NtshEngn::ImageSamplerFilter, VkSamplerMipmapMode> mipmapFilterMap{ { NtshEngn::ImageSamplerFilter::Linear, VK_SAMPLER_MIPMAP_MODE_LINEAR },
-		{ NtshEngn::ImageSamplerFilter::Nearest, VK_SAMPLER_MIPMAP_MODE_NEAREST },
-		{ NtshEngn::ImageSamplerFilter::Unknown, VK_SAMPLER_MIPMAP_MODE_LINEAR }
+	const std::unordered_map<ImageSamplerFilter, VkSamplerMipmapMode> mipmapFilterMap{ { ImageSamplerFilter::Linear, VK_SAMPLER_MIPMAP_MODE_LINEAR },
+		{ ImageSamplerFilter::Nearest, VK_SAMPLER_MIPMAP_MODE_NEAREST },
+		{ ImageSamplerFilter::Unknown, VK_SAMPLER_MIPMAP_MODE_LINEAR }
 	};
-	const std::unordered_map<NtshEngn::ImageSamplerAddressMode, VkSamplerAddressMode> addressModeMap{ { NtshEngn::ImageSamplerAddressMode::Repeat, VK_SAMPLER_ADDRESS_MODE_REPEAT },
-		{ NtshEngn::ImageSamplerAddressMode::MirroredRepeat, VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT },
-		{ NtshEngn::ImageSamplerAddressMode::ClampToEdge, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE },
-		{ NtshEngn::ImageSamplerAddressMode::ClampToBorder, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER },
-		{ NtshEngn::ImageSamplerAddressMode::Unknown, VK_SAMPLER_ADDRESS_MODE_REPEAT }
+	const std::unordered_map<ImageSamplerAddressMode, VkSamplerAddressMode> addressModeMap{ { ImageSamplerAddressMode::Repeat, VK_SAMPLER_ADDRESS_MODE_REPEAT },
+		{ ImageSamplerAddressMode::MirroredRepeat, VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT },
+		{ ImageSamplerAddressMode::ClampToEdge, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE },
+		{ ImageSamplerAddressMode::ClampToBorder, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER },
+		{ ImageSamplerAddressMode::Unknown, VK_SAMPLER_ADDRESS_MODE_REPEAT }
 	};
-	const std::unordered_map<NtshEngn::ImageSamplerBorderColor, VkBorderColor> borderColorMap{ { NtshEngn::ImageSamplerBorderColor::FloatTransparentBlack, VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK },
-		{ NtshEngn::ImageSamplerBorderColor::IntTransparentBlack, VK_BORDER_COLOR_INT_TRANSPARENT_BLACK },
-		{ NtshEngn::ImageSamplerBorderColor::FloatOpaqueBlack, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK },
-		{ NtshEngn::ImageSamplerBorderColor::IntOpaqueBlack, VK_BORDER_COLOR_INT_OPAQUE_BLACK },
-		{ NtshEngn::ImageSamplerBorderColor::FloatOpaqueWhite, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE },
-		{ NtshEngn::ImageSamplerBorderColor::IntOpaqueWhite, VK_BORDER_COLOR_INT_OPAQUE_WHITE },
-		{ NtshEngn::ImageSamplerBorderColor::Unknown, VK_BORDER_COLOR_INT_OPAQUE_BLACK }
+	const std::unordered_map<ImageSamplerBorderColor, VkBorderColor> borderColorMap{ { ImageSamplerBorderColor::FloatTransparentBlack, VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK },
+		{ ImageSamplerBorderColor::IntTransparentBlack, VK_BORDER_COLOR_INT_TRANSPARENT_BLACK },
+		{ ImageSamplerBorderColor::FloatOpaqueBlack, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK },
+		{ ImageSamplerBorderColor::IntOpaqueBlack, VK_BORDER_COLOR_INT_OPAQUE_BLACK },
+		{ ImageSamplerBorderColor::FloatOpaqueWhite, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE },
+		{ ImageSamplerBorderColor::IntOpaqueWhite, VK_BORDER_COLOR_INT_OPAQUE_WHITE },
+		{ ImageSamplerBorderColor::Unknown, VK_BORDER_COLOR_INT_OPAQUE_BLACK }
 	};
 
 	VkSampler newSampler;
