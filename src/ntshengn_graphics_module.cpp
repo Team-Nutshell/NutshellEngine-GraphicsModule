@@ -800,17 +800,17 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	renderingSwapchainAttachmentInfo.clearValue.depthStencil = { 0.0f, 0 };
 
 	VkRenderingInfo toneMappingRenderingInfo = {};
-	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-	renderingInfo.pNext = nullptr;
-	renderingInfo.flags = 0;
-	renderingInfo.renderArea = m_scissor;
-	renderingInfo.layerCount = 1;
-	renderingInfo.viewMask = 0;
-	renderingInfo.colorAttachmentCount = 1;
-	renderingInfo.pColorAttachments = &renderingSwapchainAttachmentInfo;
-	renderingInfo.pDepthAttachment = nullptr;
-	renderingInfo.pStencilAttachment = nullptr;
-	m_vkCmdBeginRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight], &renderingInfo);
+	toneMappingRenderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	toneMappingRenderingInfo.pNext = nullptr;
+	toneMappingRenderingInfo.flags = 0;
+	toneMappingRenderingInfo.renderArea = m_scissor;
+	toneMappingRenderingInfo.layerCount = 1;
+	toneMappingRenderingInfo.viewMask = 0;
+	toneMappingRenderingInfo.colorAttachmentCount = 1;
+	toneMappingRenderingInfo.pColorAttachments = &renderingSwapchainAttachmentInfo;
+	toneMappingRenderingInfo.pDepthAttachment = nullptr;
+	toneMappingRenderingInfo.pStencilAttachment = nullptr;
+	m_vkCmdBeginRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight], &toneMappingRenderingInfo);
 
 	vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_toneMappingGraphicsPipelineLayout, 0, 1, &m_toneMappingDescriptorSet, 0, nullptr);
 	vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_toneMappingGraphicsPipeline);
