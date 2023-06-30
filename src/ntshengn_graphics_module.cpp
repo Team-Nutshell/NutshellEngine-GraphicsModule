@@ -38,23 +38,23 @@ void NtshEngn::GraphicsModule::init() {
 	commandQueueDesc.NodeMask = 0;
 	NTSHENGN_DX12_CHECK(m_device->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&m_commandQueue)));
 
-	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
 		m_imageCount = 2;
 
 		m_viewport.TopLeftX = 0.0f;
 		m_viewport.TopLeftY = 0.0f;
-		m_viewport.Width = static_cast<float>(windowModule->getWidth(NTSHENGN_MAIN_WINDOW));
-		m_viewport.Height = static_cast<float>(windowModule->getHeight(NTSHENGN_MAIN_WINDOW));
+		m_viewport.Width = static_cast<float>(windowModule->getWidth(windowModule->getMainWindowID()));
+		m_viewport.Height = static_cast<float>(windowModule->getHeight(windowModule->getMainWindowID()));
 		m_viewport.MinDepth = D3D12_MIN_DEPTH;
 		m_viewport.MaxDepth = D3D12_MAX_DEPTH;
 
 		m_scissor.left = 0;
 		m_scissor.top = 0;
-		m_scissor.right = windowModule->getWidth(NTSHENGN_MAIN_WINDOW);
-		m_scissor.bottom = windowModule->getHeight(NTSHENGN_MAIN_WINDOW);
+		m_scissor.right = windowModule->getWidth(windowModule->getMainWindowID());
+		m_scissor.bottom = windowModule->getHeight(windowModule->getMainWindowID());
 
-		m_savedWidth = windowModule->getWidth(NTSHENGN_MAIN_WINDOW);
-		m_savedHeight = windowModule->getHeight(NTSHENGN_MAIN_WINDOW);
+		m_savedWidth = windowModule->getWidth(windowModule->getMainWindowID());
+		m_savedHeight = windowModule->getHeight(windowModule->getMainWindowID());
 
 		// Create swapchain
 		ComPtr<IDXGISwapChain1> swapchain;
@@ -70,7 +70,7 @@ void NtshEngn::GraphicsModule::init() {
 		swapchainDesc.Scaling = DXGI_SCALING_NONE;
 		swapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 		swapchainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-		NTSHENGN_DX12_CHECK(m_factory->CreateSwapChainForHwnd(m_commandQueue.Get(), reinterpret_cast<HWND>(windowModule->getNativeHandle(NTSHENGN_MAIN_WINDOW)), &swapchainDesc, nullptr, nullptr, &swapchain));
+		NTSHENGN_DX12_CHECK(m_factory->CreateSwapChainForHwnd(m_commandQueue.Get(), reinterpret_cast<HWND>(windowModule->getNativeHandle(windowModule->getMainWindowID())), &swapchainDesc, nullptr, nullptr, &swapchain));
 
 		NTSHENGN_DX12_CHECK(swapchain.As(&m_swapchain));
 		m_frameIndex = m_swapchain->GetCurrentBackBufferIndex();
@@ -128,7 +128,7 @@ void NtshEngn::GraphicsModule::init() {
 	m_renderTargets.resize(m_imageCount);
 	m_commandAllocators.resize(m_imageCount);
 	for (uint32_t i = 0; i < m_imageCount; i++) {
-		if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+		if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
 			NTSHENGN_DX12_CHECK(m_swapchain->GetBuffer(i, IID_PPV_ARGS(&m_renderTargets[i])));
 		}
 		else {
@@ -237,20 +237,20 @@ void NtshEngn::GraphicsModule::init() {
 	m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 	NTSHENGN_ASSERT(m_fenceEvent != nullptr);
 
-	waitForGPUIdle();
+	waitForGPUIDle();
 }
 
 void NtshEngn::GraphicsModule::update(double dt) {
 	NTSHENGN_UNUSED(dt);
 
-	if (windowModule && !windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && !windowModule->isOpen(windowModule->getMainWindowID())) {
 		// Do not update if the main window got closed
 		return;
 	}
 
-	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
 		// Check for window resize
-		if (windowModule->getWidth(NTSHENGN_MAIN_WINDOW) != m_savedWidth || windowModule->getHeight(NTSHENGN_MAIN_WINDOW) != m_savedHeight) {
+		if (windowModule->getWidth(windowModule->getMainWindowID()) != m_savedWidth || windowModule->getHeight(windowModule->getMainWindowID()) != m_savedHeight) {
 			resize();
 		}
 	}
@@ -264,7 +264,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	m_commandList->RSSetViewports(1, &m_viewport);
 	m_commandList->RSSetScissorRects(1, &m_scissor);
 
-	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
 		m_presentToRenderTargetBarrier = {};
 		m_presentToRenderTargetBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 		m_presentToRenderTargetBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -282,7 +282,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	m_commandList->DrawInstanced(3, 1, 0, 0);
 
-	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
 		m_renderTargetToPresentBarrier = {};
 		m_renderTargetToPresentBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 		m_renderTargetToPresentBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -300,7 +300,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	m_commandQueue->ExecuteCommandLists(1, commandLists);
 
 	// Present
-	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
 		NTSHENGN_DX12_CHECK(m_swapchain->Present(0, 0));
 	}
 
@@ -308,7 +308,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	uint64_t currentFenceValue = m_fenceValues[m_frameIndex];
 	NTSHENGN_DX12_CHECK(m_commandQueue->Signal(m_fence.Get(), currentFenceValue));
 
-	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
 		m_frameIndex = m_swapchain->GetCurrentBackBufferIndex();
 	}
 
@@ -321,23 +321,23 @@ void NtshEngn::GraphicsModule::update(double dt) {
 }
 
 void NtshEngn::GraphicsModule::destroy() {
-	waitForGPUIdle();
+	waitForGPUIDle();
 
 	CloseHandle(m_fenceEvent);
 }
 
-NtshEngn::MeshId NtshEngn::GraphicsModule::load(const Mesh& mesh) {
+NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	NTSHENGN_UNUSED(mesh);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 
-	return std::numeric_limits<MeshId>::max();
+	return std::numeric_limits<MeshID>::max();
 }
 
-NtshEngn::ImageId NtshEngn::GraphicsModule::load(const Image& image) {
+NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	NTSHENGN_UNUSED(image);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 
-	return std::numeric_limits<ImageId>::max();
+	return std::numeric_limits<ImageID>::max();
 }
 
 void NtshEngn::GraphicsModule::getHardwareAdapter(IDXGIFactory1* factory, IDXGIAdapter1** hardwareAdapter) {
@@ -382,7 +382,7 @@ void NtshEngn::GraphicsModule::getHardwareAdapter(IDXGIFactory1* factory, IDXGIA
 	*hardwareAdapter = adapter.Detach();
 }
 
-void NtshEngn::GraphicsModule::waitForGPUIdle() {
+void NtshEngn::GraphicsModule::waitForGPUIDle() {
 	NTSHENGN_DX12_CHECK(m_commandQueue->Signal(m_fence.Get(), m_fenceValues[m_frameIndex]));
 
 	NTSHENGN_DX12_CHECK(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent));
@@ -392,12 +392,12 @@ void NtshEngn::GraphicsModule::waitForGPUIdle() {
 }
 
 void NtshEngn::GraphicsModule::resize() {
-	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
-		while (windowModule->getWidth(NTSHENGN_MAIN_WINDOW) == 0 || windowModule->getHeight(NTSHENGN_MAIN_WINDOW) == 0) {
+	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+		while ((windowModule->getWidth(windowModule->getMainWindowID()) == 0) || (windowModule->getHeight(windowModule->getMainWindowID()) == 0)) {
 			windowModule->pollEvents();
 		}
 
-		waitForGPUIdle();
+		waitForGPUIDle();
 		
 		for (uint32_t i = 0; i < m_imageCount; i++) {
 			m_renderTargets[i].Reset();
@@ -406,18 +406,18 @@ void NtshEngn::GraphicsModule::resize() {
 
 		m_viewport.TopLeftX = 0.0f;
 		m_viewport.TopLeftY = 0.0f;
-		m_viewport.Width = static_cast<float>(windowModule->getWidth(NTSHENGN_MAIN_WINDOW));
-		m_viewport.Height = static_cast<float>(windowModule->getHeight(NTSHENGN_MAIN_WINDOW));
+		m_viewport.Width = static_cast<float>(windowModule->getWidth(windowModule->getMainWindowID()));
+		m_viewport.Height = static_cast<float>(windowModule->getHeight(windowModule->getMainWindowID()));
 		m_viewport.MinDepth = D3D12_MIN_DEPTH;
 		m_viewport.MaxDepth = D3D12_MAX_DEPTH;
 
 		m_scissor.left = 0;
 		m_scissor.top = 0;
-		m_scissor.right = windowModule->getWidth(NTSHENGN_MAIN_WINDOW);
-		m_scissor.bottom = windowModule->getHeight(NTSHENGN_MAIN_WINDOW);
+		m_scissor.right = windowModule->getWidth(windowModule->getMainWindowID());
+		m_scissor.bottom = windowModule->getHeight(windowModule->getMainWindowID());
 
-		m_savedWidth = windowModule->getWidth(NTSHENGN_MAIN_WINDOW);
-		m_savedHeight = windowModule->getHeight(NTSHENGN_MAIN_WINDOW);
+		m_savedWidth = windowModule->getWidth(windowModule->getMainWindowID());
+		m_savedHeight = windowModule->getHeight(windowModule->getMainWindowID());
 
 		NTSHENGN_DX12_CHECK(m_swapchain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0));
 
