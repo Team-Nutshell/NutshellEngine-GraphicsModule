@@ -705,7 +705,6 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	renderingColorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	renderingColorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	renderingColorAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
-	renderingColorAttachmentInfo.clearValue.depthStencil = { 0.0f, 0 };
 
 	VkRenderingAttachmentInfo renderingDepthAttachmentInfo = {};
 	renderingDepthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -717,7 +716,6 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	renderingDepthAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	renderingDepthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	renderingDepthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	renderingDepthAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
 	renderingDepthAttachmentInfo.clearValue.depthStencil = { 1.0f, 0 };
 
 	VkRenderingInfo renderingInfo = {};
@@ -797,7 +795,6 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	renderingSwapchainAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	renderingSwapchainAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	renderingSwapchainAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
-	renderingSwapchainAttachmentInfo.clearValue.depthStencil = { 0.0f, 0 };
 
 	VkRenderingInfo toneMappingRenderingInfo = {};
 	toneMappingRenderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
