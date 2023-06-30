@@ -4,7 +4,7 @@
 #include <array>
 
 void NtshEngn::GraphicsModule::init() {
-	if (windowModule && windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
 		m_framesInFlight = 2;
 	}
 	else {
@@ -89,27 +89,27 @@ void NtshEngn::GraphicsModule::init() {
 
 	// Add the main window to the window resources
 	PerWindowResources mainWindowResources;
-	mainWindowResources.windowId = NTSHENGN_MAIN_WINDOW;
+	mainWindowResources.windowID = windowModule->getMainWindowID();
 	m_perWindowResources.push_back(mainWindowResources);
 
 	// Create surface for the initial logical device creation
 #if defined(NTSHENGN_OS_WINDOWS)
-	HWND windowHandle = reinterpret_cast<HWND>(windowModule->getNativeHandle(m_perWindowResources[0].windowId));
+	HWND windowHandle = reinterpret_cast<HWND>(windowModule->getNativeHandle(m_perWindowResources[0].windowID));
 	VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
 	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 	surfaceCreateInfo.pNext = nullptr;
 	surfaceCreateInfo.flags = 0;
-	surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(windowModule->getNativeAdditionalInformation(m_perWindowResources[0].windowId));
+	surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(windowModule->getNativeAdditionalInformation(m_perWindowResources[0].windowID));
 	surfaceCreateInfo.hwnd = windowHandle;
 	auto createWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateWin32SurfaceKHR");
 	NTSHENGN_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_perWindowResources[0].surface));
 #elif defined(NTSHENGN_OS_LINUX)
-	Window windowHandle = reinterpret_cast<Window>(windowModule->getNativeHandle(m_perWindowResources[0].windowId));
+	Window windowHandle = reinterpret_cast<Window>(windowModule->getNativeHandle(m_perWindowResources[0].windowID));
 	VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
 	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
 	surfaceCreateInfo.pNext = nullptr;
 	surfaceCreateInfo.flags = 0;
-	surfaceCreateInfo.dpy = reinterpret_cast<Display*>(windowModule->getNativeAdditionalInformation(m_perWindowResources[0].windowId));
+	surfaceCreateInfo.dpy = reinterpret_cast<Display*>(windowModule->getNativeAdditionalInformation(m_perWindowResources[0].windowID));
 	surfaceCreateInfo.window = windowHandle;
 	auto createXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateXlibSurfaceKHR");
 	NTSHENGN_VK_CHECK(createXlibSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_perWindowResources[0].surface));
@@ -245,7 +245,7 @@ void NtshEngn::GraphicsModule::init() {
 	m_vkCmdEndRenderingKHR = (PFN_vkCmdEndRenderingKHR)vkGetDeviceProcAddr(m_device, "vkCmdEndRenderingKHR");
 
 	// Create the per window resources for the main window
-	createWindowResources(NTSHENGN_MAIN_WINDOW);
+	createWindowResources(windowModule->getMainWindowID());
 
 	// Create graphics pipeline
 	VkFormat pipelineRenderingColorFormat = m_swapchainFormat;
@@ -537,17 +537,17 @@ void NtshEngn::GraphicsModule::init() {
 void NtshEngn::GraphicsModule::update(double dt) {
 	NTSHENGN_UNUSED(dt);
 
-	if (!windowModule->isOpen(NTSHENGN_MAIN_WINDOW)) {
+	if (!windowModule->isOpen(windowModule->getMainWindowID())) {
 		// Do not update if the main window got closed
 		return;
 	}
 
-	if (windowModule->getKeyState(NTSHENGN_MAIN_WINDOW, InputKeyboardKey::Space) == InputState::Pressed) {
+	if (windowModule->getKeyState(windowModule->getMainWindowID(), InputKeyboardKey::Space) == InputState::Pressed) {
 		createWindowResources(windowModule->open(300, 300, "New Window"));
 	}
 
 	for (auto it = m_perWindowResources.begin(); it != m_perWindowResources.end(); ) {
-		if (!windowModule->isOpen(it->windowId)) {
+		if (!windowModule->isOpen(it->windowID)) {
 			it = destroyWindowResources(it);
 		}
 		else {
@@ -770,13 +770,13 @@ void NtshEngn::GraphicsModule::destroy() {
 	vkDestroyInstance(m_instance, nullptr);
 }
 
-NtshEngn::MeshId NtshEngn::GraphicsModule::load(const Mesh& mesh) {
+NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	NTSHENGN_UNUSED(mesh);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 	return 0;
 }
 
-NtshEngn::ImageId NtshEngn::GraphicsModule::load(const Image& image) {
+NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	NTSHENGN_UNUSED(image);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 	return 0;
@@ -868,8 +868,8 @@ void NtshEngn::GraphicsModule::createSwapchain(size_t index) {
 	}
 
 	VkExtent2D swapchainExtent = {};
-	swapchainExtent.width = static_cast<uint32_t>(windowModule->getWidth(m_perWindowResources[index].windowId));
-	swapchainExtent.height = static_cast<uint32_t>(windowModule->getHeight(m_perWindowResources[index].windowId));
+	swapchainExtent.width = static_cast<uint32_t>(windowModule->getWidth(m_perWindowResources[index].windowID));
+	swapchainExtent.height = static_cast<uint32_t>(windowModule->getHeight(m_perWindowResources[index].windowID));
 
 	m_perWindowResources[index].viewport.x = 0.0f;
 	m_perWindowResources[index].viewport.y = 0.0f;
@@ -937,33 +937,33 @@ void NtshEngn::GraphicsModule::createSwapchain(size_t index) {
 	}
 }
 
-void NtshEngn::GraphicsModule::createWindowResources(WindowId windowId) {
+void NtshEngn::GraphicsModule::createWindowResources(WindowID windowID) {
 	size_t index = 0;
-	if (windowId != NTSHENGN_MAIN_WINDOW) {
+	if (windowID != windowModule->getMainWindowID()) {
 		PerWindowResources newWindowResources;
-		newWindowResources.windowId = windowId;
+		newWindowResources.windowID = windowID;
 		m_perWindowResources.push_back(newWindowResources);
 		index = (m_perWindowResources.size() - 1);
 
 		// Create surface
 #if defined(NTSHENGN_OS_WINDOWS)
-		HWND windowHandle = reinterpret_cast<HWND>(windowModule->getNativeHandle(m_perWindowResources[index].windowId));
+		HWND windowHandle = reinterpret_cast<HWND>(windowModule->getNativeHandle(m_perWindowResources[index].windowID));
 		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.pNext = nullptr;
 		surfaceCreateInfo.flags = 0;
-		surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(windowModule->getNativeAdditionalInformation(m_perWindowResources[index].windowId));
+		surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(windowModule->getNativeAdditionalInformation(m_perWindowResources[index].windowID));
 		surfaceCreateInfo.hwnd = windowHandle;
 		auto createWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateWin32SurfaceKHR");
 		NTSHENGN_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_perWindowResources[index].surface));
 #elif defined(NTSHENGN_OS_LINUX)
-		for (size_t i = 0; i < m_windowIds.size(); i++) {
-			Window windowHandle = reinterpret_cast<Window>(windowModule->getNativeHandle(m_perWindowResources[index].windowId));
+		for (size_t i = 0; i < m_windowIDs.size(); i++) {
+			Window windowHandle = reinterpret_cast<Window>(windowModule->getNativeHandle(m_perWindowResources[index].windowID));
 			VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
 			surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
 			surfaceCreateInfo.pNext = nullptr;
 			surfaceCreateInfo.flags = 0;
-			surfaceCreateInfo.dpy = reinterpret_cast<Display*>(windowModule->getNativeAdditionalInformation(m_perWindowResources[index].windowId));
+			surfaceCreateInfo.dpy = reinterpret_cast<Display*>(windowModule->getNativeAdditionalInformation(m_perWindowResources[index].windowID));
 			surfaceCreateInfo.window = windowHandle;
 			auto createXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateXlibSurfaceKHR");
 			NTSHENGN_VK_CHECK(createXlibSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_perWindowResources[index].surface));
@@ -1010,7 +1010,7 @@ std::vector<PerWindowResources>::iterator NtshEngn::GraphicsModule::destroyWindo
 }
 
 void NtshEngn::GraphicsModule::resize(size_t index) {
-	while (windowModule->getWidth(m_perWindowResources[index].windowId) == 0 || windowModule->getHeight(m_perWindowResources[index].windowId) == 0) {
+	while ((windowModule->getWidth(m_perWindowResources[index].windowID) == 0) || (windowModule->getHeight(m_perWindowResources[index].windowID) == 0)) {
 		windowModule->pollEvents();
 	}
 
