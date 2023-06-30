@@ -958,7 +958,6 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	renderingSwapchainAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	renderingSwapchainAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	renderingSwapchainAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
-	renderingSwapchainAttachmentInfo.clearValue.depthStencil = { 0.0f, 0 };
 
 	VkRenderingInfo toneMappingRenderingInfo = {};
 	toneMappingRenderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
