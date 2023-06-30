@@ -71,9 +71,9 @@ namespace NtshEngn {
 		void destroy();
 
 		// Loads the mesh described in the mesh parameter in the internal format and returns a unique identifier
-		MeshId load(const Mesh& mesh);
+		MeshID load(const Mesh& mesh);
 		// Loads the image described in the image parameter in the internal format and returns a unique identifier
-		ImageId load(const Image& image);
+		ImageID load(const Image& image);
 
 	public:
 		const ComponentMask getComponentMask() const;
@@ -119,9 +119,9 @@ namespace NtshEngn {
 		void retrieveObjectIndex(uint32_t objectIndex);
 
 		// Create meshes for colliders
-		MeshId createAABB(const nml::vec3& min, const nml::vec3& max);
-		MeshId createSphere(const nml::vec3& center, float radius);
-		MeshId createCapsule(const nml::vec3& base, const nml::vec3& tip, float radius);
+		MeshID createAABB(const nml::vec3& min, const nml::vec3& max);
+		MeshID createSphere(const nml::vec3& center, float radius);
+		MeshID createCapsule(const nml::vec3& base, const nml::vec3& tip, float radius);
 
 	private:
 		VkInstance m_instance;
