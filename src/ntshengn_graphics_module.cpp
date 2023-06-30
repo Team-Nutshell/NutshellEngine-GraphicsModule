@@ -5,7 +5,7 @@
 #include <array>
 
 void NtshEngn::GraphicsModule::init() {
-	if (windowModule && (windowModule->isOpen(windowModule->getMainWindowID()))) {
+	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
 		m_framesInFlight = 2;
 	}
 	else {
@@ -1708,7 +1708,7 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 
 void NtshEngn::GraphicsModule::resize() {
 	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-		while (windowModule->getWidth(windowModule->getMainWindowID()) == 0 || windowModule->getHeight(windowModule->getMainWindowID()) == 0) {
+		while ((windowModule->getWidth(windowModule->getMainWindowID()) == 0) || (windowModule->getHeight(windowModule->getMainWindowID()) == 0)) {
 			windowModule->pollEvents();
 		}
 
