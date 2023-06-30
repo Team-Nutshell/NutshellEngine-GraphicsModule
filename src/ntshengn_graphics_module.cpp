@@ -766,17 +766,17 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	VkDependencyInfo generalToShaderReadOnlyOptimalDependencyInfo = {};
-	generalToShaderReadOnlyOptimalDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-	generalToShaderReadOnlyOptimalDependencyInfo.pNext = nullptr;
-	generalToShaderReadOnlyOptimalDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-	generalToShaderReadOnlyOptimalDependencyInfo.memoryBarrierCount = 0;
-	generalToShaderReadOnlyOptimalDependencyInfo.pMemoryBarriers = nullptr;
-	generalToShaderReadOnlyOptimalDependencyInfo.bufferMemoryBarrierCount = 0;
-	generalToShaderReadOnlyOptimalDependencyInfo.pBufferMemoryBarriers = nullptr;
-	generalToShaderReadOnlyOptimalDependencyInfo.imageMemoryBarrierCount = 1;
-	generalToShaderReadOnlyOptimalDependencyInfo.pImageMemoryBarriers = &colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &generalToShaderReadOnlyOptimalDependencyInfo);
+	VkDependencyInfo colorAttachmentToShaderReadOnlyOptimalDependencyInfo = {};
+	colorAttachmentToShaderReadOnlyOptimalDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	colorAttachmentToShaderReadOnlyOptimalDependencyInfo.pNext = nullptr;
+	colorAttachmentToShaderReadOnlyOptimalDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	colorAttachmentToShaderReadOnlyOptimalDependencyInfo.memoryBarrierCount = 0;
+	colorAttachmentToShaderReadOnlyOptimalDependencyInfo.pMemoryBarriers = nullptr;
+	colorAttachmentToShaderReadOnlyOptimalDependencyInfo.bufferMemoryBarrierCount = 0;
+	colorAttachmentToShaderReadOnlyOptimalDependencyInfo.pBufferMemoryBarriers = nullptr;
+	colorAttachmentToShaderReadOnlyOptimalDependencyInfo.imageMemoryBarrierCount = 1;
+	colorAttachmentToShaderReadOnlyOptimalDependencyInfo.pImageMemoryBarriers = &colorAttachmentOptimalToShaderReadOnlyImageMemoryBarrier;
+	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &colorAttachmentToShaderReadOnlyOptimalDependencyInfo);
 
 	// Tonemapping
 	VkRenderingAttachmentInfo renderingSwapchainAttachmentInfo = {};
