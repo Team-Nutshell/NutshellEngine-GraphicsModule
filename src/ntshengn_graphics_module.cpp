@@ -17,16 +17,16 @@ void NtshEngn::GraphicsModule::init() {
 	WGPUSurfaceDescriptorFromWindowsHWND surfaceDescriptorWindows = {};
 	surfaceDescriptorWindows.chain.next = nullptr;
 	surfaceDescriptorWindows.chain.sType = WGPUSType_SurfaceDescriptorFromWindowsHWND;
-	surfaceDescriptorWindows.hinstance = windowModule->getNativeAdditionalInformation(NTSHENGN_MAIN_WINDOW);
-	surfaceDescriptorWindows.hwnd = windowModule->getNativeHandle(NTSHENGN_MAIN_WINDOW);
+	surfaceDescriptorWindows.hinstance = windowModule->getNativeAdditionalInformation(windowModule->getMainWindowID());
+	surfaceDescriptorWindows.hwnd = windowModule->getNativeHandle(windowModule->getMainWindowID());
 
 	surfaceDescriptor.nextInChain = &surfaceDescriptorWindows.chain;
 #elif defined(NTSHENGN_OS_LINUX)
 	WGPUSurfaceDescriptorFromXlibWindow surfaceDescriptorLinux = {};
 	surfaceDescriptorLinux.chain.sType = WGPUSType_SurfaceDescriptorFromXlibWindow;
 	surfaceDescriptorLinux.chain.next = nullptr;
-	surfaceDescriptorLinux.display = windowModule->getNativeAdditionalInformation(NTSHENGN_MAIN_WINDOW);
-	surfaceDescriptorWindows.window = reinterpret_cast<uint32_t>(windowModule->getNativeHandle(NTSHENGN_MAIN_WINDOW));
+	surfaceDescriptorLinux.display = windowModule->getNativeAdditionalInformation(windowModule->getMainWindowID());
+	surfaceDescriptorWindows.window = reinterpret_cast<uint32_t>(windowModule->getNativeHandle(windowModule->getMainWindowID()));
 
 	surfaceDescriptor.nextInChain = &surfaceDescriptorLinux.chain;
 #endif
@@ -259,8 +259,8 @@ void NtshEngn::GraphicsModule::init() {
 void NtshEngn::GraphicsModule::update(double dt) {
 	NTSHENGN_UNUSED(dt);
 
-	if (m_swapChainWidth != static_cast<uint32_t>(windowModule->getWidth(NTSHENGN_MAIN_WINDOW)) ||
-		m_swapChainHeight != static_cast<uint32_t>(windowModule->getHeight(NTSHENGN_MAIN_WINDOW))) {
+	if (m_swapChainWidth != static_cast<uint32_t>(windowModule->getWidth(windowModule->getMainWindowID())) ||
+		m_swapChainHeight != static_cast<uint32_t>(windowModule->getHeight(windowModule->getMainWindowID()))) {
 		resize();
 	}
 
@@ -336,25 +336,25 @@ void NtshEngn::GraphicsModule::destroy() {
 	wgpuInstanceDrop(m_instance);
 }
 
-NtshEngn::MeshId NtshEngn::GraphicsModule::load(const Mesh& mesh) {
+NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	NTSHENGN_UNUSED(mesh);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 
-	return std::numeric_limits<MeshId>::max();
+	return std::numeric_limits<MeshID>::max();
 }
 
-NtshEngn::ImageId NtshEngn::GraphicsModule::load(const Image& image) {
+NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	NTSHENGN_UNUSED(image);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 
-	return std::numeric_limits<ImageId>::max();
+	return std::numeric_limits<ImageID>::max();
 }
 
 void NtshEngn::GraphicsModule::createSwapChain() {
 	// Create swapchain
 	m_swapChainFormat = WGPUTextureFormat_BGRA8UnormSrgb;
-	m_swapChainWidth = static_cast<uint32_t>(windowModule->getWidth(NTSHENGN_MAIN_WINDOW));
-	m_swapChainHeight = static_cast<uint32_t>(windowModule->getHeight(NTSHENGN_MAIN_WINDOW));
+	m_swapChainWidth = static_cast<uint32_t>(windowModule->getWidth(windowModule->getMainWindowID()));
+	m_swapChainHeight = static_cast<uint32_t>(windowModule->getHeight(windowModule->getMainWindowID()));
 	WGPUSwapChainDescriptor swapChainDescriptor = {};
 	swapChainDescriptor.nextInChain = nullptr;
 	swapChainDescriptor.label = "SwapChain";
@@ -367,7 +367,7 @@ void NtshEngn::GraphicsModule::createSwapChain() {
 }
 
 void NtshEngn::GraphicsModule::resize() {
-	while (windowModule->getWidth(NTSHENGN_MAIN_WINDOW) == 0 || windowModule->getHeight(NTSHENGN_MAIN_WINDOW) == 0) {
+	while ((windowModule->getWidth(windowModule->getMainWindowID()) == 0) || (windowModule->getHeight(windowModule->getMainWindowID()) == 0)) {
 		windowModule->pollEvents();
 	}
 
