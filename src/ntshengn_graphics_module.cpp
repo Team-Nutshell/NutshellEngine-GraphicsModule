@@ -691,17 +691,17 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 	std::array<VkImageMemoryBarrier2, 3> imageMemoryBarriers = { swapchainOrDrawImageMemoryBarrier, undefinedToColorAttachmentOptimalImageMemoryBarrier, undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier };
 
-	VkDependencyInfo undefinedToColorAttachmentOptimalDependencyInfo = {};
-	undefinedToColorAttachmentOptimalDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-	undefinedToColorAttachmentOptimalDependencyInfo.pNext = nullptr;
-	undefinedToColorAttachmentOptimalDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-	undefinedToColorAttachmentOptimalDependencyInfo.memoryBarrierCount = 0;
-	undefinedToColorAttachmentOptimalDependencyInfo.pMemoryBarriers = nullptr;
-	undefinedToColorAttachmentOptimalDependencyInfo.bufferMemoryBarrierCount = 0;
-	undefinedToColorAttachmentOptimalDependencyInfo.pBufferMemoryBarriers = nullptr;
-	undefinedToColorAttachmentOptimalDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(imageMemoryBarriers.size());
-	undefinedToColorAttachmentOptimalDependencyInfo.pImageMemoryBarriers = imageMemoryBarriers.data();
-	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &undefinedToColorAttachmentOptimalDependencyInfo);
+	VkDependencyInfo undefinedToAttachmentOptimalDependencyInfo = {};
+	undefinedToAttachmentOptimalDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	undefinedToAttachmentOptimalDependencyInfo.pNext = nullptr;
+	undefinedToAttachmentOptimalDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToAttachmentOptimalDependencyInfo.memoryBarrierCount = 0;
+	undefinedToAttachmentOptimalDependencyInfo.pMemoryBarriers = nullptr;
+	undefinedToAttachmentOptimalDependencyInfo.bufferMemoryBarrierCount = 0;
+	undefinedToAttachmentOptimalDependencyInfo.pBufferMemoryBarriers = nullptr;
+	undefinedToAttachmentOptimalDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(imageMemoryBarriers.size());
+	undefinedToAttachmentOptimalDependencyInfo.pImageMemoryBarriers = imageMemoryBarriers.data();
+	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &undefinedToAttachmentOptimalDependencyInfo);
 
 	// Bind vertex and index buffers
 	VkDeviceSize vertexBufferOffset = 0;
