@@ -1032,6 +1032,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	submitInfo.pSignalSemaphores = &m_renderFinishedSemaphores[imageIndex];
 	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fences[m_currentFrameInFlight]));
 
+	m_sampleBatch++;
+
 	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
 		VkPresentInfoKHR presentInfo = {};
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -1064,8 +1066,6 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		emptyWaitSubmitInfo.pSignalSemaphores = nullptr;
 		NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptyWaitSubmitInfo, VK_NULL_HANDLE));
 	}
-
-	m_sampleBatch++;
 
 	m_currentFrameInFlight = (m_currentFrameInFlight + 1) % m_framesInFlight;
 }
