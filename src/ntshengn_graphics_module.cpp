@@ -4028,7 +4028,7 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 
 void NtshEngn::GraphicsModule::resize() {
 	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-		while ((windowModule->getWidth(windowModule->getMainWindowID()) == 0 || windowModule->getHeight(windowModule->getMainWindowID())) == 0) {
+		while ((windowModule->getWidth(windowModule->getMainWindowID()) == 0) || (windowModule->getHeight(windowModule->getMainWindowID())) == 0) {
 			windowModule->pollEvents();
 		}
 
