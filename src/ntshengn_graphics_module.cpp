@@ -26,7 +26,7 @@ void NtshEngn::GraphicsModule::init() {
 	surfaceDescriptorLinux.chain.sType = WGPUSType_SurfaceDescriptorFromXlibWindow;
 	surfaceDescriptorLinux.chain.next = nullptr;
 	surfaceDescriptorLinux.display = windowModule->getNativeAdditionalInformation(windowModule->getMainWindowID());
-	surfaceDescriptorWindows.window = reinterpret_cast<uint32_t>(windowModule->getNativeHandle(windowModule->getMainWindowID()));
+	surfaceDescriptorLinux.window = reinterpret_cast<uint32_t>(windowModule->getNativeHandle(windowModule->getMainWindowID()));
 
 	surfaceDescriptor.nextInChain = &surfaceDescriptorLinux.chain;
 #endif
