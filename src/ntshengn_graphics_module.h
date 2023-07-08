@@ -1,9 +1,9 @@
 #pragma once
-#include "../external/Common/module_interfaces/ntshengn_graphics_module_interface.h"
-#include "../external/Common/resources/ntshengn_resources_graphics.h"
-#include "../external/Common/utils/ntshengn_defines.h"
-#include "../external/Common/utils/ntshengn_enums.h"
-#include "../external/Module/utils/ntshengn_module_defines.h"
+#include "../Common/module_interfaces/ntshengn_graphics_module_interface.h"
+#include "../Common/resources/ntshengn_resources_graphics.h"
+#include "../Common/utils/ntshengn_defines.h"
+#include "../Common/utils/ntshengn_enums.h"
+#include "../Module/utils/ntshengn_module_defines.h"
 #include "../external/nml/include/nml.h"
 #if defined(NTSHENGN_OS_WINDOWS)
 #define VK_USE_PLATFORM_WIN32_KHR
