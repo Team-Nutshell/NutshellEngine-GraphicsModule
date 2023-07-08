@@ -1,5 +1,5 @@
 #pragma once
-#include "../external/Common/module_interfaces/ntshengn_graphics_module_interface.h"
+#include "../Common/module_interfaces/ntshengn_graphics_module_interface.h"
 
 namespace NtshEngn {
 
