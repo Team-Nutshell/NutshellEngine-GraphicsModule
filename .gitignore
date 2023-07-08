@@ -361,5 +361,5 @@ FodyWeavers.xsd
 
 # NutshellEngine specific ignore
 build/
-external/Common/
-external/Module/
+Common/
+Module/
