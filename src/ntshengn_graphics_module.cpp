@@ -2635,7 +2635,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		} camera;
 
 		struct HitPayload {
-			vec3 hitValue;
+			vec4 hitValue;
 			vec3 rayOrigin;
 			vec3 rayDirection;
 			float materialMetalness;
@@ -2655,7 +2655,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			const vec4 target = inverseProjection * vec4(d, 1.0, 1.0);
 			vec3 direction = vec3(inverseView * vec4(normalize(target.xyz), 0.0));
 
-			vec3 color = vec3(0.0);
+			vec4 color = vec4(0.0);
 			float frac = 1.0;
 
 			const uint rayFlags = gl_RayFlagsOpaqueEXT;
@@ -2666,7 +2666,8 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			for (uint i = 0; i < NUM_BOUNCES + 1; i++) {
 				traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 0, origin, tMin, direction, tMax, 0);
 
-				color += payload.hitValue * frac;
+				color.rgb += payload.hitValue.rgb * frac;
+				color.a = payload.hitValue.a;
 				frac *= payload.materialMetalness;
 
 				if (payload.hitBackground || frac < 0.05) {
@@ -2677,7 +2678,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 				direction = payload.rayDirection;
 			}
 
-			imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(color, 1.0));
+			imageStore(image, ivec2(gl_LaunchIDEXT.xy), color);
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayGenShaderSpv = compileShader(rayGenShaderCode, ShaderType::RayGeneration);
@@ -2715,7 +2716,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		#extension GL_EXT_ray_tracing : require
 
 		struct HitPayload {
-			vec3 hitValue;
+			vec4 hitValue;
 			vec3 rayOrigin;
 			vec3 rayDirection;
 			float materialMetalness;
@@ -2725,7 +2726,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		layout(location = 0) rayPayloadInEXT HitPayload payload;
 
 		void main() {
-			payload.hitValue = vec3(0.0, 0.0, 0.0);
+			payload.hitValue = vec4(0.0, 0.0, 0.0, 0.0);
 			payload.materialMetalness = 1.0;
 			payload.hitBackground = true;
 		}
@@ -2876,7 +2877,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		};
 
 		struct HitPayload {
-			vec3 hitValue;
+			vec4 hitValue;
 			vec3 rayOrigin;
 			vec3 rayDirection;
 			float materialMetalness;
@@ -3069,7 +3070,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			color *= occlusionSample;
 			color += emissiveSample;
 
-			payload.hitValue = color;
+			payload.hitValue = vec4(color, 1.0);
 			payload.rayOrigin = offsetPositionAlongNormal(worldPosition, n);
 			payload.rayDirection = reflect(gl_WorldRayDirectionEXT, n);
 			payload.materialMetalness = metalnessSample;
@@ -3504,10 +3505,10 @@ void NtshEngn::GraphicsModule::createToneMappingResources() {
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			vec3 color = texture(imageSampler, uv).rgb;
-			color /= color + vec3(1.0);
+			vec4 color = texture(imageSampler, uv);
+			color.rgb /= color.rgb + vec3(1.0);
 
-			outColor = vec4(color, 1.0);
+			outColor = color;
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
