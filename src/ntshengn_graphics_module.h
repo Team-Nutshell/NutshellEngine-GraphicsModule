@@ -1,5 +1,5 @@
 #pragma once
-#include "../external/Common/module_interfaces/ntshengn_graphics_module_interface.h"
+#include "../Common/module_interfaces/ntshengn_graphics_module_interface.h"
 #include <wrl/client.h>
 #include <d3d12.h>
 #include <d3dcompiler.h>

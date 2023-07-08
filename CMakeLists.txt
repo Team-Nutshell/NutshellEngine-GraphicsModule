@@ -11,17 +11,17 @@ set(NTSHENGN_DEFINES "")
 
 set(NTSHENGN_COMMON_PATH "NtshEngn_Common_NOTFOUND" CACHE PATH "The directory containing NutshellEngine's common resources.")
 if(NOT ${NTSHENGN_COMMON_PATH} STREQUAL "NtshEngn_Common_NOTFOUND" AND EXISTS ${NTSHENGN_COMMON_PATH})
-	message(STATUS "Copy NutshellEngine\'s common resources from ${NTSHENGN_COMMON_PATH} to ${CMAKE_CURRENT_SOURCE_DIR}/external/Common")
-	file(COPY ${NTSHENGN_COMMON_PATH}/ DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/external/Common)
+	message(STATUS "Copy NutshellEngine\'s common resources from ${NTSHENGN_COMMON_PATH} to ${CMAKE_CURRENT_SOURCE_DIR}/Common")
+	file(COPY ${NTSHENGN_COMMON_PATH}/ DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/Common)
 
-	add_subdirectory(external/Common)
+	add_subdirectory(Common)
 else()
-	message(STATUS "Copy NutshellEngine\'s common resources from Git repository to ${CMAKE_CURRENT_SOURCE_DIR}/external/Common")
+	message(STATUS "Copy NutshellEngine\'s common resources from Git repository to ${CMAKE_CURRENT_SOURCE_DIR}/Common")
 	FetchContent_Declare(
 		Common
 		GIT_REPOSITORY https://github.com/Team-Nutshell/NutshellEngine-Common
 		GIT_TAG main
-		SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/Common"
+		SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Common"
 	)
 	
 	FetchContent_MakeAvailable(Common)
@@ -29,17 +29,17 @@ endif()
 
 set(NTSHENGN_MODULE_PATH "NtshEngn_Module_NOTFOUND" CACHE PATH "The directory containing NutshellEngine's common module resources.")
 if(NOT ${NTSHENGN_MODULE_PATH} STREQUAL "NtshEngn_Module_NOTFOUND" AND EXISTS ${NTSHENGN_MODULE_PATH})
-	message(STATUS "Copy NutshellEngine\'s common module resources from ${NTSHENGN_MODULE_PATH} to ${CMAKE_CURRENT_SOURCE_DIR}/external/Module")
-	file(COPY ${NTSHENGN_MODULE_PATH}/ DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/external/Module)
+	message(STATUS "Copy NutshellEngine\'s common module resources from ${NTSHENGN_MODULE_PATH} to ${CMAKE_CURRENT_SOURCE_DIR}/Module")
+	file(COPY ${NTSHENGN_MODULE_PATH}/ DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/Module)
 
-	add_subdirectory(external/Module)
+	add_subdirectory(Module)
 else()
-	message(STATUS "Copy NutshellEngine\'s common module resources from Git repository to ${CMAKE_CURRENT_SOURCE_DIR}/external/Module")
+	message(STATUS "Copy NutshellEngine\'s common module resources from Git repository to ${CMAKE_CURRENT_SOURCE_DIR}/Module")
 	FetchContent_Declare(
 		Module
 		GIT_REPOSITORY https://github.com/Team-Nutshell/NutshellEngine-Module
 		GIT_TAG main
-		SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/Module"
+		SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Module"
 	)
 
 	FetchContent_MakeAvailable(Module)
