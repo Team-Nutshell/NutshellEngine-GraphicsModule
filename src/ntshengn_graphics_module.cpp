@@ -2919,10 +2919,10 @@ void NtshEngn::GraphicsModule::createToneMappingResources() {
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			vec3 color = texture(imageSampler, uv).rgb;
-			color /= color + vec3(1.0);
+			vec4 color = texture(imageSampler, uv);
+			color.rgb /= color.rgb + vec3(1.0);
 
-			outColor = vec4(color, 1.0);
+			outColor = vec4(color.rgb, color.a);
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
