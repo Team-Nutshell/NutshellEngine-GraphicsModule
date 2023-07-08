@@ -1,7 +1,7 @@
 #include "ntshengn_graphics_module.h"
-#include "../external/Common/module_interfaces/ntshengn_window_module_interface.h"
-#include "../external/Module/utils/ntshengn_module_defines.h"
-#include "../external/Module/utils/ntshengn_dynamic_library.h"
+#include "../Common/module_interfaces/ntshengn_window_module_interface.h"
+#include "../Module/utils/ntshengn_module_defines.h"
+#include "../Module/utils/ntshengn_dynamic_library.h"
 
 void NtshEngn::GraphicsModule::init() {
 	// Create instance
