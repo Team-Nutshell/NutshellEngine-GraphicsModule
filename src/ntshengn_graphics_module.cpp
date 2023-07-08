@@ -1,5 +1,5 @@
 #include "ntshengn_graphics_module.h"
-#include "../external/Module/utils/ntshengn_dynamic_library.h"
+#include "../Module/utils/ntshengn_dynamic_library.h"
 #include <limits>
 #include <array>
 
