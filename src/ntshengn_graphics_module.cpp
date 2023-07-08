@@ -1,7 +1,7 @@
 #include "ntshengn_graphics_module.h"
-#include "../external/Module/utils/ntshengn_dynamic_library.h"
-#include "../external/Common/module_interfaces/ntshengn_window_module_interface.h"
-#include "../external/Common/utils/ntshengn_utils_file.h"
+#include "../Module/utils/ntshengn_dynamic_library.h"
+#include "../Common/module_interfaces/ntshengn_window_module_interface.h"
+#include "../Common/utils/ntshengn_utils_file.h"
 #include <limits>
 #include <array>
 #include <chrono>
