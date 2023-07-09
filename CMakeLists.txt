@@ -57,19 +57,24 @@ set(HEADERS ${MODULE_HEADERS})
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES} ${HEADERS})
 
-target_link_libraries(${PROJECT_NAME} PRIVATE NutshellEngine::Module NutshellEngine::Common)
+target_link_libraries(${PROJECT_NAME}
+	PRIVATE
+		NutshellEngine::Module
+		NutshellEngine::Common)
 
-target_compile_options(${PROJECT_NAME} PRIVATE
-	$<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
-	$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Werror>)
+target_compile_options(${PROJECT_NAME}
+	PRIVATE
+		$<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
+		$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Werror>)
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE
-	${NTSHENGN_DEFINES}
+target_compile_definitions(${PROJECT_NAME}
+	PRIVATE
+		${NTSHENGN_DEFINES}
 	PUBLIC
-	$<$<CONFIG:Debug>:NTSHENGN_DEBUG>
-	$<$<CONFIG:MinSizeRel>:NTSHENGN_RELEASE>
-	$<$<CONFIG:Release>:NTSHENGN_RELEASE>
-	$<$<CONFIG:RelWithDebInfo>:NTSHENGN_DEBUG>)
+		$<$<CONFIG:Debug>:NTSHENGN_DEBUG>
+		$<$<CONFIG:MinSizeRel>:NTSHENGN_RELEASE>
+		$<$<CONFIG:Release>:NTSHENGN_RELEASE>
+		$<$<CONFIG:RelWithDebInfo>:NTSHENGN_DEBUG>)
 
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
