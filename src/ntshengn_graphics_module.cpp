@@ -1396,7 +1396,7 @@ std::vector<uint32_t> NtshEngn::GraphicsModule::compileFragmentShader() {
 		const std::filesystem::path absolutePath = std::filesystem::absolute(std::filesystem::current_path());
 		NTSHENGN_MODULE_ERROR("Fragment shader shader.frag does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", Result::ModuleError);
 	}
-	std::string shaderCode = m_fragmentShaderPrefix + readAscii(m_fragmentShaderName);
+	std::string shaderCode = m_fragmentShaderPrefix + File::readAscii(m_fragmentShaderName);
 	const char* shaderCodeCharPtr = shaderCode.c_str();
 
 	EShLanguage shaderType = EShLangFragment;
