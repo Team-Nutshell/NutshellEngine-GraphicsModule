@@ -250,7 +250,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
 		// Check for window resize
-		if (windowModule->getWidth(windowModule->getMainWindowID()) != m_savedWidth || windowModule->getHeight(windowModule->getMainWindowID()) != m_savedHeight) {
+		if ((windowModule->getWidth(windowModule->getMainWindowID()) != m_savedWidth) || (windowModule->getHeight(windowModule->getMainWindowID()) != m_savedHeight)) {
 			resize();
 		}
 	}
