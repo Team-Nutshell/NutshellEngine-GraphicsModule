@@ -3175,6 +3175,21 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			return color;
 		}
 
+		float shadows(vec3 l, float distanceToLight) {
+			isShadowed = true;
+			float tMin = 0.001;
+			float tMax = distanceToLight;
+			vec3 origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+			vec3 direction = l;
+			uint rayFlags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
+			traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 1, origin, tMin, direction, tMax, 1);
+			
+			if (isShadowed) {
+				return 0.0;
+			}
+			return 1.0;
+		}
+
 		void main() {
 			ObjectInfo object = objects.info[gl_InstanceCustomIndexEXT];
 			MeshInfo mesh = meshes.info[object.meshID];
@@ -3257,7 +3272,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 				distance = length(lights.info[lightIndex].position - worldPosition);
 			}
 
-			color += shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample, payload.rngState, payload.rayDirection);
+			color += shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample, payload.rngState, payload.rayDirection) * shadows(l, distance);
 
 			color *= occlusionSample;
 			color += emissiveSample;
@@ -3323,7 +3338,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 	rayTracingPipelineCreateInfo.pStages = shaderStageCreateInfos.data();
 	rayTracingPipelineCreateInfo.groupCount = static_cast<uint32_t>(shaderGroupCreateInfos.size());
 	rayTracingPipelineCreateInfo.pGroups = shaderGroupCreateInfos.data();
-	rayTracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 1;
+	rayTracingPipelineCreateInfo.maxPipelineRayRecursionDepth = 2;
 	rayTracingPipelineCreateInfo.pLibraryInfo = nullptr;
 	rayTracingPipelineCreateInfo.pLibraryInterface = nullptr;
 	rayTracingPipelineCreateInfo.pDynamicState = nullptr;
