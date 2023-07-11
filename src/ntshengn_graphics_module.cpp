@@ -1853,6 +1853,7 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerId });
 			material.emissiveTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
 		}
+		material.emissiveFactor = renderable.material->emissiveFactor;
 		m_materials.push_back(material);
 		object.materialIndex = static_cast<uint32_t>(m_materials.size() - 1);
 		m_objects[entity] = object;
@@ -2828,6 +2829,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			uint roughnessTextureIndex;
 			uint occlusionTextureIndex;
 			uint emissiveTextureIndex;
+			float emissiveFactor;
 		};
 
 		struct LightInfo {
@@ -3068,7 +3070,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			}
 
 			color *= occlusionSample;
-			color += emissiveSample;
+			color += emissiveSample * material.emissiveFactor;
 
 			payload.hitValue = vec4(color, 1.0);
 			payload.rayOrigin = offsetPositionAlongNormal(worldPosition, n);

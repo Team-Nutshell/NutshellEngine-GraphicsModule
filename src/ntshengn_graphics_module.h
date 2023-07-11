@@ -82,6 +82,7 @@ struct InternalMaterial {
 	uint32_t roughnessTextureIndex = 3;
 	uint32_t occlusionTextureIndex = 4;
 	uint32_t emissiveTextureIndex = 5;
+	float emissiveFactor = 1.0f;
 };
 
 struct InternalObject {
