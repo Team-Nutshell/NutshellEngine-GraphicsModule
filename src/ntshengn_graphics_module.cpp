@@ -3274,7 +3274,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 				distance = length(lights.info[lightIndex].position - worldPosition);
 			}
 
-			color += shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample, payload.rngState, payload.rayDirection) * shadows(l, distance);
+			color += (shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample, payload.rngState, payload.rayDirection) / float(lightCount)) * shadows(l, distance);
 
 			color *= occlusionSample;
 			color += emissiveSample * material.emissiveFactor;
