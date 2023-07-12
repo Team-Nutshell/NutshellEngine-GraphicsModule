@@ -3185,7 +3185,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 direction = l;
 			uint rayFlags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
 			traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 1, origin, tMin, direction, tMax, 1);
-			
+
 			if (isShadowed) {
 				return 0.0;
 			}
@@ -3236,7 +3236,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 v = -gl_WorldRayDirectionEXT;
 
 			vec3 color = vec3(0.0);
-			
+
 			// Pick a random light
 			uint lightCount = lights.count.x + lights.count.y + lights.count.z;
 			uint lightIndex = uint(floor(rngFloat(payload.rngState) * lightCount));
@@ -3245,7 +3245,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 lc;
 			float intensity = 1.0;
 			float distance = 10000.0;
-			
+
 			// Directional light
 			if (lightIndex < lights.count.x) {
 				l = normalize(-lights.info[lightIndex].direction);
