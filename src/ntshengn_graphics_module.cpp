@@ -2713,7 +2713,9 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		} pC;
 
 		struct HitPayload {
-			vec4 hitValue;
+			vec3 directLighting;
+			vec4 brdf;
+			vec3 emissive;
 			vec3 rayOrigin;
 			vec3 rayDirection;
 			uint rngState;
@@ -2753,7 +2755,8 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			const vec4 target = inverseProjection * vec4(d, 1.0, 1.0);
 			vec3 direction = vec3(inverseView * vec4(normalize(target.xyz), 0.0));
 
-			vec4 color = vec4(0.0);
+			vec3 color = vec3(0.0);
+			vec3 beta = vec3(1.0);
 
 			const uint rayFlags = gl_RayFlagsOpaqueEXT;
 			const float tMin = 0.001;
@@ -2763,11 +2766,16 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			for (uint i = 0; i < NUM_BOUNCES + 1; i++) {
 				traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 0, origin, tMin, direction, tMax, 0);
 
-				color.rgb += payload.hitValue.rgb;
-				color.a = payload.hitValue.a;
+				color += payload.directLighting * beta;
 
 				if (payload.hitBackground) {
 					break;
+				}
+
+				color += payload.emissive * beta;
+
+				if (payload.brdf.a > 0.0) {
+					beta *= payload.brdf.rgb / payload.brdf.a;
 				}
 
 				origin = payload.rayOrigin;
@@ -2775,11 +2783,11 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			}
 
 			if (pC.sampleBatch != 0) {
-				const vec4 previousColor = imageLoad(image, ivec2(gl_LaunchIDEXT.xy));
+				const vec3 previousColor = imageLoad(image, ivec2(gl_LaunchIDEXT.xy)).rgb;
 
 				color = (pC.sampleBatch * previousColor + color) / (pC.sampleBatch + 1);
 			}
-			imageStore(image, ivec2(gl_LaunchIDEXT.xy), color);
+			imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(color, 1.0));
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayGenShaderSpv = compileShader(rayGenShaderCode, ShaderType::RayGeneration);
@@ -2817,7 +2825,9 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		#extension GL_EXT_ray_tracing : require
 
 		struct HitPayload {
-			vec4 hitValue;
+			vec3 directLighting;
+			vec4 brdf;
+			vec3 emissive;
 			vec3 rayOrigin;
 			vec3 rayDirection;
 			uint rngState;
@@ -2827,7 +2837,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		layout(location = 0) rayPayloadInEXT HitPayload payload;
 
 		void main() {
-			payload.hitValue = vec4(0.0, 0.0, 0.0, 0.0);
+			payload.directLighting = vec3(0.0, 0.0, 0.0);
 			payload.hitBackground = true;
 		}
 	)GLSL";
@@ -2978,7 +2988,9 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		};
 
 		struct HitPayload {
-			vec4 hitValue;
+			vec3 directLighting;
+			vec4 brdf;
+			vec3 emissive;
 			vec3 rayOrigin;
 			vec3 rayDirection;
 			uint rngState;
@@ -3101,7 +3113,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			return num * invDenum;
 		}
 
-		vec4 sampleBRDF(vec3 n, vec3 v, vec3 l, vec3 diffuse, float metalness, float roughness, inout uint rngState, inout vec3 nextRayDirection) {
+		vec4 sampleBRDF(vec3 n, vec3 v, vec3 diffuse, float metalness, float roughness, inout uint rngState, inout vec3 nextRayDirection) {
 			vec3 t;
 			vec3 b;
 			pixarBasis(n, t, b);
@@ -3111,7 +3123,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			}
 			h = h.x * t + h.y * b + h.z * n;
 
-			const vec3 f = fresnel(dot(l, h), mix(vec3(0.04), diffuse, metalness));
+			const vec3 f = fresnel(dot(v, h), mix(vec3(0.04), diffuse, metalness));
 
 			float diffw = (1.0 - metalness);
 			float specw = dot(f, vec3(0.299, 0.587, 0.114));
@@ -3119,21 +3131,21 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			diffw *= invw;
 			specw *= invw;
 
-			const float LdotN = dot(l, n);
-			const float VdotN = dot(v, n);
-
 			vec4 brdf;
 			const float partSample = rngFloat(rngState);
 			if (partSample < diffw) {
 				// Diffuse
 				nextRayDirection = randomDiffuseDirection(n, rngState);
+
+				const float LdotN = dot(nextRayDirection, n);
+				const float VdotN = dot(v, n);
 				
 				if (LdotN <= 0.0 || VdotN <= 0.0) {
 					return vec4(0.0);
 				}
 
-				vec3 h = vec3(v + l);
-				const float LdotH = dot(l, h);
+				vec3 h = vec3(v + nextRayDirection);
+				const float LdotH = dot(nextRayDirection, h);
 				const float pdf = LdotN / M_PI;
 
 				const vec3 fT = fresnel(LdotN, mix(vec3(0.04), diffuse, metalness));
@@ -3143,12 +3155,15 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 				const vec3 lambertian = diffuse / M_PI;
 
 				const vec3 diff = ((vec3(1.0) - fT) * (vec3(1.0 - fTIR)) * lambertian) * dfc;
-				brdf.rgb = diff;
+				brdf.rgb = diff * LdotN;
 				brdf.a = diffw * pdf;
 			}
 			else {
 				// Specular
 				nextRayDirection = reflect(-v, h);
+
+				const float LdotN = dot(nextRayDirection, n);
+				const float VdotN = dot(v, n);
 
 				if (LdotN <= 0.0 || VdotN <= 0.0) {
 					return vec4(0.0);
@@ -3160,21 +3175,34 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 				const float pdf = GGXVNDFpdf(VdotN, d, g);
 
 				const vec3 spec = (d * f * g) / max(4.0 * LdotN * VdotN, 0.001);
-				brdf.rgb = spec;
+				brdf.rgb = spec * LdotN;
 				brdf.a = specw * pdf;
 			}
 
 			return brdf;
 		}
 
-		vec3 shade(vec3 n, vec3 v, vec3 l, vec3 lc, vec3 diffuse, float metalness, float roughness, inout uint rngState, inout vec3 nextRayDirection) {
-			vec4 brdf = sampleBRDF(n, v, l, diffuse, metalness, roughness, rngState, nextRayDirection);
-			vec3 color = vec3(0.0);
+		vec3 shade(vec3 n, vec3 v, vec3 l, vec3 lc, vec3 diffuse, float metalness, float roughness) {
+			const vec3 h = normalize(v + l);
+			
+			const float LdotH = max(dot(l, h), 0.0);
+			const float NdotH = max(dot(n, h), 0.0);
+			const float VdotH = max(dot(v, h), 0.0);
+			const float LdotN = max(dot(l, n), 0.0);
+			const float VdotN = max(dot(v, n), 0.0);
 
-			if (brdf.a > 0.0) {
-				color = lc * (brdf.rgb / brdf.a) * dot(l, n);
-			}
-			return color;
+			const float d = distribution(NdotH, roughness);
+			const vec3 f = fresnel(LdotH, mix(vec3(0.04), diffuse, metalness));
+			const vec3 fT = fresnel(LdotN, mix(vec3(0.04), diffuse, metalness));
+			const vec3 fTIR = fresnel(VdotN, mix(vec3(0.04), diffuse, metalness));
+			const float g = smith(LdotN, VdotN, roughness);
+			const vec3 dfc = diffuseFresnelCorrection(vec3(1.05));
+
+			const vec3 lambertian = diffuse / M_PI;
+
+			const vec3 brdf = (d * f * g) / max(4.0 * LdotN * VdotN, 0.001) + ((vec3(1.0) - fT) * (vec3(1.0 - fTIR)) * lambertian) * dfc;
+
+			return lc * brdf * LdotN;
 		}
 
 		float shadows(vec3 l, float distanceToLight) {
@@ -3235,51 +3263,55 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 n = normalize(TBN * (normalSample * 2.0 - 1.0));
 			vec3 v = -gl_WorldRayDirectionEXT;
 
-			vec3 color = vec3(0.0);
+			vec3 directLighting = vec3(0.0);
 
 			// Pick a random light
 			uint lightCount = lights.count.x + lights.count.y + lights.count.z;
-			uint lightIndex = uint(floor(rngFloat(payload.rngState) * lightCount));
+			if (lightCount != 0) {
+				uint lightIndex = uint(floor(rngFloat(payload.rngState) * lightCount));
 
-			vec3 l;
-			vec3 lc;
-			float intensity = 1.0;
-			float distance = 10000.0;
+				vec3 l;
+				vec3 lc;
+				float intensity = 1.0;
+				float distance = 10000.0;
 
-			// Directional light
-			if (lightIndex < lights.count.x) {
-				l = normalize(-lights.info[lightIndex].direction);
-				lc = lights.info[lightIndex].color;
-			}
-			// Point light
-			else if (lightIndex < (lights.count.x + lights.count.y)) {
-				l = normalize(lights.info[lightIndex].position - worldPosition);
-				distance = length(lights.info[lightIndex].position - worldPosition);
-				float attenuation = 1.0 / (distance * distance);
-				lc = lights.info[lightIndex].color * attenuation;
-			}
-			// Spot light
-			else {
-				// If the random float between 0.0 and 1.0 is 1.0
-				if (lightIndex == lightCount) {
-					lightIndex--;
+				// Directional light
+				if (lightIndex < lights.count.x) {
+					l = normalize(-lights.info[lightIndex].direction);
+					lc = lights.info[lightIndex].color;
+				}
+				// Point light
+				else if (lightIndex < (lights.count.x + lights.count.y)) {
+					l = normalize(lights.info[lightIndex].position - worldPosition);
+					distance = length(lights.info[lightIndex].position - worldPosition);
+					float attenuation = 1.0 / (distance * distance);
+					lc = lights.info[lightIndex].color * attenuation;
+				}
+				// Spot light
+				else {
+					// If the random float between 0.0 and 1.0 is 1.0
+					if (lightIndex == lightCount) {
+						lightIndex--;
+					}
+
+					l = normalize(lights.info[lightIndex].position - worldPosition);
+					lc = lights.info[lightIndex].color;
+					float theta = dot(l, normalize(-lights.info[lightIndex].direction));
+					float epsilon = cos(lights.info[lightIndex].cutoffs.y) - cos(lights.info[lightIndex].cutoffs.x);
+					intensity = clamp((theta - cos(lights.info[lightIndex].cutoffs.x)) / epsilon, 0.0, 1.0);
+					intensity = 1.0 - intensity;
+					distance = length(lights.info[lightIndex].position - worldPosition);
 				}
 
-				l = normalize(lights.info[lightIndex].position - worldPosition);
-				lc = lights.info[lightIndex].color;
-				float theta = dot(l, normalize(-lights.info[lightIndex].direction));
-				float epsilon = cos(lights.info[lightIndex].cutoffs.y) - cos(lights.info[lightIndex].cutoffs.x);
-				intensity = clamp((theta - cos(lights.info[lightIndex].cutoffs.x)) / epsilon, 0.0, 1.0);
-				intensity = 1.0 - intensity;
-				distance = length(lights.info[lightIndex].position - worldPosition);
+				directLighting = (shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample) / float(lightCount)) * shadows(l, distance);
+				directLighting *= occlusionSample;
 			}
 
-			color += (shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample, payload.rngState, payload.rayDirection) / float(lightCount)) * shadows(l, distance);
+			vec4 brdf = sampleBRDF(n, v, d, metalnessSample, roughnessSample, payload.rngState, payload.rayDirection);
 
-			color *= occlusionSample;
-			color += emissiveSample * material.emissiveFactor;
-
-			payload.hitValue = vec4(color, 1.0);
+			payload.directLighting = directLighting;
+			payload.brdf = brdf;
+			payload.emissive = emissiveSample * material.emissiveFactor;
 			payload.rayOrigin = offsetPositionAlongNormal(worldPosition, n);
 			payload.hitBackground = false;
 		}
