@@ -987,8 +987,8 @@ void NtshEngn::GraphicsModule::destroy() {
 	vmaDestroyImage(m_allocator, m_colorImage, m_colorImageAllocation);
 
 	// Destroy samplers
-	for (size_t i = 0; i < m_textureSamplers.size(); i++) {
-		vkDestroySampler(m_device, m_textureSamplers[i], nullptr);
+	for (const std::pair<std::string, VkSampler>& sampler: m_textureSamplers) {
+		vkDestroySampler(m_device, sampler.second, nullptr);
 	}
 
 	// Destroy textures
@@ -1548,38 +1548,38 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		InternalMaterial material;
 		if (renderable.material->diffuseTexture.image) {
 			ImageID imageId = static_cast<uint32_t>(load(*renderable.material->diffuseTexture.image));
-			uint32_t samplerId = createSampler(renderable.material->diffuseTexture.imageSampler);
-			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerId });
+			std::string samplerKey = createSampler(renderable.material->diffuseTexture.imageSampler);
+			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerKey });
 			material.diffuseTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
 		}
 		if (renderable.material->normalTexture.image) {
 			ImageID imageId = static_cast<uint32_t>(load(*renderable.material->normalTexture.image));
-			uint32_t samplerId = createSampler(renderable.material->normalTexture.imageSampler);
-			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerId });
+			std::string samplerKey = createSampler(renderable.material->normalTexture.imageSampler);
+			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerKey });
 			material.normalTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
 		}
 		if (renderable.material->metalnessTexture.image) {
 			ImageID imageId = static_cast<uint32_t>(load(*renderable.material->metalnessTexture.image));
-			uint32_t samplerId = createSampler(renderable.material->metalnessTexture.imageSampler);
-			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerId });
+			std::string samplerKey = createSampler(renderable.material->metalnessTexture.imageSampler);
+			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerKey });
 			material.metalnessTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
 		}
 		if (renderable.material->roughnessTexture.image) {
 			ImageID imageId = static_cast<uint32_t>(load(*renderable.material->roughnessTexture.image));
-			uint32_t samplerId = createSampler(renderable.material->roughnessTexture.imageSampler);
-			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerId });
+			std::string samplerKey = createSampler(renderable.material->roughnessTexture.imageSampler);
+			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerKey });
 			material.roughnessTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
 		}
 		if (renderable.material->occlusionTexture.image) {
 			ImageID imageId = static_cast<uint32_t>(load(*renderable.material->occlusionTexture.image));
-			uint32_t samplerId = createSampler(renderable.material->occlusionTexture.imageSampler);
-			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerId });
+			std::string samplerKey = createSampler(renderable.material->occlusionTexture.imageSampler);
+			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerKey });
 			material.occlusionTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
 		}
 		if (renderable.material->emissiveTexture.image) {
 			ImageID imageId = static_cast<uint32_t>(load(*renderable.material->emissiveTexture.image));
-			uint32_t samplerId = createSampler(renderable.material->emissiveTexture.imageSampler);
-			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerId });
+			std::string samplerKey = createSampler(renderable.material->emissiveTexture.imageSampler);
+			m_textures.push_back({ static_cast<uint32_t>(imageId), samplerKey });
 			material.emissiveTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
 		}
 		material.emissiveFactor = renderable.material->emissiveFactor;
@@ -2829,7 +2829,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 void NtshEngn::GraphicsModule::updateDescriptorSet(uint32_t frameInFlight) {
 	std::vector<VkDescriptorImageInfo> texturesDescriptorImageInfos(m_textures.size());
 	for (size_t j = 0; j < m_textures.size(); j++) {
-		texturesDescriptorImageInfos[j].sampler = m_textureSamplers[m_textures[j].samplerIndex];
+		texturesDescriptorImageInfos[j].sampler = m_textureSamplers[m_textures[j].samplerKey];
 		texturesDescriptorImageInfos[j].imageView = m_textureImageViews[m_textures[j].imageIndex];
 		texturesDescriptorImageInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
@@ -3180,7 +3180,7 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	textureSamplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
 	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &textureSamplerCreateInfo, nullptr, &defaultTextureSampler));
 
-	m_textureSamplers.push_back(defaultTextureSampler);
+	m_textureSamplers["defaultSampler"] = defaultTextureSampler;
 
 	// Default diffuse texture
 	m_defaultDiffuseTexture.width = 16;
@@ -3196,7 +3196,7 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	}
 
 	load(m_defaultDiffuseTexture);
-	m_textures.push_back({ 0, 0 });
+	m_textures.push_back({ 0, "defaultSampler" });
 
 	// Default normal texture
 	m_defaultNormalTexture.width = 1;
@@ -3206,7 +3206,7 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	m_defaultNormalTexture.data = { 127, 127, 255, 255 };
 
 	load(m_defaultNormalTexture);
-	m_textures.push_back({ 1, 0 });
+	m_textures.push_back({ 1, "defaultSampler" });
 
 	// Default metalness texture
 	m_defaultMetalnessTexture.width = 1;
@@ -3216,7 +3216,7 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	m_defaultMetalnessTexture.data = { 0, 0, 0, 255 };
 
 	load(m_defaultMetalnessTexture);
-	m_textures.push_back({ 2, 0 });
+	m_textures.push_back({ 2, "defaultSampler" });
 
 	// Default roughness texture
 	m_defaultRoughnessTexture.width = 1;
@@ -3226,7 +3226,7 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	m_defaultRoughnessTexture.data = { 0, 0, 0, 255 };
 
 	load(m_defaultRoughnessTexture);
-	m_textures.push_back({ 3, 0 });
+	m_textures.push_back({ 3, "defaultSampler" });
 
 	// Default occlusion texture
 	m_defaultOcclusionTexture.width = 1;
@@ -3236,7 +3236,7 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	m_defaultOcclusionTexture.data = { 255, 255, 255, 255 };
 
 	load(m_defaultOcclusionTexture);
-	m_textures.push_back({ 4, 0 });
+	m_textures.push_back({ 4, "defaultSampler" });
 
 	// Default emissive texture
 	m_defaultEmissiveTexture.width = 1;
@@ -3246,7 +3246,7 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	m_defaultEmissiveTexture.data = { 0, 0, 0, 255 };
 
 	load(m_defaultEmissiveTexture);
-	m_textures.push_back({ 5, 0 });
+	m_textures.push_back({ 5, "defaultSampler" });
 }
 
 void NtshEngn::GraphicsModule::resize() {
@@ -3298,7 +3298,7 @@ void NtshEngn::GraphicsModule::resize() {
 	}
 }
 
-uint32_t NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler) {
+std::string NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler) {
 	const std::unordered_map<ImageSamplerFilter, VkFilter> filterMap{ { ImageSamplerFilter::Linear, VK_FILTER_LINEAR },
 		{ ImageSamplerFilter::Nearest, VK_FILTER_NEAREST },
 		{ ImageSamplerFilter::Unknown, VK_FILTER_LINEAR }
@@ -3321,6 +3321,24 @@ uint32_t NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler) {
 		{ ImageSamplerBorderColor::IntOpaqueWhite, VK_BORDER_COLOR_INT_OPAQUE_WHITE },
 		{ ImageSamplerBorderColor::Unknown, VK_BORDER_COLOR_INT_OPAQUE_BLACK }
 	};
+
+	const std::string samplerKey = "mag:" + std::to_string(filterMap.at(sampler.magFilter)) +
+		"/min:" + std::to_string(filterMap.at(sampler.minFilter)) +
+		"/mip:" + std::to_string(mipmapFilterMap.at(sampler.mipmapFilter)) +
+		"/aU:" + std::to_string(addressModeMap.at(sampler.addressModeU)) +
+		"/aV:" + std::to_string(addressModeMap.at(sampler.addressModeV)) +
+		"/aW:" + std::to_string(addressModeMap.at(sampler.addressModeW)) +
+		"/mlb:" + std::to_string(0.0f) +
+		"/aE:" + std::to_string(sampler.anisotropyLevel > 0.0f ? VK_TRUE : VK_FALSE) +
+		"/cE:" + std::to_string(VK_FALSE) +
+		"/cO:" + std::to_string(VK_COMPARE_OP_NEVER) +
+		"/mL:" + std::to_string(0.0f) +
+		"/ML:" + std::to_string(VK_LOD_CLAMP_NONE) +
+		"/bC:" + std::to_string(borderColorMap.at(sampler.borderColor)) +
+		"/unC:" + std::to_string(VK_FALSE);
+	if (m_textureSamplers.find(samplerKey) != m_textureSamplers.end()) {
+		return samplerKey;
+	}
 
 	VkSampler newSampler;
 
@@ -3345,9 +3363,9 @@ uint32_t NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler) {
 	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
 	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &newSampler));
 
-	m_textureSamplers.push_back(newSampler);
+	m_textureSamplers[samplerKey] = newSampler;
 
-	return static_cast<uint32_t>(m_textureSamplers.size() - 1);
+	return samplerKey;
 }
 
 uint32_t NtshEngn::GraphicsModule::attributeObjectIndex() {

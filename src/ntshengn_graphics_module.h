@@ -15,6 +15,7 @@
 #undef None
 #undef Success
 #endif
+#include <string>
 #include <vector>
 #include <limits>
 #include <unordered_map>
@@ -62,7 +63,7 @@ struct InternalMesh {
 
 struct InternalTexture {
 	uint32_t imageIndex = 0;
-	uint32_t samplerIndex = 0;
+	std::string samplerKey = "defaultSampler";
 };
 
 struct InternalMaterial {
@@ -158,7 +159,7 @@ namespace NtshEngn {
 		void resize();
 
 		// Create sampler
-		uint32_t createSampler(const ImageSampler& sampler);
+		std::string createSampler(const ImageSampler& sampler);
 
 		// Attribute an InternalObject index
 		uint32_t attributeObjectIndex();
@@ -268,7 +269,7 @@ namespace NtshEngn {
 		std::vector<VkImage> m_textureImages;
 		std::vector<VmaAllocation> m_textureImageAllocations;
 		std::vector<VkImageView> m_textureImageViews;
-		std::vector<VkSampler> m_textureSamplers;
+		std::unordered_map<std::string, VkSampler> m_textureSamplers;
 		std::unordered_map<const Image*, uint32_t> m_imageAddresses;
 		std::vector<InternalTexture> m_textures;
 
