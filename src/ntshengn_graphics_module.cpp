@@ -2721,7 +2721,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 rayDirection;
 			uint rngState;
 			bool hitBackground;
-			bool countAsBounce;
+			bool dontAccumulate;
 		};
 
 		layout(location = 0) rayPayloadEXT HitPayload payload;
@@ -2764,13 +2764,11 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			const float tMin = 0.001;
 			const float tMax = 10000.0;
 
-			uint num_bounces = 2;
-			const uint FAILSAFE_LOOP_COUNT = 5;
-			for (uint i = 0; (i < num_bounces + 1) && (i < FAILSAFE_LOOP_COUNT + 1); i++) {
+			const uint NUM_BOUNCES = 2;
+			for (uint i = 0; i < NUM_BOUNCES + 1; i++) {
 				traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 0, origin, tMin, direction, tMax, 0);
 
-				if (!payload.countAsBounce) {
-					num_bounces++;
+				if (payload.dontAccumulate) {
 					origin = payload.rayOrigin;
 					direction = payload.rayDirection;
 					continue;
@@ -2842,7 +2840,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 rayDirection;
 			uint rngState;
 			bool hitBackground;
-			bool countAsBounce;
+			bool dontAccumulate;
 		};
 
 		layout(location = 0) rayPayloadInEXT HitPayload payload;
@@ -2850,7 +2848,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		void main() {
 			payload.directLighting = vec3(0.0, 0.0, 0.0);
 			payload.hitBackground = true;
-			payload.countAsBounce = true;
+			payload.dontAccumulate = false;
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayMissShaderSpv = compileShader(rayMissShaderCode, ShaderType::RayMiss);
@@ -3008,7 +3006,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 rayDirection;
 			uint rngState;
 			bool hitBackground;
-			bool countAsBounce;
+			bool dontAccumulate;
 		};
 
 		layout(location = 0) rayPayloadInEXT HitPayload payload;
@@ -3268,7 +3266,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			// Material
 			vec4 diffuseSample = texture(textures[material.diffuseTextureIndex], uv);
 			if (diffuseSample.a < material.alphaCutoff) {
-				payload.countAsBounce = false;
+				payload.dontAccumulate = true;
 				payload.rayOrigin = offsetPositionAlongNormal(worldPosition, gl_WorldRayDirectionEXT);
 				payload.rayDirection = gl_WorldRayDirectionEXT;
 				return;
@@ -3334,7 +3332,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			payload.emissive = emissiveSample * material.emissiveFactor;
 			payload.rayOrigin = offsetPositionAlongNormal(worldPosition, n);
 			payload.hitBackground = false;
-			payload.countAsBounce = true;
+			payload.dontAccumulate = false;
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayClosestHitShaderSpv = compileShader(rayClosestHitShaderCode, ShaderType::RayClosestHit);
