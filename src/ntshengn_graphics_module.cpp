@@ -2665,12 +2665,13 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			const float tMin = 0.001;
 			const float tMax = 10000.0;
 
-			const uint NUM_BOUNCES = 2;
-			for (int i = 0; i < NUM_BOUNCES + 1; i++) {
+			uint num_bounces = 2;
+			const uint FAILSAFE_LOOP_COUNT = 5;
+			for (uint i = 0; (i < num_bounces + 1) && (i < FAILSAFE_LOOP_COUNT + 1); i++) {
 				traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 0, origin, tMin, direction, tMax, 0);
 
 				if (!payload.countAsBounce) {
-					i--;
+					num_bounces++;
 					origin = payload.rayOrigin;
 					direction = payload.rayDirection;
 					continue;
