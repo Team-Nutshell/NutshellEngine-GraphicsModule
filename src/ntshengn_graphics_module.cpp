@@ -1583,6 +1583,7 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 			material.emissiveTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
 		}
 		material.emissiveFactor = renderable.material->emissiveFactor;
+		material.alphaCutoff = renderable.material->alphaCutoff;
 		m_materials.push_back(material);
 		object.materialIndex = static_cast<uint32_t>(m_materials.size() - 1);
 		m_objects[entity] = object;
@@ -1812,7 +1813,7 @@ void NtshEngn::GraphicsModule::createVertexAndIndexBuffers() {
 	vertexAndIndexBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	vertexAndIndexBufferCreateInfo.pNext = nullptr;
 	vertexAndIndexBufferCreateInfo.flags = 0;
-	vertexAndIndexBufferCreateInfo.size = 67108864;
+	vertexAndIndexBufferCreateInfo.size = 267108864;
 	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 	vertexAndIndexBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	vertexAndIndexBufferCreateInfo.queueFamilyIndexCount = 1;
@@ -2427,6 +2428,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 			uint occlusionTextureIndex;
 			uint emissiveTextureIndex;
 			float emissiveFactor;
+			float alphaCutoff;
 		};
 
 		struct LightInfo {
@@ -2457,6 +2459,9 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 
 		void main() {
 			vec4 diffuseSample = texture(textures[materials.info[materialID].diffuseTextureIndex], uv);
+			if (diffuseSample.a < materials.info[materialID].alphaCutoff) {
+				discard;
+			}
 			vec3 normalSample = texture(textures[materials.info[materialID].normalTextureIndex], uv).xyz;
 			float metalnessSample = texture(textures[materials.info[materialID].metalnessTextureIndex], uv).b;
 			float roughnessSample = texture(textures[materials.info[materialID].roughnessTextureIndex], uv).g;
