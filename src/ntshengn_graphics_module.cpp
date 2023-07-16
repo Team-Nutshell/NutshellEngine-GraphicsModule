@@ -1854,6 +1854,7 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 			material.emissiveTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
 		}
 		material.emissiveFactor = renderable.material->emissiveFactor;
+		material.alphaCutoff = renderable.material->alphaCutoff;
 		m_materials.push_back(material);
 		object.materialIndex = static_cast<uint32_t>(m_materials.size() - 1);
 		m_objects[entity] = object;
@@ -2641,6 +2642,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 rayDirection;
 			float materialMetalness;
 			bool hitBackground;
+			bool countAsBounce;
 		};
 
 		layout(location = 0) rayPayloadEXT HitPayload payload;
@@ -2666,6 +2668,13 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			const uint NUM_BOUNCES = 2;
 			for (uint i = 0; i < NUM_BOUNCES + 1; i++) {
 				traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 0, origin, tMin, direction, tMax, 0);
+
+				if (!payload.countAsBounce) {
+					i--;
+					origin = payload.rayOrigin;
+					direction = payload.rayDirection;
+					continue;
+				}
 
 				color.rgb += payload.hitValue.rgb * frac;
 				color.a = payload.hitValue.a;
@@ -2722,6 +2731,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 rayDirection;
 			float materialMetalness;
 			bool hitBackground;
+			bool countAsBounce;
 		};
 
 		layout(location = 0) rayPayloadInEXT HitPayload payload;
@@ -2730,6 +2740,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			payload.hitValue = vec4(0.0, 0.0, 0.0, 0.0);
 			payload.materialMetalness = 1.0;
 			payload.hitBackground = true;
+			payload.countAsBounce = true;
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayMissShaderSpv = compileShader(rayMissShaderCode, ShaderType::RayMiss);
@@ -2830,6 +2841,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			uint occlusionTextureIndex;
 			uint emissiveTextureIndex;
 			float emissiveFactor;
+			float alphaCutoff;
 		};
 
 		struct LightInfo {
@@ -2884,6 +2896,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 rayDirection;
 			float materialMetalness;
 			bool hitBackground;
+			bool countAsBounce;
 		};
 
 		layout(location = 0) rayPayloadInEXT HitPayload payload;
@@ -3025,6 +3038,12 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 			// Material
 			vec4 diffuseSample = texture(textures[material.diffuseTextureIndex], uv);
+			if (diffuseSample.a < material.alphaCutoff) {
+				payload.countAsBounce = false;
+				payload.rayOrigin = offsetPositionAlongNormal(worldPosition, gl_WorldRayDirectionEXT);
+				payload.rayDirection = gl_WorldRayDirectionEXT;
+				return;
+			}
 			vec3 normalSample = texture(textures[material.normalTextureIndex], uv).xyz;
 			float metalnessSample = texture(textures[material.metalnessTextureIndex], uv).b;
 			float roughnessSample = texture(textures[material.roughnessTextureIndex], uv).g;
@@ -3077,6 +3096,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			payload.rayDirection = reflect(gl_WorldRayDirectionEXT, n);
 			payload.materialMetalness = metalnessSample;
 			payload.hitBackground = false;
+			payload.countAsBounce = true;
 		}
 	)GLSL";
 	const std::vector<uint32_t> rayClosestHitShaderSpv = compileShader(rayClosestHitShaderCode, ShaderType::RayClosestHit);
