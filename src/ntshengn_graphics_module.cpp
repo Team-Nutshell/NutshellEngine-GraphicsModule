@@ -3293,19 +3293,19 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 				float intensity = 1.0;
 				float distance = 10000.0;
 
-				// Directional light
+				// Directional Light
 				if (lightIndex < lights.count.x) {
 					l = normalize(-lights.info[lightIndex].direction);
 					lc = lights.info[lightIndex].color;
 				}
-				// Point light
+				// Point Light
 				else if (lightIndex < (lights.count.x + lights.count.y)) {
 					l = normalize(lights.info[lightIndex].position - worldPosition);
 					distance = length(lights.info[lightIndex].position - worldPosition);
 					float attenuation = 1.0 / (distance * distance);
 					lc = lights.info[lightIndex].color * attenuation;
 				}
-				// Spot light
+				// Spot Light
 				else {
 					// If the random float between 0.0 and 1.0 is 1.0
 					if (lightIndex == lightCount) {
