@@ -3257,7 +3257,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 worldTangent = vec3(gl_ObjectToWorldEXT * vec4(tangent, 0.0));
 
 			vec3 bitangent = cross(normal, tangent.xyz) * v0.tangent.w;
-			vec3 worldBitangent =  vec3(gl_ObjectToWorldEXT * vec4(bitangent, 0.0));
+			vec3 worldBitangent = vec3(gl_ObjectToWorldEXT * vec4(bitangent, 0.0));
 
 			mat3 TBN = mat3(worldTangent, worldBitangent, worldNormal);
 
