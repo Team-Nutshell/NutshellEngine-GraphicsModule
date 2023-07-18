@@ -648,8 +648,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	}
 
 	const Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
-	nml::vec4 cameraPosition = nml::vec4(cameraTransform.position.data(), 0.0f);
-	nml::vec4 cameraDirection = nml::vec4(cameraTransform.rotation.data(), 0.0f);
+	Math::vec4 cameraPosition = Math::vec4(cameraTransform.position.data(), 0.0f);
+	Math::vec4 cameraDirection = Math::vec4(cameraTransform.rotation.data(), 0.0f);
 
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_fences[m_currentFrameInFlight], VK_TRUE, std::numeric_limits<uint64_t>::max()));
 
@@ -711,14 +711,14 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	std::array<uint32_t, 4> lightsCount = { static_cast<uint32_t>(m_lights.directionalLights.size()), static_cast<uint32_t>(m_lights.pointLights.size()), static_cast<uint32_t>(m_lights.spotLights.size()), 0 };
 	memcpy(data, lightsCount.data(), 4 * sizeof(uint32_t));
 
-	size_t offset = sizeof(nml::vec4);
+	size_t offset = sizeof(Math::vec4);
 	for (Entity light : m_lights.directionalLights) {
 		const Light& lightLight = ecs->getComponent<Light>(light);
 		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
 		InternalLight internalLight;
-		internalLight.direction = nml::vec4(lightTransform.rotation.data(), 0.0f);
-		internalLight.color = nml::vec4(lightLight.color.data(), 0.0f);
+		internalLight.direction = Math::vec4(lightTransform.rotation.data(), 0.0f);
+		internalLight.color = Math::vec4(lightLight.color.data(), 0.0f);
 
 		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
@@ -728,8 +728,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
 		InternalLight internalLight;
-		internalLight.position = nml::vec4(lightTransform.position.data(), 0.0f);
-		internalLight.color = nml::vec4(lightLight.color.data(), 0.0f);
+		internalLight.position = Math::vec4(lightTransform.position.data(), 0.0f);
+		internalLight.color = Math::vec4(lightLight.color.data(), 0.0f);
 
 		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
@@ -739,10 +739,10 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
 		InternalLight internalLight;
-		internalLight.position = nml::vec4(lightTransform.position.data(), 0.0f);
-		internalLight.direction = nml::vec4(lightTransform.rotation.data(), 0.0f);
-		internalLight.color = nml::vec4(lightLight.color.data(), 0.0f);
-		internalLight.cutoffs = nml::vec4(lightTransform.scale.data(), 0.0f, 0.0f);
+		internalLight.position = Math::vec4(lightTransform.position.data(), 0.0f);
+		internalLight.direction = Math::vec4(lightTransform.rotation.data(), 0.0f);
+		internalLight.color = Math::vec4(lightLight.color.data(), 0.0f);
+		internalLight.cutoffs = Math::vec4(lightTransform.scale.data(), 0.0f, 0.0f);
 
 		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);

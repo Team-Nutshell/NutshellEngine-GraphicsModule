@@ -50,7 +50,6 @@ else()
 endif()
 
 add_subdirectory(external/glslang)
-add_subdirectory(external/nml)
 add_subdirectory(external/VulkanMemoryAllocator)
 
 if(NOT CMAKE_VERSION VERSION_LESS 3.7.0)
@@ -80,7 +79,6 @@ target_link_libraries(${PROJECT_NAME}
 		glslang
 		SPIRV
 		Vulkan::Vulkan
-		nml
 		VulkanMemoryAllocator)
 
 target_compile_options(${PROJECT_NAME}
