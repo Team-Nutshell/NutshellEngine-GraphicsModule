@@ -3,8 +3,8 @@
 #include "../Common/resources/ntshengn_resources_graphics.h"
 #include "../Common/utils/ntshengn_defines.h"
 #include "../Common/utils/ntshengn_enums.h"
+#include "../Common/utils/ntshengn_utils_math.h"
 #include "../Module/utils/ntshengn_module_defines.h"
-#include "../external/nml/include/nml.h"
 #if defined(NTSHENGN_OS_WINDOWS)
 #define VK_USE_PLATFORM_WIN32_KHR
 #elif defined(NTSHENGN_OS_LINUX)
@@ -85,10 +85,10 @@ struct InternalObject {
 };
 
 struct InternalLight {
-	nml::vec4 position = { 0.0f, 0.0f, 0.0f, 0.0f };
-	nml::vec4 direction = { 0.0f, 0.0f, 0.0f, 0.0f };
-	nml::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
-	nml::vec4 cutoffs = { 0.0f, 0.0f, 0.0f, 0.0f };
+	NtshEngn::Math::vec4 position = { 0.0f, 0.0f, 0.0f, 0.0f };
+	NtshEngn::Math::vec4 direction = { 0.0f, 0.0f, 0.0f, 0.0f };
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
+	NtshEngn::Math::vec4 cutoffs = { 0.0f, 0.0f, 0.0f, 0.0f };
 };
 
 struct InternalLights {

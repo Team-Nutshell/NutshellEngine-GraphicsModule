@@ -365,7 +365,7 @@ void NtshEngn::GraphicsModule::init() {
 	cameraBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	cameraBufferCreateInfo.pNext = nullptr;
 	cameraBufferCreateInfo.flags = 0;
-	cameraBufferCreateInfo.size = sizeof(nml::mat4) * 2 + sizeof(nml::vec4);
+	cameraBufferCreateInfo.size = sizeof(Math::mat4) * 2 + sizeof(Math::vec4);
 	cameraBufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 	cameraBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	cameraBufferCreateInfo.queueFamilyIndexCount = 1;
@@ -523,18 +523,18 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	if (m_mainCamera != std::numeric_limits<uint32_t>::max()) {
 		Camera camera = ecs->getComponent<Camera>(m_mainCamera);
 		Transform cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
-		nml::vec3 cameraPosition = nml::vec3(cameraTransform.position[0], cameraTransform.position[1], cameraTransform.position[2]);
-		nml::vec3 cameraRotation = nml::vec3(cameraTransform.rotation[0], cameraTransform.rotation[1], cameraTransform.rotation[2]);
+		Math::vec3 cameraPosition = Math::vec3(cameraTransform.position[0], cameraTransform.position[1], cameraTransform.position[2]);
+		Math::vec3 cameraRotation = Math::vec3(cameraTransform.rotation[0], cameraTransform.rotation[1], cameraTransform.rotation[2]);
 
-		nml::mat4 cameraView = nml::lookAtRH(cameraPosition, cameraPosition + cameraRotation, nml::vec3(0.0f, 1.0f, 0.0));
-		nml::mat4 cameraProjection = nml::perspectiveRH(camera.fov * toRad, m_viewport.width / m_viewport.height, camera.nearPlane, camera.farPlane);
+		Math::mat4 cameraView = Math::lookAtRH(cameraPosition, cameraPosition + cameraRotation, Math::vec3(0.0f, 1.0f, 0.0));
+		Math::mat4 cameraProjection = Math::perspectiveRH(camera.fov * toRad, m_viewport.width / m_viewport.height, camera.nearPlane, camera.farPlane);
 		cameraProjection[1][1] *= -1.0f;
-		std::array<nml::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
-		nml::vec4 cameraPositionAsVec4 = { cameraPosition, 0.0f };
+		std::array<Math::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
+		Math::vec4 cameraPositionAsVec4 = { cameraPosition, 0.0f };
 
 		NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight], &data));
-		memcpy(data, cameraMatrices.data(), sizeof(nml::mat4) * 2);
-		memcpy(reinterpret_cast<char*>(data) + sizeof(nml::mat4) * 2, cameraPositionAsVec4.data(), sizeof(nml::vec4));
+		memcpy(data, cameraMatrices.data(), sizeof(Math::mat4) * 2);
+		memcpy(reinterpret_cast<char*>(data) + sizeof(Math::mat4) * 2, cameraPositionAsVec4.data(), sizeof(Math::vec4));
 		vmaUnmapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight]);
 	}
 
@@ -542,21 +542,21 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight], &data));
 	for (auto& it : m_objects) {
 		Transform objectTransform = ecs->getComponent<Transform>(it.first);
-		nml::vec3 objectPosition = nml::vec3(objectTransform.position[0], objectTransform.position[1], objectTransform.position[2]);
-		nml::vec3 objectRotation = nml::vec3(objectTransform.rotation[0], objectTransform.rotation[1], objectTransform.rotation[2]);
-		nml::vec3 objectScale = nml::vec3(objectTransform.scale[0], objectTransform.scale[1], objectTransform.scale[2]);
+		Math::vec3 objectPosition = Math::vec3(objectTransform.position[0], objectTransform.position[1], objectTransform.position[2]);
+		Math::vec3 objectRotation = Math::vec3(objectTransform.rotation[0], objectTransform.rotation[1], objectTransform.rotation[2]);
+		Math::vec3 objectScale = Math::vec3(objectTransform.scale[0], objectTransform.scale[1], objectTransform.scale[2]);
 
-		nml::mat4 objectModel = nml::translate(objectPosition) *
-			nml::rotate(objectRotation.x, nml::vec3(1.0f, 0.0f, 0.0f)) *
-			nml::rotate(objectRotation.y, nml::vec3(0.0f, 1.0f, 0.0f)) *
-			nml::rotate(objectRotation.z, nml::vec3(0.0f, 0.0f, 1.0f)) *
-			nml::scale(objectScale);
+		Math::mat4 objectModel = Math::translate(objectPosition) *
+			Math::rotate(objectRotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
+			Math::rotate(objectRotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
+			Math::rotate(objectRotation.z, Math::vec3(0.0f, 0.0f, 1.0f)) *
+			Math::scale(objectScale);
 
-		size_t offset = (it.second.index * (sizeof(nml::mat4) + sizeof(nml::vec4))); // vec4 is used here for padding
+		size_t offset = (it.second.index * (sizeof(Math::mat4) + sizeof(Math::vec4))); // vec4 is used here for padding
 
-		memcpy(reinterpret_cast<char*>(data) + offset, objectModel.data(), sizeof(nml::mat4));
+		memcpy(reinterpret_cast<char*>(data) + offset, objectModel.data(), sizeof(Math::mat4));
 		const uint32_t materialID = (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0;
-		memcpy(reinterpret_cast<char*>(data) + offset + sizeof(nml::mat4), &materialID, sizeof(uint32_t));
+		memcpy(reinterpret_cast<char*>(data) + offset + sizeof(Math::mat4), &materialID, sizeof(uint32_t));
 	}
 	vmaUnmapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight]);
 
@@ -574,14 +574,14 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	std::array<uint32_t, 4> lightsCount = { static_cast<uint32_t>(m_lights.directionalLights.size()), static_cast<uint32_t>(m_lights.pointLights.size()), static_cast<uint32_t>(m_lights.spotLights.size()), 0 };
 	memcpy(data, lightsCount.data(), 4 * sizeof(uint32_t));
 
-	size_t offset = sizeof(nml::vec4);
+	size_t offset = sizeof(Math::vec4);
 	for (Entity light : m_lights.directionalLights) {
 		const Light& lightLight = ecs->getComponent<Light>(light);
 		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
 		InternalLight internalLight;
-		internalLight.direction = nml::vec4(lightTransform.rotation.data(), 0.0f);
-		internalLight.color = nml::vec4(lightLight.color.data(), 0.0f);
+		internalLight.direction = Math::vec4(lightTransform.rotation.data(), 0.0f);
+		internalLight.color = Math::vec4(lightLight.color.data(), 0.0f);
 
 		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
@@ -591,8 +591,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
 		InternalLight internalLight;
-		internalLight.position = nml::vec4(lightTransform.position.data(), 0.0f);
-		internalLight.color = nml::vec4(lightLight.color.data(), 0.0f);
+		internalLight.position = Math::vec4(lightTransform.position.data(), 0.0f);
+		internalLight.color = Math::vec4(lightLight.color.data(), 0.0f);
 
 		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
@@ -602,10 +602,10 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
 		InternalLight internalLight;
-		internalLight.position = nml::vec4(lightTransform.position.data(), 0.0f);
-		internalLight.direction = nml::vec4(lightTransform.rotation.data(), 0.0f);
-		internalLight.color = nml::vec4(lightLight.color.data(), 0.0f);
-		internalLight.cutoffs = nml::vec4(lightTransform.scale.data(), 0.0f, 0.0f);
+		internalLight.position = Math::vec4(lightTransform.position.data(), 0.0f);
+		internalLight.direction = Math::vec4(lightTransform.rotation.data(), 0.0f);
+		internalLight.color = Math::vec4(lightLight.color.data(), 0.0f);
+		internalLight.cutoffs = Math::vec4(lightTransform.scale.data(), 0.0f, 0.0f);
 
 		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
@@ -2756,7 +2756,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 
 		cameraDescriptorBufferInfo.buffer = m_cameraBuffers[i];
 		cameraDescriptorBufferInfo.offset = 0;
-		cameraDescriptorBufferInfo.range = sizeof(nml::mat4) * 2 + sizeof(nml::vec4);
+		cameraDescriptorBufferInfo.range = sizeof(Math::mat4) * 2 + sizeof(Math::vec4);
 
 		VkWriteDescriptorSet cameraDescriptorWriteDescriptorSet = {};
 		cameraDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
