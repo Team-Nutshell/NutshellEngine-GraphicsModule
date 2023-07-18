@@ -381,7 +381,7 @@ void NtshEngn::GraphicsModule::init() {
 	cameraBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	cameraBufferCreateInfo.pNext = nullptr;
 	cameraBufferCreateInfo.flags = 0;
-	cameraBufferCreateInfo.size = sizeof(nml::mat4) * 2;
+	cameraBufferCreateInfo.size = sizeof(Math::mat4) * 2;
 	cameraBufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 	cameraBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	cameraBufferCreateInfo.queueFamilyIndexCount = 1;
@@ -505,16 +505,16 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	if (m_mainCamera != std::numeric_limits<uint32_t>::max()) {
 		Camera camera = ecs->getComponent<Camera>(m_mainCamera);
 		Transform cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
-		nml::vec3 cameraPosition = nml::vec3(cameraTransform.position[0], cameraTransform.position[1], cameraTransform.position[2]);
-		nml::vec3 cameraRotation = nml::vec3(cameraTransform.rotation[0], cameraTransform.rotation[1], cameraTransform.rotation[2]);
+		Math::vec3 cameraPosition = Math::vec3(cameraTransform.position[0], cameraTransform.position[1], cameraTransform.position[2]);
+		Math::vec3 cameraRotation = Math::vec3(cameraTransform.rotation[0], cameraTransform.rotation[1], cameraTransform.rotation[2]);
 
-		nml::mat4 cameraView = nml::lookAtRH(cameraPosition, cameraPosition + cameraRotation, nml::vec3(0.0f, 1.0f, 0.0));
-		nml::mat4 cameraProjection = nml::perspectiveRH(camera.fov * toRad, m_viewport.width / m_viewport.height, camera.nearPlane, camera.farPlane);
+		Math::mat4 cameraView = Math::lookAtRH(cameraPosition, cameraPosition + cameraRotation, Math::vec3(0.0f, 1.0f, 0.0));
+		Math::mat4 cameraProjection = Math::perspectiveRH(camera.fov * toRad, m_viewport.width / m_viewport.height, camera.nearPlane, camera.farPlane);
 		cameraProjection[1][1] *= -1.0f;
-		std::array<nml::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
+		std::array<Math::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
 
 		NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight], &data));
-		memcpy(data, cameraMatrices.data(), sizeof(nml::mat4) * 2);
+		memcpy(data, cameraMatrices.data(), sizeof(Math::mat4) * 2);
 		vmaUnmapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight]);
 	}
 
@@ -522,25 +522,25 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight], &data));
 	for (auto& it : m_objects) {
 		Transform objectTransform = ecs->getComponent<Transform>(it.first);
-		nml::vec3 objectPosition = nml::vec3(objectTransform.position[0], objectTransform.position[1], objectTransform.position[2]);
-		nml::vec3 objectRotation = nml::vec3(objectTransform.rotation[0], objectTransform.rotation[1], objectTransform.rotation[2]);
-		nml::vec3 objectScale;
+		Math::vec3 objectPosition = Math::vec3(objectTransform.position[0], objectTransform.position[1], objectTransform.position[2]);
+		Math::vec3 objectRotation = Math::vec3(objectTransform.rotation[0], objectTransform.rotation[1], objectTransform.rotation[2]);
+		Math::vec3 objectScale;
 		if (it.second.sphereMeshIndex != std::numeric_limits<size_t>::max()) {
-			objectScale = nml::vec3(std::max(objectTransform.scale[0], std::max(objectTransform.scale[1], objectTransform.scale[2])));
+			objectScale = Math::vec3(std::max(objectTransform.scale[0], std::max(objectTransform.scale[1], objectTransform.scale[2])));
 		}
 		else {
-			objectScale = nml::vec3(objectTransform.scale[0], objectTransform.scale[1], objectTransform.scale[2]);
+			objectScale = Math::vec3(objectTransform.scale[0], objectTransform.scale[1], objectTransform.scale[2]);
 		}
 
-		nml::mat4 objectModel = nml::translate(objectPosition) *
-			nml::rotate(objectRotation.x, nml::vec3(1.0f, 0.0f, 0.0f)) *
-			nml::rotate(objectRotation.y, nml::vec3(0.0f, 1.0f, 0.0f)) *
-			nml::rotate(objectRotation.z, nml::vec3(0.0f, 0.0f, 1.0f)) *
-			nml::scale(objectScale);
+		Math::mat4 objectModel = Math::translate(objectPosition) *
+			Math::rotate(objectRotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
+			Math::rotate(objectRotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
+			Math::rotate(objectRotation.z, Math::vec3(0.0f, 0.0f, 1.0f)) *
+			Math::scale(objectScale);
 
-		size_t offset = (it.second.index * (sizeof(nml::mat4)));
+		size_t offset = (it.second.index * (sizeof(Math::mat4)));
 
-		memcpy(reinterpret_cast<char*>(data) + offset, objectModel.data(), sizeof(nml::mat4));
+		memcpy(reinterpret_cast<char*>(data) + offset, objectModel.data(), sizeof(Math::mat4));
 	}
 	vmaUnmapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight]);
 
@@ -1650,7 +1650,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 
 		cameraDescriptorBufferInfo.buffer = m_cameraBuffers[i];
 		cameraDescriptorBufferInfo.offset = 0;
-		cameraDescriptorBufferInfo.range = sizeof(nml::mat4) * 2;
+		cameraDescriptorBufferInfo.range = sizeof(Math::mat4) * 2;
 
 		VkWriteDescriptorSet cameraDescriptorWriteDescriptorSet = {};
 		cameraDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1740,7 +1740,7 @@ void NtshEngn::GraphicsModule::retrieveObjectIndex(uint32_t objectIndex) {
 	m_freeObjectsIndices.insert(m_freeObjectsIndices.begin(), objectIndex);
 }
 
-NtshEngn::MeshID NtshEngn::GraphicsModule::createAABB(const nml::vec3& min, const nml::vec3& max) {
+NtshEngn::MeshID NtshEngn::GraphicsModule::createAABB(const Math::vec3& min, const Math::vec3& max) {
 	Model* cubeModel = assetManager->createModel();
 	cubeModel->primitives.resize(1);
 	Mesh& cubeMesh = cubeModel->primitives[0].mesh;
@@ -1780,7 +1780,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createAABB(const nml::vec3& min, cons
 	return load(cubeMesh);
 }
 
-NtshEngn::MeshID NtshEngn::GraphicsModule::createSphere(const nml::vec3& center, float radius) {
+NtshEngn::MeshID NtshEngn::GraphicsModule::createSphere(const Math::vec3& center, float radius) {
 	Model* sphereModel = assetManager->createModel();
 	sphereModel->primitives.resize(1);
 	Mesh& sphereMesh = sphereModel->primitives[0].mesh;
@@ -1820,7 +1820,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createSphere(const nml::vec3& center,
 	return load(sphereMesh);
 }
 
-NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const nml::vec3& base, const nml::vec3& tip, float radius) {
+NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const Math::vec3& base, const Math::vec3& tip, float radius) {
 	Model* capsuleModel = assetManager->createModel();
 	capsuleModel->primitives.resize(1);
 	Mesh& capsuleMesh = capsuleModel->primitives[0].mesh;
@@ -1829,15 +1829,15 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const nml::vec3& base, 
 	const float thetaStep = pi / static_cast<size_t>(nbLongLat);
 	const float phiStep = 2.0f * (pi / static_cast<size_t>(nbLongLat));
 
-	const nml::vec3 baseTipDifference = tip - base;
-	const nml::vec3 facing = nml::vec3(0.0f, 1.0f, 0.0f);
-	const nml::vec3 toB = nml::normalize(baseTipDifference);
-	nml::mat4 rotation = nml::mat4(); // Identity
+	const Math::vec3 baseTipDifference = tip - base;
+	const Math::vec3 facing = Math::vec3(0.0f, 1.0f, 0.0f);
+	const Math::vec3 toB = Math::normalize(baseTipDifference);
+	Math::mat4 rotation = Math::mat4(); // Identity
 	if (facing != toB) { // Cross product of parallel vectors is undefined
-		const nml::vec3 rotationAxis = nml::normalize(nml::cross(facing, toB));
-		const float rotationAngle = std::acos(nml::dot(facing, toB));
+		const Math::vec3 rotationAxis = Math::normalize(Math::cross(facing, toB));
+		const float rotationAngle = std::acos(Math::dot(facing, toB));
 
-		rotation = nml::rotate(rotationAngle, rotationAxis);
+		rotation = Math::rotate(rotationAngle, rotationAxis);
 	}
 
 	// Base
@@ -1847,8 +1847,8 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const nml::vec3& base, 
 		for (float phi = pi / 2.0f; phi < pi; phi += phiStep) {
 			if ((phi + phiStep) >= pi) {
 				Vertex vertex;
-				nml::vec3 position = nml::vec3(0.0f, -1.0f, 0.0f) * radius;
-				nml::vec3 transformedPosition = rotation * nml::vec4(position, 1.0f);
+				Math::vec3 position = Math::vec3(0.0f, -1.0f, 0.0f) * radius;
+				Math::vec3 transformedPosition = rotation * Math::vec4(position, 1.0f);
 				vertex.position = { transformedPosition.x + base.x,
 					transformedPosition.y + base.y,
 					transformedPosition.z + base.z };
@@ -1857,8 +1857,8 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const nml::vec3& base, 
 			}
 			else {
 				Vertex vertex;
-				nml::vec3 position = nml::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * radius;
-				nml::vec3 transformedPosition = rotation * nml::vec4(position, 1.0f);
+				Math::vec3 position = Math::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * radius;
+				Math::vec3 transformedPosition = rotation * Math::vec4(position, 1.0f);
 				vertex.position = { transformedPosition.x + base.x,
 					transformedPosition.y + base.y,
 					transformedPosition.z + base.z };
@@ -1882,8 +1882,8 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const nml::vec3& base, 
 	for (float theta = 0.0f; theta < 2.0f * pi; theta += thetaStep) {
 		for (float phi = 0.0f; phi < pi / 2.0f; phi += phiStep) {
 			Vertex vertex;
-			nml::vec3 position = nml::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * radius;
-			nml::vec3 transformedPosition = rotation * nml::vec4(position, 1.0f);
+			Math::vec3 position = Math::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * radius;
+			Math::vec3 transformedPosition = rotation * Math::vec4(position, 1.0f);
 			vertex.position = { transformedPosition.x + tip.x,
 				transformedPosition.y + tip.y,
 				transformedPosition.z + tip.z };

@@ -3,8 +3,8 @@
 #include "../Common/resources/ntshengn_resources_graphics.h"
 #include "../Common/utils/ntshengn_defines.h"
 #include "../Common/utils/ntshengn_enums.h"
+#include "../Common/utils/ntshengn_utils_math.h"
 #include "../Module/utils/ntshengn_module_defines.h"
-#include "../external/nml/include/nml.h"
 #if defined(NTSHENGN_OS_WINDOWS)
 #define VK_USE_PLATFORM_WIN32_KHR
 #elif defined(NTSHENGN_OS_LINUX)
@@ -119,9 +119,9 @@ namespace NtshEngn {
 		void retrieveObjectIndex(uint32_t objectIndex);
 
 		// Create meshes for colliders
-		MeshID createAABB(const nml::vec3& min, const nml::vec3& max);
-		MeshID createSphere(const nml::vec3& center, float radius);
-		MeshID createCapsule(const nml::vec3& base, const nml::vec3& tip, float radius);
+		MeshID createAABB(const Math::vec3& min, const Math::vec3& max);
+		MeshID createSphere(const Math::vec3& center, float radius);
+		MeshID createCapsule(const Math::vec3& base, const Math::vec3& tip, float radius);
 
 	private:
 		VkInstance m_instance;
