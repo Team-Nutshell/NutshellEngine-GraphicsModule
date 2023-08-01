@@ -1549,43 +1549,43 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		if (renderable.material->diffuseTexture.image) {
 			ImageID imageID = static_cast<uint32_t>(load(*renderable.material->diffuseTexture.image));
 			std::string samplerKey = createSampler(renderable.material->diffuseTexture.imageSampler);
-			m_textures.push_back({ static_cast<uint32_t>(imageID), samplerKey });
-			material.diffuseTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
+			uint32_t textureID = addToTextures({ static_cast<uint32_t>(imageID), samplerKey });
+			material.diffuseTextureIndex = textureID;
 		}
 		if (renderable.material->normalTexture.image) {
 			ImageID imageID = static_cast<uint32_t>(load(*renderable.material->normalTexture.image));
 			std::string samplerKey = createSampler(renderable.material->normalTexture.imageSampler);
-			m_textures.push_back({ static_cast<uint32_t>(imageID), samplerKey });
-			material.normalTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
+			uint32_t textureID = addToTextures({ static_cast<uint32_t>(imageID), samplerKey });
+			material.normalTextureIndex = textureID;
 		}
 		if (renderable.material->metalnessTexture.image) {
 			ImageID imageID = static_cast<uint32_t>(load(*renderable.material->metalnessTexture.image));
 			std::string samplerKey = createSampler(renderable.material->metalnessTexture.imageSampler);
-			m_textures.push_back({ static_cast<uint32_t>(imageID), samplerKey });
-			material.metalnessTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
+			uint32_t textureID = addToTextures({ static_cast<uint32_t>(imageID), samplerKey });
+			material.metalnessTextureIndex = textureID;
 		}
 		if (renderable.material->roughnessTexture.image) {
 			ImageID imageID = static_cast<uint32_t>(load(*renderable.material->roughnessTexture.image));
 			std::string samplerKey = createSampler(renderable.material->roughnessTexture.imageSampler);
-			m_textures.push_back({ static_cast<uint32_t>(imageID), samplerKey });
-			material.roughnessTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
+			uint32_t textureID = addToTextures({ static_cast<uint32_t>(imageID), samplerKey });
+			material.roughnessTextureIndex = textureID;
 		}
 		if (renderable.material->occlusionTexture.image) {
 			ImageID imageID = static_cast<uint32_t>(load(*renderable.material->occlusionTexture.image));
 			std::string samplerKey = createSampler(renderable.material->occlusionTexture.imageSampler);
-			m_textures.push_back({ static_cast<uint32_t>(imageID), samplerKey });
-			material.occlusionTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
+			uint32_t textureID = addToTextures({ static_cast<uint32_t>(imageID), samplerKey });
+			material.occlusionTextureIndex = textureID;
 		}
 		if (renderable.material->emissiveTexture.image) {
 			ImageID imageID = static_cast<uint32_t>(load(*renderable.material->emissiveTexture.image));
 			std::string samplerKey = createSampler(renderable.material->emissiveTexture.imageSampler);
-			m_textures.push_back({ static_cast<uint32_t>(imageID), samplerKey });
-			material.emissiveTextureIndex = static_cast<uint32_t>(m_textures.size()) - 1;
+			uint32_t textureID = addToTextures({ static_cast<uint32_t>(imageID), samplerKey });
+			material.emissiveTextureIndex = textureID;
 		}
 		material.emissiveFactor = renderable.material->emissiveFactor;
 		material.alphaCutoff = renderable.material->alphaCutoff;
-		m_materials.push_back(material);
-		object.materialIndex = static_cast<uint32_t>(m_materials.size() - 1);
+		uint32_t materialID = addToMaterials(material);
+		object.materialIndex = materialID;
 		m_objects[entity] = object;
 	}
 	else if (componentID == ecs->getComponentId<Camera>()) {
@@ -3371,6 +3371,40 @@ std::string NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler)
 	m_textureSamplers[samplerKey] = newSampler;
 
 	return samplerKey;
+}
+
+uint32_t NtshEngn::GraphicsModule::addToTextures(const InternalTexture& texture) {
+	for (size_t i = 0; i < m_textures.size(); i++) {
+		const InternalTexture& tex = m_textures[i];
+		if ((tex.imageIndex == texture.imageIndex) &&
+			(tex.samplerKey == texture.samplerKey)) {
+			return static_cast<uint32_t>(i);
+		}
+	}
+
+	m_textures.push_back(texture);
+
+	return static_cast<uint32_t>(m_textures.size()) - 1;
+}
+
+uint32_t NtshEngn::GraphicsModule::addToMaterials(const InternalMaterial& material) {
+	for (size_t i = 0; i < m_materials.size(); i++) {
+		const InternalMaterial& mat = m_materials[i];
+		if ((mat.diffuseTextureIndex == material.diffuseTextureIndex) &&
+			(mat.normalTextureIndex == material.normalTextureIndex) &&
+			(mat.metalnessTextureIndex == material.metalnessTextureIndex) &&
+			(mat.roughnessTextureIndex == material.roughnessTextureIndex) &&
+			(mat.occlusionTextureIndex == material.occlusionTextureIndex) &&
+			(mat.emissiveTextureIndex == material.emissiveTextureIndex) &&
+			(mat.emissiveFactor == material.emissiveFactor) &&
+			(mat.alphaCutoff == material.alphaCutoff)) {
+			return static_cast<uint32_t>(i);
+		}
+	}
+
+	m_materials.push_back(material);
+
+	return static_cast<uint32_t>(m_materials.size()) - 1;
 }
 
 uint32_t NtshEngn::GraphicsModule::attributeObjectIndex() {

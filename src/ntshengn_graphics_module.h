@@ -162,6 +162,12 @@ namespace NtshEngn {
 		// Create sampler
 		std::string createSampler(const ImageSampler& sampler);
 
+		// Add to textures
+		uint32_t addToTextures(const InternalTexture& texture);
+
+		// Add to materials
+		uint32_t addToMaterials(const InternalMaterial& material);
+
 		// Attribute an InternalObject index
 		uint32_t attributeObjectIndex();
 
