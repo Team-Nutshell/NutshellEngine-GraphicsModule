@@ -641,7 +641,6 @@ void NtshEngn::GraphicsModule::update(double dt) {
 				meshID != previousObject.meshIndex ||
 				materialID != previousObject.materialIndex) {
 				m_sampleBatch = 0;
-
 			}
 		}
 
