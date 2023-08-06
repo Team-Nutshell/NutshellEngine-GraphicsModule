@@ -631,7 +631,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		memcpy(reinterpret_cast<char*>(data) + offset, meshAndTextureID.data(), 2 * sizeof(uint32_t));
 
 		PreviousObject& previousObject = m_previousObjects[it.first];
-		Transform objectTransform = ecs->getComponent<Transform>(it.first);
+		const Transform& objectTransform = ecs->getComponent<Transform>(it.first);
 		if (m_sampleBatch != 0) {
 			if ((objectTransform.position != previousObject.transform.position) ||
 				(objectTransform.rotation != previousObject.transform.rotation) ||
@@ -682,6 +682,15 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
+
+		PreviousLight& previousLight = m_previousDirectionalLights[light];
+		if (m_sampleBatch != 0) {
+			if ((lightTransform.position != previousLight.transform.position) ||
+				(lightTransform.rotation != previousLight.transform.rotation) ||
+				(lightLight.color != previousLight.light.color)) {
+				m_sampleBatch = 0;
+			}
+		}
 	}
 	for (Entity light : m_lights.pointLights) {
 		const Light& lightLight = ecs->getComponent<Light>(light);
@@ -693,6 +702,14 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
+
+		PreviousLight& previousLight = m_previousPointLights[light];
+		if (m_sampleBatch != 0) {
+			if ((lightTransform.position != previousLight.transform.position) ||
+				(lightLight.color != previousLight.light.color)) {
+				m_sampleBatch = 0;
+			}
+		}
 	}
 	for (Entity light : m_lights.spotLights) {
 		const Light& lightLight = ecs->getComponent<Light>(light);
@@ -706,6 +723,16 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
+
+		PreviousLight& previousLight = m_previousSpotLights[light];
+		if (m_sampleBatch != 0) {
+			if ((lightTransform.position != previousLight.transform.position) ||
+				(lightTransform.rotation != previousLight.transform.rotation) ||
+				(lightLight.color != previousLight.light.color) ||
+				(lightLight.cutoff != previousLight.light.cutoff)) {
+				m_sampleBatch = 0;
+			}
+		}
 	}
 	vmaUnmapMemory(m_allocator, m_lightBufferAllocations[m_currentFrameInFlight]);
 
