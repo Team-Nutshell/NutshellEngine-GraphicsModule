@@ -685,8 +685,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 		PreviousLight& previousLight = m_previousDirectionalLights[light];
 		if (m_sampleBatch != 0) {
-			if ((lightTransform.position != previousLight.transform.position) ||
-				(lightTransform.rotation != previousLight.transform.rotation) ||
+			if ((lightTransform.rotation != previousLight.transform.rotation) ||
 				(lightLight.color != previousLight.light.color)) {
 				m_sampleBatch = 0;
 			}
