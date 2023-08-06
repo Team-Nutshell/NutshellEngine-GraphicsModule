@@ -690,6 +690,9 @@ void NtshEngn::GraphicsModule::update(double dt) {
 				m_sampleBatch = 0;
 			}
 		}
+
+		previousLight.transform = lightTransform;
+		previousLight.light = lightLight;
 	}
 	for (Entity light : m_lights.pointLights) {
 		const Light& lightLight = ecs->getComponent<Light>(light);
@@ -709,6 +712,9 @@ void NtshEngn::GraphicsModule::update(double dt) {
 				m_sampleBatch = 0;
 			}
 		}
+
+		previousLight.transform = lightTransform;
+		previousLight.light = lightLight;
 	}
 	for (Entity light : m_lights.spotLights) {
 		const Light& lightLight = ecs->getComponent<Light>(light);
@@ -732,6 +738,9 @@ void NtshEngn::GraphicsModule::update(double dt) {
 				m_sampleBatch = 0;
 			}
 		}
+
+		previousLight.transform = lightTransform;
+		previousLight.light = lightLight;
 	}
 	vmaUnmapMemory(m_allocator, m_lightBufferAllocations[m_currentFrameInFlight]);
 
