@@ -591,16 +591,14 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 	// Update camera buffer
 	if (m_mainCamera != std::numeric_limits<uint32_t>::max()) {
-		Camera camera = ecs->getComponent<Camera>(m_mainCamera);
-		Transform cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
-		Math::vec3 cameraPosition = Math::vec3(cameraTransform.position[0], cameraTransform.position[1], cameraTransform.position[2]);
-		Math::vec3 cameraRotation = Math::vec3(cameraTransform.rotation[0], cameraTransform.rotation[1], cameraTransform.rotation[2]);
+		const Camera& camera = ecs->getComponent<Camera>(m_mainCamera);
+		const Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
 
-		Math::mat4 cameraView = Math::lookAtRH(cameraPosition, cameraPosition + cameraRotation, Math::vec3(0.0f, 1.0f, 0.0));
+		Math::mat4 cameraView = Math::lookAtRH(cameraTransform.position, cameraTransform.position + cameraTransform.rotation, Math::vec3(0.0f, 1.0f, 0.0));
 		Math::mat4 cameraProjection = Math::perspectiveRH(camera.fov * toRad, m_viewport.width / m_viewport.height, camera.nearPlane, camera.farPlane);
 		cameraProjection[1][1] *= -1.0f;
 		std::array<Math::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
-		Math::vec4 cameraPositionAsVec4 = { cameraPosition, 0.0f };
+		Math::vec4 cameraPositionAsVec4 = { cameraTransform.rotation, 0.0f };
 
 		NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight], &data));
 		memcpy(data, cameraMatrices.data(), sizeof(Math::mat4) * 2);
@@ -650,8 +648,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
 		InternalLight internalLight;
-		internalLight.direction = Math::vec4(lightTransform.rotation.data(), 0.0f);
-		internalLight.color = Math::vec4(lightLight.color.data(), 0.0f);
+		internalLight.direction = Math::vec4(lightTransform.rotation, 0.0f);
+		internalLight.color = Math::vec4(lightLight.color, 0.0f);
 
 		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
@@ -661,8 +659,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
 		InternalLight internalLight;
-		internalLight.position = Math::vec4(lightTransform.position.data(), 0.0f);
-		internalLight.color = Math::vec4(lightLight.color.data(), 0.0f);
+		internalLight.position = Math::vec4(lightTransform.position, 0.0f);
+		internalLight.color = Math::vec4(lightLight.color, 0.0f);
 
 		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
@@ -672,10 +670,10 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
 		InternalLight internalLight;
-		internalLight.position = Math::vec4(lightTransform.position.data(), 0.0f);
-		internalLight.direction = Math::vec4(lightTransform.rotation.data(), 0.0f);
-		internalLight.color = Math::vec4(lightLight.color.data(), 0.0f);
-		internalLight.cutoffs = Math::vec4(lightTransform.scale.data(), 0.0f, 0.0f);
+		internalLight.position = Math::vec4(lightTransform.position, 0.0f);
+		internalLight.direction = Math::vec4(lightTransform.rotation, 0.0f);
+		internalLight.color = Math::vec4(lightLight.color, 0.0f);
+		internalLight.cutoff = Math::vec4(lightLight.cutoff, 0.0f, 0.0f);
 
 		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
@@ -685,16 +683,13 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	// Update TLAS
 	std::vector<VkAccelerationStructureInstanceKHR> tlasInstances;
 	for (auto& it : m_objects) {
-		Transform objectTransform = ecs->getComponent<Transform>(it.first);
-		Math::vec3 objectPosition = Math::vec3(objectTransform.position[0], objectTransform.position[1], objectTransform.position[2]);
-		Math::vec3 objectRotation = Math::vec3(objectTransform.rotation[0], objectTransform.rotation[1], objectTransform.rotation[2]);
-		Math::vec3 objectScale = Math::vec3(objectTransform.scale[0], objectTransform.scale[1], objectTransform.scale[2]);
+		const Transform& objectTransform = ecs->getComponent<Transform>(it.first);
 
-		Math::mat4 objectModel = Math::transpose(Math::translate(objectPosition) *
-			Math::rotate(objectRotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
-			Math::rotate(objectRotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
-			Math::rotate(objectRotation.z, Math::vec3(0.0f, 0.0f, 1.0f)) *
-			Math::scale(objectScale));
+		Math::mat4 objectModel = Math::transpose(Math::translate(objectTransform.position) *
+			Math::rotate(objectTransform.rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
+			Math::rotate(objectTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
+			Math::rotate(objectTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f)) *
+			Math::scale(objectTransform.scale));
 
 		VkTransformMatrixKHR objectTransformMatrix = { { { objectModel.x.x, objectModel.x.y, objectModel.x.z, objectModel.x.w },
 			{ objectModel.y.x, objectModel.y.y, objectModel.y.z, objectModel.y.w },
@@ -2847,7 +2842,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 position;
 			vec3 direction;
 			vec3 color;
-			vec2 cutoffs;
+			vec2 cutoff;
 		};
 
 		struct Vertex {
@@ -3079,8 +3074,8 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 				vec3 l = normalize(lights.info[lightIndex].position - worldPosition);
 				vec3 lc = lights.info[lightIndex].color;
 				float theta = dot(l, normalize(-lights.info[lightIndex].direction));
-				float epsilon = cos(lights.info[lightIndex].cutoffs.y) - cos(lights.info[lightIndex].cutoffs.x);
-				float intensity = clamp((theta - cos(lights.info[lightIndex].cutoffs.x)) / epsilon, 0.0, 1.0);
+				float epsilon = cos(lights.info[lightIndex].cutoff.y) - cos(lights.info[lightIndex].cutoff.x);
+				float intensity = clamp((theta - cos(lights.info[lightIndex].cutoff.x)) / epsilon, 0.0, 1.0);
 				intensity = 1.0 - intensity;
 				color += shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample) * shadows(l, length(lights.info[lightIndex].position - worldPosition));
 
