@@ -88,7 +88,7 @@ struct InternalLight {
 	NtshEngn::Math::vec4 position = { 0.0f, 0.0f, 0.0f, 0.0f };
 	NtshEngn::Math::vec4 direction = { 0.0f, 0.0f, 0.0f, 0.0f };
 	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
-	NtshEngn::Math::vec4 cutoffs = { 0.0f, 0.0f, 0.0f, 0.0f };
+	NtshEngn::Math::vec4 cutoff = { 0.0f, 0.0f, 0.0f, 0.0f };
 };
 
 struct InternalLights {
