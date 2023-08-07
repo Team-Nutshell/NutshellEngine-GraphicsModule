@@ -939,8 +939,8 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 
 const NtshEngn::ComponentMask NtshEngn::GraphicsModule::getComponentMask() const {
 	ComponentMask componentMask;
-	componentMask.set(ecs->getComponentId<AABBCollidable>());
 	componentMask.set(ecs->getComponentId<SphereCollidable>());
+	componentMask.set(ecs->getComponentId<AABBCollidable>());
 	componentMask.set(ecs->getComponentId<CapsuleCollidable>());
 	componentMask.set(ecs->getComponentId<Camera>());
 
@@ -979,7 +979,9 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 }
 
 void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component componentID) {
-	if (componentID == ecs->getComponentId<Renderable>()) {
+	if ((componentID == ecs->getComponentId<SphereCollidable>()) ||
+		(componentID == ecs->getComponentId<AABBCollidable>()) ||
+		(componentID == ecs->getComponentId<CapsuleCollidable>())) {
 		const InternalObject& object = m_objects[entity];
 		retrieveObjectIndex(object.index);
 
