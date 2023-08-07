@@ -520,19 +520,22 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight], &data));
 	for (auto& it : m_objects) {
 		const Transform& objectTransform = ecs->getComponent<Transform>(it.first);
-		Math::vec3 objectScale;
+		Math::mat4 objectRotation = Math::rotate(objectTransform.rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
+			Math::rotate(objectTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
+			Math::rotate(objectTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f));
+		Math::vec3 objectScale = objectTransform.scale;
+
+		if (it.second.capsuleMeshIndex != std::numeric_limits<size_t>::max()) {
+			const ColliderCapsule& colliderCapsule = ecs->getComponent<CapsuleCollidable>(it.first).collider;
+			objectRotation = Math::translate(colliderCapsule.base) * objectRotation * Math::translate(colliderCapsule.base * -1.0f);
+		}
 
 		if (it.second.sphereMeshIndex != std::numeric_limits<size_t>::max()) {
 			objectScale = Math::vec3(std::max(objectTransform.scale[0], std::max(objectTransform.scale[1], objectTransform.scale[2])));
 		}
-		else {
-			objectScale = objectTransform.scale;
-		}
 
 		Math::mat4 objectModel = Math::translate(objectTransform.position) *
-			Math::rotate(objectTransform.rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
-			Math::rotate(objectTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
-			Math::rotate(objectTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f)) *
+			objectRotation *
 			Math::scale(objectScale);
 
 		size_t offset = (it.second.index * (sizeof(Math::mat4)));
@@ -979,13 +982,38 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 }
 
 void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component componentID) {
-	if ((componentID == ecs->getComponentId<SphereCollidable>()) ||
-		(componentID == ecs->getComponentId<AABBCollidable>()) ||
-		(componentID == ecs->getComponentId<CapsuleCollidable>())) {
-		const InternalObject& object = m_objects[entity];
-		retrieveObjectIndex(object.index);
+	if (componentID == ecs->getComponentId<SphereCollidable>()) {
+		InternalObject& object = m_objects[entity];
+		object.sphereMeshIndex = std::numeric_limits<size_t>::max();
 
-		m_objects.erase(entity);
+		if ((object.aabbMeshIndex == std::numeric_limits<size_t>::max()) ||
+			(object.capsuleMeshIndex == std::numeric_limits<size_t>::max())) {
+			retrieveObjectIndex(object.index);
+
+			m_objects.erase(entity);
+		}
+	}
+	else if (componentID == ecs->getComponentId<AABBCollidable>()) {
+		InternalObject& object = m_objects[entity];
+		object.aabbMeshIndex = std::numeric_limits<size_t>::max();
+
+		if ((object.sphereMeshIndex == std::numeric_limits<size_t>::max()) ||
+			(object.capsuleMeshIndex == std::numeric_limits<size_t>::max())) {
+			retrieveObjectIndex(object.index);
+
+			m_objects.erase(entity);
+		}
+	}
+	else if (componentID == ecs->getComponentId<CapsuleCollidable>()) {
+		InternalObject& object = m_objects[entity];
+		object.capsuleMeshIndex = std::numeric_limits<size_t>::max();
+
+		if ((object.sphereMeshIndex == std::numeric_limits<size_t>::max()) ||
+			(object.aabbMeshIndex == std::numeric_limits<size_t>::max())) {
+			retrieveObjectIndex(object.index);
+
+			m_objects.erase(entity);
+		}
 	}
 	else if (componentID == ecs->getComponentId<Camera>()) {
 		if (m_mainCamera == entity) {
