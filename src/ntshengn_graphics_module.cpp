@@ -909,6 +909,21 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	return std::numeric_limits<ImageID>::max();
 }
 
+NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
+	NTSHENGN_UNUSED(font);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
+
+	return std::numeric_limits<FontID>::max();
+}
+
+void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::string& text, const Math::vec2& position, const Math::vec4& color) {
+	NTSHENGN_UNUSED(fontID);
+	NTSHENGN_UNUSED(text);
+	NTSHENGN_UNUSED(position);
+	NTSHENGN_UNUSED(color);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
+}
+
 VkSurfaceCapabilitiesKHR NtshEngn::GraphicsModule::getSurfaceCapabilities() {
 	VkPhysicalDeviceSurfaceInfo2KHR surfaceInfo = {};
 	surfaceInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR;
