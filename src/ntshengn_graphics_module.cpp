@@ -1299,11 +1299,11 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	textureImageCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 	textureImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-	VmaAllocationCreateInfo cubeTextureImageAllocationCreateInfo = {};
-	cubeTextureImageAllocationCreateInfo.flags = 0;
-	cubeTextureImageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+	VmaAllocationCreateInfo textureImageAllocationCreateInfo = {};
+	textureImageAllocationCreateInfo.flags = 0;
+	textureImageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &textureImageCreateInfo, &cubeTextureImageAllocationCreateInfo, &textureImage, &textureImageAllocation, nullptr));
+	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &textureImageCreateInfo, &textureImageAllocationCreateInfo, &textureImage, &textureImageAllocation, nullptr));
 
 	VkImageViewCreateInfo textureImageViewCreateInfo = {};
 	textureImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
