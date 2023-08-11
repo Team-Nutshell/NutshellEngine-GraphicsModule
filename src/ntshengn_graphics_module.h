@@ -90,7 +90,7 @@ struct InternalMaterial {
 struct InternalObject {
 	uint32_t index;
 
-	size_t meshIndex = 0;
+	NtshEngn::MeshID meshID = 0;
 	uint32_t materialIndex = 0;
 };
 
