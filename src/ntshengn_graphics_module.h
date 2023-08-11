@@ -20,6 +20,7 @@
 #include <limits>
 #include <unordered_map>
 #include <set>
+#include <queue>
 
 #define NTSHENGN_VK_CHECK(f) \
 	do { \
@@ -103,6 +104,16 @@ struct InternalMaterial {
 	float alphaCutoff = 0.0f;
 };
 
+struct InternalFont {
+	VkImage image;
+	VmaAllocation imageAllocation;
+	VkImageView imageView;
+
+	NtshEngn::ImageSamplerFilter filter;
+
+	std::unordered_map<char, NtshEngn::FontGlyph> glyphs;
+};
+
 struct InternalObject {
 	uint32_t index;
 
@@ -123,6 +134,14 @@ struct InternalLights {
 	std::set<NtshEngn::Entity> spotLights;
 };
 
+struct InternalUIText {
+	NtshEngn::FontID fontID;
+	NtshEngn::Math::vec4 color;
+
+	uint32_t charactersCount = 0;
+	uint32_t bufferOffset = 0;
+};
+
 namespace NtshEngn {
 
 	class GraphicsModule : public GraphicsModuleInterface {
@@ -137,6 +156,11 @@ namespace NtshEngn {
 		MeshID load(const Mesh& mesh);
 		// Loads the image described in the image parameter in the internal format and returns a unique identifier
 		ImageID load(const Image& image);
+		// Loads the font described in the font parameter in the internal format and returns a unique identifier
+		FontID load(const Font& font);
+
+		// Draws a text on the UI with the font in the fontID parameter using the position on screen and color
+		void drawUIText(FontID fontID, const std::string& text, const Math::vec2& position, const Math::vec4& color);
 
 	public:
 		const ComponentMask getComponentMask() const;
@@ -184,6 +208,11 @@ namespace NtshEngn {
 
 		// Tone mapping resources
 		void createToneMappingResources();
+
+		// UI resources
+		void createUIResources();
+		void createUITextResources();
+		void updateUITextDescriptorSet(uint32_t frameInFlight);
 
 		// Default resources
 		void createDefaultResources();
@@ -288,6 +317,17 @@ namespace NtshEngn {
 		VkPipeline m_toneMappingGraphicsPipeline;
 		VkPipelineLayout m_toneMappingGraphicsPipelineLayout;
 
+		std::vector<VkBuffer> m_uiTextBuffers;
+		std::vector<VmaAllocation> m_uiTextBufferAllocations;
+		VkSampler m_uiFontNearestSampler;
+		VkSampler m_uiFontLinearSampler;
+		VkDescriptorSetLayout m_uiTextDescriptorSetLayout;
+		VkDescriptorPool m_uiTextDescriptorPool;
+		std::vector<VkDescriptorSet> m_uiTextDescriptorSets;
+		std::vector<bool> m_uiTextDescriptorSetsNeedUpdate;
+		VkPipeline m_uiTextGraphicsPipeline;
+		VkPipelineLayout m_uiTextGraphicsPipelineLayout;
+
 		std::vector<VkCommandPool> m_renderingCommandPools;
 		std::vector<VkCommandBuffer> m_renderingCommandBuffers;
 
@@ -316,6 +356,9 @@ namespace NtshEngn {
 
 		std::vector<VkBuffer> m_cameraBuffers;
 		std::vector<VmaAllocation> m_cameraBufferAllocations;
+
+		std::vector<InternalFont> m_fonts;
+		std::unordered_map<const Font*, uint32_t> m_fontAddresses;
 
 		std::vector<VkBuffer> m_objectBuffers;
 		std::vector<VmaAllocation> m_objectBufferAllocations;
@@ -360,6 +403,9 @@ namespace NtshEngn {
 		Entity m_mainCamera = std::numeric_limits<uint32_t>::max();
 
 		InternalLights m_lights;
+
+		std::queue<InternalUIText> m_uiTexts;
+		uint32_t m_uiTextBufferOffset = 0;
 
 		uint32_t m_sampleBatch = 0;
 
