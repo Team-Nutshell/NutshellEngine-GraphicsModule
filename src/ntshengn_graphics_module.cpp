@@ -3428,10 +3428,10 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 
 void NtshEngn::GraphicsModule::updateDescriptorSet(uint32_t frameInFlight) {
 	std::vector<VkDescriptorImageInfo> texturesDescriptorImageInfos(m_textures.size());
-	for (size_t j = 0; j < m_textures.size(); j++) {
-		texturesDescriptorImageInfos[j].sampler = m_textureSamplers[m_textures[j].samplerKey];
-		texturesDescriptorImageInfos[j].imageView = m_textureImageViews[m_textures[j].imageIndex];
-		texturesDescriptorImageInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	for (size_t i = 0; i < m_textures.size(); i++) {
+		texturesDescriptorImageInfos[i].sampler = m_textureSamplers[m_textures[i].samplerKey];
+		texturesDescriptorImageInfos[i].imageView = m_textureImageViews[m_textures[i].imageIndex];
+		texturesDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
 
 	VkWriteDescriptorSet texturesDescriptorWriteDescriptorSet = {};
