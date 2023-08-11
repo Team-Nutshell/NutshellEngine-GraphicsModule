@@ -769,13 +769,30 @@ void NtshEngn::GraphicsModule::destroy() {
 NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	NTSHENGN_UNUSED(mesh);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
-	return 0;
+
+	return std::numeric_limits<MeshID>::max();
 }
 
 NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	NTSHENGN_UNUSED(image);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
-	return 0;
+
+	return std::numeric_limits<ImageID>::max();
+}
+
+NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
+	NTSHENGN_UNUSED(font);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
+
+	return std::numeric_limits<FontID>::max();
+}
+
+void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::string& text, const Math::vec2& position, const Math::vec4& color) {
+	NTSHENGN_UNUSED(fontID);
+	NTSHENGN_UNUSED(text);
+	NTSHENGN_UNUSED(position);
+	NTSHENGN_UNUSED(color);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
 VkSurfaceCapabilitiesKHR NtshEngn::GraphicsModule::getSurfaceCapabilities(size_t index) {
