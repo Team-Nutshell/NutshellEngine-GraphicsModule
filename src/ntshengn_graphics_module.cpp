@@ -624,7 +624,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	for (auto& it : m_objects) {
 		size_t offset = (it.second.index * sizeof(Math::vec2));
 
-		const uint32_t meshID = (it.second.meshIndex < m_meshes.size()) ? static_cast<uint32_t>(it.second.meshIndex) : 0;
+		const uint32_t meshID = (it.second.meshID < m_meshes.size()) ? static_cast<uint32_t>(it.second.meshID) : 0;
 		const uint32_t materialID = (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0;
 		std::array<uint32_t, 2> meshAndTextureID = { meshID, materialID };
 
@@ -636,14 +636,14 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			if ((objectTransform.position != previousObject.transform.position) ||
 				(objectTransform.rotation != previousObject.transform.rotation) ||
 				(objectTransform.scale != previousObject.transform.scale) ||
-				(meshID != previousObject.meshIndex) ||
+				(meshID != previousObject.meshID) ||
 				(materialID != previousObject.materialIndex)) {
 				m_sampleBatch = 0;
 			}
 		}
 
 		previousObject.transform = objectTransform;
-		previousObject.meshIndex = meshID;
+		previousObject.meshID = meshID;
 		previousObject.materialIndex = materialID;
 	}
 	vmaUnmapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight]);
@@ -766,7 +766,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		accelerationStructureInstance.mask = 0xFF;
 		accelerationStructureInstance.instanceShaderBindingTableRecordOffset = 0;
 		accelerationStructureInstance.flags = VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR;
-		accelerationStructureInstance.accelerationStructureReference = m_meshes[it.second.meshIndex].blasDeviceAddress;
+		accelerationStructureInstance.accelerationStructureReference = m_meshes[it.second.meshID].blasDeviceAddress;
 		tlasInstances.push_back(accelerationStructureInstance);
 	}
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_topLevelAccelerationStructureInstancesStagingBufferAllocations[m_currentFrameInFlight], &data));
@@ -1878,7 +1878,7 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		InternalObject object;
 		object.index = attributeObjectIndex();
 		if (renderable.mesh->vertices.size() != 0) {
-			object.meshIndex = load(*renderable.mesh);
+			object.meshID = load(*renderable.mesh);
 		}
 		InternalMaterial material;
 		if (renderable.material->diffuseTexture.image) {
@@ -1925,7 +1925,7 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 
 		PreviousObject previousObject;
 		previousObject.transform = ecs->getComponent<Transform>(entity);
-		previousObject.meshIndex = object.meshIndex;
+		previousObject.meshID = object.meshID;
 		previousObject.materialIndex = object.materialIndex;
 		m_previousObjects[entity] = previousObject;
 
