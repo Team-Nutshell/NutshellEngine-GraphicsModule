@@ -35,7 +35,7 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	NTSHENGN_UNUSED(font);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 
-	return std::numeric_limits<ImageID>::max();
+	return std::numeric_limits<FontID>::max();
 }
 
 void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::string& text, const Math::vec2& position, const Math::vec4& color) {
