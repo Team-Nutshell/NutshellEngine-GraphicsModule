@@ -626,7 +626,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	for (auto& it : m_objects) {
 		size_t offset = (it.second.index * sizeof(Math::vec2));
 
-		const uint32_t meshID = (it.second.meshID < m_meshes.size()) ? static_cast<uint32_t>(it.second.meshID) : 0;
+		const uint32_t meshID = (it.second.meshID < m_meshes.size()) ? it.second.meshID : 0;
 		const uint32_t materialID = (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0;
 		std::array<uint32_t, 2> meshAndTextureID = { meshID, materialID };
 
@@ -1084,8 +1084,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 				vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_uiTextGraphicsPipelineLayout, 0, 1, &m_uiTextDescriptorSets[m_currentFrameInFlight], 0, nullptr);
 				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiTextGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &uiText.bufferOffset);
 				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiTextGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec4), sizeof(Math::vec4), &uiText.color);
-				const uint32_t fontID = static_cast<uint32_t>(uiText.fontID);
-				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiTextGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec4) + sizeof(Math::vec4), sizeof(uint32_t), &fontID);
+				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiTextGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec4) + sizeof(Math::vec4), sizeof(uint32_t), &uiText.fontID);
 
 				vkCmdDraw(m_renderingCommandBuffers[m_currentFrameInFlight], uiText.charactersCount * 6, 1, 0, 0);
 
@@ -2250,39 +2249,39 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		}
 		InternalMaterial material;
 		if (renderable.material->diffuseTexture.image) {
-			ImageID imageID = static_cast<uint32_t>(load(*renderable.material->diffuseTexture.image));
+			ImageID imageID = load(*renderable.material->diffuseTexture.image);
 			std::string samplerKey = createSampler(renderable.material->diffuseTexture.imageSampler);
-			uint32_t textureID = addToTextures({ static_cast<uint32_t>(imageID), samplerKey });
+			uint32_t textureID = addToTextures({ imageID, samplerKey });
 			material.diffuseTextureIndex = textureID;
 		}
 		if (renderable.material->normalTexture.image) {
-			ImageID imageID = static_cast<uint32_t>(load(*renderable.material->normalTexture.image));
+			ImageID imageID = load(*renderable.material->normalTexture.image);
 			std::string samplerKey = createSampler(renderable.material->normalTexture.imageSampler);
-			uint32_t textureID = addToTextures({ static_cast<uint32_t>(imageID), samplerKey });
+			uint32_t textureID = addToTextures({ imageID, samplerKey });
 			material.normalTextureIndex = textureID;
 		}
 		if (renderable.material->metalnessTexture.image) {
-			ImageID imageID = static_cast<uint32_t>(load(*renderable.material->metalnessTexture.image));
+			ImageID imageID = load(*renderable.material->metalnessTexture.image);
 			std::string samplerKey = createSampler(renderable.material->metalnessTexture.imageSampler);
-			uint32_t textureID = addToTextures({ static_cast<uint32_t>(imageID), samplerKey });
+			uint32_t textureID = addToTextures({ imageID, samplerKey });
 			material.metalnessTextureIndex = textureID;
 		}
 		if (renderable.material->roughnessTexture.image) {
-			ImageID imageID = static_cast<uint32_t>(load(*renderable.material->roughnessTexture.image));
+			ImageID imageID = load(*renderable.material->roughnessTexture.image);
 			std::string samplerKey = createSampler(renderable.material->roughnessTexture.imageSampler);
-			uint32_t textureID = addToTextures({ static_cast<uint32_t>(imageID), samplerKey });
+			uint32_t textureID = addToTextures({ imageID, samplerKey });
 			material.roughnessTextureIndex = textureID;
 		}
 		if (renderable.material->occlusionTexture.image) {
-			ImageID imageID = static_cast<uint32_t>(load(*renderable.material->occlusionTexture.image));
+			ImageID imageID = load(*renderable.material->occlusionTexture.image);
 			std::string samplerKey = createSampler(renderable.material->occlusionTexture.imageSampler);
-			uint32_t textureID = addToTextures({ static_cast<uint32_t>(imageID), samplerKey });
+			uint32_t textureID = addToTextures({ imageID, samplerKey });
 			material.occlusionTextureIndex = textureID;
 		}
 		if (renderable.material->emissiveTexture.image) {
-			ImageID imageID = static_cast<uint32_t>(load(*renderable.material->emissiveTexture.image));
+			ImageID imageID = load(*renderable.material->emissiveTexture.image);
 			std::string samplerKey = createSampler(renderable.material->emissiveTexture.imageSampler);
-			uint32_t textureID = addToTextures({ static_cast<uint32_t>(imageID), samplerKey });
+			uint32_t textureID = addToTextures({ imageID, samplerKey });
 			material.emissiveTextureIndex = textureID;
 		}
 		material.emissiveFactor = renderable.material->emissiveFactor;
@@ -4074,7 +4073,7 @@ void NtshEngn::GraphicsModule::updateDescriptorSet(uint32_t frameInFlight) {
 	std::vector<VkDescriptorImageInfo> texturesDescriptorImageInfos(m_textures.size());
 	for (size_t i = 0; i < m_textures.size(); i++) {
 		texturesDescriptorImageInfos[i].sampler = m_textureSamplers[m_textures[i].samplerKey];
-		texturesDescriptorImageInfos[i].imageView = m_textureImageViews[m_textures[i].imageIndex];
+		texturesDescriptorImageInfos[i].imageView = m_textureImageViews[m_textures[i].imageID];
 		texturesDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
 
@@ -5516,7 +5515,7 @@ std::string NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler)
 uint32_t NtshEngn::GraphicsModule::addToTextures(const InternalTexture& texture) {
 	for (size_t i = 0; i < m_textures.size(); i++) {
 		const InternalTexture& tex = m_textures[i];
-		if ((tex.imageIndex == texture.imageIndex) &&
+		if ((tex.imageID == texture.imageID) &&
 			(tex.samplerKey == texture.samplerKey)) {
 			return static_cast<uint32_t>(i);
 		}
