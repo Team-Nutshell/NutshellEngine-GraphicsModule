@@ -1109,7 +1109,7 @@ void NtshEngn::GraphicsModule::destroy() {
 	vmaDestroyImage(m_allocator, m_colorImage, m_colorImageAllocation);
 
 	// Destroy samplers
-	for (const std::pair<std::string, VkSampler>& sampler: m_textureSamplers) {
+	for (const auto& sampler: m_textureSamplers) {
 		vkDestroySampler(m_device, sampler.second, nullptr);
 	}
 
