@@ -339,19 +339,19 @@ namespace NtshEngn {
 		std::vector<InternalMesh> m_meshes;
 		int32_t m_currentVertexOffset = 0;
 		uint32_t m_currentIndexOffset = 0;
-		std::unordered_map<const Mesh*, uint32_t> m_meshAddresses;
+		std::unordered_map<const Mesh*, MeshID> m_meshAddresses;
 
 		std::vector<VkImage> m_textureImages;
 		std::vector<VmaAllocation> m_textureImageAllocations;
 		std::vector<VkImageView> m_textureImageViews;
 		std::unordered_map<std::string, VkSampler> m_textureSamplers;
-		std::unordered_map<const Image*, uint32_t> m_imageAddresses;
+		std::unordered_map<const Image*, ImageID> m_imageAddresses;
 		std::vector<InternalTexture> m_textures;
 
 		std::vector<InternalMaterial> m_materials;
 
 		std::vector<InternalFont> m_fonts;
-		std::unordered_map<const Font*, uint32_t> m_fontAddresses;
+		std::unordered_map<const Font*, FontID> m_fontAddresses;
 
 		std::unordered_map<Entity, InternalObject> m_objects;
 		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
