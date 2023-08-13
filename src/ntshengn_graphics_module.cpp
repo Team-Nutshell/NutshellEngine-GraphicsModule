@@ -46,6 +46,20 @@ void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::string& text
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
+void NtshEngn::GraphicsModule::drawUILine(const Math::vec2& start, const Math::vec2& end, const Math::vec4& color) {
+	NTSHENGN_UNUSED(start);
+	NTSHENGN_UNUSED(end);
+	NTSHENGN_UNUSED(color);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
+}
+
+void NtshEngn::GraphicsModule::drawUIRectangle(const Math::vec2& position, const Math::vec2& size, const Math::vec4& color) {
+	NTSHENGN_UNUSED(position);
+	NTSHENGN_UNUSED(size);
+	NTSHENGN_UNUSED(color);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
+}
+
 extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface* createModule() {
 	return new NtshEngn::GraphicsModule;
 }
