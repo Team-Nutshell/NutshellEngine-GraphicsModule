@@ -108,12 +108,28 @@ struct InternalLights {
 	std::set<NtshEngn::Entity> spotLights;
 };
 
+enum class UIElement {
+	Text,
+	Line,
+	Rectangle
+};
+
 struct InternalUIText {
 	NtshEngn::FontID fontID;
-	NtshEngn::Math::vec4 color;
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 1.0f };
 
 	uint32_t charactersCount = 0;
 	uint32_t bufferOffset = 0;
+};
+
+struct InternalUILine {
+	NtshEngn::Math::vec4 positions = { 0.0f, 0.0f, 0.0f, 0.0f };
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 1.0f };
+};
+
+struct InternalUIRectangle {
+	NtshEngn::Math::vec4 positions = { 0.0f, 0.0f, 0.0f, 0.0f };
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 1.0f };
 };
 
 namespace NtshEngn {
@@ -135,6 +151,10 @@ namespace NtshEngn {
 
 		// Draws a text on the UI with the font in the fontID parameter using the position on screen and color
 		void drawUIText(FontID fontID, const std::string& text, const Math::vec2& position, const Math::vec4& color);
+		// Draws a line on the UI according to its start and end points and its color
+		void drawUILine(const Math::vec2& start, const Math::vec2& end, const Math::vec4& color);
+		// Draws a rectangle on the UI according to its position, its size (width and height) and its color
+		void drawUIRectangle(const Math::vec2& position, const Math::vec2& size, const Math::vec4& color);
 
 	public:
 		const ComponentMask getComponentMask() const;
@@ -181,6 +201,8 @@ namespace NtshEngn {
 		void createUIResources();
 		void createUITextResources();
 		void updateUITextDescriptorSet(uint32_t frameInFlight);
+		void createUILineResources();
+		void createUIRectangleResources();
 
 		// Default resources
 		void createDefaultResources();
@@ -271,6 +293,12 @@ namespace NtshEngn {
 		VkPipeline m_uiTextGraphicsPipeline;
 		VkPipelineLayout m_uiTextGraphicsPipelineLayout;
 
+		VkPipeline m_uiLineGraphicsPipeline;
+		VkPipelineLayout m_uiLineGraphicsPipelineLayout;
+
+		VkPipeline m_uiRectangleGraphicsPipeline;
+		VkPipelineLayout m_uiRectangleGraphicsPipelineLayout;
+
 		std::vector<VkCommandPool> m_renderingCommandPools;
 		std::vector<VkCommandBuffer> m_renderingCommandBuffers;
 
@@ -332,8 +360,14 @@ namespace NtshEngn {
 
 		InternalLights m_lights;
 
+		std::queue<UIElement> m_uiElements;
+
 		std::queue<InternalUIText> m_uiTexts;
 		uint32_t m_uiTextBufferOffset = 0;
+
+		std::queue<InternalUILine> m_uiLines;
+
+		std::queue<InternalUIRectangle> m_uiRectangles;
 	};
 
 }

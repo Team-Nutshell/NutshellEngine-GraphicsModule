@@ -838,77 +838,103 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 	m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight]);
 
-	// Image memory barrier between tonemapping and UI
-	VkImageMemoryBarrier2 tonemappingUIImageMemoryBarrier = {};
-	tonemappingUIImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-	tonemappingUIImageMemoryBarrier.pNext = nullptr;
-	tonemappingUIImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-	tonemappingUIImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-	tonemappingUIImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-	tonemappingUIImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-	tonemappingUIImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	tonemappingUIImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	tonemappingUIImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	tonemappingUIImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-		tonemappingUIImageMemoryBarrier.image = m_swapchainImages[imageIndex];
+	if (!m_uiElements.empty()) {
+		// Image memory barrier between tonemapping and UI
+		VkImageMemoryBarrier2 tonemappingUIImageMemoryBarrier = {};
+		tonemappingUIImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		tonemappingUIImageMemoryBarrier.pNext = nullptr;
+		tonemappingUIImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		tonemappingUIImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		tonemappingUIImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		tonemappingUIImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		tonemappingUIImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		tonemappingUIImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		tonemappingUIImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+		tonemappingUIImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+		if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+			tonemappingUIImageMemoryBarrier.image = m_swapchainImages[imageIndex];
+		}
+		else {
+			tonemappingUIImageMemoryBarrier.image = m_drawImage;
+		}
+		tonemappingUIImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		tonemappingUIImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+		tonemappingUIImageMemoryBarrier.subresourceRange.levelCount = 1;
+		tonemappingUIImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+		tonemappingUIImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+		VkDependencyInfo tonemappingUIDependencyInfo = {};
+		tonemappingUIDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		tonemappingUIDependencyInfo.pNext = nullptr;
+		tonemappingUIDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+		tonemappingUIDependencyInfo.memoryBarrierCount = 0;
+		tonemappingUIDependencyInfo.pMemoryBarriers = nullptr;
+		tonemappingUIDependencyInfo.bufferMemoryBarrierCount = 0;
+		tonemappingUIDependencyInfo.pBufferMemoryBarriers = nullptr;
+		tonemappingUIDependencyInfo.imageMemoryBarrierCount = 1;
+		tonemappingUIDependencyInfo.pImageMemoryBarriers = &tonemappingUIImageMemoryBarrier;
+		m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &tonemappingUIDependencyInfo);
+
+		// UI
+		renderingSwapchainAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+
+		VkRenderingInfo uiRenderingInfo = {};
+		uiRenderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+		uiRenderingInfo.pNext = nullptr;
+		uiRenderingInfo.flags = 0;
+		uiRenderingInfo.renderArea = m_scissor;
+		uiRenderingInfo.layerCount = 1;
+		uiRenderingInfo.viewMask = 0;
+		uiRenderingInfo.colorAttachmentCount = 1;
+		uiRenderingInfo.pColorAttachments = &renderingSwapchainAttachmentInfo;
+		uiRenderingInfo.pDepthAttachment = nullptr;
+		uiRenderingInfo.pStencilAttachment = nullptr;
+		m_vkCmdBeginRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight], &uiRenderingInfo);
+
+		while (!m_uiElements.empty()) {
+			const UIElement uiElement = m_uiElements.front();
+			if (uiElement == UIElement::Text) {
+				const InternalUIText& uiText = m_uiTexts.front();
+
+				vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_uiTextGraphicsPipeline);
+				vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_uiTextGraphicsPipelineLayout, 0, 1, &m_uiTextDescriptorSets[m_currentFrameInFlight], 0, nullptr);
+				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiTextGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &uiText.bufferOffset);
+				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiTextGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec4), sizeof(Math::vec4), &uiText.color);
+				const uint32_t fontID = static_cast<uint32_t>(uiText.fontID);
+				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiTextGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec4) + sizeof(Math::vec4), sizeof(uint32_t), &fontID);
+
+				vkCmdDraw(m_renderingCommandBuffers[m_currentFrameInFlight], uiText.charactersCount * 6, 1, 0, 0);
+
+				m_uiTexts.pop();
+			}
+			else if (uiElement == UIElement::Line) {
+				const InternalUILine& uiLine = m_uiLines.front();
+
+				vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_uiLineGraphicsPipeline);
+				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiLineGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Math::vec2) + sizeof(Math::vec2), &uiLine.positions);
+				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiLineGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec2) + sizeof(Math::vec2), sizeof(Math::vec4), &uiLine.color);
+
+				vkCmdDraw(m_renderingCommandBuffers[m_currentFrameInFlight], 2, 1, 0, 0);
+
+				m_uiLines.pop();
+			}
+			else if (uiElement == UIElement::Rectangle) {
+				const InternalUIRectangle& uiRectangle = m_uiRectangles.front();
+
+				vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_uiRectangleGraphicsPipeline);
+				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiRectangleGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Math::vec2) + sizeof(Math::vec2), &uiRectangle.positions);
+				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiRectangleGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec2) + sizeof(Math::vec2), sizeof(Math::vec4), &uiRectangle.color);
+
+				vkCmdDraw(m_renderingCommandBuffers[m_currentFrameInFlight], 6, 1, 0, 0);
+
+				m_uiRectangles.pop();
+			}
+
+			m_uiElements.pop();
+		}
+
+		m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight]);
 	}
-	else {
-		tonemappingUIImageMemoryBarrier.image = m_drawImage;
-	}
-	tonemappingUIImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	tonemappingUIImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
-	tonemappingUIImageMemoryBarrier.subresourceRange.levelCount = 1;
-	tonemappingUIImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-	tonemappingUIImageMemoryBarrier.subresourceRange.layerCount = 1;
-
-	VkDependencyInfo tonemappingUIDependencyInfo = {};
-	tonemappingUIDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-	tonemappingUIDependencyInfo.pNext = nullptr;
-	tonemappingUIDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-	tonemappingUIDependencyInfo.memoryBarrierCount = 0;
-	tonemappingUIDependencyInfo.pMemoryBarriers = nullptr;
-	tonemappingUIDependencyInfo.bufferMemoryBarrierCount = 0;
-	tonemappingUIDependencyInfo.pBufferMemoryBarriers = nullptr;
-	tonemappingUIDependencyInfo.imageMemoryBarrierCount = 1;
-	tonemappingUIDependencyInfo.pImageMemoryBarriers = &tonemappingUIImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &tonemappingUIDependencyInfo);
-
-	// UI
-	renderingSwapchainAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-
-	VkRenderingInfo uiRenderingInfo = {};
-	uiRenderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-	uiRenderingInfo.pNext = nullptr;
-	uiRenderingInfo.flags = 0;
-	uiRenderingInfo.renderArea = m_scissor;
-	uiRenderingInfo.layerCount = 1;
-	uiRenderingInfo.viewMask = 0;
-	uiRenderingInfo.colorAttachmentCount = 1;
-	uiRenderingInfo.pColorAttachments = &renderingSwapchainAttachmentInfo;
-	uiRenderingInfo.pDepthAttachment = nullptr;
-	uiRenderingInfo.pStencilAttachment = nullptr;
-	m_vkCmdBeginRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight], &uiRenderingInfo);
-
-	vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_uiTextGraphicsPipelineLayout, 0, 1, &m_uiTextDescriptorSets[m_currentFrameInFlight], 0, nullptr);
-	vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_uiTextGraphicsPipeline);
-	vkCmdSetViewport(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_viewport);
-	vkCmdSetScissor(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_scissor);
-
-	while (!m_uiTexts.empty()) {
-		const InternalUIText& uiText = m_uiTexts.front();
-
-		vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiTextGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &uiText.bufferOffset);
-		vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiTextGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec4), sizeof(Math::vec4), &uiText.color);
-		const uint32_t fontID = static_cast<uint32_t>(uiText.fontID);
-		vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiTextGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec4) + sizeof(Math::vec4), sizeof(uint32_t), &fontID);
-
-		vkCmdDraw(m_renderingCommandBuffers[m_currentFrameInFlight], uiText.charactersCount * 6, 1, 0, 0);
-
-		m_uiTexts.pop();
-	}
-
-	m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight]);
 
 	// Layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
 	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
@@ -1036,6 +1062,12 @@ void NtshEngn::GraphicsModule::destroy() {
 	}
 
 	// Destroy UI resources
+	vkDestroyPipeline(m_device, m_uiRectangleGraphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(m_device, m_uiRectangleGraphicsPipelineLayout, nullptr);
+
+	vkDestroyPipeline(m_device, m_uiLineGraphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(m_device, m_uiLineGraphicsPipelineLayout, nullptr);
+
 	for (size_t i = 0; i < m_fonts.size(); i++) {
 		vkDestroyImageView(m_device, m_fonts[i].imageView, nullptr);
 		vmaDestroyImage(m_allocator, m_fonts[i].image, m_fonts[i].imageAllocation);
@@ -1805,8 +1837,8 @@ void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::string& text
 	float positionAdvance = 0.0f;
 	std::vector<Math::vec2> positionsAndUVs;
 	for (const char& c : text) {
-		Math::vec2 topLeft = position + m_fonts[fontID].glyphs[c].positionTopLeft + Math::vec2(positionAdvance, 0.0f);
-		Math::vec2 bottomRight = position + m_fonts[fontID].glyphs[c].positionBottomRight + Math::vec2(positionAdvance, 0.0f);
+		const Math::vec2 topLeft = position + m_fonts[fontID].glyphs[c].positionTopLeft + Math::vec2(positionAdvance, 0.0f);
+		const Math::vec2 bottomRight = position + m_fonts[fontID].glyphs[c].positionBottomRight + Math::vec2(positionAdvance, 0.0f);
 		positionsAndUVs.push_back(Math::vec2((topLeft.x / m_viewport.width) * 2.0f - 1.0f, (topLeft.y / m_viewport.height) * 2.0f - 1.0f));
 		positionsAndUVs.push_back(Math::vec2((bottomRight.x / m_viewport.width) * 2.0f - 1.0f, (bottomRight.y / m_viewport.height) * 2.0f - 1.0f));
 		positionsAndUVs.push_back(m_fonts[fontID].glyphs[c].uvTopLeft);
@@ -1829,6 +1861,28 @@ void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::string& text
 	m_uiTexts.push(uiText);
 
 	m_uiTextBufferOffset += static_cast<uint32_t>(uiText.charactersCount);
+
+	m_uiElements.push(UIElement::Text);
+}
+
+void NtshEngn::GraphicsModule::drawUILine(const Math::vec2& start, const Math::vec2& end, const Math::vec4& color) {
+	InternalUILine uiLine;
+	uiLine.positions = Math::vec4((start.x / m_viewport.width) * 2.0f - 1.0f, (start.y / m_viewport.height) * 2.0f - 1.0f, (end.x / m_viewport.width) * 2.0f - 1.0f, (end.y / m_viewport.height) * 2.0f - 1.0f);
+	uiLine.color = color;
+	m_uiLines.push(uiLine);
+
+	m_uiElements.push(UIElement::Line);
+}
+
+void NtshEngn::GraphicsModule::drawUIRectangle(const Math::vec2& position, const Math::vec2& size, const Math::vec4& color) {
+	InternalUIRectangle uiRectangle;
+	const Math::vec2 topLeft = Math::vec2((position.x / m_viewport.width) * 2.0f - 1.0f, (position.y / m_viewport.height) * 2.0f - 1.0f);
+	const Math::vec2 bottomRight = Math::vec2(((position.x + size.x) / m_viewport.width) * 2.0f - 1.0f, ((position.y + size.y) / m_viewport.height) * 2.0f - 1.0f);
+	uiRectangle.positions = Math::vec4(topLeft, bottomRight);
+	uiRectangle.color = color;
+	m_uiRectangles.push(uiRectangle);
+
+	m_uiElements.push(UIElement::Rectangle);
 }
 
 const NtshEngn::ComponentMask NtshEngn::GraphicsModule::getComponentMask() const {
@@ -3452,6 +3506,8 @@ void NtshEngn::GraphicsModule::createToneMappingResources() {
 
 void NtshEngn::GraphicsModule::createUIResources() {
 	createUITextResources();
+	createUILineResources();
+	createUIRectangleResources();
 }
 
 void NtshEngn::GraphicsModule::createUITextResources() {
@@ -3870,6 +3926,466 @@ void NtshEngn::GraphicsModule::updateUITextDescriptorSet(uint32_t frameInFlight)
 	fontsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
 	vkUpdateDescriptorSets(m_device, 1, &fontsDescriptorWriteDescriptorSet, 0, nullptr);
+}
+
+void NtshEngn::GraphicsModule::createUILineResources() {
+	// Create graphics pipeline
+	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
+	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+		pipelineRenderingColorFormat = m_swapchainFormat;
+	}
+
+	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
+	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+	pipelineRenderingCreateInfo.pNext = nullptr;
+	pipelineRenderingCreateInfo.viewMask = 0;
+	pipelineRenderingCreateInfo.colorAttachmentCount = 1;
+	pipelineRenderingCreateInfo.pColorAttachmentFormats = &pipelineRenderingColorFormat;
+	pipelineRenderingCreateInfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+	pipelineRenderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+
+	const std::string vertexShaderCode = R"GLSL(
+		#version 460
+
+		layout(push_constant) uniform LinePositionInfo {
+			vec2 start;
+			vec2 end;
+		} lPI;
+
+		void main() {
+			if (gl_VertexIndex == 0) {
+				gl_Position = vec4(lPI.start, 0.0, 1.0);
+			}
+			else {
+				gl_Position = vec4(lPI.end, 0.0, 1.0);
+			}
+		}
+	)GLSL";
+	const std::vector<uint32_t> vertexShaderSpv = compileShader(vertexShaderCode, ShaderType::Vertex);
+
+	VkShaderModule vertexShaderModule;
+	VkShaderModuleCreateInfo vertexShaderModuleCreateInfo = {};
+	vertexShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	vertexShaderModuleCreateInfo.pNext = nullptr;
+	vertexShaderModuleCreateInfo.flags = 0;
+	vertexShaderModuleCreateInfo.codeSize = vertexShaderSpv.size() * sizeof(uint32_t);
+	vertexShaderModuleCreateInfo.pCode = vertexShaderSpv.data();
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &vertexShaderModuleCreateInfo, nullptr, &vertexShaderModule));
+
+	VkPipelineShaderStageCreateInfo vertexShaderStageCreateInfo = {};
+	vertexShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vertexShaderStageCreateInfo.pNext = nullptr;
+	vertexShaderStageCreateInfo.flags = 0;
+	vertexShaderStageCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	vertexShaderStageCreateInfo.module = vertexShaderModule;
+	vertexShaderStageCreateInfo.pName = "main";
+	vertexShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	const std::string fragmentShaderCode = R"GLSL(
+		#version 460
+
+		layout(push_constant) uniform LineColorInfo {
+			layout(offset = 16) vec4 color;
+		} lCI;
+
+		layout(location = 0) out vec4 outColor;
+
+		void main() {
+			outColor = lCI.color;
+		}
+	)GLSL";
+	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
+
+	VkShaderModule fragmentShaderModule;
+	VkShaderModuleCreateInfo fragmentShaderModuleCreateInfo = {};
+	fragmentShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	fragmentShaderModuleCreateInfo.pNext = nullptr;
+	fragmentShaderModuleCreateInfo.flags = 0;
+	fragmentShaderModuleCreateInfo.codeSize = fragmentShaderSpv.size() * sizeof(uint32_t);
+	fragmentShaderModuleCreateInfo.pCode = fragmentShaderSpv.data();
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &fragmentShaderModuleCreateInfo, nullptr, &fragmentShaderModule));
+
+	VkPipelineShaderStageCreateInfo fragmentShaderStageCreateInfo = {};
+	fragmentShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fragmentShaderStageCreateInfo.pNext = nullptr;
+	fragmentShaderStageCreateInfo.flags = 0;
+	fragmentShaderStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragmentShaderStageCreateInfo.module = fragmentShaderModule;
+	fragmentShaderStageCreateInfo.pName = "main";
+	fragmentShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStageCreateInfos = { vertexShaderStageCreateInfo, fragmentShaderStageCreateInfo };
+
+	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
+	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInputStateCreateInfo.pNext = nullptr;
+	vertexInputStateCreateInfo.flags = 0;
+	vertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
+	vertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr;
+	vertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
+	vertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr;
+
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo = {};
+	inputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	inputAssemblyStateCreateInfo.pNext = nullptr;
+	inputAssemblyStateCreateInfo.flags = 0;
+	inputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+	inputAssemblyStateCreateInfo.primitiveRestartEnable = VK_FALSE;
+
+	VkPipelineViewportStateCreateInfo viewportStateCreateInfo = {};
+	viewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewportStateCreateInfo.pNext = nullptr;
+	viewportStateCreateInfo.flags = 0;
+	viewportStateCreateInfo.viewportCount = 1;
+	viewportStateCreateInfo.pViewports = &m_viewport;
+	viewportStateCreateInfo.scissorCount = 1;
+	viewportStateCreateInfo.pScissors = &m_scissor;
+
+	VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo = {};
+	rasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizationStateCreateInfo.pNext = nullptr;
+	rasterizationStateCreateInfo.flags = 0;
+	rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
+	rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
+	rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	rasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
+	rasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
+	rasterizationStateCreateInfo.depthBiasClamp = 0.0f;
+	rasterizationStateCreateInfo.depthBiasSlopeFactor = 0.0f;
+	rasterizationStateCreateInfo.lineWidth = 1.0f;
+
+	VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo = {};
+	multisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampleStateCreateInfo.pNext = nullptr;
+	multisampleStateCreateInfo.flags = 0;
+	multisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	multisampleStateCreateInfo.sampleShadingEnable = VK_FALSE;
+	multisampleStateCreateInfo.minSampleShading = 0.0f;
+	multisampleStateCreateInfo.pSampleMask = nullptr;
+	multisampleStateCreateInfo.alphaToCoverageEnable = VK_FALSE;
+	multisampleStateCreateInfo.alphaToOneEnable = VK_FALSE;
+
+	VkPipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo = {};
+	depthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencilStateCreateInfo.pNext = nullptr;
+	depthStencilStateCreateInfo.flags = 0;
+	depthStencilStateCreateInfo.depthTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.depthWriteEnable = VK_FALSE;
+	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_NEVER;
+	depthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.front = {};
+	depthStencilStateCreateInfo.back = {};
+	depthStencilStateCreateInfo.minDepthBounds = 0.0f;
+	depthStencilStateCreateInfo.maxDepthBounds = 1.0f;
+
+	VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
+	colorBlendAttachmentState.blendEnable = VK_TRUE;
+	colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+	VkPipelineColorBlendStateCreateInfo colorBlendStateCreateInfo = {};
+	colorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	colorBlendStateCreateInfo.pNext = nullptr;
+	colorBlendStateCreateInfo.flags = 0;
+	colorBlendStateCreateInfo.logicOpEnable = VK_FALSE;
+	colorBlendStateCreateInfo.logicOp = VK_LOGIC_OP_COPY;
+	colorBlendStateCreateInfo.attachmentCount = 1;
+	colorBlendStateCreateInfo.pAttachments = &colorBlendAttachmentState;
+
+	std::array<VkDynamicState, 2> dynamicStates = { VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_VIEWPORT };
+	VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = {};
+	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynamicStateCreateInfo.pNext = nullptr;
+	dynamicStateCreateInfo.flags = 0;
+	dynamicStateCreateInfo.dynamicStateCount = 2;
+	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
+
+	VkPushConstantRange vertexPushConstantRange = {};
+	vertexPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	vertexPushConstantRange.offset = 0;
+	vertexPushConstantRange.size = sizeof(Math::vec2) + sizeof(Math::vec2);
+
+	VkPushConstantRange fragmentPushConstantRange = {};
+	fragmentPushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragmentPushConstantRange.offset = sizeof(Math::vec4);
+	fragmentPushConstantRange.size = sizeof(Math::vec4);
+
+	std::array<VkPushConstantRange, 2> pushConstantRanges = { vertexPushConstantRange, fragmentPushConstantRange };
+	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
+	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutCreateInfo.pNext = nullptr;
+	pipelineLayoutCreateInfo.flags = 0;
+	pipelineLayoutCreateInfo.setLayoutCount = 0;
+	pipelineLayoutCreateInfo.pSetLayouts = nullptr;
+	pipelineLayoutCreateInfo.pushConstantRangeCount = 2;
+	pipelineLayoutCreateInfo.pPushConstantRanges = pushConstantRanges.data();
+	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_uiLineGraphicsPipelineLayout));
+
+	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};
+	graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	graphicsPipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
+	graphicsPipelineCreateInfo.flags = 0;
+	graphicsPipelineCreateInfo.stageCount = 2;
+	graphicsPipelineCreateInfo.pStages = shaderStageCreateInfos.data();
+	graphicsPipelineCreateInfo.pVertexInputState = &vertexInputStateCreateInfo;
+	graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;
+	graphicsPipelineCreateInfo.pTessellationState = nullptr;
+	graphicsPipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
+	graphicsPipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
+	graphicsPipelineCreateInfo.pMultisampleState = &multisampleStateCreateInfo;
+	graphicsPipelineCreateInfo.pDepthStencilState = &depthStencilStateCreateInfo;
+	graphicsPipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
+	graphicsPipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
+	graphicsPipelineCreateInfo.layout = m_uiLineGraphicsPipelineLayout;
+	graphicsPipelineCreateInfo.renderPass = VK_NULL_HANDLE;
+	graphicsPipelineCreateInfo.subpass = 0;
+	graphicsPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+	graphicsPipelineCreateInfo.basePipelineIndex = 0;
+	NTSHENGN_VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_uiLineGraphicsPipeline));
+
+	vkDestroyShaderModule(m_device, vertexShaderModule, nullptr);
+	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
+}
+
+void NtshEngn::GraphicsModule::createUIRectangleResources() {
+	// Create graphics pipeline
+	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
+	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+		pipelineRenderingColorFormat = m_swapchainFormat;
+	}
+
+	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
+	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+	pipelineRenderingCreateInfo.pNext = nullptr;
+	pipelineRenderingCreateInfo.viewMask = 0;
+	pipelineRenderingCreateInfo.colorAttachmentCount = 1;
+	pipelineRenderingCreateInfo.pColorAttachmentFormats = &pipelineRenderingColorFormat;
+	pipelineRenderingCreateInfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+	pipelineRenderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+
+	const std::string vertexShaderCode = R"GLSL(
+		#version 460
+
+		layout(push_constant) uniform RectanglePositionInfo {
+			vec2 topLeft;
+			vec2 bottomRight;
+		} rPI;
+
+		void main() {
+			if ((gl_VertexIndex == 0) || (gl_VertexIndex == 3)) {
+				gl_Position = vec4(rPI.bottomRight.x, rPI.topLeft.y, 0.0, 1.0);
+			}
+			else if (gl_VertexIndex == 1) {
+				gl_Position = vec4(rPI.topLeft, 0.0, 1.0);
+			}
+			else if ((gl_VertexIndex == 2) || (gl_VertexIndex == 4)) {
+				gl_Position = vec4(rPI.topLeft.x, rPI.bottomRight.y, 0.0, 1.0);
+			}
+			else if (gl_VertexIndex == 5) {
+				gl_Position = vec4(rPI.bottomRight, 0.0, 1.0);
+			}
+		}
+	)GLSL";
+	const std::vector<uint32_t> vertexShaderSpv = compileShader(vertexShaderCode, ShaderType::Vertex);
+
+	VkShaderModule vertexShaderModule;
+	VkShaderModuleCreateInfo vertexShaderModuleCreateInfo = {};
+	vertexShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	vertexShaderModuleCreateInfo.pNext = nullptr;
+	vertexShaderModuleCreateInfo.flags = 0;
+	vertexShaderModuleCreateInfo.codeSize = vertexShaderSpv.size() * sizeof(uint32_t);
+	vertexShaderModuleCreateInfo.pCode = vertexShaderSpv.data();
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &vertexShaderModuleCreateInfo, nullptr, &vertexShaderModule));
+
+	VkPipelineShaderStageCreateInfo vertexShaderStageCreateInfo = {};
+	vertexShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vertexShaderStageCreateInfo.pNext = nullptr;
+	vertexShaderStageCreateInfo.flags = 0;
+	vertexShaderStageCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	vertexShaderStageCreateInfo.module = vertexShaderModule;
+	vertexShaderStageCreateInfo.pName = "main";
+	vertexShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	const std::string fragmentShaderCode = R"GLSL(
+		#version 460
+
+		layout(push_constant) uniform RectangleColorInfo {
+			layout(offset = 16) vec4 color;
+		} rCI;
+
+		layout(location = 0) out vec4 outColor;
+
+		void main() {
+			outColor = rCI.color;
+		}
+	)GLSL";
+	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
+
+	VkShaderModule fragmentShaderModule;
+	VkShaderModuleCreateInfo fragmentShaderModuleCreateInfo = {};
+	fragmentShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	fragmentShaderModuleCreateInfo.pNext = nullptr;
+	fragmentShaderModuleCreateInfo.flags = 0;
+	fragmentShaderModuleCreateInfo.codeSize = fragmentShaderSpv.size() * sizeof(uint32_t);
+	fragmentShaderModuleCreateInfo.pCode = fragmentShaderSpv.data();
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &fragmentShaderModuleCreateInfo, nullptr, &fragmentShaderModule));
+
+	VkPipelineShaderStageCreateInfo fragmentShaderStageCreateInfo = {};
+	fragmentShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fragmentShaderStageCreateInfo.pNext = nullptr;
+	fragmentShaderStageCreateInfo.flags = 0;
+	fragmentShaderStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragmentShaderStageCreateInfo.module = fragmentShaderModule;
+	fragmentShaderStageCreateInfo.pName = "main";
+	fragmentShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStageCreateInfos = { vertexShaderStageCreateInfo, fragmentShaderStageCreateInfo };
+
+	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
+	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInputStateCreateInfo.pNext = nullptr;
+	vertexInputStateCreateInfo.flags = 0;
+	vertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
+	vertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr;
+	vertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
+	vertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr;
+
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo = {};
+	inputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	inputAssemblyStateCreateInfo.pNext = nullptr;
+	inputAssemblyStateCreateInfo.flags = 0;
+	inputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	inputAssemblyStateCreateInfo.primitiveRestartEnable = VK_FALSE;
+
+	VkPipelineViewportStateCreateInfo viewportStateCreateInfo = {};
+	viewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewportStateCreateInfo.pNext = nullptr;
+	viewportStateCreateInfo.flags = 0;
+	viewportStateCreateInfo.viewportCount = 1;
+	viewportStateCreateInfo.pViewports = &m_viewport;
+	viewportStateCreateInfo.scissorCount = 1;
+	viewportStateCreateInfo.pScissors = &m_scissor;
+
+	VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo = {};
+	rasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizationStateCreateInfo.pNext = nullptr;
+	rasterizationStateCreateInfo.flags = 0;
+	rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
+	rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
+	rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	rasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
+	rasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
+	rasterizationStateCreateInfo.depthBiasClamp = 0.0f;
+	rasterizationStateCreateInfo.depthBiasSlopeFactor = 0.0f;
+	rasterizationStateCreateInfo.lineWidth = 1.0f;
+
+	VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo = {};
+	multisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampleStateCreateInfo.pNext = nullptr;
+	multisampleStateCreateInfo.flags = 0;
+	multisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	multisampleStateCreateInfo.sampleShadingEnable = VK_FALSE;
+	multisampleStateCreateInfo.minSampleShading = 0.0f;
+	multisampleStateCreateInfo.pSampleMask = nullptr;
+	multisampleStateCreateInfo.alphaToCoverageEnable = VK_FALSE;
+	multisampleStateCreateInfo.alphaToOneEnable = VK_FALSE;
+
+	VkPipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo = {};
+	depthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencilStateCreateInfo.pNext = nullptr;
+	depthStencilStateCreateInfo.flags = 0;
+	depthStencilStateCreateInfo.depthTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.depthWriteEnable = VK_FALSE;
+	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_NEVER;
+	depthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.front = {};
+	depthStencilStateCreateInfo.back = {};
+	depthStencilStateCreateInfo.minDepthBounds = 0.0f;
+	depthStencilStateCreateInfo.maxDepthBounds = 1.0f;
+
+	VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
+	colorBlendAttachmentState.blendEnable = VK_TRUE;
+	colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+	VkPipelineColorBlendStateCreateInfo colorBlendStateCreateInfo = {};
+	colorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	colorBlendStateCreateInfo.pNext = nullptr;
+	colorBlendStateCreateInfo.flags = 0;
+	colorBlendStateCreateInfo.logicOpEnable = VK_FALSE;
+	colorBlendStateCreateInfo.logicOp = VK_LOGIC_OP_COPY;
+	colorBlendStateCreateInfo.attachmentCount = 1;
+	colorBlendStateCreateInfo.pAttachments = &colorBlendAttachmentState;
+
+	std::array<VkDynamicState, 2> dynamicStates = { VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_VIEWPORT };
+	VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = {};
+	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynamicStateCreateInfo.pNext = nullptr;
+	dynamicStateCreateInfo.flags = 0;
+	dynamicStateCreateInfo.dynamicStateCount = 2;
+	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
+
+	VkPushConstantRange vertexPushConstantRange = {};
+	vertexPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	vertexPushConstantRange.offset = 0;
+	vertexPushConstantRange.size = sizeof(Math::vec2) + sizeof(Math::vec2);
+
+	VkPushConstantRange fragmentPushConstantRange = {};
+	fragmentPushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragmentPushConstantRange.offset = sizeof(Math::vec4);
+	fragmentPushConstantRange.size = sizeof(Math::vec4);
+
+	std::array<VkPushConstantRange, 2> pushConstantRanges = { vertexPushConstantRange, fragmentPushConstantRange };
+	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
+	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutCreateInfo.pNext = nullptr;
+	pipelineLayoutCreateInfo.flags = 0;
+	pipelineLayoutCreateInfo.setLayoutCount = 0;
+	pipelineLayoutCreateInfo.pSetLayouts = nullptr;
+	pipelineLayoutCreateInfo.pushConstantRangeCount = 2;
+	pipelineLayoutCreateInfo.pPushConstantRanges = pushConstantRanges.data();
+	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_uiRectangleGraphicsPipelineLayout));
+
+	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};
+	graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	graphicsPipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
+	graphicsPipelineCreateInfo.flags = 0;
+	graphicsPipelineCreateInfo.stageCount = 2;
+	graphicsPipelineCreateInfo.pStages = shaderStageCreateInfos.data();
+	graphicsPipelineCreateInfo.pVertexInputState = &vertexInputStateCreateInfo;
+	graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;
+	graphicsPipelineCreateInfo.pTessellationState = nullptr;
+	graphicsPipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
+	graphicsPipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
+	graphicsPipelineCreateInfo.pMultisampleState = &multisampleStateCreateInfo;
+	graphicsPipelineCreateInfo.pDepthStencilState = &depthStencilStateCreateInfo;
+	graphicsPipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
+	graphicsPipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
+	graphicsPipelineCreateInfo.layout = m_uiRectangleGraphicsPipelineLayout;
+	graphicsPipelineCreateInfo.renderPass = VK_NULL_HANDLE;
+	graphicsPipelineCreateInfo.subpass = 0;
+	graphicsPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+	graphicsPipelineCreateInfo.basePipelineIndex = 0;
+	NTSHENGN_VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_uiRectangleGraphicsPipeline));
+
+	vkDestroyShaderModule(m_device, vertexShaderModule, nullptr);
+	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
 }
 
 void NtshEngn::GraphicsModule::createDefaultResources() {
