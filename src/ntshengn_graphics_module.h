@@ -63,7 +63,7 @@ struct InternalMesh {
 };
 
 struct InternalTexture {
-	uint32_t imageIndex = 0;
+	NtshEngn::ImageID imageID = 0;
 	std::string samplerKey = "defaultSampler";
 };
 
