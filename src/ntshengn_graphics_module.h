@@ -385,9 +385,6 @@ namespace NtshEngn {
 		std::vector<VkBuffer> m_cameraBuffers;
 		std::vector<VmaAllocation> m_cameraBufferAllocations;
 
-		std::vector<InternalFont> m_fonts;
-		std::unordered_map<const Font*, uint32_t> m_fontAddresses;
-
 		std::vector<VkBuffer> m_objectBuffers;
 		std::vector<VmaAllocation> m_objectBufferAllocations;
 
@@ -414,16 +411,19 @@ namespace NtshEngn {
 		VkDeviceSize m_currentBottomLevelAccelerationStructureOffset = 0;
 		VkAccelerationStructureKHR m_topLevelAccelerationStructure;
 		std::vector<VkAccelerationStructureKHR> m_bottomLevelAccelerationStructures;
-		std::unordered_map<const Mesh*, uint32_t> m_meshAddresses;
+		std::unordered_map<const Mesh*, MeshID> m_meshAddresses;
 
 		std::vector<VkImage> m_textureImages;
 		std::vector<VmaAllocation> m_textureImageAllocations;
 		std::vector<VkImageView> m_textureImageViews;
 		std::unordered_map<std::string, VkSampler> m_textureSamplers;
-		std::unordered_map<const Image*, uint32_t> m_imageAddresses;
+		std::unordered_map<const Image*, ImageID> m_imageAddresses;
 		std::vector<InternalTexture> m_textures;
 
 		std::vector<InternalMaterial> m_materials;
+
+		std::vector<InternalFont> m_fonts;
+		std::unordered_map<const Font*, FontID> m_fontAddresses;
 
 		std::unordered_map<Entity, InternalObject> m_objects;
 		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
