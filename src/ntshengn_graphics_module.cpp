@@ -1021,8 +1021,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 				vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_uiTextGraphicsPipeline);
 				vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_uiTextGraphicsPipelineLayout, 0, 1, &m_uiTextDescriptorSets[m_currentFrameInFlight], 0, nullptr);
 				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiTextGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &uiText.bufferOffset);
-				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiTextGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec4), sizeof(Math::vec4), &uiText.color);
-				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiTextGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec4) + sizeof(Math::vec4), sizeof(uint32_t), &uiText.fontID);
+				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiTextGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec4), sizeof(Math::vec4) + sizeof(uint32_t), &uiText.color);
 
 				vkCmdDraw(m_renderingCommandBuffers[m_currentFrameInFlight], uiText.charactersCount * 6, 1, 0, 0);
 
@@ -1056,7 +1055,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 				vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_uiImageGraphicsPipeline);
 				vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_uiImageGraphicsPipelineLayout, 0, 1, &m_uiImageDescriptorSets[m_currentFrameInFlight], 0, nullptr);
 				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiImageGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4 * sizeof(Math::vec2), &uiImage.v0);
-				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiImageGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 4 * sizeof(Math::vec2), sizeof(uint32_t), &uiImage.uiTextureIndex);
+				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiImageGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 4 * sizeof(Math::vec2), sizeof(Math::vec4) + sizeof(uint32_t), &uiImage.color);
 
 				vkCmdDraw(m_renderingCommandBuffers[m_currentFrameInFlight], 6, 1, 0, 0);
 
@@ -2184,7 +2183,7 @@ void NtshEngn::GraphicsModule::drawUIRectangle(const Math::vec2& position, const
 	m_uiElements.push(UIElement::Rectangle);
 }
 
-void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter imageSamplerFilter, const Math::vec2& position, float rotation, const Math::vec2& scale) {
+void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter imageSamplerFilter, const Math::vec2& position, float rotation, const Math::vec2& scale, const Math::vec4& color) {
 	NTSHENGN_ASSERT(imageID < m_textureImages.size());
 
 	const Math::mat3 transform = Math::translate(Math::vec2(position.x, position.y)) * Math::rotate(rotation) * Math::scale(scale);
@@ -2221,6 +2220,7 @@ void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter i
 	uiImage.v1 = Math::vec2((v1.x / m_viewport.width) * 2.0f - 1.0f, (v1.y / m_viewport.height) * 2.0f - 1.0f);
 	uiImage.v2 = Math::vec2((v2.x / m_viewport.width) * 2.0f - 1.0f, (v2.y / m_viewport.height) * 2.0f - 1.0f);
 	uiImage.v3 = Math::vec2((v3.x / m_viewport.width) * 2.0f - 1.0f, (v3.y / m_viewport.height) * 2.0f - 1.0f);
+	uiImage.color = color;
 	m_uiImages.push(uiImage);
 
 	m_uiElements.push(UIElement::Image);
@@ -4353,9 +4353,7 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			vec4 sampled = vec4(1.0, 1.0, 1.0, texture(fonts[tI.fontID], uv).r);
-
-			outColor = sampled * tI.color;
+			outColor = vec4(1.0, 1.0, 1.0, texture(fonts[tI.fontID], uv).r) * tI.color;
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
@@ -5155,7 +5153,8 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 		#extension GL_EXT_nonuniform_qualifier : enable
 
 		layout(push_constant) uniform UITextureInfo {
-			layout(offset = 32) uint uiTextureIndex;
+			layout(offset = 32) vec4 color;
+			uint uiTextureIndex;
 		} uTI;
 
 		layout(set = 0, binding = 0) uniform sampler2D uiTextures[];
@@ -5165,7 +5164,7 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			outColor = texture(uiTextures[uTI.uiTextureIndex], uv);
+			outColor = texture(uiTextures[uTI.uiTextureIndex], uv) * uTI.color;
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
@@ -5290,7 +5289,7 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 	VkPushConstantRange fragmentPushConstantRange = {};
 	fragmentPushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	fragmentPushConstantRange.offset = 4 * sizeof(Math::vec2);
-	fragmentPushConstantRange.size = sizeof(uint32_t);
+	fragmentPushConstantRange.size = sizeof(Math::vec4) + sizeof(uint32_t);
 
 	std::array<VkPushConstantRange, 2> pushConstantRanges = { vertexPushConstantRange, fragmentPushConstantRange };
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
