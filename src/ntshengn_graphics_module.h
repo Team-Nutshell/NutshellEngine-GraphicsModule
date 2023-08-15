@@ -117,8 +117,8 @@ enum class UIElement {
 };
 
 struct InternalUIText {
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
 	NtshEngn::FontID fontID;
-	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 1.0f };
 
 	uint32_t charactersCount = 0;
 	uint32_t bufferOffset = 0;
@@ -126,16 +126,18 @@ struct InternalUIText {
 
 struct InternalUILine {
 	NtshEngn::Math::vec4 positions = { 0.0f, 0.0f, 0.0f, 0.0f };
-	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 1.0f };
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
 };
 
 struct InternalUIRectangle {
 	NtshEngn::Math::vec4 positions = { 0.0f, 0.0f, 0.0f, 0.0f };
-	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 1.0f };
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
 };
 
 struct InternalUIImage {
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
 	uint32_t uiTextureIndex;
+
 	NtshEngn::Math::vec2 v0 = { 0.0f, 0.0f };
 	NtshEngn::Math::vec2 v1 = { 0.0f, 0.0f };
 	NtshEngn::Math::vec2 v2 = { 0.0f, 0.0f };
@@ -165,8 +167,8 @@ namespace NtshEngn {
 		void drawUILine(const Math::vec2& start, const Math::vec2& end, const Math::vec4& color);
 		// Draws a rectangle on the UI according to its position, its size (width and height) and its color
 		void drawUIRectangle(const Math::vec2& position, const Math::vec2& size, const Math::vec4& color);
-		// Draws an image on the UI according to its position, rotation and scale
-		void drawUIImage(ImageID imageID, ImageSamplerFilter imageSamplerFilter, const Math::vec2& position, float rotation, const Math::vec2& scale);
+		// Draws an image on the UI according to its sampler filter, position, rotation, scale and color to multiply the image withh
+		void drawUIImage(ImageID imageID, ImageSamplerFilter imageSamplerFilter, const Math::vec2& position, float rotation, const Math::vec2& scale, const Math::vec4& color);
 
 	public:
 		const ComponentMask getComponentMask() const;
