@@ -1147,12 +1147,13 @@ void NtshEngn::GraphicsModule::drawUIRectangle(const Math::vec2& position, const
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
-void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter imageSamplerFilter, const Math::vec2& position, float rotation, const Math::vec2& scale) {
+void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter imageSamplerFilter, const Math::vec2& position, float rotation, const Math::vec2& scale, const Math::vec4& color) {
 	NTSHENGN_UNUSED(imageID);
 	NTSHENGN_UNUSED(imageSamplerFilter);
 	NTSHENGN_UNUSED(position);
 	NTSHENGN_UNUSED(rotation);
 	NTSHENGN_UNUSED(scale);
+	NTSHENGN_UNUSED(color);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
