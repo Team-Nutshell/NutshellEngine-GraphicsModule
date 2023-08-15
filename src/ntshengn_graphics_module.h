@@ -21,6 +21,7 @@
 #include <unordered_map>
 #include <set>
 #include <queue>
+#include <utility>
 
 #define NTSHENGN_VK_CHECK(f) \
 	do { \
@@ -111,7 +112,8 @@ struct InternalLights {
 enum class UIElement {
 	Text,
 	Line,
-	Rectangle
+	Rectangle,
+	Image
 };
 
 struct InternalUIText {
@@ -130,6 +132,14 @@ struct InternalUILine {
 struct InternalUIRectangle {
 	NtshEngn::Math::vec4 positions = { 0.0f, 0.0f, 0.0f, 0.0f };
 	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 1.0f };
+};
+
+struct InternalUIImage {
+	uint32_t uiTextureIndex;
+	NtshEngn::Math::vec2 v0 = { 0.0f, 0.0f };
+	NtshEngn::Math::vec2 v1 = { 0.0f, 0.0f };
+	NtshEngn::Math::vec2 v2 = { 0.0f, 0.0f };
+	NtshEngn::Math::vec2 v3 = { 0.0f, 0.0f };
 };
 
 namespace NtshEngn {
@@ -155,6 +165,8 @@ namespace NtshEngn {
 		void drawUILine(const Math::vec2& start, const Math::vec2& end, const Math::vec4& color);
 		// Draws a rectangle on the UI according to its position, its size (width and height) and its color
 		void drawUIRectangle(const Math::vec2& position, const Math::vec2& size, const Math::vec4& color);
+		// Draws an image on the UI according to its position, rotation and scale
+		void drawUIImage(ImageID imageID, ImageSamplerFilter imageSamplerFilter, const Math::vec2& position, float rotation, const Math::vec2& scale);
 
 	public:
 		const ComponentMask getComponentMask() const;
@@ -203,6 +215,8 @@ namespace NtshEngn {
 		void updateUITextDescriptorSet(uint32_t frameInFlight);
 		void createUILineResources();
 		void createUIRectangleResources();
+		void createUIImageResources();
+		void updateUIImageDescriptorSet(uint32_t frameInFlight);
 
 		// Default resources
 		void createDefaultResources();
@@ -282,10 +296,11 @@ namespace NtshEngn {
 		VkPipeline m_toneMappingGraphicsPipeline;
 		VkPipelineLayout m_toneMappingGraphicsPipelineLayout;
 
+		VkSampler m_uiNearestSampler;
+		VkSampler m_uiLinearSampler;
+
 		std::vector<VkBuffer> m_uiTextBuffers;
 		std::vector<VmaAllocation> m_uiTextBufferAllocations;
-		VkSampler m_uiFontNearestSampler;
-		VkSampler m_uiFontLinearSampler;
 		VkDescriptorSetLayout m_uiTextDescriptorSetLayout;
 		VkDescriptorPool m_uiTextDescriptorPool;
 		std::vector<VkDescriptorSet> m_uiTextDescriptorSets;
@@ -298,6 +313,13 @@ namespace NtshEngn {
 
 		VkPipeline m_uiRectangleGraphicsPipeline;
 		VkPipelineLayout m_uiRectangleGraphicsPipelineLayout;
+
+		VkDescriptorSetLayout m_uiImageDescriptorSetLayout;
+		VkDescriptorPool m_uiImageDescriptorPool;
+		std::vector<VkDescriptorSet> m_uiImageDescriptorSets;
+		std::vector<bool> m_uiImageDescriptorSetsNeedUpdate;
+		VkPipeline m_uiImageGraphicsPipeline;
+		VkPipelineLayout m_uiImageGraphicsPipelineLayout;
 
 		std::vector<VkCommandPool> m_renderingCommandPools;
 		std::vector<VkCommandBuffer> m_renderingCommandBuffers;
@@ -344,6 +366,7 @@ namespace NtshEngn {
 		std::vector<VkImage> m_textureImages;
 		std::vector<VmaAllocation> m_textureImageAllocations;
 		std::vector<VkImageView> m_textureImageViews;
+		std::vector<Math::vec2> m_textureSizes;
 		std::unordered_map<std::string, VkSampler> m_textureSamplers;
 		std::unordered_map<const Image*, ImageID> m_imageAddresses;
 		std::vector<InternalTexture> m_textures;
@@ -352,6 +375,8 @@ namespace NtshEngn {
 
 		std::vector<InternalFont> m_fonts;
 		std::unordered_map<const Font*, FontID> m_fontAddresses;
+
+		std::vector<std::pair<ImageID, ImageSamplerFilter>> m_uiTextures;
 
 		std::unordered_map<Entity, InternalObject> m_objects;
 		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
@@ -368,6 +393,8 @@ namespace NtshEngn {
 		std::queue<InternalUILine> m_uiLines;
 
 		std::queue<InternalUIRectangle> m_uiRectangles;
+
+		std::queue<InternalUIImage> m_uiImages;
 	};
 
 }
