@@ -167,7 +167,7 @@ namespace NtshEngn {
 		void drawUILine(const Math::vec2& start, const Math::vec2& end, const Math::vec4& color);
 		// Draws a rectangle on the UI according to its position, its size (width and height) and its color
 		void drawUIRectangle(const Math::vec2& position, const Math::vec2& size, const Math::vec4& color);
-		// Draws an image on the UI according to its sampler filter, position, rotation, scale and color to multiply the image withh
+		// Draws an image on the UI according to its sampler filter, position, rotation, scale and color to multiply the image with
 		void drawUIImage(ImageID imageID, ImageSamplerFilter imageSamplerFilter, const Math::vec2& position, float rotation, const Math::vec2& scale, const Math::vec4& color);
 
 	public:
