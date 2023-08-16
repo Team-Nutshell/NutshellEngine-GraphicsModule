@@ -789,8 +789,6 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	undefinedToGeneralImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	undefinedToGeneralImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	std::array<VkImageMemoryBarrier2, 2> imageMemoryBarriers = { undefinedToColorAttachmentOptimalImageMemoryBarrier, undefinedToGeneralImageMemoryBarrier };
-
 	VkBufferMemoryBarrier2 tlasInstancesCopyBufferMemoryBarrier = {};
 	tlasInstancesCopyBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
 	tlasInstancesCopyBufferMemoryBarrier.pNext = nullptr;
@@ -804,6 +802,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	tlasInstancesCopyBufferMemoryBarrier.offset = 0;
 	tlasInstancesCopyBufferMemoryBarrier.size = tlasInstances.size() * sizeof(VkAccelerationStructureInstanceKHR);
 
+	std::array<VkImageMemoryBarrier2, 2> imageMemoryBarriers = { undefinedToColorAttachmentOptimalImageMemoryBarrier, undefinedToGeneralImageMemoryBarrier };
 	VkDependencyInfo undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo = {};
 	undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo.pNext = nullptr;
