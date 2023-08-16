@@ -49,6 +49,7 @@ else()
 	FetchContent_MakeAvailable(Module)
 endif()
 
+add_subdirectory(external/glslang)
 add_subdirectory(external/VulkanMemoryAllocator)
 
 if(NOT CMAKE_VERSION VERSION_LESS 3.7.0)
@@ -76,6 +77,8 @@ target_link_libraries(${PROJECT_NAME}
 		NutshellEngine::Module
 		NutshellEngine::Common
 		Vulkan::Vulkan
+		glslang
+		SPIRV
 		VulkanMemoryAllocator)
 
 target_compile_options(${PROJECT_NAME}

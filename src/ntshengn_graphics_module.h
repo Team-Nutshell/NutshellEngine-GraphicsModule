@@ -43,10 +43,33 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBits
 	return VK_FALSE;
 }
 
+enum class ShaderType {
+	Vertex,
+	TesselationControl,
+	TesselationEvaluation,
+	Geometry,
+	Fragment,
+};
+
 struct InternalMesh {
 	uint32_t indexCount;
 	uint32_t firstIndex;
 	int32_t vertexOffset;
+};
+
+struct InternalTexture {
+	NtshEngn::ImageID imageID = 0;
+	std::string samplerKey = "defaultSampler";
+};
+
+struct InternalFont {
+	VkImage image;
+	VmaAllocation imageAllocation;
+	VkImageView imageView;
+
+	NtshEngn::ImageSamplerFilter filter;
+
+	std::unordered_map<char, NtshEngn::FontGlyph> glyphs;
 };
 
 struct InternalObject {
@@ -56,6 +79,41 @@ struct InternalObject {
 	size_t sphereMeshIndex = std::numeric_limits<size_t>::max();
 	size_t capsuleMeshIndex = std::numeric_limits<size_t>::max();
 	uint32_t textureIndex = 0;
+};
+
+enum class UIElement {
+	Text,
+	Line,
+	Rectangle,
+	Image
+};
+
+struct InternalUIText {
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
+	NtshEngn::FontID fontID;
+
+	uint32_t charactersCount = 0;
+	uint32_t bufferOffset = 0;
+};
+
+struct InternalUILine {
+	NtshEngn::Math::vec4 positions = { 0.0f, 0.0f, 0.0f, 0.0f };
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
+};
+
+struct InternalUIRectangle {
+	NtshEngn::Math::vec4 positions = { 0.0f, 0.0f, 0.0f, 0.0f };
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
+};
+
+struct InternalUIImage {
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
+	uint32_t uiTextureIndex;
+
+	NtshEngn::Math::vec2 v0 = { 0.0f, 0.0f };
+	NtshEngn::Math::vec2 v1 = { 0.0f, 0.0f };
+	NtshEngn::Math::vec2 v2 = { 0.0f, 0.0f };
+	NtshEngn::Math::vec2 v3 = { 0.0f, 0.0f };
 };
 
 namespace NtshEngn {
@@ -109,11 +167,26 @@ namespace NtshEngn {
 		// Depth image creation
 		void createDepthImage();
 
+		// Descriptor set layout creation
+		void createDescriptorSetLayout();
+
+		// Shader compilation
+		std::vector<uint32_t> compileShader(const std::string& shaderCode, ShaderType type);
+
 		// Graphics pipeline creation
 		void createGraphicsPipeline();
 
 		// Descriptor sets creation
 		void createDescriptorSets();
+
+		// UI resources
+		void createUIResources();
+		void createUITextResources();
+		void updateUITextDescriptorSet(uint32_t frameInFlight);
+		void createUILineResources();
+		void createUIRectangleResources();
+		void createUIImageResources();
+		void updateUIImageDescriptorSet(uint32_t frameInFlight);
 
 		// Default resources
 		void createDefaultResources();
@@ -168,12 +241,39 @@ namespace NtshEngn {
 		VkBuffer m_indexBuffer;
 		VmaAllocation m_indexBufferAllocation;
 
+		bool m_glslangInitialized = false;
+
 		VkPipeline m_graphicsPipeline;
 		VkPipelineLayout m_graphicsPipelineLayout;
 
 		VkDescriptorSetLayout m_descriptorSetLayout;
 		VkDescriptorPool m_descriptorPool;
 		std::vector<VkDescriptorSet> m_descriptorSets;
+
+		VkSampler m_uiNearestSampler;
+		VkSampler m_uiLinearSampler;
+
+		std::vector<VkBuffer> m_uiTextBuffers;
+		std::vector<VmaAllocation> m_uiTextBufferAllocations;
+		VkDescriptorSetLayout m_uiTextDescriptorSetLayout;
+		VkDescriptorPool m_uiTextDescriptorPool;
+		std::vector<VkDescriptorSet> m_uiTextDescriptorSets;
+		std::vector<bool> m_uiTextDescriptorSetsNeedUpdate;
+		VkPipeline m_uiTextGraphicsPipeline;
+		VkPipelineLayout m_uiTextGraphicsPipelineLayout;
+
+		VkPipeline m_uiLineGraphicsPipeline;
+		VkPipelineLayout m_uiLineGraphicsPipelineLayout;
+
+		VkPipeline m_uiRectangleGraphicsPipeline;
+		VkPipelineLayout m_uiRectangleGraphicsPipelineLayout;
+
+		VkDescriptorSetLayout m_uiImageDescriptorSetLayout;
+		VkDescriptorPool m_uiImageDescriptorPool;
+		std::vector<VkDescriptorSet> m_uiImageDescriptorSets;
+		std::vector<bool> m_uiImageDescriptorSetsNeedUpdate;
+		VkPipeline m_uiImageGraphicsPipeline;
+		VkPipelineLayout m_uiImageGraphicsPipelineLayout;
 
 		std::vector<VkCommandPool> m_renderingCommandPools;
 		std::vector<VkCommandBuffer> m_renderingCommandBuffers;
@@ -205,10 +305,32 @@ namespace NtshEngn {
 		uint32_t m_currentIndexOffset = 0;
 		std::unordered_map<const Mesh*, uint32_t> m_meshAddresses;
 
+		std::vector<VkImage> m_textureImages;
+		std::vector<VmaAllocation> m_textureImageAllocations;
+		std::vector<VkImageView> m_textureImageViews;
+		std::vector<Math::vec2> m_textureSizes;
+		std::unordered_map<const Image*, ImageID> m_imageAddresses;
+
+		std::vector<InternalFont> m_fonts;
+		std::unordered_map<const Font*, FontID> m_fontAddresses;
+
+		std::vector<std::pair<ImageID, ImageSamplerFilter>> m_uiTextures;
+
 		std::unordered_map<Entity, InternalObject> m_objects;
 		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
 
 		Entity m_mainCamera = std::numeric_limits<uint32_t>::max();
+
+		std::queue<UIElement> m_uiElements;
+
+		std::queue<InternalUIText> m_uiTexts;
+		uint32_t m_uiTextBufferOffset = 0;
+
+		std::queue<InternalUILine> m_uiLines;
+
+		std::queue<InternalUIRectangle> m_uiRectangles;
+
+		std::queue<InternalUIImage> m_uiImages;
 	};
 
 }
