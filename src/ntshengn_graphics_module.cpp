@@ -1910,9 +1910,9 @@ void NtshEngn::GraphicsModule::drawUIRectangle(const Math::vec2& position, const
 void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter imageSamplerFilter, const Math::vec2& position, float rotation, const Math::vec2& scale, const Math::vec4& color) {
 	NTSHENGN_ASSERT(imageID < m_textureImages.size());
 
-	const Math::mat3 transform = Math::translate(Math::vec2(position.x, position.y)) * Math::rotate(rotation) * Math::scale(scale);
+	const Math::mat3 transform = Math::translate(position) * Math::rotate(rotation) * Math::scale(scale);
 	const float x = (m_textureSizes[imageID].x) / 2.0f;
-	const float y = (m_textureSizes[imageID].x) / 2.0f;
+	const float y = (m_textureSizes[imageID].y) / 2.0f;
 
 	InternalUIImage uiImage;
 	bool foundUITexture = false;
