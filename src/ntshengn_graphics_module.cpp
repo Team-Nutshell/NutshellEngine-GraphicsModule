@@ -2569,7 +2569,7 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamicStateCreateInfo.pNext = nullptr;
 	dynamicStateCreateInfo.flags = 0;
-	dynamicStateCreateInfo.dynamicStateCount = 2;
+	dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
 
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
@@ -3120,7 +3120,7 @@ void NtshEngn::GraphicsModule::createToneMappingResources() {
 	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamicStateCreateInfo.pNext = nullptr;
 	dynamicStateCreateInfo.flags = 0;
-	dynamicStateCreateInfo.dynamicStateCount = 2;
+	dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
 
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
@@ -3519,7 +3519,7 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamicStateCreateInfo.pNext = nullptr;
 	dynamicStateCreateInfo.flags = 0;
-	dynamicStateCreateInfo.dynamicStateCount = 2;
+	dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
 
 	VkPushConstantRange vertexPushConstantRange = {};
@@ -3827,7 +3827,7 @@ void NtshEngn::GraphicsModule::createUILineResources() {
 	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamicStateCreateInfo.pNext = nullptr;
 	dynamicStateCreateInfo.flags = 0;
-	dynamicStateCreateInfo.dynamicStateCount = 2;
+	dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
 
 	VkPushConstantRange vertexPushConstantRange = {};
@@ -4060,7 +4060,7 @@ void NtshEngn::GraphicsModule::createUIRectangleResources() {
 	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamicStateCreateInfo.pNext = nullptr;
 	dynamicStateCreateInfo.flags = 0;
-	dynamicStateCreateInfo.dynamicStateCount = 2;
+	dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
 
 	VkPushConstantRange vertexPushConstantRange = {};
@@ -4330,7 +4330,7 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamicStateCreateInfo.pNext = nullptr;
 	dynamicStateCreateInfo.flags = 0;
-	dynamicStateCreateInfo.dynamicStateCount = 2;
+	dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
 
 	VkPushConstantRange vertexPushConstantRange = {};
