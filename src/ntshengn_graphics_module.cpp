@@ -801,7 +801,6 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.layerCount = 1;
 
 	std::array<VkImageMemoryBarrier2, 2> imageMemoryBarriers = { swapchainOrDrawImageMemoryBarrier, undefinedToColorAttachmentOptimalImageMemoryBarrier };
-
 	VkDependencyInfo undefinedToColorAttachmentOptimalDependencyInfo = {};
 	undefinedToColorAttachmentOptimalDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToColorAttachmentOptimalDependencyInfo.pNext = nullptr;
