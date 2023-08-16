@@ -1,154 +1,17 @@
 #pragma once
 #include "../Common/module_interfaces/ntshengn_graphics_module_interface.h"
-#include "../Common/resources/ntshengn_resources_graphics.h"
-#include "../Common/utils/ntshengn_defines.h"
-#include "../Common/utils/ntshengn_enums.h"
-#include "../Common/utils/ntshengn_utils_math.h"
-#include "../Module/utils/ntshengn_module_defines.h"
-#if defined(NTSHENGN_OS_WINDOWS)
-#define VK_USE_PLATFORM_WIN32_KHR
-#elif defined(NTSHENGN_OS_LINUX)
-#define VK_USE_PLATFORM_XLIB_KHR
-#endif
-#include "../external/VulkanMemoryAllocator/include/vk_mem_alloc.h"
-#if defined(NTSHENGN_OS_LINUX)
-#undef None
-#undef Success
-#endif
-#include <string>
+#include "common.h"
+#include "gbuffer.h"
 #include <vector>
 #include <limits>
-#include <unordered_map>
-#include <set>
 #include <queue>
 #include <utility>
-
-#define NTSHENGN_VK_CHECK(f) \
-	do { \
-		int64_t check = f; \
-		if (check) { \
-			NTSHENGN_MODULE_ERROR("Vulkan Error.\nError code: " + std::to_string(check) + "\nFile: " + std::string(__FILE__) + "\nFunction: " + #f + "\nLine: " + std::to_string(__LINE__), NtshEngn::Result::UnknownError); \
-		} \
-	} while(0)
-
-#define NTSHENGN_VK_VALIDATION(m) \
-	do { \
-		NTSHENGN_MODULE_WARNING("Vulkan Validation Layer: " + std::string(m)); \
-	} while(0)
-
-VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) {
-	NTSHENGN_UNUSED(messageSeverity);
-	NTSHENGN_UNUSED(messageType);
-	NTSHENGN_UNUSED(pCallbackData);
-	NTSHENGN_UNUSED(pUserData);
-	
-	NTSHENGN_VK_VALIDATION(pCallbackData->pMessage);
-
-	return VK_FALSE;
-}
-
-const float toRad = 3.1415926535897932384626433832795f / 180.0f;
-
-enum class ShaderType {
-	Vertex,
-	TesselationControl,
-	TesselationEvaluation,
-	Geometry,
-	Fragment,
-};
-
-struct InternalMesh {
-	uint32_t indexCount;
-	uint32_t firstIndex;
-	int32_t vertexOffset;
-};
-
-struct InternalTexture {
-	NtshEngn::ImageID imageID = 0;
-	std::string samplerKey = "defaultSampler";
-};
-
-struct InternalMaterial {
-	uint32_t diffuseTextureIndex = 0;
-	uint32_t normalTextureIndex = 1;
-	uint32_t metalnessTextureIndex = 2;
-	uint32_t roughnessTextureIndex = 3;
-	uint32_t occlusionTextureIndex = 4;
-	uint32_t emissiveTextureIndex = 5;
-	float emissiveFactor = 1.0f;
-	float alphaCutoff = 0.0f;
-};
-
-struct InternalFont {
-	VkImage image;
-	VmaAllocation imageAllocation;
-	VkImageView imageView;
-
-	NtshEngn::ImageSamplerFilter filter;
-
-	std::unordered_map<char, NtshEngn::FontGlyph> glyphs;
-};
-
-struct InternalObject {
-	uint32_t index;
-
-	NtshEngn::MeshID meshID = 0;
-	uint32_t materialIndex = 0;
-};
-
-struct InternalLight {
-	NtshEngn::Math::vec4 position = { 0.0f, 0.0f, 0.0f, 0.0f };
-	NtshEngn::Math::vec4 direction = { 0.0f, 0.0f, 0.0f, 0.0f };
-	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
-	NtshEngn::Math::vec4 cutoff = { 0.0f, 0.0f, 0.0f, 0.0f };
-};
-
-struct InternalLights {
-	std::set<NtshEngn::Entity> directionalLights;
-	std::set<NtshEngn::Entity> pointLights;
-	std::set<NtshEngn::Entity> spotLights;
-};
-
-enum class UIElement {
-	Text,
-	Line,
-	Rectangle,
-	Image
-};
-
-struct InternalUIText {
-	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
-	NtshEngn::FontID fontID;
-
-	uint32_t charactersCount = 0;
-	uint32_t bufferOffset = 0;
-};
-
-struct InternalUILine {
-	NtshEngn::Math::vec4 positions = { 0.0f, 0.0f, 0.0f, 0.0f };
-	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
-};
-
-struct InternalUIRectangle {
-	NtshEngn::Math::vec4 positions = { 0.0f, 0.0f, 0.0f, 0.0f };
-	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
-};
-
-struct InternalUIImage {
-	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
-	uint32_t uiTextureIndex;
-
-	NtshEngn::Math::vec2 v0 = { 0.0f, 0.0f };
-	NtshEngn::Math::vec2 v1 = { 0.0f, 0.0f };
-	NtshEngn::Math::vec2 v2 = { 0.0f, 0.0f };
-	NtshEngn::Math::vec2 v3 = { 0.0f, 0.0f };
-};
 
 namespace NtshEngn {
 
 	class GraphicsModule : public GraphicsModuleInterface {
 	public:
-		GraphicsModule() : GraphicsModuleInterface("NutshellEngine Vulkan Renderer Graphics Module") {}
+		GraphicsModule() : GraphicsModuleInterface("Neige Graphics Module") {}
 
 		void init();
 		void update(double dt);
@@ -192,24 +55,14 @@ namespace NtshEngn {
 		// Vertex and index buffers creation
 		void createVertexAndIndexBuffers();
 
-		// Color and depth images creation
-		void createColorAndDepthImages();
-
-		// Descriptor set layout creation
-		void createDescriptorSetLayout();
-
-		// Shader compilation
-		std::vector<uint32_t> compileShader(const std::string& shaderCode, ShaderType type);
-
-		// Graphics pipeline creation
-		void createGraphicsPipeline();
-
-		// Descriptor sets creation
-		void createDescriptorSets();
-		void updateDescriptorSet(uint32_t frameInFlight);
+		// Compositing resources
+		void createCompositingResources();
+		void createCompositingImage();
+		void updateCompositingDescriptorSets();
 
 		// Tone mapping resources
 		void createToneMappingResources();
+		void updateToneMappingDescriptorSet();
 
 		// UI resources
 		void createUIResources();
@@ -266,14 +119,6 @@ namespace NtshEngn {
 		VmaAllocation m_drawImageAllocation;
 		VkImageView m_drawImageView;
 
-		VkImage m_colorImage;
-		VmaAllocation m_colorImageAllocation;
-		VkImageView m_colorImageView;
-
-		VkImage m_depthImage;
-		VmaAllocation m_depthImageAllocation;
-		VkImageView m_depthImageView;
-
 		VmaAllocator m_allocator;
 
 		VkBuffer m_vertexBuffer;
@@ -281,15 +126,15 @@ namespace NtshEngn {
 		VkBuffer m_indexBuffer;
 		VmaAllocation m_indexBufferAllocation;
 
-		bool m_glslangInitialized = false;
+		GBuffer m_gBuffer;
 
-		VkPipeline m_graphicsPipeline;
-		VkPipelineLayout m_graphicsPipelineLayout;
-
-		VkDescriptorSetLayout m_descriptorSetLayout;
-		VkDescriptorPool m_descriptorPool;
-		std::vector<VkDescriptorSet> m_descriptorSets;
-		std::vector<bool> m_descriptorSetsNeedUpdate;
+		VulkanImage m_compositingImage;
+		VkSampler m_compositingSampler;
+		VkDescriptorSetLayout m_compositingDescriptorSetLayout;
+		VkDescriptorPool m_compositingDescriptorPool;
+		std::vector<VkDescriptorSet> m_compositingDescriptorSets;
+		VkPipeline m_compositingGraphicsPipeline;
+		VkPipelineLayout m_compositingGraphicsPipelineLayout;
 
 		VkSampler m_toneMappingSampler;
 		VkDescriptorSetLayout m_toneMappingDescriptorSetLayout;

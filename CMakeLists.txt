@@ -63,9 +63,12 @@ endif()
 list(APPEND NTSHENGN_DEFINES NTSHENGN_CURRENT_MODULE_GRAPHICS)
 
 set(MODULE_SOURCES
-	src/ntshengn_graphics_module.cpp)	
+	src/ntshengn_graphics_module.cpp
+	src/gbuffer.cpp)	
 set(MODULE_HEADERS
-	src/ntshengn_graphics_module.h)
+	src/ntshengn_graphics_module.h
+	src/gbuffer.h
+	src/common.h)
 
 set(SOURCES ${MODULE_SOURCES})
 set(HEADERS ${MODULE_HEADERS})
