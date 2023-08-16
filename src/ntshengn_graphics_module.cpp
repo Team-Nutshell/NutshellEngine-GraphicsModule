@@ -2477,7 +2477,6 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 	vertexTangentInputAttributeDescription.offset = offsetof(Vertex, tangent);
 
 	std::array<VkVertexInputAttributeDescription, 5> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexNormalInputAttributeDescription, vertexUVInputAttributeDescription, vertexColorInputAttributeDescription, vertexTangentInputAttributeDescription };
-
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
 	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputStateCreateInfo.pNext = nullptr;
