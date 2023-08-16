@@ -697,7 +697,6 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.subresourceRange.layerCount = 1;
 
 	std::array<VkImageMemoryBarrier2, 3> imageMemoryBarriers = { swapchainOrDrawImageMemoryBarrier, undefinedToColorAttachmentOptimalImageMemoryBarrier, undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier };
-
 	VkDependencyInfo undefinedToAttachmentOptimalDependencyInfo = {};
 	undefinedToAttachmentOptimalDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToAttachmentOptimalDependencyInfo.pNext = nullptr;
@@ -2414,7 +2413,6 @@ void NtshEngn::GraphicsModule::createColorAndDepthImages() {
 	undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier.subresourceRange.layerCount = 1;
 
 	std::array<VkImageMemoryBarrier2, 2> imageMemoryBarriers = { undefinedToColorAttachmentOptimalImageMemoryBarrier, undefinedToDepthStencilAttachmentOptimalImageMemoryBarrier };
-
 	VkDependencyInfo undefinedToColorAttachmentOptimalAndUndefinedToDepthStencilAttachmentOptimalDependencyInfo = {};
 	undefinedToColorAttachmentOptimalAndUndefinedToDepthStencilAttachmentOptimalDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToColorAttachmentOptimalAndUndefinedToDepthStencilAttachmentOptimalDependencyInfo.pNext = nullptr;
@@ -2991,7 +2989,6 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 	vertexTangentInputAttributeDescription.offset = offsetof(Vertex, tangent);
 
 	std::array<VkVertexInputAttributeDescription, 5> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexNormalInputAttributeDescription, vertexUVInputAttributeDescription, vertexColorInputAttributeDescription, vertexTangentInputAttributeDescription };
-
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
 	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputStateCreateInfo.pNext = nullptr;
