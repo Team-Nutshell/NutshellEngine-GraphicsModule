@@ -544,7 +544,7 @@ void NtshEngn::GraphicsModule::init() {
 	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamicStateCreateInfo.pNext = nullptr;
 	dynamicStateCreateInfo.flags = 0;
-	dynamicStateCreateInfo.dynamicStateCount = 2;
+	dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
 
 	VkPipelineLayout pipelineLayout;
@@ -689,12 +689,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-		undefinedToColorAttachmentOptimalImageMemoryBarrier.image = m_swapchainImages[imageIndex];
-	}
-	else {
-		undefinedToColorAttachmentOptimalImageMemoryBarrier.image = m_drawImage;
-	}
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.image = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.levelCount = 1;
@@ -711,19 +706,13 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	undefinedToColorAttachmentOptimalDependencyInfo.pBufferMemoryBarriers = nullptr;
 	undefinedToColorAttachmentOptimalDependencyInfo.imageMemoryBarrierCount = 1;
 	undefinedToColorAttachmentOptimalDependencyInfo.pImageMemoryBarriers = &undefinedToColorAttachmentOptimalImageMemoryBarrier;
-
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &undefinedToColorAttachmentOptimalDependencyInfo);
 
 	// Begin rendering
 	VkRenderingAttachmentInfo renderingAttachmentInfo = {};
 	renderingAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	renderingAttachmentInfo.pNext = nullptr;
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-		renderingAttachmentInfo.imageView = m_swapchainImageViews[imageIndex];
-	}
-	else {
-		renderingAttachmentInfo.imageView = m_drawImageView;
-	}
+	renderingAttachmentInfo.imageView = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImageView;
 	renderingAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	renderingAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
 	renderingAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
@@ -786,7 +775,6 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		colorAttachmentOptimalToPresentSrcDependencyInfo.pBufferMemoryBarriers = nullptr;
 		colorAttachmentOptimalToPresentSrcDependencyInfo.imageMemoryBarrierCount = 1;
 		colorAttachmentOptimalToPresentSrcDependencyInfo.pImageMemoryBarriers = &colorAttachmentOptimalToPresentSrcImageMemoryBarrier;
-
 		m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &colorAttachmentOptimalToPresentSrcDependencyInfo);
 	}
 
