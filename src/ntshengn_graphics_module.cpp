@@ -1499,7 +1499,6 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	copyToBLASIndexBufferMemoryBarrier.size = mesh.indices.size() * sizeof(uint32_t);
 
 	std::array<VkBufferMemoryBarrier2, 2> copyToBLASBufferMemoryBarriers = { copyToBLASVertexBufferMemoryBarrier, copyToBLASIndexBufferMemoryBarrier };
-
 	VkDependencyInfo copyToBLASDependencyInfo = {};
 	copyToBLASDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	copyToBLASDependencyInfo.pNext = nullptr;
@@ -1510,11 +1509,9 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	copyToBLASDependencyInfo.pBufferMemoryBarriers = copyToBLASBufferMemoryBarriers.data();
 	copyToBLASDependencyInfo.imageMemoryBarrierCount = 0;
 	copyToBLASDependencyInfo.pImageMemoryBarriers = nullptr;
-
 	m_vkCmdPipelineBarrier2KHR(buffersCopyAndBLASCommandBuffer, &copyToBLASDependencyInfo);
 
 	std::array<VkAccelerationStructureBuildRangeInfoKHR*, 1> blasBuildRangeInfos = { &blasBuildRangeInfo };
-
 	m_vkCmdBuildAccelerationStructuresKHR(buffersCopyAndBLASCommandBuffer, 1, &blasBuildGeometryInfo, blasBuildRangeInfos.data());
 
 	NTSHENGN_VK_CHECK(vkEndCommandBuffer(buffersCopyAndBLASCommandBuffer));
