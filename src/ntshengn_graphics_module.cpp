@@ -770,12 +770,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	swapchainOrDrawImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	swapchainOrDrawImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 	swapchainOrDrawImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-		swapchainOrDrawImageMemoryBarrier.image = m_swapchainImages[imageIndex];
-	}
-	else {
-		swapchainOrDrawImageMemoryBarrier.image = m_drawImage;
-	}
+	swapchainOrDrawImageMemoryBarrier.image = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage;
 	swapchainOrDrawImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	swapchainOrDrawImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
 	swapchainOrDrawImageMemoryBarrier.subresourceRange.levelCount = 1;
@@ -894,12 +889,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	VkRenderingAttachmentInfo renderingSwapchainAttachmentInfo = {};
 	renderingSwapchainAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	renderingSwapchainAttachmentInfo.pNext = nullptr;
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-		renderingSwapchainAttachmentInfo.imageView = m_swapchainImageViews[imageIndex];
-	}
-	else {
-		renderingSwapchainAttachmentInfo.imageView = m_drawImageView;
-	}
+	renderingSwapchainAttachmentInfo.imageView = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImageView;
 	renderingSwapchainAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	renderingSwapchainAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
 	renderingSwapchainAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
@@ -1987,7 +1977,7 @@ void NtshEngn::GraphicsModule::createToneMappingResources() {
 	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamicStateCreateInfo.pNext = nullptr;
 	dynamicStateCreateInfo.flags = 0;
-	dynamicStateCreateInfo.dynamicStateCount = 2;
+	dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
 
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
