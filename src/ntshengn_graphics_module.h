@@ -7,6 +7,17 @@
 #include <queue>
 #include <utility>
 
+VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) {
+	NTSHENGN_UNUSED(messageSeverity);
+	NTSHENGN_UNUSED(messageType);
+	NTSHENGN_UNUSED(pCallbackData);
+	NTSHENGN_UNUSED(pUserData);
+
+	NTSHENGN_VK_VALIDATION(pCallbackData->pMessage);
+
+	return VK_FALSE;
+}
+
 namespace NtshEngn {
 
 	class GraphicsModule : public GraphicsModuleInterface {

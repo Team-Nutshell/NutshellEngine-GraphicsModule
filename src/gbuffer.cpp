@@ -139,7 +139,25 @@ void GBuffer::draw(VkCommandBuffer commandBuffer,
 	emissiveFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	emissiveFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	std::vector<VkImageMemoryBarrier2> beforeRenderImageMemoryBarriers = { positionFragmentToColorAttachmentImageMemoryBarrier, normalFragmentToColorAttachmentImageMemoryBarrier, diffuseFragmentToColorAttachmentImageMemoryBarrier, materialFragmentToColorAttachmentImageMemoryBarrier, emissiveFragmentToColorAttachmentImageMemoryBarrier };
+	VkImageMemoryBarrier2 depthImageMemoryBarrier = {};
+	depthImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	depthImageMemoryBarrier.pNext = nullptr;
+	depthImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+	depthImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	depthImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+	depthImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	depthImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	depthImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	depthImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	depthImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	depthImageMemoryBarrier.image = m_depth.handle;
+	depthImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	depthImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	depthImageMemoryBarrier.subresourceRange.levelCount = 1;
+	depthImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	depthImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	std::array<VkImageMemoryBarrier2, 6> beforeRenderImageMemoryBarriers = { positionFragmentToColorAttachmentImageMemoryBarrier, normalFragmentToColorAttachmentImageMemoryBarrier, diffuseFragmentToColorAttachmentImageMemoryBarrier, materialFragmentToColorAttachmentImageMemoryBarrier, emissiveFragmentToColorAttachmentImageMemoryBarrier, depthImageMemoryBarrier };
 	VkDependencyInfo beforeRenderDependencyInfo = {};
 	beforeRenderDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	beforeRenderDependencyInfo.pNext = nullptr;
@@ -213,8 +231,6 @@ void GBuffer::draw(VkCommandBuffer commandBuffer,
 	emissiveAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	emissiveAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
 
-	std::vector<VkRenderingAttachmentInfo> gBufferAttachmentInfos = { positionAttachmentInfo, normalAttachmentInfo, diffuseAttachmentInfo, materialAttachmentInfo, emissiveAttachmentInfo };
-	
 	VkRenderingAttachmentInfo depthAttachmentInfo = {};
 	depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	depthAttachmentInfo.pNext = nullptr;
@@ -227,6 +243,7 @@ void GBuffer::draw(VkCommandBuffer commandBuffer,
 	depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	depthAttachmentInfo.clearValue.depthStencil = { 1.0f, 0 };
 
+	std::array<VkRenderingAttachmentInfo, 5> gBufferAttachmentInfos = { positionAttachmentInfo, normalAttachmentInfo, diffuseAttachmentInfo, materialAttachmentInfo, emissiveAttachmentInfo };
 	VkRenderingInfo gBufferRenderingInfo = {};
 	gBufferRenderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
 	gBufferRenderingInfo.pNext = nullptr;
@@ -355,7 +372,7 @@ void GBuffer::draw(VkCommandBuffer commandBuffer,
 	emissiveColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	emissiveColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	std::vector<VkImageMemoryBarrier2> afterRenderImageMemoryBarriers = { positionColorAttachmentToFragmentImageMemoryBarrier, normalColorAttachmentToFragmentImageMemoryBarrier, diffuseColorAttachmentToFragmentImageMemoryBarrier, materialColorAttachmentToFragmentImageMemoryBarrier, emissiveColorAttachmentToFragmentImageMemoryBarrier };
+	std::array<VkImageMemoryBarrier2, 5> afterRenderImageMemoryBarriers = { positionColorAttachmentToFragmentImageMemoryBarrier, normalColorAttachmentToFragmentImageMemoryBarrier, diffuseColorAttachmentToFragmentImageMemoryBarrier, materialColorAttachmentToFragmentImageMemoryBarrier, emissiveColorAttachmentToFragmentImageMemoryBarrier };
 	VkDependencyInfo afterRenderDependencyInfo = {};
 	afterRenderDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	afterRenderDependencyInfo.pNext = nullptr;
@@ -364,7 +381,7 @@ void GBuffer::draw(VkCommandBuffer commandBuffer,
 	afterRenderDependencyInfo.pMemoryBarriers = nullptr;
 	afterRenderDependencyInfo.bufferMemoryBarrierCount = 0;
 	afterRenderDependencyInfo.pBufferMemoryBarriers = nullptr;
-	afterRenderDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(beforeRenderImageMemoryBarriers.size());
+	afterRenderDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(afterRenderImageMemoryBarriers.size());
 	afterRenderDependencyInfo.pImageMemoryBarriers = afterRenderImageMemoryBarriers.data();
 	m_vkCmdPipelineBarrier2KHR(commandBuffer, &afterRenderDependencyInfo);
 }
@@ -1033,7 +1050,7 @@ void GBuffer::createGraphicsPipeline() {
 	vertexTangentInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
 	vertexTangentInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, tangent);
 
-	std::vector<VkVertexInputAttributeDescription> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexNormalInputAttributeDescription, vertexUVInputAttributeDescription, vertexColorInputAttributeDescription, vertexTangentInputAttributeDescription };
+	std::array<VkVertexInputAttributeDescription, 5> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexNormalInputAttributeDescription, vertexUVInputAttributeDescription, vertexColorInputAttributeDescription, vertexTangentInputAttributeDescription };
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
 	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputStateCreateInfo.pNext = nullptr;
@@ -1109,7 +1126,7 @@ void GBuffer::createGraphicsPipeline() {
 	colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
 	colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
-	std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachmentStates = { colorBlendAttachmentState, colorBlendAttachmentState, colorBlendAttachmentState, colorBlendAttachmentState, colorBlendAttachmentState };
+	std::array<VkPipelineColorBlendAttachmentState, 5> colorBlendAttachmentStates = { colorBlendAttachmentState, colorBlendAttachmentState, colorBlendAttachmentState, colorBlendAttachmentState, colorBlendAttachmentState };
 	VkPipelineColorBlendStateCreateInfo colorBlendStateCreateInfo = {};
 	colorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 	colorBlendStateCreateInfo.pNext = nullptr;
@@ -1124,7 +1141,7 @@ void GBuffer::createGraphicsPipeline() {
 	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamicStateCreateInfo.pNext = nullptr;
 	dynamicStateCreateInfo.flags = 0;
-	dynamicStateCreateInfo.dynamicStateCount = 2;
+	dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
 
 	VkPushConstantRange pushConstantRange = {};

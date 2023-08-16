@@ -415,6 +415,10 @@ void NtshEngn::GraphicsModule::init() {
 	lightBufferCreateInfo.queueFamilyIndexCount = 1;
 	lightBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &lightBufferCreateInfo, &bufferAllocationCreateInfo, &m_lightBuffers[i], &m_lightBufferAllocations[i], nullptr));
+	}
+
 	glslang::InitializeProcess();
 
 	m_gBuffer.init(m_device,
@@ -437,10 +441,6 @@ void NtshEngn::GraphicsModule::init() {
 	createToneMappingResources();
 
 	createUIResources();
-
-	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &lightBufferCreateInfo, &bufferAllocationCreateInfo, &m_lightBuffers[i], &m_lightBufferAllocations[i], nullptr));
-	}
 
 	createDefaultResources();
 
@@ -757,7 +757,6 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	compositingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	compositingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	std::vector<VkImageMemoryBarrier2> afterCompositingImageBarriers = { compositingColorAttachmentToFragmentImageMemoryBarrier };
 	VkDependencyInfo compositingDependencyInfo = {};
 	compositingDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	compositingDependencyInfo.pNext = nullptr;
@@ -766,20 +765,15 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	compositingDependencyInfo.pMemoryBarriers = nullptr;
 	compositingDependencyInfo.bufferMemoryBarrierCount = 0;
 	compositingDependencyInfo.pBufferMemoryBarriers = nullptr;
-	compositingDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(afterCompositingImageBarriers.size());
-	compositingDependencyInfo.pImageMemoryBarriers = afterCompositingImageBarriers.data();
+	compositingDependencyInfo.imageMemoryBarrierCount = 1;
+	compositingDependencyInfo.pImageMemoryBarriers = &compositingColorAttachmentToFragmentImageMemoryBarrier;
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &compositingDependencyInfo);
 
 	// Tonemapping
 	VkRenderingAttachmentInfo renderingSwapchainAttachmentInfo = {};
 	renderingSwapchainAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	renderingSwapchainAttachmentInfo.pNext = nullptr;
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-		renderingSwapchainAttachmentInfo.imageView = m_swapchainImageViews[imageIndex];
-	}
-	else {
-		renderingSwapchainAttachmentInfo.imageView = m_drawImageView;
-	}
+	renderingSwapchainAttachmentInfo.imageView = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImageView;
 	renderingSwapchainAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	renderingSwapchainAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
 	renderingSwapchainAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
@@ -823,12 +817,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		tonemappingUIImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		tonemappingUIImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 		tonemappingUIImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-		if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-			tonemappingUIImageMemoryBarrier.image = m_swapchainImages[imageIndex];
-		}
-		else {
-			tonemappingUIImageMemoryBarrier.image = m_drawImage;
-		}
+		tonemappingUIImageMemoryBarrier.image = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage;
 		tonemappingUIImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		tonemappingUIImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
 		tonemappingUIImageMemoryBarrier.subresourceRange.levelCount = 1;
@@ -2653,7 +2642,6 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 	gBufferImagesDescriptorPoolSize.descriptorCount = 5;
 
 	std::vector<VkDescriptorPoolSize> descriptorPoolSizes = { cameraDescriptorPoolSize, lightsDescriptorPoolSize, gBufferImagesDescriptorPoolSize };
-
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.pNext = nullptr;
@@ -2829,7 +2817,7 @@ void NtshEngn::GraphicsModule::createCompositingImage() {
 	dependencyInfo.pBufferMemoryBarriers = nullptr;
 	dependencyInfo.imageMemoryBarrierCount = 1;
 	dependencyInfo.pImageMemoryBarriers = &compositingImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &dependencyInfo);
+	m_vkCmdPipelineBarrier2KHR(commandBuffer, &dependencyInfo);
 
 	NTSHENGN_VK_CHECK(vkEndCommandBuffer(commandBuffer));
 
