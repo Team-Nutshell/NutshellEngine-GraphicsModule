@@ -249,7 +249,6 @@ void NtshEngn::GraphicsModule::init() {
 
 	// Create graphics pipeline
 	VkFormat pipelineRenderingColorFormat = m_swapchainFormat;
-
 	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
 	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
 	pipelineRenderingCreateInfo.pNext = nullptr;
@@ -449,7 +448,7 @@ void NtshEngn::GraphicsModule::init() {
 	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamicStateCreateInfo.pNext = nullptr;
 	dynamicStateCreateInfo.flags = 0;
-	dynamicStateCreateInfo.dynamicStateCount = 2;
+	dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
 
 	VkPipelineLayout pipelineLayout;
@@ -607,7 +606,6 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	undefinedToColorAttachmentOptimalDependencyInfo.pBufferMemoryBarriers = nullptr;
 	undefinedToColorAttachmentOptimalDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(m_perWindowResources.size());
 	undefinedToColorAttachmentOptimalDependencyInfo.pImageMemoryBarriers = undefinedToColorAttachmentOptimalImageMemoryBarriers.data();
-
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &undefinedToColorAttachmentOptimalDependencyInfo);
 
 		// Begin rendering
@@ -680,7 +678,6 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	colorAttachmentOptimalToPresentSrcDependencyInfo.pBufferMemoryBarriers = nullptr;
 	colorAttachmentOptimalToPresentSrcDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(m_perWindowResources.size());
 	colorAttachmentOptimalToPresentSrcDependencyInfo.pImageMemoryBarriers = colorAttachmentOptimalToPresentSrcImageMemoryBarriers.data();
-
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &colorAttachmentOptimalToPresentSrcDependencyInfo);
 
 	// End command buffer recording
