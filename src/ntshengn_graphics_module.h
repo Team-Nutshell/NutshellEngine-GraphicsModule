@@ -43,8 +43,6 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBits
 	return VK_FALSE;
 }
 
-const float toRad = 3.1415926535897932384626433832795f / 180.0f;
-
 struct InternalMesh {
 	uint32_t indexCount;
 	uint32_t firstIndex;
