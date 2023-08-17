@@ -52,7 +52,7 @@ enum class ShaderType {
 	TesselationControl,
 	TesselationEvaluation,
 	Geometry,
-	Fragment,
+	Fragment
 };
 
 struct InternalMesh {
