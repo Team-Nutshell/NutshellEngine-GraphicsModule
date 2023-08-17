@@ -64,9 +64,11 @@ list(APPEND NTSHENGN_DEFINES NTSHENGN_CURRENT_MODULE_GRAPHICS)
 
 set(MODULE_SOURCES
 	src/ntshengn_graphics_module.cpp
+	src/frustum_culling.cpp
 	src/gbuffer.cpp)	
 set(MODULE_HEADERS
 	src/ntshengn_graphics_module.h
+	src/frustum_culling.h
 	src/gbuffer.h
 	src/common.h)
 

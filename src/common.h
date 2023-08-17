@@ -41,6 +41,7 @@ enum class ShaderType {
 	TesselationEvaluation,
 	Geometry,
 	Fragment,
+	Compute
 };
 
 struct InternalMesh {
