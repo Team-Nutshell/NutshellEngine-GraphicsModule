@@ -600,7 +600,7 @@ void GBuffer::createImages(uint32_t width, uint32_t height) {
 	gBufferCreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
 	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &gBufferCreateInfo, &gBufferAllocationCreateInfo, &m_material.handle, &m_material.allocation, nullptr));
 
-	gBufferCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+	gBufferCreateInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
 	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &gBufferCreateInfo, &gBufferAllocationCreateInfo, &m_emissive.handle, &m_emissive.allocation, nullptr));
 
 	gBufferCreateInfo.format = VK_FORMAT_D32_SFLOAT;
@@ -637,7 +637,7 @@ void GBuffer::createImages(uint32_t width, uint32_t height) {
 	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &gBufferViewCreateInfo, nullptr, &m_material.view));
 
 	gBufferViewCreateInfo.image = m_emissive.handle;
-	gBufferViewCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+	gBufferViewCreateInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
 	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &gBufferViewCreateInfo, nullptr, &m_emissive.view));
 
 	gBufferViewCreateInfo.image = m_depth.handle;
@@ -868,7 +868,7 @@ void GBuffer::createDescriptorSetLayout() {
 }
 
 void GBuffer::createGraphicsPipeline() {
-	std::vector<VkFormat> pipelineRenderingColorFormats = { VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R8G8B8A8_SRGB };
+	std::vector<VkFormat> pipelineRenderingColorFormats = { VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R16G16B16A16_SFLOAT };
 	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
 	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
 	pipelineRenderingCreateInfo.pNext = nullptr;
@@ -957,6 +957,7 @@ void GBuffer::createGraphicsPipeline() {
 			uint occlusionTextureIndex;
 			uint emissiveTextureIndex;
 			float emissiveFactor;
+			float alphaCutoff;
 		};
 
 		layout(set = 0, binding = 2) restrict readonly buffer Materials {
@@ -982,8 +983,14 @@ void GBuffer::createGraphicsPipeline() {
 			const vec3 normalSample = texture(textures[materials.info[materialID].normalTextureIndex], uv).xyz;
 			const vec3 n = normalize(TBN * (normalSample * 2.0 - 1.0));
 			outGBufferNormal = vec4(n, 0.0);
-
-			outGBufferDiffuse = texture(textures[materials.info[materialID].diffuseTextureIndex], uv);
+			
+			const vec4 diffuseSample = texture(textures[materials.info[materialID].diffuseTextureIndex], uv);
+			if (diffuseSample.a < materials.info[materialID].alphaCutoff) {
+				outGBufferDiffuse = vec4(0.0, 0.0, 0.0, 0.0);
+			}
+			else {
+				outGBufferDiffuse = diffuseSample;
+			}
 
 			const float metalnessSample = texture(textures[materials.info[materialID].metalnessTextureIndex], uv).b;
 			const float roughnessSample = texture(textures[materials.info[materialID].roughnessTextureIndex], uv).g;
