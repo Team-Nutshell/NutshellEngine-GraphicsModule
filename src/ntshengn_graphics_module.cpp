@@ -2404,15 +2404,12 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 
 		void main() {
 			vec4 diffuseSample = texture(gBufferDiffuseSampler, uv);
-			vec4 materialSample = texture(gBufferMaterialSampler, uv);
-			if (diffuseSample.a < materialSample.a) {
-				discard;
-			}
+			vec3 positionSample = texture(gBufferPositionSampler, uv).xyz;
+			vec3 normalSample = texture(gBufferNormalSampler, uv).xyz;
+			vec3 materialSample = texture(gBufferMaterialSampler, uv).xyz;
 			float metalnessSample = materialSample.b;
 			float roughnessSample = materialSample.g;
 			float occlusionSample = materialSample.r;
-			vec3 positionSample = texture(gBufferPositionSampler, uv).xyz;
-			vec3 normalSample = texture(gBufferNormalSampler, uv).xyz;
 			vec3 emissiveSample = texture(gBufferEmissiveSampler, uv).rgb;
 
 			vec3 position = positionSample;

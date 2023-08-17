@@ -978,14 +978,19 @@ void GBuffer::createGraphicsPipeline() {
 		layout(location = 4) out vec4 outGBufferEmissive;
 
 		void main() {
+			vec4 diffuseSample = texture(textures[materials.info[materialID].diffuseTextureIndex], uv);
+			if (diffuseSample.a < materials.info[materialID].alphaCutoff) {
+				discard;
+			}
+
 			outGBufferPosition = vec4(position, 0.0);
 
 			const vec3 normalSample = texture(textures[materials.info[materialID].normalTextureIndex], uv).xyz;
 			const vec3 n = normalize(TBN * (normalSample * 2.0 - 1.0));
 			outGBufferNormal = vec4(n, 0.0);
-			
-			outGBufferDiffuse = texture(textures[materials.info[materialID].diffuseTextureIndex], uv);
 
+			outGBufferDiffuse = diffuseSample;
+			
 			const float occlusionSample = texture(textures[materials.info[materialID].occlusionTextureIndex], uv).r;
 			const float roughnessSample = texture(textures[materials.info[materialID].roughnessTextureIndex], uv).g;
 			const float metalnessSample = texture(textures[materials.info[materialID].metalnessTextureIndex], uv).b;
