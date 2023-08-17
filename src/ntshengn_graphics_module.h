@@ -126,9 +126,7 @@ namespace NtshEngn {
 		std::vector<VkImageView> m_swapchainImageViews;
 		VkFormat m_swapchainFormat;
 
-		VkImage m_drawImage;
-		VmaAllocation m_drawImageAllocation;
-		VkImageView m_drawImageView;
+		VulkanImage m_drawImage;
 
 		VmaAllocator m_allocator;
 

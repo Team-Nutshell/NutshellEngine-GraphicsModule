@@ -316,14 +316,14 @@ void NtshEngn::GraphicsModule::init() {
 		imageAllocationCreateInfo.flags = 0;
 		imageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-		NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &imageCreateInfo, &imageAllocationCreateInfo, &m_drawImage, &m_drawImageAllocation, nullptr));
+		NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &imageCreateInfo, &imageAllocationCreateInfo, &m_drawImage.handle, &m_drawImage.allocation, nullptr));
 
 		// Create the image view
 		VkImageViewCreateInfo imageViewCreateInfo = {};
 		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		imageViewCreateInfo.pNext = nullptr;
 		imageViewCreateInfo.flags = 0;
-		imageViewCreateInfo.image = m_drawImage;
+		imageViewCreateInfo.image = m_drawImage.handle;
 		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 		imageViewCreateInfo.format = imageCreateInfo.format;
 		imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
@@ -335,7 +335,7 @@ void NtshEngn::GraphicsModule::init() {
 		imageViewCreateInfo.subresourceRange.levelCount = 1;
 		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 		imageViewCreateInfo.subresourceRange.layerCount = 1;
-		NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &imageViewCreateInfo, nullptr, &m_drawImageView));
+		NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &imageViewCreateInfo, nullptr, &m_drawImage.view));
 	}
 
 	// Create initialization fence
@@ -652,7 +652,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	swapchainOrDrawImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	swapchainOrDrawImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 	swapchainOrDrawImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	swapchainOrDrawImageMemoryBarrier.image = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage;
+	swapchainOrDrawImageMemoryBarrier.image = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage.handle;
 	swapchainOrDrawImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	swapchainOrDrawImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
 	swapchainOrDrawImageMemoryBarrier.subresourceRange.levelCount = 1;
@@ -773,7 +773,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	VkRenderingAttachmentInfo renderingSwapchainAttachmentInfo = {};
 	renderingSwapchainAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	renderingSwapchainAttachmentInfo.pNext = nullptr;
-	renderingSwapchainAttachmentInfo.imageView = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImageView;
+	renderingSwapchainAttachmentInfo.imageView = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImage.view;
 	renderingSwapchainAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	renderingSwapchainAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
 	renderingSwapchainAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
@@ -817,7 +817,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		tonemappingUIImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		tonemappingUIImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 		tonemappingUIImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-		tonemappingUIImageMemoryBarrier.image = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage;
+		tonemappingUIImageMemoryBarrier.image = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage.handle;
 		tonemappingUIImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		tonemappingUIImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
 		tonemappingUIImageMemoryBarrier.subresourceRange.levelCount = 1;
@@ -1104,8 +1104,8 @@ void NtshEngn::GraphicsModule::destroy() {
 	}
 	// Or destroy the image
 	else {
-		vkDestroyImageView(m_device, m_drawImageView, nullptr);
-		vmaDestroyImage(m_allocator, m_drawImage, m_drawImageAllocation);
+		vkDestroyImageView(m_device, m_drawImage.view, nullptr);
+		vmaDestroyImage(m_allocator, m_drawImage.handle, m_drawImage.allocation);
 	}
 
 	// Destroy VMA Allocator
