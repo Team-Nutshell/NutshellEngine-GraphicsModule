@@ -186,7 +186,7 @@ void NtshEngn::GraphicsModule::init() {
 	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyPropertyCount, queueFamilyProperties.data());
 	m_graphicsQueueFamilyIndex = 0;
 	for (const VkQueueFamilyProperties& queueFamilyProperty : queueFamilyProperties) {
-		if (queueFamilyProperty.queueCount > 0 && queueFamilyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+		if (queueFamilyProperty.queueCount > 0 && (queueFamilyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
 			if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
 				VkBool32 presentSupport;
 				vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsQueueFamilyIndex, m_surface, &presentSupport);
@@ -243,7 +243,7 @@ void NtshEngn::GraphicsModule::init() {
 	deviceCreateInfo.ppEnabledLayerNames = nullptr;
 	std::vector<const char*> deviceExtensions = { "VK_KHR_synchronization2",
 		"VK_KHR_create_renderpass2",
-		"VK_KHR_depth_stencil_resolve", 
+		"VK_KHR_depth_stencil_resolve",
 		"VK_KHR_dynamic_rendering",
 		"VK_KHR_maintenance3",
 		"VK_EXT_descriptor_indexing" };
