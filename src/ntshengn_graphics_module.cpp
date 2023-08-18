@@ -717,11 +717,6 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			m_meshes);
 	}
 
-#if FRUSTUM_CULLING_TYPE != FRUSTUM_CULLING_GPU
-	drawUIText(0, std::to_string(drawCount), Math::vec2(30.0f, 30.0f), Math::vec4(1.0f));
-#endif
-	drawUIText(0, std::to_string(dt), Math::vec2(30.0f, 60.0f), Math::vec4(1.0f));
-
 	// Draw G-Buffer
 	m_gBuffer.draw(m_renderingCommandBuffers[m_currentFrameInFlight],
 		m_currentFrameInFlight,
