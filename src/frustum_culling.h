@@ -2,6 +2,16 @@
 #include "common.h"
 #include "../Common/job_system/ntshengn_job_system.h"
 
+#if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
+struct FrustumCullingObject {
+	NtshEngn::Math::vec4 position;
+	NtshEngn::Math::mat4 rotation;
+	NtshEngn::Math::vec4 scale;
+	NtshEngn::Math::vec4 aabbMin;
+	NtshEngn::Math::vec4 aabbMax;
+};
+#endif
+
 class FrustumCulling {
 public:
 	void init(VkDevice device,
@@ -15,10 +25,10 @@ public:
 		NtshEngn::ECS* ecs);
 	void destroy();
 
-	uint32_t culling(uint32_t currentFrameInFlight,
+	uint32_t culling(VkCommandBuffer commandBuffer,
+		uint32_t currentFrameInFlight,
 		const NtshEngn::Math::mat4& cameraView,
 		const NtshEngn::Math::mat4& cameraProjection,
-		const std::set<NtshEngn::Entity>& entities,
 		const std::unordered_map<NtshEngn::Entity, InternalObject>& objects,
 		const std::vector<InternalMesh>& meshes);
 
@@ -28,13 +38,22 @@ public:
 private:
 	void createBuffers();
 
+#if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
 	void createDescriptorSetLayout();
 
 	void createComputePipeline();
 
+	void createDescriptorSets();
+#endif
+
 private:
 	std::vector<VulkanBuffer> m_drawIndirectBuffers;
 	std::vector<VulkanBuffer> m_perDrawBuffers;
+
+#if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
+	std::vector<VulkanBuffer> m_gpuFrustumCullingBuffers;
+	VulkanBuffer m_gpuDrawIndirectBuffer;
+	VulkanBuffer m_gpuPerDrawBuffer;
 
 	VkDescriptorSetLayout m_descriptorSetLayout;
 
@@ -43,7 +62,7 @@ private:
 
 	VkDescriptorPool m_descriptorPool;
 	std::vector<VkDescriptorSet> m_descriptorSets;
-	std::vector<bool> m_descriptorSetsNeedUpdate;
+#endif
 
 	VkDevice m_device;
 	VkQueue m_computeQueue;

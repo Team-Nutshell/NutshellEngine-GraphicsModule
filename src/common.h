@@ -26,7 +26,8 @@
 #define FRUSTUM_CULLING_DISABLED 0
 #define FRUSTUM_CULLING_CPU_SINGLETHREADED 1
 #define FRUSTUM_CULLING_CPU_MULTITHREADED 2
-#define FRUSTUM_CULLING_TYPE FRUSTUM_CULLING_DISABLED
+#define FRUSTUM_CULLING_GPU 3
+#define FRUSTUM_CULLING_TYPE FRUSTUM_CULLING_GPU
 
 #define NTSHENGN_VK_CHECK(f) \
 	do { \
@@ -185,6 +186,10 @@ inline std::vector<uint32_t> compileShader(const std::string& shaderCode, Shader
 
 	case ShaderType::Fragment:
 		shaderType = EShLangFragment;
+		break;
+
+	case ShaderType::Compute:
+		shaderType = EShLangCompute;
 		break;
 	}
 

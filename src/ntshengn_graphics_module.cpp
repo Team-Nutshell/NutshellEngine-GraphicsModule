@@ -709,15 +709,17 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	// Frustum culling
 	uint32_t drawCount = 0;
 	if (m_mainCamera != std::numeric_limits<uint32_t>::max()) {
-		drawCount = m_frustumCulling.culling(m_currentFrameInFlight,
+		drawCount = m_frustumCulling.culling(m_renderingCommandBuffers[m_currentFrameInFlight],
+			m_currentFrameInFlight,
 			cameraView,
 			cameraProjection,
-			entities,
 			m_objects,
 			m_meshes);
 	}
 
+#if FRUSTUM_CULLING_TYPE != FRUSTUM_CULLING_GPU
 	drawUIText(0, std::to_string(drawCount), Math::vec2(30.0f, 30.0f), Math::vec4(1.0f));
+#endif
 	drawUIText(0, std::to_string(dt), Math::vec2(30.0f, 60.0f), Math::vec4(1.0f));
 
 	// Draw G-Buffer

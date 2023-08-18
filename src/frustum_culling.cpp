@@ -20,19 +20,31 @@ void FrustumCulling::init(VkDevice device,
 	m_vkCmdPipelineBarrier2KHR = vkCmdPipelineBarrier2KHR;
 	m_jobSystem = jobSystem;
 	m_ecs = ecs;
-	
+
 	createBuffers();
-	/*createDescriptorSetLayout();
-	createComputePipeline();*/
+#if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
+	createDescriptorSetLayout();
+	createComputePipeline();
+	createDescriptorSets();
+#endif
 }
 
 void FrustumCulling::destroy() {
-	/*vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
+#if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
+	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
 
 	vkDestroyPipeline(m_device, m_computePipeline, nullptr);
 	vkDestroyPipelineLayout(m_device, m_computePipelineLayout, nullptr);
 
-	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);*/
+	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
+
+	m_gpuPerDrawBuffer.destroy(m_allocator);
+	m_gpuDrawIndirectBuffer.destroy(m_allocator);
+
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		m_gpuFrustumCullingBuffers[i].destroy(m_allocator);
+	}
+#endif
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		m_perDrawBuffers[i].destroy(m_allocator);
@@ -43,16 +55,20 @@ void FrustumCulling::destroy() {
 	}
 }
 
-uint32_t FrustumCulling::culling(uint32_t currentFrameInFlight,
+uint32_t FrustumCulling::culling(VkCommandBuffer commandBuffer,
+	uint32_t currentFrameInFlight,
 	const NtshEngn::Math::mat4& cameraView,
 	const NtshEngn::Math::mat4& cameraProjection,
-	const std::set<NtshEngn::Entity>& entities,
 	const std::unordered_map<NtshEngn::Entity, InternalObject>& objects,
 	const std::vector<InternalMesh>& meshes) {
-#if (FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_CPU_SINGLETHREADED) || (FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_CPU_MULTITHREADED)
+#if FRUSTUM_CULLING_TYPE != FRUSTUM_CULLING_GPU
+	NTSHENGN_UNUSED(commandBuffer);
+#endif
+
 	std::vector<VkDrawIndexedIndirectCommand> drawIndirectCommands;
 	std::vector<uint32_t> perDraw;
 
+#if FRUSTUM_CULLING_TYPE != FRUSTUM_CULLING_DISABLED
 	const NtshEngn::Math::mat4 viewProj = cameraProjection * cameraView;
 
 	std::array<NtshEngn::Math::vec4, 6> frustum;
@@ -98,23 +114,17 @@ uint32_t FrustumCulling::culling(uint32_t currentFrameInFlight,
 #if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_CPU_MULTITHREADED
 	std::mutex mutex;
 
-	m_jobSystem->dispatch(static_cast<uint32_t>(entities.size()), (static_cast<uint32_t>(entities.size()) / m_jobSystem->getNumThreads()) + 1, [this, &drawIndirectCommands, &perDraw, &mutex, &frustum, &entities, &objects, &meshes](NtshEngn::JobDispatchArguments args) {
-		std::set<NtshEngn::Entity>::iterator it = entities.begin();
+	m_jobSystem->dispatch(static_cast<uint32_t>(objects.size()), (static_cast<uint32_t>(objects.size()) + m_jobSystem->getNumThreads() - 1) / m_jobSystem->getNumThreads(), [this, &drawIndirectCommands, &perDraw, &mutex, &frustum, &objects, &meshes](NtshEngn::JobDispatchArguments args) {
+		auto it = objects.begin();
 		std::advance(it, args.jobIndex);
 
-		NtshEngn::Entity entity = *it;
-
-		if (!m_ecs->hasComponent<NtshEngn::Renderable>(entity)) {
-			return;
-		}
-
-		const InternalObject& object = objects.at(entity);
+		const InternalObject& object = it->second;
 		const InternalMesh& mesh = meshes[object.meshID];
 
 		NtshEngn::Math::vec3 aabbMin = mesh.aabbMin;
 		NtshEngn::Math::vec3 aabbMax = mesh.aabbMax;
 
-		const NtshEngn::Transform& entityTransform = m_ecs->getComponent<NtshEngn::Transform>(entity);
+		const NtshEngn::Transform& entityTransform = m_ecs->getComponent<NtshEngn::Transform>(it->first);
 
 		NtshEngn::Math::vec3 newAABBMin = entityTransform.position;
 		NtshEngn::Math::vec3 newAABBMax = entityTransform.position;
@@ -167,18 +177,14 @@ uint32_t FrustumCulling::culling(uint32_t currentFrameInFlight,
 
 	m_jobSystem->wait();
 #elif FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_CPU_SINGLETHREADED
-	for (NtshEngn::Entity entity : entities) {
-		if (!m_ecs->hasComponent<NtshEngn::Renderable>(entity)) {
-			continue;
-		}
-
-		const InternalObject& object = objects.at(entity);
+	for (auto& it : objects) {
+		const InternalObject& object = it.second;
 		const InternalMesh& mesh = meshes[object.meshID];
 
 		NtshEngn::Math::vec3 aabbMin = mesh.aabbMin;
 		NtshEngn::Math::vec3 aabbMax = mesh.aabbMax;
 
-		const NtshEngn::Transform& entityTransform = m_ecs->getComponent<NtshEngn::Transform>(entity);
+		const NtshEngn::Transform& entityTransform = m_ecs->getComponent<NtshEngn::Transform>(it.first);
 
 		NtshEngn::Math::vec3 newAABBMin = entityTransform.position;
 		NtshEngn::Math::vec3 newAABBMax = entityTransform.position;
@@ -230,12 +236,14 @@ uint32_t FrustumCulling::culling(uint32_t currentFrameInFlight,
 		}
 	}
 #else
+#if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_DISABLED
 	NTSHENGN_UNUSED(cameraView);
 	NTSHENGN_UNUSED(cameraProjection);
-	NTSHENGN_UNUSED(entities);
+#endif
 
-	std::vector<VkDrawIndexedIndirectCommand> drawIndirectCommands;
-	std::vector<uint32_t> perDraw;
+#if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
+	std::vector<FrustumCullingObject> frustumCullingObjects;
+#endif
 	for (auto& it : objects) {
 		const InternalObject& object = it.second;
 		const InternalMesh& mesh = meshes[object.meshID];
@@ -248,6 +256,20 @@ uint32_t FrustumCulling::culling(uint32_t currentFrameInFlight,
 		drawIndirectCommand.firstInstance = 0;
 		drawIndirectCommands.push_back(drawIndirectCommand);
 		perDraw.push_back(object.index);
+
+#if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
+		const NtshEngn::Transform& entityTransform = m_ecs->getComponent<NtshEngn::Transform>(it.first);
+
+		FrustumCullingObject frustumCullingObject;
+		frustumCullingObject.position = NtshEngn::Math::vec4(entityTransform.position, 0.0f);
+		frustumCullingObject.rotation = NtshEngn::Math::rotate(entityTransform.rotation.x, NtshEngn::Math::vec3(1.0f, 0.0f, 0.0f)) *
+			NtshEngn::Math::rotate(entityTransform.rotation.y, NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f)) *
+			NtshEngn::Math::rotate(entityTransform.rotation.z, NtshEngn::Math::vec3(0.0f, 0.0f, 1.0f));
+		frustumCullingObject.scale = NtshEngn::Math::vec4(entityTransform.scale, 0.0f);
+		frustumCullingObject.aabbMin = NtshEngn::Math::vec4(mesh.aabbMin, 0.0f);
+		frustumCullingObject.aabbMax = NtshEngn::Math::vec4(mesh.aabbMax, 0.0f);
+		frustumCullingObjects.push_back(frustumCullingObject);
+#endif
 	}
 #endif
 
@@ -255,33 +277,119 @@ uint32_t FrustumCulling::culling(uint32_t currentFrameInFlight,
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_drawIndirectBuffers[currentFrameInFlight].allocation, &data));
 	uint32_t drawIndirectCount = static_cast<uint32_t>(drawIndirectCommands.size());
 	memcpy(data, &drawIndirectCount, sizeof(uint32_t));
-	memcpy(reinterpret_cast<char*>(data) + sizeof(uint32_t), drawIndirectCommands.data(), sizeof(VkDrawIndexedIndirectCommand)* drawIndirectCommands.size());
+	memcpy(reinterpret_cast<char*>(data) + sizeof(uint32_t), drawIndirectCommands.data(), sizeof(VkDrawIndexedIndirectCommand) * drawIndirectCommands.size());
 	vmaUnmapMemory(m_allocator, m_drawIndirectBuffers[currentFrameInFlight].allocation);
 
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_perDrawBuffers[currentFrameInFlight].allocation, &data));
 	memcpy(data, perDraw.data(), sizeof(uint32_t)* perDraw.size());
 	vmaUnmapMemory(m_allocator, m_perDrawBuffers[currentFrameInFlight].allocation);
 
+#if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
+	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_gpuFrustumCullingBuffers[currentFrameInFlight].allocation, &data));
+	memcpy(data, frustum.data(), sizeof(NtshEngn::Math::vec4) * 6);
+	memcpy(reinterpret_cast<char*>(data) + sizeof(NtshEngn::Math::vec4) * 6, frustumCullingObjects.data(), sizeof(FrustumCullingObject) * frustumCullingObjects.size());
+	vmaUnmapMemory(m_allocator, m_gpuFrustumCullingBuffers[currentFrameInFlight].allocation);
+
+	vkCmdFillBuffer(commandBuffer, m_gpuDrawIndirectBuffer.handle, 0, sizeof(uint32_t), 0);
+
+	VkBufferMemoryBarrier2 fillBufferMemoryBarrier = {};
+	fillBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+	fillBufferMemoryBarrier.pNext = nullptr;
+	fillBufferMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+	fillBufferMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+	fillBufferMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+	fillBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+	fillBufferMemoryBarrier.srcQueueFamilyIndex = m_computeQueueFamilyIndex;
+	fillBufferMemoryBarrier.dstQueueFamilyIndex = m_computeQueueFamilyIndex;
+	fillBufferMemoryBarrier.buffer = m_gpuDrawIndirectBuffer.handle;
+	fillBufferMemoryBarrier.offset = 0;
+	fillBufferMemoryBarrier.size = sizeof(uint32_t);
+
+	VkDependencyInfo fillBufferDependencyInfo = {};
+	fillBufferDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	fillBufferDependencyInfo.pNext = nullptr;
+	fillBufferDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	fillBufferDependencyInfo.memoryBarrierCount = 0;
+	fillBufferDependencyInfo.pMemoryBarriers = nullptr;
+	fillBufferDependencyInfo.bufferMemoryBarrierCount = 1;
+	fillBufferDependencyInfo.pBufferMemoryBarriers = &fillBufferMemoryBarrier;
+	fillBufferDependencyInfo.imageMemoryBarrierCount = 0;
+	fillBufferDependencyInfo.pImageMemoryBarriers = nullptr;
+	m_vkCmdPipelineBarrier2KHR(commandBuffer, &fillBufferDependencyInfo);
+
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipeline);
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineLayout, 0, 1, &m_descriptorSets[currentFrameInFlight], 0, nullptr);
+
+	vkCmdDispatch(commandBuffer, ((drawIndirectCount + 64 - 1) / 64), 1, 1);
+
+	VkBufferMemoryBarrier2 drawIndirectBufferMemoryBarrier = {};
+	drawIndirectBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+	drawIndirectBufferMemoryBarrier.pNext = nullptr;
+	drawIndirectBufferMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+	drawIndirectBufferMemoryBarrier.srcAccessMask = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+	drawIndirectBufferMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT;
+	drawIndirectBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+	drawIndirectBufferMemoryBarrier.srcQueueFamilyIndex = m_computeQueueFamilyIndex;
+	drawIndirectBufferMemoryBarrier.dstQueueFamilyIndex = m_computeQueueFamilyIndex;
+	drawIndirectBufferMemoryBarrier.buffer = m_gpuDrawIndirectBuffer.handle;
+	drawIndirectBufferMemoryBarrier.offset = 0;
+	drawIndirectBufferMemoryBarrier.size = 65536;
+
+	VkBufferMemoryBarrier2 perDrawBufferMemoryBarrier = {};
+	perDrawBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+	perDrawBufferMemoryBarrier.pNext = nullptr;
+	perDrawBufferMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+	perDrawBufferMemoryBarrier.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+	perDrawBufferMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT_KHR;
+	perDrawBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+	perDrawBufferMemoryBarrier.srcQueueFamilyIndex = m_computeQueueFamilyIndex;
+	perDrawBufferMemoryBarrier.dstQueueFamilyIndex = m_computeQueueFamilyIndex;
+	perDrawBufferMemoryBarrier.buffer = m_gpuDrawIndirectBuffer.handle;
+	perDrawBufferMemoryBarrier.offset = 0;
+	perDrawBufferMemoryBarrier.size = 37768;
+
+	std::array<VkBufferMemoryBarrier2, 2> indirectDrawBufferMemoryBarriers = { drawIndirectBufferMemoryBarrier, perDrawBufferMemoryBarrier };
+	VkDependencyInfo indirectDrawDependencyInfo = {};
+	indirectDrawDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	indirectDrawDependencyInfo.pNext = nullptr;
+	indirectDrawDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	indirectDrawDependencyInfo.memoryBarrierCount = 0;
+	indirectDrawDependencyInfo.pMemoryBarriers = nullptr;
+	indirectDrawDependencyInfo.bufferMemoryBarrierCount = static_cast<uint32_t>(indirectDrawBufferMemoryBarriers.size());
+	indirectDrawDependencyInfo.pBufferMemoryBarriers = indirectDrawBufferMemoryBarriers.data();
+	indirectDrawDependencyInfo.imageMemoryBarrierCount = 0;
+	indirectDrawDependencyInfo.pImageMemoryBarriers = nullptr;
+	m_vkCmdPipelineBarrier2KHR(commandBuffer, &indirectDrawDependencyInfo);
+#endif
+
 	return drawIndirectCount;
 }
 
 VulkanBuffer& FrustumCulling::getDrawIndirectBuffer(uint32_t frameInFlight) {
+#if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
+	NTSHENGN_UNUSED(frameInFlight);
+
+	return m_gpuDrawIndirectBuffer;
+#else
 	return m_drawIndirectBuffers[frameInFlight];
+#endif
 }
 
 std::vector<VulkanBuffer> FrustumCulling::getPerDrawBuffers() {
+#if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
+	const std::vector<VulkanBuffer> gpuPerDrawBuffers(m_framesInFlight, m_gpuPerDrawBuffer);
+
+	return gpuPerDrawBuffers;
+#else
 	return m_perDrawBuffers;
+#endif
 }
 
 void FrustumCulling::createBuffers() {
-	// Create draw indirect buffers
-	m_drawIndirectBuffers.resize(m_framesInFlight);
 	VkBufferCreateInfo bufferCreateInfo = {};
 	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bufferCreateInfo.pNext = nullptr;
 	bufferCreateInfo.flags = 0;
-	bufferCreateInfo.size = 65536;
-	bufferCreateInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
 	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	bufferCreateInfo.queueFamilyIndexCount = 1;
 	bufferCreateInfo.pQueueFamilyIndices = &m_computeQueueFamilyIndex;
@@ -289,6 +397,11 @@ void FrustumCulling::createBuffers() {
 	VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
 	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+
+	// Create draw indirect buffers
+	m_drawIndirectBuffers.resize(m_framesInFlight);
+	bufferCreateInfo.size = 65536;
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_drawIndirectBuffers[i].handle, &m_drawIndirectBuffers[i].allocation, nullptr));
@@ -302,15 +415,193 @@ void FrustumCulling::createBuffers() {
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_perDrawBuffers[i].handle, &m_perDrawBuffers[i].allocation, nullptr));
 	}
+
+#if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
+	// Create frustum culling buffers
+	m_gpuFrustumCullingBuffers.resize(m_framesInFlight);
+	bufferCreateInfo.size = 65536;
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_gpuFrustumCullingBuffers[i].handle, &m_gpuFrustumCullingBuffers[i].allocation, nullptr));
+	}
+
+	// Create GPU draw indirect buffers
+	bufferCreateInfo.size = 65536;
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+	bufferAllocationCreateInfo.flags = 0;
+	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_gpuDrawIndirectBuffer.handle, &m_gpuDrawIndirectBuffer.allocation, nullptr));
+
+	// Create GPU per draw buffers
+	bufferCreateInfo.size = 32768;
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+
+	bufferAllocationCreateInfo.flags = 0;
+	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_gpuPerDrawBuffer.handle, &m_gpuPerDrawBuffer.allocation, nullptr));
+#endif
 }
 
+#if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
 void FrustumCulling::createDescriptorSetLayout() {
+	VkDescriptorSetLayoutBinding frustumCullingDescriptorSetLayoutBinding = {};
+	frustumCullingDescriptorSetLayoutBinding.binding = 0;
+	frustumCullingDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	frustumCullingDescriptorSetLayoutBinding.descriptorCount = 1;
+	frustumCullingDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+	frustumCullingDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
+	VkDescriptorSetLayoutBinding inDrawIndirectDescriptorSetLayoutBinding = {};
+	inDrawIndirectDescriptorSetLayoutBinding.binding = 1;
+	inDrawIndirectDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	inDrawIndirectDescriptorSetLayoutBinding.descriptorCount = 1;
+	inDrawIndirectDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+	inDrawIndirectDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding outDrawIndirectDescriptorSetLayoutBinding = {};
+	outDrawIndirectDescriptorSetLayoutBinding.binding = 2;
+	outDrawIndirectDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outDrawIndirectDescriptorSetLayoutBinding.descriptorCount = 1;
+	outDrawIndirectDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+	outDrawIndirectDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding inPerDrawDescriptorSetLayoutBinding = {};
+	inPerDrawDescriptorSetLayoutBinding.binding = 3;
+	inPerDrawDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	inPerDrawDescriptorSetLayoutBinding.descriptorCount = 1;
+	inPerDrawDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+	inPerDrawDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding outPerDrawDescriptorSetLayoutBinding = {};
+	outPerDrawDescriptorSetLayoutBinding.binding = 4;
+	outPerDrawDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outPerDrawDescriptorSetLayoutBinding.descriptorCount = 1;
+	outPerDrawDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+	outPerDrawDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	std::array<VkDescriptorSetLayoutBinding, 5> descriptorSetLayoutBindings = { frustumCullingDescriptorSetLayoutBinding, inDrawIndirectDescriptorSetLayoutBinding, outDrawIndirectDescriptorSetLayoutBinding, inPerDrawDescriptorSetLayoutBinding, outPerDrawDescriptorSetLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptorSetLayoutCreateInfo.pNext = nullptr;
+	descriptorSetLayoutCreateInfo.flags = 0;
+	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size());
+	descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
+	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_descriptorSetLayout));
 }
 
 void FrustumCulling::createComputePipeline() {
 	const std::string computeShaderCode = R"GLSL(
         #version 460
+
+		layout(local_size_x = 64) in;
+
+		struct ObjectInfo {
+			vec3 position;
+			mat4 rotation;
+			vec3 scale;
+			vec3 aabbMin;
+			vec3 aabbMax;
+		};
+
+		layout(set = 0, binding = 0) restrict readonly buffer FrustumCulling {
+			vec4 frustum[6];
+			ObjectInfo objectInfo[];
+		} frustumCulling;
+
+		struct DrawIndirect {
+			uint indexCount;
+			uint instanceCount;
+			uint firstIndex;
+			int vertexOffset;
+			uint firstInstance;
+		};
+
+		layout(set = 0, binding = 1) restrict readonly buffer InDrawIndirect {
+			uint drawCount;
+			DrawIndirect commands[];
+		} inDrawIndirect;
+
+		layout(set = 0, binding = 2) buffer OutDrawIndirect {
+			uint drawCount;
+			DrawIndirect commands[];
+		} outDrawIndirect;
+
+		struct PerDrawInfo {
+			uint objectID;
+		};
+
+		layout(set = 0, binding = 3) restrict readonly buffer InPerDraw {
+			PerDrawInfo info[];
+		} inPerDraw;
+
+		layout(set = 0, binding = 4) restrict writeonly buffer OutPerDraw {
+			PerDrawInfo info[];
+		} outPerDraw;
+
+		bool intersect(vec3 aabbMin, vec3 aabbMax) {
+			const vec3 mmm = vec3(aabbMin.x, aabbMin.y, aabbMin.z);
+			const vec3 Mmm = vec3(aabbMax.x, aabbMin.y, aabbMin.z);
+			const vec3 mMm = vec3(aabbMin.x, aabbMax.y, aabbMin.z);
+			const vec3 MMm = vec3(aabbMax.x, aabbMax.y, aabbMin.z);
+			const vec3 mmM = vec3(aabbMin.x, aabbMin.y, aabbMax.z);
+			const vec3 MmM = vec3(aabbMax.x, aabbMin.y, aabbMax.z);
+			const vec3 mMM = vec3(aabbMin.x, aabbMax.y, aabbMax.z);
+			const vec3 MMM = vec3(aabbMax.x, aabbMax.y, aabbMax.z);
+			for (uint i = 0; i < 6; i++) {
+				if (((dot(frustumCulling.frustum[i].xyz, mmm) + frustumCulling.frustum[i].w) <= 0.0f)
+					&& ((dot(frustumCulling.frustum[i].xyz, Mmm) + frustumCulling.frustum[i].w) <= 0.0f)
+					&& ((dot(frustumCulling.frustum[i].xyz, mMm) + frustumCulling.frustum[i].w) <= 0.0f)
+					&& ((dot(frustumCulling.frustum[i].xyz, MMm) + frustumCulling.frustum[i].w) <= 0.0f)
+					&& ((dot(frustumCulling.frustum[i].xyz, mmM) + frustumCulling.frustum[i].w) <= 0.0f)
+					&& ((dot(frustumCulling.frustum[i].xyz, MmM) + frustumCulling.frustum[i].w) <= 0.0f)
+					&& ((dot(frustumCulling.frustum[i].xyz, mMM) + frustumCulling.frustum[i].w) <= 0.0f)
+					&& ((dot(frustumCulling.frustum[i].xyz, MMM) + frustumCulling.frustum[i].w) <= 0.0f)) {
+					return false;
+				}
+			}
+
+			return true;
+		}
+
+		void main() {
+			uint objectIndex = gl_GlobalInvocationID.x;
+			if (objectIndex > inDrawIndirect.drawCount) {
+				return;
+			}
+
+			vec3 aabbMin = frustumCulling.objectInfo[objectIndex].aabbMin;
+			vec3 aabbMax = frustumCulling.objectInfo[objectIndex].aabbMax;
+
+			vec3 newAABBMin = frustumCulling.objectInfo[objectIndex].position;
+			vec3 newAABBMax = frustumCulling.objectInfo[objectIndex].position;
+
+			float a;
+			float b;
+
+			for (uint i = 0; i < 3; i++) {
+				for (uint j = 0; j < 3; j++) {
+					a = frustumCulling.objectInfo[objectIndex].rotation[j][i] * aabbMin[j] * abs(frustumCulling.objectInfo[objectIndex].scale[i]);
+					b = frustumCulling.objectInfo[objectIndex].rotation[j][i] * aabbMax[j] * abs(frustumCulling.objectInfo[objectIndex].scale[i]);
+
+					newAABBMin[i] += (a < b) ? a : b;
+					newAABBMax[i] += (a < b) ? b : a;
+				}
+			}
+
+			aabbMin = newAABBMin;
+			aabbMax = newAABBMax;
+
+			if (intersect(aabbMin, aabbMax)) {
+				uint drawIndex = atomicAdd(outDrawIndirect.drawCount, 1);
+
+				outDrawIndirect.commands[drawIndex] = inDrawIndirect.commands[objectIndex];
+				outPerDraw.info[drawIndex] = inPerDraw.info[objectIndex];
+			}
+		}
     )GLSL";
 	const std::vector<uint32_t> computeShaderSpv = compileShader(computeShaderCode, ShaderType::Compute);
 
@@ -354,3 +645,146 @@ void FrustumCulling::createComputePipeline() {
 
 	vkDestroyShaderModule(m_device, computeShaderModule, nullptr);
 }
+
+void FrustumCulling::createDescriptorSets() {
+	// Create descriptor pool
+	VkDescriptorPoolSize frustumCullingDescriptorPoolSize = {};
+	frustumCullingDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	frustumCullingDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	VkDescriptorPoolSize inDrawIndirectDescriptorPoolSize = {};
+	inDrawIndirectDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	inDrawIndirectDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	VkDescriptorPoolSize outDrawIndirectDescriptorPoolSize = {};
+	outDrawIndirectDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outDrawIndirectDescriptorPoolSize.descriptorCount = 1;
+
+	VkDescriptorPoolSize inPerDrawDescriptorPoolSize = {};
+	inPerDrawDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	inPerDrawDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	VkDescriptorPoolSize outPerDrawDescriptorPoolSize = {};
+	outPerDrawDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outPerDrawDescriptorPoolSize.descriptorCount = 1;
+
+	std::array<VkDescriptorPoolSize, 5> descriptorPoolSizes = { frustumCullingDescriptorPoolSize, inDrawIndirectDescriptorPoolSize, outDrawIndirectDescriptorPoolSize, inPerDrawDescriptorPoolSize, outPerDrawDescriptorPoolSize };
+	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
+	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	descriptorPoolCreateInfo.pNext = nullptr;
+	descriptorPoolCreateInfo.flags = 0;
+	descriptorPoolCreateInfo.maxSets = m_framesInFlight;
+	descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(descriptorPoolSizes.size());
+	descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes.data();
+	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool));
+
+	// Allocate descriptor sets
+	m_descriptorSets.resize(m_framesInFlight);
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
+		descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		descriptorSetAllocateInfo.pNext = nullptr;
+		descriptorSetAllocateInfo.descriptorPool = m_descriptorPool;
+		descriptorSetAllocateInfo.descriptorSetCount = 1;
+		descriptorSetAllocateInfo.pSetLayouts = &m_descriptorSetLayout;
+		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_descriptorSets[i]));
+	}
+
+	// Update descriptor sets
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
+
+		VkDescriptorBufferInfo frustumCullingDescriptorBufferInfo;
+		frustumCullingDescriptorBufferInfo.buffer = m_gpuFrustumCullingBuffers[i].handle;
+		frustumCullingDescriptorBufferInfo.offset = 0;
+		frustumCullingDescriptorBufferInfo.range = 65536;
+
+		VkWriteDescriptorSet frustumCullingDescriptorWriteDescriptorSet = {};
+		frustumCullingDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		frustumCullingDescriptorWriteDescriptorSet.pNext = nullptr;
+		frustumCullingDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		frustumCullingDescriptorWriteDescriptorSet.dstBinding = 0;
+		frustumCullingDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		frustumCullingDescriptorWriteDescriptorSet.descriptorCount = 1;
+		frustumCullingDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		frustumCullingDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		frustumCullingDescriptorWriteDescriptorSet.pBufferInfo = &frustumCullingDescriptorBufferInfo;
+		frustumCullingDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(frustumCullingDescriptorWriteDescriptorSet);
+
+		VkDescriptorBufferInfo inDrawIndirectDescriptorBufferInfo;
+		inDrawIndirectDescriptorBufferInfo.buffer = m_drawIndirectBuffers[i].handle;
+		inDrawIndirectDescriptorBufferInfo.offset = 0;
+		inDrawIndirectDescriptorBufferInfo.range = 65536;
+
+		VkWriteDescriptorSet inDrawIndirectDescriptorWriteDescriptorSet = {};
+		inDrawIndirectDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		inDrawIndirectDescriptorWriteDescriptorSet.pNext = nullptr;
+		inDrawIndirectDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		inDrawIndirectDescriptorWriteDescriptorSet.dstBinding = 1;
+		inDrawIndirectDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		inDrawIndirectDescriptorWriteDescriptorSet.descriptorCount = 1;
+		inDrawIndirectDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		inDrawIndirectDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		inDrawIndirectDescriptorWriteDescriptorSet.pBufferInfo = &inDrawIndirectDescriptorBufferInfo;
+		inDrawIndirectDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(inDrawIndirectDescriptorWriteDescriptorSet);
+
+		VkDescriptorBufferInfo outDrawIndirectDescriptorBufferInfo;
+		outDrawIndirectDescriptorBufferInfo.buffer = m_gpuDrawIndirectBuffer.handle;
+		outDrawIndirectDescriptorBufferInfo.offset = 0;
+		outDrawIndirectDescriptorBufferInfo.range = 65536;
+
+		VkWriteDescriptorSet outDrawIndirectDescriptorWriteDescriptorSet = {};
+		outDrawIndirectDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		outDrawIndirectDescriptorWriteDescriptorSet.pNext = nullptr;
+		outDrawIndirectDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		outDrawIndirectDescriptorWriteDescriptorSet.dstBinding = 2;
+		outDrawIndirectDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		outDrawIndirectDescriptorWriteDescriptorSet.descriptorCount = 1;
+		outDrawIndirectDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		outDrawIndirectDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		outDrawIndirectDescriptorWriteDescriptorSet.pBufferInfo = &outDrawIndirectDescriptorBufferInfo;
+		outDrawIndirectDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(outDrawIndirectDescriptorWriteDescriptorSet);
+
+		VkDescriptorBufferInfo inPerDrawDescriptorBufferInfo;
+		inPerDrawDescriptorBufferInfo.buffer = m_perDrawBuffers[i].handle;
+		inPerDrawDescriptorBufferInfo.offset = 0;
+		inPerDrawDescriptorBufferInfo.range = 32768;
+
+		VkWriteDescriptorSet inPerDrawDescriptorWriteDescriptorSet = {};
+		inPerDrawDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		inPerDrawDescriptorWriteDescriptorSet.pNext = nullptr;
+		inPerDrawDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		inPerDrawDescriptorWriteDescriptorSet.dstBinding = 3;
+		inPerDrawDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		inPerDrawDescriptorWriteDescriptorSet.descriptorCount = 1;
+		inPerDrawDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		inPerDrawDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		inPerDrawDescriptorWriteDescriptorSet.pBufferInfo = &inPerDrawDescriptorBufferInfo;
+		inPerDrawDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(inPerDrawDescriptorWriteDescriptorSet);
+
+		VkDescriptorBufferInfo outPerDrawDescriptorBufferInfo;
+		outPerDrawDescriptorBufferInfo.buffer = m_gpuPerDrawBuffer.handle;
+		outPerDrawDescriptorBufferInfo.offset = 0;
+		outPerDrawDescriptorBufferInfo.range = 32768;
+
+		VkWriteDescriptorSet outPerDrawDescriptorWriteDescriptorSet = {};
+		outPerDrawDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		outPerDrawDescriptorWriteDescriptorSet.pNext = nullptr;
+		outPerDrawDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		outPerDrawDescriptorWriteDescriptorSet.dstBinding = 4;
+		outPerDrawDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		outPerDrawDescriptorWriteDescriptorSet.descriptorCount = 1;
+		outPerDrawDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		outPerDrawDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		outPerDrawDescriptorWriteDescriptorSet.pBufferInfo = &outPerDrawDescriptorBufferInfo;
+		outPerDrawDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(outPerDrawDescriptorWriteDescriptorSet);
+
+		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+	}
+}
+#endif

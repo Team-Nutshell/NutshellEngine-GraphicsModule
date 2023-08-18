@@ -418,7 +418,6 @@ void GBuffer::createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffe
 	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool));
 
 	// Allocate descriptor sets
-	m_descriptorSetsNeedUpdate.resize(m_framesInFlight);
 	m_descriptorSets.resize(m_framesInFlight);
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
@@ -433,11 +432,8 @@ void GBuffer::createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffe
 	// Update descriptor sets
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
-		VkDescriptorBufferInfo perDrawDescriptorBufferInfo;
-		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
-		VkDescriptorBufferInfo objectsDescriptorBufferInfo;
-		VkDescriptorBufferInfo materialsDescriptorBufferInfo;
 
+		VkDescriptorBufferInfo perDrawDescriptorBufferInfo;
 		perDrawDescriptorBufferInfo.buffer = perDrawBuffers[i].handle;
 		perDrawDescriptorBufferInfo.offset = 0;
 		perDrawDescriptorBufferInfo.range = 32768;
@@ -455,6 +451,7 @@ void GBuffer::createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffe
 		perDrawDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(perDrawDescriptorWriteDescriptorSet);
 
+		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
 		cameraDescriptorBufferInfo.buffer = cameraBuffers[i].handle;
 		cameraDescriptorBufferInfo.offset = 0;
 		cameraDescriptorBufferInfo.range = sizeof(NtshEngn::Math::mat4) * 2 + sizeof(NtshEngn::Math::vec4);
@@ -472,6 +469,7 @@ void GBuffer::createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffe
 		cameraDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(cameraDescriptorWriteDescriptorSet);
 
+		VkDescriptorBufferInfo objectsDescriptorBufferInfo;
 		objectsDescriptorBufferInfo.buffer = objectBuffers[i].handle;
 		objectsDescriptorBufferInfo.offset = 0;
 		objectsDescriptorBufferInfo.range = 32768;
@@ -489,6 +487,7 @@ void GBuffer::createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffe
 		objectsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(objectsDescriptorWriteDescriptorSet);
 
+		VkDescriptorBufferInfo materialsDescriptorBufferInfo;
 		materialsDescriptorBufferInfo.buffer = materialBuffers[i].handle;
 		materialsDescriptorBufferInfo.offset = 0;
 		materialsDescriptorBufferInfo.range = 32768;
