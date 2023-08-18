@@ -181,12 +181,12 @@ void NtshEngn::GraphicsModule::init() {
 	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyPropertyCount, nullptr);
 	std::vector<VkQueueFamilyProperties> queueFamilyProperties(queueFamilyPropertyCount);
 	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyPropertyCount, queueFamilyProperties.data());
-	m_graphicsQueueFamilyIndex = 0;
+	m_graphicsComputeQueueFamilyIndex = 0;
 	for (const VkQueueFamilyProperties& queueFamilyProperty : queueFamilyProperties) {
-		if (queueFamilyProperty.queueCount > 0 && queueFamilyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+		if (queueFamilyProperty.queueCount > 0 && (queueFamilyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT) && (queueFamilyProperty.queueFlags & VK_QUEUE_COMPUTE_BIT)) {
 			if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
 				VkBool32 presentSupport;
-				vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsQueueFamilyIndex, m_surface, &presentSupport);
+				vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsComputeQueueFamilyIndex, m_surface, &presentSupport);
 				if (presentSupport) {
 					break;
 				}
@@ -195,23 +195,28 @@ void NtshEngn::GraphicsModule::init() {
 				break;
 			}
 		}
-		m_graphicsQueueFamilyIndex++;
+		m_graphicsComputeQueueFamilyIndex++;
 	}
 
-	// Create a queue supporting graphics
+	// Create a queue supporting graphics and compute
 	float queuePriority = 1.0f;
 	VkDeviceQueueCreateInfo deviceQueueCreateInfo = {};
 	deviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 	deviceQueueCreateInfo.pNext = nullptr;
 	deviceQueueCreateInfo.flags = 0;
-	deviceQueueCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
+	deviceQueueCreateInfo.queueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	deviceQueueCreateInfo.queueCount = 1;
 	deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
 
 	// Enable features
+	VkPhysicalDeviceShaderDrawParametersFeatures physicalDeviceShaderDrawParametersFeatures;
+	physicalDeviceShaderDrawParametersFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES;
+	physicalDeviceShaderDrawParametersFeatures.pNext = nullptr;
+	physicalDeviceShaderDrawParametersFeatures.shaderDrawParameters = VK_TRUE;
+
 	VkPhysicalDeviceDescriptorIndexingFeatures physicalDeviceDescriptorIndexingFeatures = {};
 	physicalDeviceDescriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-	physicalDeviceDescriptorIndexingFeatures.pNext = nullptr;
+	physicalDeviceDescriptorIndexingFeatures.pNext = &physicalDeviceShaderDrawParametersFeatures;
 	physicalDeviceDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
 	physicalDeviceDescriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing = VK_TRUE;
 	physicalDeviceDescriptorIndexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
@@ -228,6 +233,7 @@ void NtshEngn::GraphicsModule::init() {
 	physicalDeviceSynchronization2Features.synchronization2 = VK_TRUE;
 
 	VkPhysicalDeviceFeatures physicalDeviceFeatures = {};
+	physicalDeviceFeatures.multiDrawIndirect = VK_TRUE;
 	physicalDeviceFeatures.samplerAnisotropy = VK_TRUE;
 	
 	// Create the logical device
@@ -240,10 +246,11 @@ void NtshEngn::GraphicsModule::init() {
 	deviceCreateInfo.ppEnabledLayerNames = nullptr;
 	std::vector<const char*> deviceExtensions = { "VK_KHR_synchronization2",
 		"VK_KHR_create_renderpass2",
-		"VK_KHR_depth_stencil_resolve", 
+		"VK_KHR_depth_stencil_resolve",
 		"VK_KHR_dynamic_rendering",
 		"VK_KHR_maintenance3",
-		"VK_EXT_descriptor_indexing" };
+		"VK_EXT_descriptor_indexing",
+		"VK_KHR_draw_indirect_count" };
 	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
 		deviceExtensions.push_back("VK_KHR_swapchain");
 	}
@@ -252,7 +259,7 @@ void NtshEngn::GraphicsModule::init() {
 	deviceCreateInfo.pEnabledFeatures = &physicalDeviceFeatures;
 	NTSHENGN_VK_CHECK(vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device));
 
-	vkGetDeviceQueue(m_device, m_graphicsQueueFamilyIndex, 0, &m_graphicsQueue);
+	vkGetDeviceQueue(m_device, m_graphicsComputeQueueFamilyIndex, 0, &m_graphicsComputeQueue);
 
 	// Get functions
 	m_vkCmdPipelineBarrier2KHR = (PFN_vkCmdPipelineBarrier2KHR)vkGetDeviceProcAddr(m_device, "vkCmdPipelineBarrier2KHR");
@@ -349,7 +356,6 @@ void NtshEngn::GraphicsModule::init() {
 
 	// Create camera uniform buffer
 	m_cameraBuffers.resize(m_framesInFlight);
-	m_cameraBufferAllocations.resize(m_framesInFlight);
 	VkBufferCreateInfo cameraBufferCreateInfo = {};
 	cameraBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	cameraBufferCreateInfo.pNext = nullptr;
@@ -358,19 +364,18 @@ void NtshEngn::GraphicsModule::init() {
 	cameraBufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 	cameraBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	cameraBufferCreateInfo.queueFamilyIndexCount = 1;
-	cameraBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	cameraBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
 	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &cameraBufferCreateInfo, &bufferAllocationCreateInfo, &m_cameraBuffers[i], &m_cameraBufferAllocations[i], nullptr));
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &cameraBufferCreateInfo, &bufferAllocationCreateInfo, &m_cameraBuffers[i].handle, &m_cameraBuffers[i].allocation, nullptr));
 	}
 
 	// Create object storage buffer
 	m_objectBuffers.resize(m_framesInFlight);
-	m_objectBufferAllocations.resize(m_framesInFlight);
 	VkBufferCreateInfo objectBufferCreateInfo = {};
 	objectBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	objectBufferCreateInfo.pNext = nullptr;
@@ -379,15 +384,14 @@ void NtshEngn::GraphicsModule::init() {
 	objectBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	objectBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	objectBufferCreateInfo.queueFamilyIndexCount = 1;
-	objectBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	objectBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &objectBufferCreateInfo, &bufferAllocationCreateInfo, &m_objectBuffers[i], &m_objectBufferAllocations[i], nullptr));
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &objectBufferCreateInfo, &bufferAllocationCreateInfo, &m_objectBuffers[i].handle, &m_objectBuffers[i].allocation, nullptr));
 	}
 
 	// Create material storage buffer
 	m_materialBuffers.resize(m_framesInFlight);
-	m_materialBufferAllocations.resize(m_framesInFlight);
 	VkBufferCreateInfo materialBufferCreateInfo = {};
 	materialBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	materialBufferCreateInfo.pNext = nullptr;
@@ -396,15 +400,14 @@ void NtshEngn::GraphicsModule::init() {
 	materialBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	materialBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	materialBufferCreateInfo.queueFamilyIndexCount = 1;
-	materialBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	materialBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &materialBufferCreateInfo, &bufferAllocationCreateInfo, &m_materialBuffers[i], &m_materialBufferAllocations[i], nullptr));
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &materialBufferCreateInfo, &bufferAllocationCreateInfo, &m_materialBuffers[i].handle, &m_materialBuffers[i].allocation, nullptr));
 	}
 
 	// Create light storage buffer
 	m_lightBuffers.resize(m_framesInFlight);
-	m_lightBufferAllocations.resize(m_framesInFlight);
 	VkBufferCreateInfo lightBufferCreateInfo = {};
 	lightBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	lightBufferCreateInfo.pNext = nullptr;
@@ -413,22 +416,33 @@ void NtshEngn::GraphicsModule::init() {
 	lightBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	lightBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	lightBufferCreateInfo.queueFamilyIndexCount = 1;
-	lightBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	lightBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &lightBufferCreateInfo, &bufferAllocationCreateInfo, &m_lightBuffers[i], &m_lightBufferAllocations[i], nullptr));
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &lightBufferCreateInfo, &bufferAllocationCreateInfo, &m_lightBuffers[i].handle, &m_lightBuffers[i].allocation, nullptr));
 	}
 
 	glslang::InitializeProcess();
 
+	m_frustumCulling.init(m_device,
+		m_graphicsComputeQueue,
+		m_graphicsComputeQueueFamilyIndex,
+		m_allocator,
+		m_initializationFence,
+		m_framesInFlight,
+		m_vkCmdPipelineBarrier2KHR,
+		jobSystem,
+		ecs);
+
 	m_gBuffer.init(m_device,
-		m_graphicsQueue,
-		m_graphicsQueueFamilyIndex,
+		m_graphicsComputeQueue,
+		m_graphicsComputeQueueFamilyIndex,
 		m_allocator,
 		m_initializationFence,
 		m_viewport,
 		m_scissor,
 		m_framesInFlight,
+		m_frustumCulling.getPerDrawBuffers(),
 		m_cameraBuffers,
 		m_objectBuffers,
 		m_materialBuffers,
@@ -456,7 +470,7 @@ void NtshEngn::GraphicsModule::init() {
 	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	commandPoolCreateInfo.pNext = nullptr;
 	commandPoolCreateInfo.flags = 0;
-	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
+	commandPoolCreateInfo.queueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 
 	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
 	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -524,30 +538,32 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		emptySignalSubmitInfo.pCommandBuffers = nullptr;
 		emptySignalSubmitInfo.signalSemaphoreCount = 1;
 		emptySignalSubmitInfo.pSignalSemaphores = &m_imageAvailableSemaphores[m_currentFrameInFlight];
-		NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptySignalSubmitInfo, VK_NULL_HANDLE));
+		NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &emptySignalSubmitInfo, VK_NULL_HANDLE));
 	}
 
 	void* data;
 
 	// Update camera buffer
+	Math::mat4 cameraView;
+	Math::mat4 cameraProjection;
 	if (m_mainCamera != std::numeric_limits<uint32_t>::max()) {
 		const Camera& camera = ecs->getComponent<Camera>(m_mainCamera);
 		const Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
 
-		Math::mat4 cameraView = Math::lookAtRH(cameraTransform.position, cameraTransform.position + cameraTransform.rotation, Math::vec3(0.0f, 1.0f, 0.0));
-		Math::mat4 cameraProjection = Math::perspectiveRH(Math::toRad(camera.fov), m_viewport.width / m_viewport.height, camera.nearPlane, camera.farPlane);
+		cameraView = Math::lookAtRH(cameraTransform.position, cameraTransform.position + cameraTransform.rotation, Math::vec3(0.0f, 1.0f, 0.0));
+		cameraProjection = Math::perspectiveRH(Math::toRad(camera.fov), m_viewport.width / m_viewport.height, camera.nearPlane, camera.farPlane);
 		cameraProjection[1][1] *= -1.0f;
 		std::array<Math::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
 		Math::vec4 cameraPositionAsVec4 = { cameraTransform.position, 0.0f };
 
-		NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight], &data));
+		NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_cameraBuffers[m_currentFrameInFlight].allocation, &data));
 		memcpy(data, cameraMatrices.data(), sizeof(Math::mat4) * 2);
 		memcpy(reinterpret_cast<char*>(data) + sizeof(Math::mat4) * 2, cameraPositionAsVec4.data(), sizeof(Math::vec4));
-		vmaUnmapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight]);
+		vmaUnmapMemory(m_allocator, m_cameraBuffers[m_currentFrameInFlight].allocation);
 	}
 
 	// Update objects buffer
-	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight], &data));
+	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_objectBuffers[m_currentFrameInFlight].allocation, &data));
 	for (auto& it : m_objects) {
 		const Transform& objectTransform = ecs->getComponent<Transform>(it.first);
 
@@ -563,19 +579,19 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		const uint32_t materialID = (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0;
 		memcpy(reinterpret_cast<char*>(data) + offset + sizeof(Math::mat4), &materialID, sizeof(uint32_t));
 	}
-	vmaUnmapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight]);
+	vmaUnmapMemory(m_allocator, m_objectBuffers[m_currentFrameInFlight].allocation);
 
 	// Update material buffer
-	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_materialBufferAllocations[m_currentFrameInFlight], &data));
+	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_materialBuffers[m_currentFrameInFlight].allocation, &data));
 	for (size_t i = 0; i < m_materials.size(); i++) {
 		size_t offset = i * sizeof(InternalMaterial);
 
 		memcpy(reinterpret_cast<char*>(data) + offset, &m_materials[i], sizeof(InternalMaterial));
 	}
-	vmaUnmapMemory(m_allocator, m_materialBufferAllocations[m_currentFrameInFlight]);
+	vmaUnmapMemory(m_allocator, m_materialBuffers[m_currentFrameInFlight].allocation);
 
 	// Update lights buffer
-	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_lightBufferAllocations[m_currentFrameInFlight], &data));
+	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_lightBuffers[m_currentFrameInFlight].allocation, &data));
 	std::array<uint32_t, 4> lightsCount = { static_cast<uint32_t>(m_lights.directionalLights.size()), static_cast<uint32_t>(m_lights.pointLights.size()), static_cast<uint32_t>(m_lights.spotLights.size()), 0 };
 	memcpy(data, lightsCount.data(), 4 * sizeof(uint32_t));
 
@@ -615,7 +631,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
 	}
-	vmaUnmapMemory(m_allocator, m_lightBufferAllocations[m_currentFrameInFlight]);
+	vmaUnmapMemory(m_allocator, m_lightBuffers[m_currentFrameInFlight].allocation);
 
 	// Update descriptor sets if needed
 	m_gBuffer.updateDescriptorSets(m_currentFrameInFlight, m_textures, m_textureImageViews, m_textureSamplers);
@@ -650,8 +666,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	swapchainOrDrawImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 	swapchainOrDrawImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	swapchainOrDrawImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	swapchainOrDrawImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	swapchainOrDrawImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	swapchainOrDrawImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	swapchainOrDrawImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	swapchainOrDrawImageMemoryBarrier.image = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage.handle;
 	swapchainOrDrawImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	swapchainOrDrawImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -668,8 +684,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	compositingFragmentToColorAttachmentImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 	compositingFragmentToColorAttachmentImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	compositingFragmentToColorAttachmentImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	compositingFragmentToColorAttachmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	compositingFragmentToColorAttachmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	compositingFragmentToColorAttachmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	compositingFragmentToColorAttachmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	compositingFragmentToColorAttachmentImageMemoryBarrier.image = m_compositingImage.handle;
 	compositingFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	compositingFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -690,11 +706,25 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	startFrameDependencyInfo.pImageMemoryBarriers = startFrameImageMemoryBarriers.data();
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &startFrameDependencyInfo);
 
+	// Frustum culling
+	uint32_t drawCount = 0;
+	if (m_mainCamera != std::numeric_limits<uint32_t>::max()) {
+		drawCount = m_frustumCulling.culling(m_currentFrameInFlight,
+			cameraView,
+			cameraProjection,
+			entities,
+			m_objects,
+			m_meshes);
+	}
+
+	drawUIText(0, std::to_string(drawCount), Math::vec2(30.0f, 30.0f), Math::vec4(1.0f));
+	drawUIText(0, std::to_string(dt), Math::vec2(30.0f, 60.0f), Math::vec4(1.0f));
+
 	// Draw G-Buffer
 	m_gBuffer.draw(m_renderingCommandBuffers[m_currentFrameInFlight],
 		m_currentFrameInFlight,
-		m_objects,
-		m_meshes,
+		m_frustumCulling.getDrawIndirectBuffer(m_currentFrameInFlight),
+		drawCount,
 		m_vertexBuffer,
 		m_indexBuffer
 	);
@@ -748,8 +778,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	compositingColorAttachmentToFragmentImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
 	compositingColorAttachmentToFragmentImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	compositingColorAttachmentToFragmentImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	compositingColorAttachmentToFragmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	compositingColorAttachmentToFragmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	compositingColorAttachmentToFragmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	compositingColorAttachmentToFragmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	compositingColorAttachmentToFragmentImageMemoryBarrier.image = m_compositingImage.handle;
 	compositingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	compositingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -815,8 +845,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		tonemappingUIImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 		tonemappingUIImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		tonemappingUIImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		tonemappingUIImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-		tonemappingUIImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+		tonemappingUIImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+		tonemappingUIImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 		tonemappingUIImageMemoryBarrier.image = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage.handle;
 		tonemappingUIImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		tonemappingUIImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -918,8 +948,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.dstAccessMask = 0;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.image = m_swapchainImages[imageIndex];
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -956,7 +986,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	submitInfo.pCommandBuffers = &m_renderingCommandBuffers[m_currentFrameInFlight];
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = &m_renderFinishedSemaphores[imageIndex];
-	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fences[m_currentFrameInFlight]));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &submitInfo, m_fences[m_currentFrameInFlight]));
 
 	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
 		VkPresentInfoKHR presentInfo = {};
@@ -968,7 +998,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		presentInfo.pSwapchains = &m_swapchain;
 		presentInfo.pImageIndices = &imageIndex;
 		presentInfo.pResults = nullptr;
-		VkResult queuePresentResult = vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
+		VkResult queuePresentResult = vkQueuePresentKHR(m_graphicsComputeQueue, &presentInfo);
 		if (queuePresentResult == VK_ERROR_OUT_OF_DATE_KHR || queuePresentResult == VK_SUBOPTIMAL_KHR) {
 			resize();
 		}
@@ -988,7 +1018,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		emptyWaitSubmitInfo.pCommandBuffers = nullptr;
 		emptyWaitSubmitInfo.signalSemaphoreCount = 0;
 		emptyWaitSubmitInfo.pSignalSemaphores = nullptr;
-		NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptyWaitSubmitInfo, VK_NULL_HANDLE));
+		NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &emptyWaitSubmitInfo, VK_NULL_HANDLE));
 	}
 
 	m_uiTextBufferOffset = 0;
@@ -997,7 +1027,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 }
 
 void NtshEngn::GraphicsModule::destroy() {
-	NTSHENGN_VK_CHECK(vkQueueWaitIdle(m_graphicsQueue));
+	NTSHENGN_VK_CHECK(vkQueueWaitIdle(m_graphicsComputeQueue));
 
 	// Destroy sync objects
 	for (uint32_t i = 0; i < m_imageCount; i++) {
@@ -1014,22 +1044,22 @@ void NtshEngn::GraphicsModule::destroy() {
 
 	// Destroy lights buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		vmaDestroyBuffer(m_allocator, m_lightBuffers[i], m_lightBufferAllocations[i]);
+		m_lightBuffers[i].destroy(m_allocator);
 	}
 
 	// Destroy materials buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		vmaDestroyBuffer(m_allocator, m_materialBuffers[i], m_materialBufferAllocations[i]);
+		m_materialBuffers[i].destroy(m_allocator);
 	}
 
 	// Destroy objects buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		vmaDestroyBuffer(m_allocator, m_objectBuffers[i], m_objectBufferAllocations[i]);
+		m_objectBuffers[i].destroy(m_allocator);
 	}
 
 	// Destroy camera buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		vmaDestroyBuffer(m_allocator, m_cameraBuffers[i], m_cameraBufferAllocations[i]);
+		m_cameraBuffers[i].destroy(m_allocator);
 	}
 
 	// Destroy UI resources
@@ -1053,7 +1083,7 @@ void NtshEngn::GraphicsModule::destroy() {
 	vkDestroyPipelineLayout(m_device, m_uiTextGraphicsPipelineLayout, nullptr);
 	vkDestroyDescriptorSetLayout(m_device, m_uiTextDescriptorSetLayout, nullptr);
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		vmaDestroyBuffer(m_allocator, m_uiTextBuffers[i], m_uiTextBufferAllocations[i]);
+		m_uiTextBuffers[i].destroy(m_allocator);
 	}
 
 	vkDestroySampler(m_device, m_uiLinearSampler, nullptr);
@@ -1077,6 +1107,9 @@ void NtshEngn::GraphicsModule::destroy() {
 	// Destroy G-Buffer
 	m_gBuffer.destroy();
 
+	// Destroy frustum culling
+	m_frustumCulling.destroy();
+
 	// Destroy samplers
 	for (const auto& sampler: m_textureSamplers) {
 		vkDestroySampler(m_device, sampler.second, nullptr);
@@ -1089,8 +1122,8 @@ void NtshEngn::GraphicsModule::destroy() {
 	}
 
 	// Destroy vertex and index buffers
-	vmaDestroyBuffer(m_allocator, m_indexBuffer, m_indexBufferAllocation);
-	vmaDestroyBuffer(m_allocator, m_vertexBuffer, m_vertexBufferAllocation);
+	m_indexBuffer.destroy(m_allocator);
+	m_vertexBuffer.destroy(m_allocator);
 
 	// Destroy initialization fence
 	vkDestroyFence(m_device, m_initializationFence, nullptr);
@@ -1134,7 +1167,9 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 		return m_meshAddresses[&mesh];
 	}
 
-	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset });
+	std::array<Math::vec3, 2> meshAABB = assetManager->calculateAABB(mesh);
+
+	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset, meshAABB[0], meshAABB[1] });
 	m_meshAddresses[&mesh] = static_cast<MeshID>(m_meshes.size() - 1);
 
 	// Vertex and Index staging buffer
@@ -1149,7 +1184,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	vertexAndIndexStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	vertexAndIndexStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	vertexAndIndexStagingBufferCreateInfo.queueFamilyIndexCount = 1;
-	vertexAndIndexStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	vertexAndIndexStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	VmaAllocationCreateInfo vertexAndIndexStagingBufferAllocationCreateInfo = {};
 	vertexAndIndexStagingBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
@@ -1170,7 +1205,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	buffersCopyCommandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	buffersCopyCommandPoolCreateInfo.pNext = nullptr;
 	buffersCopyCommandPoolCreateInfo.flags = 0;
-	buffersCopyCommandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
+	buffersCopyCommandPoolCreateInfo.queueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &buffersCopyCommandPoolCreateInfo, nullptr, &buffersCopyCommandPool));
 
 	VkCommandBuffer buffersCopyCommandBuffer;
@@ -1194,13 +1229,13 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	vertexBufferCopy.srcOffset = 0;
 	vertexBufferCopy.dstOffset = m_currentVertexOffset * sizeof(Vertex);
 	vertexBufferCopy.size = mesh.vertices.size() * sizeof(Vertex);
-	vkCmdCopyBuffer(buffersCopyCommandBuffer, vertexAndIndexStagingBuffer, m_vertexBuffer, 1, &vertexBufferCopy);
+	vkCmdCopyBuffer(buffersCopyCommandBuffer, vertexAndIndexStagingBuffer, m_vertexBuffer.handle, 1, &vertexBufferCopy);
 
 	VkBufferCopy indexBufferCopy = {};
 	indexBufferCopy.srcOffset = mesh.vertices.size() * sizeof(Vertex);
 	indexBufferCopy.dstOffset = m_currentIndexOffset * sizeof(uint32_t);
 	indexBufferCopy.size = mesh.indices.size() * sizeof(uint32_t);
-	vkCmdCopyBuffer(buffersCopyCommandBuffer, vertexAndIndexStagingBuffer, m_indexBuffer, 1, &indexBufferCopy);
+	vkCmdCopyBuffer(buffersCopyCommandBuffer, vertexAndIndexStagingBuffer, m_indexBuffer.handle, 1, &indexBufferCopy);
 
 	NTSHENGN_VK_CHECK(vkEndCommandBuffer(buffersCopyCommandBuffer));
 
@@ -1214,7 +1249,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	buffersCopySubmitInfo.pCommandBuffers = &buffersCopyCommandBuffer;
 	buffersCopySubmitInfo.signalSemaphoreCount = 0;
 	buffersCopySubmitInfo.pSignalSemaphores = nullptr;
-	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, m_initializationFence));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &buffersCopySubmitInfo, m_initializationFence));
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 
@@ -1392,7 +1427,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	textureImageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	textureImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	textureImageCreateInfo.queueFamilyIndexCount = 1;
-	textureImageCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	textureImageCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 	textureImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 	VmaAllocationCreateInfo textureImageAllocationCreateInfo = {};
@@ -1431,7 +1466,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	textureStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	textureStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	textureStagingBufferCreateInfo.queueFamilyIndexCount = 1;
-	textureStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	textureStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	VmaAllocationCreateInfo textureStagingBufferAllocationCreateInfo = {};
 	textureStagingBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
@@ -1450,7 +1485,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	commandPoolCreateInfo.pNext = nullptr;
 	commandPoolCreateInfo.flags = 0;
-	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
+	commandPoolCreateInfo.queueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &commandPool));
 
 	VkCommandBuffer commandBuffer;
@@ -1479,8 +1514,8 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	undefinedToTransferDstOptimalImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 	undefinedToTransferDstOptimalImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	undefinedToTransferDstOptimalImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	undefinedToTransferDstOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	undefinedToTransferDstOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToTransferDstOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	undefinedToTransferDstOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	undefinedToTransferDstOptimalImageMemoryBarrier.image = textureImage;
 	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -1519,8 +1554,8 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	VkImageMemoryBarrier2 mipMapGenerationImageMemoryBarrier = {};
 	mipMapGenerationImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	mipMapGenerationImageMemoryBarrier.pNext = nullptr;
-	mipMapGenerationImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	mipMapGenerationImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	mipMapGenerationImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	mipMapGenerationImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	mipMapGenerationImageMemoryBarrier.image = textureImage;
 	mipMapGenerationImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	mipMapGenerationImageMemoryBarrier.subresourceRange.levelCount = 1;
@@ -1599,7 +1634,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	buffersCopySubmitInfo.pCommandBuffers = &commandBuffer;
 	buffersCopySubmitInfo.signalSemaphoreCount = 0;
 	buffersCopySubmitInfo.pSignalSemaphores = nullptr;
-	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, m_initializationFence));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &buffersCopySubmitInfo, m_initializationFence));
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 
@@ -1647,7 +1682,7 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	textureImageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	textureImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	textureImageCreateInfo.queueFamilyIndexCount = 1;
-	textureImageCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	textureImageCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 	textureImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 	VmaAllocationCreateInfo textureImageAllocationCreateInfo = {};
@@ -1686,7 +1721,7 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	textureStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	textureStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	textureStagingBufferCreateInfo.queueFamilyIndexCount = 1;
-	textureStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	textureStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	VmaAllocationCreateInfo textureStagingBufferAllocationCreateInfo = {};
 	textureStagingBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
@@ -1705,7 +1740,7 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	commandPoolCreateInfo.pNext = nullptr;
 	commandPoolCreateInfo.flags = 0;
-	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
+	commandPoolCreateInfo.queueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &commandPool));
 
 	VkCommandBuffer commandBuffer;
@@ -1734,8 +1769,8 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	undefinedToTransferDstOptimalImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 	undefinedToTransferDstOptimalImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	undefinedToTransferDstOptimalImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	undefinedToTransferDstOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	undefinedToTransferDstOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToTransferDstOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	undefinedToTransferDstOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	undefinedToTransferDstOptimalImageMemoryBarrier.image = textureImage;
 	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -1783,7 +1818,7 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	buffersCopySubmitInfo.pCommandBuffers = &commandBuffer;
 	buffersCopySubmitInfo.signalSemaphoreCount = 0;
 	buffersCopySubmitInfo.pSignalSemaphores = nullptr;
-	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, m_initializationFence));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &buffersCopySubmitInfo, m_initializationFence));
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 
@@ -1817,10 +1852,10 @@ void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::string& text
 	}
 
 	void* data;
-	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_uiTextBufferAllocations[m_currentFrameInFlight], &data));
+	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_uiTextBuffers[m_currentFrameInFlight].allocation, &data));
 	size_t offset = m_uiTextBufferOffset * sizeof(Math::vec2) * 4;
 	memcpy(reinterpret_cast<uint8_t*>(data) + offset, positionsAndUVs.data(), sizeof(Math::vec2) * 4 * text.size());
-	vmaUnmapMemory(m_allocator, m_uiTextBufferAllocations[m_currentFrameInFlight]);
+	vmaUnmapMemory(m_allocator, m_uiTextBuffers[m_currentFrameInFlight].allocation);
 
 	InternalUIText uiText;
 	uiText.fontID = fontID;
@@ -2187,15 +2222,15 @@ void NtshEngn::GraphicsModule::createVertexAndIndexBuffers() {
 	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 	vertexAndIndexBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	vertexAndIndexBufferCreateInfo.queueFamilyIndexCount = 1;
-	vertexAndIndexBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	vertexAndIndexBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	VmaAllocationCreateInfo vertexAndIndexBufferAllocationCreateInfo = {};
 	vertexAndIndexBufferAllocationCreateInfo.flags = 0;
 	vertexAndIndexBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_vertexBuffer, &m_vertexBufferAllocation, nullptr));
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_vertexBuffer.handle, &m_vertexBuffer.allocation, nullptr));
 
 	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_indexBuffer, &m_indexBufferAllocation, nullptr));
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &vertexAndIndexBufferCreateInfo, &vertexAndIndexBufferAllocationCreateInfo, &m_indexBuffer.handle, &m_indexBuffer.allocation, nullptr));
 }
 
 void NtshEngn::GraphicsModule::createCompositingResources() {
@@ -2665,7 +2700,7 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
-		cameraDescriptorBufferInfo.buffer = m_cameraBuffers[i];
+		cameraDescriptorBufferInfo.buffer = m_cameraBuffers[i].handle;
 		cameraDescriptorBufferInfo.offset = 0;
 		cameraDescriptorBufferInfo.range = sizeof(Math::mat4) * 2 + sizeof(Math::vec4);
 
@@ -2682,7 +2717,7 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 		cameraDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
 		VkDescriptorBufferInfo lightsDescriptorBufferInfo;
-		lightsDescriptorBufferInfo.buffer = m_lightBuffers[i];
+		lightsDescriptorBufferInfo.buffer = m_lightBuffers[i].handle;
 		lightsDescriptorBufferInfo.offset = 0;
 		lightsDescriptorBufferInfo.range = 32768;
 
@@ -2735,7 +2770,7 @@ void NtshEngn::GraphicsModule::createCompositingImage() {
 	compositingImageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	compositingImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	compositingImageCreateInfo.queueFamilyIndexCount = 1;
-	compositingImageCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	compositingImageCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 	compositingImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 	VmaAllocationCreateInfo compositingImageAllocationCreateInfo = {};
@@ -2769,7 +2804,7 @@ void NtshEngn::GraphicsModule::createCompositingImage() {
 	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	commandPoolCreateInfo.pNext = nullptr;
 	commandPoolCreateInfo.flags = 0;
-	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
+	commandPoolCreateInfo.queueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &commandPool));
 
 	VkCommandBuffer commandBuffer;
@@ -2798,8 +2833,8 @@ void NtshEngn::GraphicsModule::createCompositingImage() {
 	compositingImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 	compositingImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	compositingImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	compositingImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	compositingImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	compositingImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	compositingImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	compositingImageMemoryBarrier.image = m_compositingImage.handle;
 	compositingImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	compositingImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -2831,7 +2866,7 @@ void NtshEngn::GraphicsModule::createCompositingImage() {
 	submitInfo.pCommandBuffers = &commandBuffer;
 	submitInfo.signalSemaphoreCount = 0;
 	submitInfo.pSignalSemaphores = nullptr;
-	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_initializationFence));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &submitInfo, m_initializationFence));
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 
@@ -3262,7 +3297,6 @@ void NtshEngn::GraphicsModule::createUIResources() {
 void NtshEngn::GraphicsModule::createUITextResources() {
 	// Create text buffers
 	m_uiTextBuffers.resize(m_framesInFlight);
-	m_uiTextBufferAllocations.resize(m_framesInFlight);
 	VkBufferCreateInfo uiTextBufferCreateInfo = {};
 	uiTextBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	uiTextBufferCreateInfo.pNext = nullptr;
@@ -3271,14 +3305,14 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 	uiTextBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	uiTextBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	uiTextBufferCreateInfo.queueFamilyIndexCount = 1;
-	uiTextBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	uiTextBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
 	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &uiTextBufferCreateInfo, &bufferAllocationCreateInfo, &m_uiTextBuffers[i], &m_uiTextBufferAllocations[i], nullptr));
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &uiTextBufferCreateInfo, &bufferAllocationCreateInfo, &m_uiTextBuffers[i].handle, &m_uiTextBuffers[i].allocation, nullptr));
 	}
 
 	// Create descriptor set layout
@@ -3602,7 +3636,7 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 	// Update descriptor sets
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		VkDescriptorBufferInfo textDescriptorBufferInfo;
-		textDescriptorBufferInfo.buffer = m_uiTextBuffers[i];
+		textDescriptorBufferInfo.buffer = m_uiTextBuffers[i].handle;
 		textDescriptorBufferInfo.offset = 0;
 		textDescriptorBufferInfo.range = 32768;
 
@@ -4547,7 +4581,7 @@ void NtshEngn::GraphicsModule::resize() {
 			windowModule->pollEvents();
 		}
 
-		NTSHENGN_VK_CHECK(vkQueueWaitIdle(m_graphicsQueue));
+		NTSHENGN_VK_CHECK(vkQueueWaitIdle(m_graphicsComputeQueue));
 
 		// Destroy swapchain image views
 		for (VkImageView& swapchainImageView : m_swapchainImageViews) {

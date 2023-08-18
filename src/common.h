@@ -20,7 +20,13 @@
 #include "../external/glslang/StandAlone/DirStackFileIncluder.h"
 #include <string>
 #include <set>
+#include <vector>
 #include <unordered_map>
+
+#define FRUSTUM_CULLING_DISABLED 0
+#define FRUSTUM_CULLING_CPU_SINGLETHREADED 1
+#define FRUSTUM_CULLING_CPU_MULTITHREADED 2
+#define FRUSTUM_CULLING_TYPE FRUSTUM_CULLING_DISABLED
 
 #define NTSHENGN_VK_CHECK(f) \
 	do { \
@@ -48,6 +54,9 @@ struct InternalMesh {
 	uint32_t indexCount;
 	uint32_t firstIndex;
 	int32_t vertexOffset;
+
+	NtshEngn::Math::vec3 aabbMin = { 0.0f, 0.0f, 0.0f };
+	NtshEngn::Math::vec3 aabbMax = { 0.0f, 0.0f, 0.0f };
 };
 
 struct InternalTexture {
@@ -139,6 +148,15 @@ struct VulkanImage {
 	void destroy(VkDevice device, VmaAllocator allocator) {
 		vkDestroyImageView(device, view, nullptr);
 		vmaDestroyImage(allocator, handle, allocation);
+	}
+};
+
+struct VulkanBuffer {
+	VkBuffer handle;
+	VmaAllocation allocation;
+
+	void destroy(VmaAllocator allocator) {
+		vmaDestroyBuffer(allocator, handle, allocation);
 	}
 };
 

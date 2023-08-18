@@ -8,9 +8,10 @@ void GBuffer::init(VkDevice device,
 	VkViewport viewport,
 	VkRect2D scissor,
 	uint32_t framesInFlight,
-	const std::vector<VkBuffer>& cameraBuffers,
-	const std::vector<VkBuffer>& objectBuffers,
-	const std::vector<VkBuffer>& materialBuffers,
+	const std::vector<VulkanBuffer>& perDrawBuffers,
+	const std::vector<VulkanBuffer>& cameraBuffers,
+	const std::vector<VulkanBuffer>& objectBuffers,
+	const std::vector<VulkanBuffer>& materialBuffers,
 	PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 	PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
 	PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
@@ -25,11 +26,12 @@ void GBuffer::init(VkDevice device,
 	m_vkCmdBeginRenderingKHR = vkCmdBeginRenderingKHR;
 	m_vkCmdEndRenderingKHR = vkCmdEndRenderingKHR;
 	m_vkCmdPipelineBarrier2KHR = vkCmdPipelineBarrier2KHR;
+	m_vkCmdDrawIndexedIndirectCountKHR = (PFN_vkCmdDrawIndexedIndirectCountKHR)vkGetDeviceProcAddr(m_device, "vkCmdDrawIndexedIndirectCountKHR");
 
 	createImages(m_scissor.extent.width, m_scissor.extent.height);
 	createDescriptorSetLayout();
 	createGraphicsPipeline();
-	createDescriptorSets(cameraBuffers, objectBuffers, materialBuffers);
+	createDescriptorSets(perDrawBuffers, cameraBuffers, objectBuffers, materialBuffers);
 }
 
 void GBuffer::destroy() {
@@ -45,10 +47,10 @@ void GBuffer::destroy() {
 
 void GBuffer::draw(VkCommandBuffer commandBuffer,
 	uint32_t currentFrameInFlight,
-	const std::unordered_map<NtshEngn::Entity, InternalObject>& objects,
-	const std::vector<InternalMesh>& meshes,
-	VkBuffer vertexBuffer,
-	VkBuffer indexBuffer) {
+	VulkanBuffer& drawIndirectBuffer,
+	uint32_t drawIndirectCount,
+	VulkanBuffer vertexBuffer,
+	VulkanBuffer indexBuffer) {
 	VkImageMemoryBarrier2 positionFragmentToColorAttachmentImageMemoryBarrier = {};
 	positionFragmentToColorAttachmentImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	positionFragmentToColorAttachmentImageMemoryBarrier.pNext = nullptr;
@@ -259,8 +261,8 @@ void GBuffer::draw(VkCommandBuffer commandBuffer,
 
 	// Bind vertex and index buffers
 	VkDeviceSize vertexBufferOffset = 0;
-	vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &vertexBufferOffset);
-	vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+	vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer.handle, &vertexBufferOffset);
+	vkCmdBindIndexBuffer(commandBuffer, indexBuffer.handle, 0, VK_INDEX_TYPE_UINT32);
 
 	// Bind descriptor set 0
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipelineLayout, 0, 1, &m_descriptorSets[currentFrameInFlight], 0, nullptr);
@@ -270,13 +272,7 @@ void GBuffer::draw(VkCommandBuffer commandBuffer,
 	vkCmdSetViewport(commandBuffer, 0, 1, &m_viewport);
 	vkCmdSetScissor(commandBuffer, 0, 1, &m_scissor);
 
-	for (auto& it : objects) {
-		// Object index as push constant
-		vkCmdPushConstants(commandBuffer, m_graphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &it.second.index);
-
-		// Draw
-		vkCmdDrawIndexed(commandBuffer, meshes[it.second.meshID].indexCount, 1, meshes[it.second.meshID].firstIndex, meshes[it.second.meshID].vertexOffset, 0);
-	}
+	m_vkCmdDrawIndexedIndirectCountKHR(commandBuffer, drawIndirectBuffer.handle, sizeof(uint32_t), drawIndirectBuffer.handle, 0, drawIndirectCount, sizeof(VkDrawIndexedIndirectCommand));
 
 	// End G-Buffer rendering
 	m_vkCmdEndRenderingKHR(commandBuffer);
@@ -386,10 +382,15 @@ void GBuffer::draw(VkCommandBuffer commandBuffer,
 	m_vkCmdPipelineBarrier2KHR(commandBuffer, &afterRenderDependencyInfo);
 }
 
-void GBuffer::createDescriptorSets(const std::vector<VkBuffer>& cameraBuffers,
-	const std::vector<VkBuffer>& objectBuffers,
-	const std::vector<VkBuffer>& materialBuffers) {
+void GBuffer::createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffers,
+	const std::vector<VulkanBuffer>& cameraBuffers,
+	const std::vector<VulkanBuffer>& objectBuffers,
+	const std::vector<VulkanBuffer>& materialBuffers) {
 	// Create descriptor pool
+	VkDescriptorPoolSize perDrawDescriptorPoolSize = {};
+	perDrawDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	perDrawDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
 	VkDescriptorPoolSize cameraDescriptorPoolSize = {};
 	cameraDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	cameraDescriptorPoolSize.descriptorCount = m_framesInFlight;
@@ -406,7 +407,7 @@ void GBuffer::createDescriptorSets(const std::vector<VkBuffer>& cameraBuffers,
 	texturesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	texturesDescriptorPoolSize.descriptorCount = 131072 * m_framesInFlight;
 
-	std::array<VkDescriptorPoolSize, 4> descriptorPoolSizes = { cameraDescriptorPoolSize, objectsDescriptorPoolSize, materialsDescriptorPoolSize, texturesDescriptorPoolSize };
+	std::array<VkDescriptorPoolSize, 5> descriptorPoolSizes = { perDrawDescriptorPoolSize, cameraDescriptorPoolSize, objectsDescriptorPoolSize, materialsDescriptorPoolSize, texturesDescriptorPoolSize };
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.pNext = nullptr;
@@ -432,11 +433,29 @@ void GBuffer::createDescriptorSets(const std::vector<VkBuffer>& cameraBuffers,
 	// Update descriptor sets
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
+		VkDescriptorBufferInfo perDrawDescriptorBufferInfo;
 		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
 		VkDescriptorBufferInfo objectsDescriptorBufferInfo;
 		VkDescriptorBufferInfo materialsDescriptorBufferInfo;
 
-		cameraDescriptorBufferInfo.buffer = cameraBuffers[i];
+		perDrawDescriptorBufferInfo.buffer = perDrawBuffers[i].handle;
+		perDrawDescriptorBufferInfo.offset = 0;
+		perDrawDescriptorBufferInfo.range = 32768;
+
+		VkWriteDescriptorSet perDrawDescriptorWriteDescriptorSet = {};
+		perDrawDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		perDrawDescriptorWriteDescriptorSet.pNext = nullptr;
+		perDrawDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		perDrawDescriptorWriteDescriptorSet.dstBinding = 0;
+		perDrawDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		perDrawDescriptorWriteDescriptorSet.descriptorCount = 1;
+		perDrawDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		perDrawDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		perDrawDescriptorWriteDescriptorSet.pBufferInfo = &perDrawDescriptorBufferInfo;
+		perDrawDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(perDrawDescriptorWriteDescriptorSet);
+
+		cameraDescriptorBufferInfo.buffer = cameraBuffers[i].handle;
 		cameraDescriptorBufferInfo.offset = 0;
 		cameraDescriptorBufferInfo.range = sizeof(NtshEngn::Math::mat4) * 2 + sizeof(NtshEngn::Math::vec4);
 
@@ -444,7 +463,7 @@ void GBuffer::createDescriptorSets(const std::vector<VkBuffer>& cameraBuffers,
 		cameraDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		cameraDescriptorWriteDescriptorSet.pNext = nullptr;
 		cameraDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		cameraDescriptorWriteDescriptorSet.dstBinding = 0;
+		cameraDescriptorWriteDescriptorSet.dstBinding = 1;
 		cameraDescriptorWriteDescriptorSet.dstArrayElement = 0;
 		cameraDescriptorWriteDescriptorSet.descriptorCount = 1;
 		cameraDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -453,7 +472,7 @@ void GBuffer::createDescriptorSets(const std::vector<VkBuffer>& cameraBuffers,
 		cameraDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(cameraDescriptorWriteDescriptorSet);
 
-		objectsDescriptorBufferInfo.buffer = objectBuffers[i];
+		objectsDescriptorBufferInfo.buffer = objectBuffers[i].handle;
 		objectsDescriptorBufferInfo.offset = 0;
 		objectsDescriptorBufferInfo.range = 32768;
 
@@ -461,7 +480,7 @@ void GBuffer::createDescriptorSets(const std::vector<VkBuffer>& cameraBuffers,
 		objectsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		objectsDescriptorWriteDescriptorSet.pNext = nullptr;
 		objectsDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		objectsDescriptorWriteDescriptorSet.dstBinding = 1;
+		objectsDescriptorWriteDescriptorSet.dstBinding = 2;
 		objectsDescriptorWriteDescriptorSet.dstArrayElement = 0;
 		objectsDescriptorWriteDescriptorSet.descriptorCount = 1;
 		objectsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -470,7 +489,7 @@ void GBuffer::createDescriptorSets(const std::vector<VkBuffer>& cameraBuffers,
 		objectsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(objectsDescriptorWriteDescriptorSet);
 
-		materialsDescriptorBufferInfo.buffer = materialBuffers[i];
+		materialsDescriptorBufferInfo.buffer = materialBuffers[i].handle;
 		materialsDescriptorBufferInfo.offset = 0;
 		materialsDescriptorBufferInfo.range = 32768;
 
@@ -478,7 +497,7 @@ void GBuffer::createDescriptorSets(const std::vector<VkBuffer>& cameraBuffers,
 		materialsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		materialsDescriptorWriteDescriptorSet.pNext = nullptr;
 		materialsDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		materialsDescriptorWriteDescriptorSet.dstBinding = 2;
+		materialsDescriptorWriteDescriptorSet.dstBinding = 3;
 		materialsDescriptorWriteDescriptorSet.dstArrayElement = 0;
 		materialsDescriptorWriteDescriptorSet.descriptorCount = 1;
 		materialsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -519,7 +538,7 @@ void GBuffer::updateDescriptorSets(uint32_t frameInFlight,
 	texturesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	texturesDescriptorWriteDescriptorSet.pNext = nullptr;
 	texturesDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[frameInFlight];
-	texturesDescriptorWriteDescriptorSet.dstBinding = 3;
+	texturesDescriptorWriteDescriptorSet.dstBinding = 4;
 	texturesDescriptorWriteDescriptorSet.dstArrayElement = 0;
 	texturesDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(texturesDescriptorImageInfos.size());
 	texturesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -822,42 +841,49 @@ void GBuffer::destroyImages() {
 }
 
 void GBuffer::createDescriptorSetLayout() {
+	VkDescriptorSetLayoutBinding perDrawDescriptorSetLayoutBinding = {};
+	perDrawDescriptorSetLayoutBinding.binding = 0;
+	perDrawDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	perDrawDescriptorSetLayoutBinding.descriptorCount = 1;
+	perDrawDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	perDrawDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
 	VkDescriptorSetLayoutBinding cameraDescriptorSetLayoutBinding = {};
-	cameraDescriptorSetLayoutBinding.binding = 0;
+	cameraDescriptorSetLayoutBinding.binding = 1;
 	cameraDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	cameraDescriptorSetLayoutBinding.descriptorCount = 1;
 	cameraDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	cameraDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding objectsDescriptorSetLayoutBinding = {};
-	objectsDescriptorSetLayoutBinding.binding = 1;
+	objectsDescriptorSetLayoutBinding.binding = 2;
 	objectsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	objectsDescriptorSetLayoutBinding.descriptorCount = 1;
 	objectsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	objectsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding materialsDescriptorSetLayoutBinding = {};
-	materialsDescriptorSetLayoutBinding.binding = 2;
+	materialsDescriptorSetLayoutBinding.binding = 3;
 	materialsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	materialsDescriptorSetLayoutBinding.descriptorCount = 1;
 	materialsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	materialsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding texturesDescriptorSetLayoutBinding = {};
-	texturesDescriptorSetLayoutBinding.binding = 3;
+	texturesDescriptorSetLayoutBinding.binding = 4;
 	texturesDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	texturesDescriptorSetLayoutBinding.descriptorCount = 131072;
 	texturesDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	texturesDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
-	std::array<VkDescriptorBindingFlags, 4> descriptorBindingFlags = { 0, 0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
+	std::array<VkDescriptorBindingFlags, 5> descriptorBindingFlags = { 0, 0, 0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
 	VkDescriptorSetLayoutBindingFlagsCreateInfo descriptorSetLayoutBindingFlagsCreateInfo = {};
 	descriptorSetLayoutBindingFlagsCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
 	descriptorSetLayoutBindingFlagsCreateInfo.pNext = nullptr;
 	descriptorSetLayoutBindingFlagsCreateInfo.bindingCount = static_cast<uint32_t>(descriptorBindingFlags.size());
 	descriptorSetLayoutBindingFlagsCreateInfo.pBindingFlags = descriptorBindingFlags.data();
 
-	std::array<VkDescriptorSetLayoutBinding, 4> descriptorSetLayoutBindings = { cameraDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding, materialsDescriptorSetLayoutBinding, texturesDescriptorSetLayoutBinding };
+	std::array<VkDescriptorSetLayoutBinding, 5> descriptorSetLayoutBindings = { perDrawDescriptorSetLayoutBinding, cameraDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding, materialsDescriptorSetLayoutBinding, texturesDescriptorSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
 	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	descriptorSetLayoutCreateInfo.pNext = &descriptorSetLayoutBindingFlagsCreateInfo;
@@ -881,7 +907,15 @@ void GBuffer::createGraphicsPipeline() {
 	const std::string vertexShaderCode = R"GLSL(
 		#version 460
 
-		layout(set = 0, binding = 0) uniform Camera {
+		struct PerDrawInfo {
+			uint objectID;
+		};
+
+		layout(std430, set = 0, binding = 0) restrict readonly buffer PerDraw {
+			PerDrawInfo info[];
+		} perDraw;
+
+		layout(set = 0, binding = 1) uniform Camera {
 			mat4 view;
 			mat4 projection;
 			vec3 position;
@@ -892,13 +926,9 @@ void GBuffer::createGraphicsPipeline() {
 			uint materialID;
 		};
 
-		layout(std430, set = 0, binding = 1) restrict readonly buffer Objects {
+		layout(std430, set = 0, binding = 2) restrict readonly buffer Objects {
 			ObjectInfo info[];
 		} objects;
-
-		layout(push_constant) uniform ObjectID {
-			uint objectID;
-		} oID;
 
 		layout(location = 0) in vec3 position;
 		layout(location = 1) in vec3 normal;
@@ -912,14 +942,16 @@ void GBuffer::createGraphicsPipeline() {
 		layout(location = 3) out mat3 outTBN;
 
 		void main() {
-			outPosition = vec3(objects.info[oID.objectID].model * vec4(position, 1.0));
+			uint objectID = perDraw.info[gl_DrawID].objectID;
+
+			outPosition = vec3(objects.info[objectID].model * vec4(position, 1.0));
 			outUV = uv;
-			outMaterialID = objects.info[oID.objectID].materialID;
+			outMaterialID = objects.info[objectID].materialID;
 
 			vec3 bitangent = cross(normal, tangent.xyz) * tangent.w;
-			vec3 T = vec3(objects.info[oID.objectID].model * vec4(tangent.xyz, 0.0));
-			vec3 B = vec3(objects.info[oID.objectID].model * vec4(bitangent, 0.0));
-			vec3 N = vec3(objects.info[oID.objectID].model * vec4(normal, 0.0));
+			vec3 T = vec3(objects.info[objectID].model * vec4(tangent.xyz, 0.0));
+			vec3 B = vec3(objects.info[objectID].model * vec4(bitangent, 0.0));
+			vec3 N = vec3(objects.info[objectID].model * vec4(normal, 0.0));
 			outTBN = mat3(T, B, N);
 
 			gl_Position = camera.projection * camera.view * vec4(outPosition, 1.0);
@@ -960,11 +992,11 @@ void GBuffer::createGraphicsPipeline() {
 			float alphaCutoff;
 		};
 
-		layout(set = 0, binding = 2) restrict readonly buffer Materials {
+		layout(set = 0, binding = 3) restrict readonly buffer Materials {
 			MaterialInfo info[];
 		} materials;
 
-		layout(set = 0, binding = 3) uniform sampler2D textures[];
+		layout(set = 0, binding = 4) uniform sampler2D textures[];
 
 		layout(location = 0) in vec3 position;
 		layout(location = 1) in vec2 uv;
@@ -1150,19 +1182,14 @@ void GBuffer::createGraphicsPipeline() {
 	dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
 
-	VkPushConstantRange pushConstantRange = {};
-	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	pushConstantRange.offset = 0;
-	pushConstantRange.size = sizeof(uint32_t);
-
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutCreateInfo.pNext = nullptr;
 	pipelineLayoutCreateInfo.flags = 0;
 	pipelineLayoutCreateInfo.setLayoutCount = 1;
 	pipelineLayoutCreateInfo.pSetLayouts = &m_descriptorSetLayout;
-	pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
-	pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
+	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
+	pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
 	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_graphicsPipelineLayout));
 
 	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};

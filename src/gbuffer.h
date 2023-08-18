@@ -11,28 +11,26 @@ public:
 		VkViewport viewport,
 		VkRect2D scissor,
 		uint32_t framesInFlight,
-		const std::vector<VkBuffer>& cameraBuffers,
-		const std::vector<VkBuffer>& objectBuffers,
-		const std::vector<VkBuffer>& materialBuffers,
+		const std::vector<VulkanBuffer>& perDrawBuffers,
+		const std::vector<VulkanBuffer>& cameraBuffers,
+		const std::vector<VulkanBuffer>& objectBuffers,
+		const std::vector<VulkanBuffer>& materialBuffers,
 		PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 		PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
-		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR
-	);
+		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
 	void destroy();
 
 	void draw(VkCommandBuffer commandBuffer,
 		uint32_t currentFrameInFlight,
-		const std::unordered_map<NtshEngn::Entity, InternalObject>& objects,
-		const std::vector<InternalMesh>& meshes,
-		VkBuffer vertexBuffer,
-		VkBuffer indexBuffer
-	);
+		VulkanBuffer& drawIndirectBuffer,
+		uint32_t drawIndirectCount,
+		VulkanBuffer vertexBuffer,
+		VulkanBuffer indexBuffer);
 	void descriptorSetNeedsUpdate(uint32_t frameInFlight);
 	void updateDescriptorSets(uint32_t frameInFlight,
 		const std::vector<InternalTexture>& textures,
 		const std::vector<VkImageView>& textureImageViews,
-		const std::unordered_map<std::string, VkSampler>& textureSamplers
-	);
+		const std::unordered_map<std::string, VkSampler>& textureSamplers);
 
 	void onResize(uint32_t width, uint32_t height);
 
@@ -50,10 +48,10 @@ private:
 
 	void createGraphicsPipeline();
 
-	void createDescriptorSets(const std::vector<VkBuffer>& cameraBuffers,
-		const std::vector<VkBuffer>& objectBuffers,
-		const std::vector<VkBuffer>& materialBuffers
-	);
+	void createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffers,
+		const std::vector<VulkanBuffer>& cameraBuffers,
+		const std::vector<VulkanBuffer>& objectBuffers,
+		const std::vector<VulkanBuffer>& materialBuffers);
 
 private:
 	VulkanImage m_position;
@@ -84,4 +82,5 @@ private:
 	PFN_vkCmdBeginRenderingKHR m_vkCmdBeginRenderingKHR;
 	PFN_vkCmdEndRenderingKHR m_vkCmdEndRenderingKHR;
 	PFN_vkCmdPipelineBarrier2KHR m_vkCmdPipelineBarrier2KHR;
+	PFN_vkCmdDrawIndexedIndirectCountKHR m_vkCmdDrawIndexedIndirectCountKHR;
 };

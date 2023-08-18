@@ -1,6 +1,7 @@
 #pragma once
 #include "../Common/module_interfaces/ntshengn_graphics_module_interface.h"
 #include "common.h"
+#include "frustum_culling.h"
 #include "gbuffer.h"
 #include <vector>
 #include <limits>
@@ -114,8 +115,8 @@ namespace NtshEngn {
 		VkSurfaceKHR m_surface = VK_NULL_HANDLE;
 
 		VkPhysicalDevice m_physicalDevice;
-		uint32_t m_graphicsQueueFamilyIndex;
-		VkQueue m_graphicsQueue;
+		uint32_t m_graphicsComputeQueueFamilyIndex;
+		VkQueue m_graphicsComputeQueue;
 		VkDevice m_device;
 
 		VkViewport m_viewport;
@@ -130,10 +131,10 @@ namespace NtshEngn {
 
 		VmaAllocator m_allocator;
 
-		VkBuffer m_vertexBuffer;
-		VmaAllocation m_vertexBufferAllocation;
-		VkBuffer m_indexBuffer;
-		VmaAllocation m_indexBufferAllocation;
+		VulkanBuffer m_vertexBuffer;
+		VulkanBuffer m_indexBuffer;
+
+		FrustumCulling m_frustumCulling;
 
 		GBuffer m_gBuffer;
 
@@ -155,8 +156,7 @@ namespace NtshEngn {
 		VkSampler m_uiNearestSampler;
 		VkSampler m_uiLinearSampler;
 
-		std::vector<VkBuffer> m_uiTextBuffers;
-		std::vector<VmaAllocation> m_uiTextBufferAllocations;
+		std::vector<VulkanBuffer> m_uiTextBuffers;
 		VkDescriptorSetLayout m_uiTextDescriptorSetLayout;
 		VkDescriptorPool m_uiTextDescriptorPool;
 		std::vector<VkDescriptorSet> m_uiTextDescriptorSets;
@@ -194,17 +194,13 @@ namespace NtshEngn {
 		uint32_t m_framesInFlight;
 		uint32_t m_currentFrameInFlight;
 
-		std::vector<VkBuffer> m_cameraBuffers;
-		std::vector<VmaAllocation> m_cameraBufferAllocations;
+		std::vector<VulkanBuffer> m_cameraBuffers;
 
-		std::vector<VkBuffer> m_objectBuffers;
-		std::vector<VmaAllocation> m_objectBufferAllocations;
+		std::vector<VulkanBuffer> m_objectBuffers;
 
-		std::vector<VkBuffer> m_materialBuffers;
-		std::vector<VmaAllocation> m_materialBufferAllocations;
+		std::vector<VulkanBuffer> m_materialBuffers;
 
-		std::vector<VkBuffer> m_lightBuffers;
-		std::vector<VmaAllocation> m_lightBufferAllocations;
+		std::vector<VulkanBuffer> m_lightBuffers;
 
 		Mesh m_defaultMesh;
 		Image m_defaultDiffuseTexture;
