@@ -182,7 +182,7 @@ void NtshEngn::GraphicsModule::init() {
 	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyPropertyCount, queueFamilyProperties.data());
 	m_graphicsQueueIndex = 0;
 	for (const VkQueueFamilyProperties& queueFamilyProperty : queueFamilyProperties) {
-		if (queueFamilyProperty.queueCount > 0 && queueFamilyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+		if (queueFamilyProperty.queueCount > 0 && (queueFamilyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
 			VkBool32 presentSupport;
 			vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsQueueIndex, m_perWindowResources[0].surface, &presentSupport);
 			if (presentSupport) {
