@@ -2687,16 +2687,16 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 	const std::string vertexShaderCode = R"GLSL(
 		#version 460
 
+		struct ObjectInfo {
+			mat4 model;
+			uint materialID;
+		};
+
 		layout(set = 0, binding = 0) uniform Camera {
 			mat4 view;
 			mat4 projection;
 			vec3 position;
 		} camera;
-
-		struct ObjectInfo {
-			mat4 model;
-			uint materialID;
-		};
 
 		layout(std430, set = 0, binding = 1) restrict readonly buffer Objects {
 			ObjectInfo info[];
