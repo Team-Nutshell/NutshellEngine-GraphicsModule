@@ -2538,7 +2538,7 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 		// Shadows
 		float directionalLightShadows(uint directionalLightIndex, uint cascadeIndex, vec4 shadowCoord, vec2 offset) {
 			float shadow = 1.0;
-			float bias = 0.0005;
+			float bias = 0.005;
 
 			if ((shadowCoord.z > -1.0) && (shadowCoord.z < 1.0)) {
 				float distance = texture(shadowMaps[directionalLightIndex], vec3(shadowCoord.xy + offset, cascadeIndex)).r;
