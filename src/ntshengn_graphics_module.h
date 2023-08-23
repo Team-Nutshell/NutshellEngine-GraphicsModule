@@ -3,6 +3,7 @@
 #include "common.h"
 #include "frustum_culling.h"
 #include "gbuffer.h"
+#include "shadow_mapping.h"
 #include <vector>
 #include <limits>
 #include <queue>
@@ -71,6 +72,7 @@ namespace NtshEngn {
 		void createCompositingResources();
 		void createCompositingImage();
 		void updateCompositingDescriptorSets();
+		void updateCompositingDescriptorSetsShadow(uint32_t frameInFlight);
 
 		// Tone mapping resources
 		void createToneMappingResources();
@@ -138,11 +140,15 @@ namespace NtshEngn {
 
 		GBuffer m_gBuffer;
 
+		ShadowMapping m_shadowMapping;
+
 		VulkanImage m_compositingImage;
 		VkSampler m_compositingSampler;
+		VkSampler m_compositingShadowSampler;
 		VkDescriptorSetLayout m_compositingDescriptorSetLayout;
 		VkDescriptorPool m_compositingDescriptorPool;
 		std::vector<VkDescriptorSet> m_compositingDescriptorSets;
+		std::vector<bool> m_compositingDescriptorSetsNeedShadowUpdate;
 		VkPipeline m_compositingGraphicsPipeline;
 		VkPipelineLayout m_compositingGraphicsPipelineLayout;
 

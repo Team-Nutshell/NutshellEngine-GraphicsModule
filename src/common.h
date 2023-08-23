@@ -29,6 +29,9 @@
 #define FRUSTUM_CULLING_GPU 3
 #define FRUSTUM_CULLING_TYPE FRUSTUM_CULLING_GPU
 
+#define SHADOW_MAPPING_RESOLUTION 2048
+#define SHADOW_MAPPING_CASCADE_COUNT 3
+
 #define NTSHENGN_VK_CHECK(f) \
 	do { \
 		int64_t check = f; \
@@ -148,6 +151,19 @@ struct VulkanImage {
 
 	void destroy(VkDevice device, VmaAllocator allocator) {
 		vkDestroyImageView(device, view, nullptr);
+		vmaDestroyImage(allocator, handle, allocation);
+	}
+};
+
+struct LayeredVulkanImage {
+	VkImage handle;
+	VmaAllocation allocation;
+	std::vector<VkImageView> views;
+
+	void destroy(VkDevice device, VmaAllocator allocator) {
+		for (size_t i = 0; i < views.size(); i++) {
+			vkDestroyImageView(device, views[i], nullptr);
+		}
 		vmaDestroyImage(allocator, handle, allocation);
 	}
 };

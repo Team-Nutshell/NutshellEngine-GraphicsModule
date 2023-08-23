@@ -1,31 +1,43 @@
 #pragma once
 #include "common.h"
+#include <map>
 
-class GBuffer {
+struct ShadowCascade {
+	NtshEngn::Math::mat4 viewProj;
+	float splitDepth;
+};
+
+struct ShadowMapCascade {
+	LayeredVulkanImage shadowMap;
+	std::array<ShadowCascade, SHADOW_MAPPING_CASCADE_COUNT> cascades;
+};
+
+class ShadowMapping {
 public:
 	void init(VkDevice device,
 		VkQueue graphicsQueue,
 		uint32_t graphicsQueueFamilyIndex,
 		VmaAllocator allocator,
 		VkFence initializationFence,
-		VkViewport viewport,
-		VkRect2D scissor,
 		uint32_t framesInFlight,
-		const std::vector<VulkanBuffer>& perDrawBuffers,
-		const std::vector<VulkanBuffer>& cameraBuffers,
 		const std::vector<VulkanBuffer>& objectBuffers,
 		const std::vector<VulkanBuffer>& materialBuffers,
 		PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 		PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
-		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
+		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR,
+		NtshEngn::ECS* ecs);
 	void destroy();
 
 	void draw(VkCommandBuffer commandBuffer,
 		uint32_t currentFrameInFlight,
-		VulkanBuffer& drawIndirectBuffer,
-		uint32_t drawIndirectCount,
-		VulkanBuffer vertexBuffer,
-		VulkanBuffer indexBuffer);
+		float cameraNearPlane,
+		float cameraFarPlane,
+		const NtshEngn::Math::mat4& cameraView,
+		const NtshEngn::Math::mat4& cameraProjection,
+		const std::unordered_map<NtshEngn::Entity, InternalObject>& objects,
+		const std::vector<InternalMesh>& meshes,
+		VulkanBuffer& vertexBuffer,
+		VulkanBuffer& indexBuffer);
 
 	void descriptorSetNeedsUpdate(uint32_t frameInFlight);
 	void updateDescriptorSets(uint32_t frameInFlight,
@@ -33,34 +45,28 @@ public:
 		const std::vector<VkImageView>& textureImageViews,
 		const std::unordered_map<std::string, VkSampler>& textureSamplers);
 
-	void onResize(uint32_t width, uint32_t height);
+	bool createDirectionalLightShadowMap(NtshEngn::Entity entity);
+	void destroyDirectionalLightShadowMap(NtshEngn::Entity entity);
 
-	VulkanImage& getPosition();
-	VulkanImage& getNormal();
-	VulkanImage& getDiffuse();
-	VulkanImage& getMaterial();
-	VulkanImage& getEmissive();
+	VulkanBuffer& getCascadeSceneBuffer(uint32_t frameInFlight);
+	std::vector<LayeredVulkanImage> getShadowMapImages();
 
 private:
-	void createImages(uint32_t width, uint32_t height);
-	void destroyImages();
+	void createBuffers();
 
 	void createDescriptorSetLayout();
 
 	void createGraphicsPipeline();
 
-	void createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffers,
-		const std::vector<VulkanBuffer>& cameraBuffers,
-		const std::vector<VulkanBuffer>& objectBuffers,
+	void createDescriptorSets(const std::vector<VulkanBuffer>& objectBuffers,
 		const std::vector<VulkanBuffer>& materialBuffers);
 
 private:
-	VulkanImage m_position;
-	VulkanImage m_normal;
-	VulkanImage m_diffuse;
-	VulkanImage m_material;
-	VulkanImage m_emissive;
-	VulkanImage m_depth;
+	std::vector<VulkanBuffer> m_cascadeBuffers;
+	std::vector<VulkanBuffer> m_cascadeSceneBuffers;
+
+	std::vector<NtshEngn::Entity> m_directionalLightEntities;
+	std::vector<ShadowMapCascade> m_directionalLightShadowMapCascades;
 
 	VkDescriptorSetLayout m_descriptorSetLayout;
 
@@ -71,17 +77,19 @@ private:
 	std::vector<VkDescriptorSet> m_descriptorSets;
 	std::vector<bool> m_descriptorSetsNeedUpdate;
 
+	VkViewport m_viewport;
+	VkRect2D m_scissor;
+
 	VkDevice m_device;
 	VkQueue m_graphicsQueue;
 	uint32_t m_graphicsQueueFamilyIndex;
 	VmaAllocator m_allocator;
 	VkFence m_initializationFence;
-	VkViewport m_viewport;
-	VkRect2D m_scissor;
 	uint32_t m_framesInFlight;
 
 	PFN_vkCmdBeginRenderingKHR m_vkCmdBeginRenderingKHR;
 	PFN_vkCmdEndRenderingKHR m_vkCmdEndRenderingKHR;
 	PFN_vkCmdPipelineBarrier2KHR m_vkCmdPipelineBarrier2KHR;
-	PFN_vkCmdDrawIndexedIndirectCountKHR m_vkCmdDrawIndexedIndirectCountKHR;
+
+	NtshEngn::ECS* m_ecs;
 };

@@ -51,6 +51,7 @@ void GBuffer::draw(VkCommandBuffer commandBuffer,
 	uint32_t drawIndirectCount,
 	VulkanBuffer vertexBuffer,
 	VulkanBuffer indexBuffer) {
+	// G-Buffer layout transition
 	VkImageMemoryBarrier2 positionFragmentToColorAttachmentImageMemoryBarrier = {};
 	positionFragmentToColorAttachmentImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	positionFragmentToColorAttachmentImageMemoryBarrier.pNext = nullptr;
@@ -382,138 +383,6 @@ void GBuffer::draw(VkCommandBuffer commandBuffer,
 	m_vkCmdPipelineBarrier2KHR(commandBuffer, &afterRenderDependencyInfo);
 }
 
-void GBuffer::createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffers,
-	const std::vector<VulkanBuffer>& cameraBuffers,
-	const std::vector<VulkanBuffer>& objectBuffers,
-	const std::vector<VulkanBuffer>& materialBuffers) {
-	// Create descriptor pool
-	VkDescriptorPoolSize perDrawDescriptorPoolSize = {};
-	perDrawDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	perDrawDescriptorPoolSize.descriptorCount = m_framesInFlight;
-
-	VkDescriptorPoolSize cameraDescriptorPoolSize = {};
-	cameraDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	cameraDescriptorPoolSize.descriptorCount = m_framesInFlight;
-
-	VkDescriptorPoolSize objectsDescriptorPoolSize = {};
-	objectsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	objectsDescriptorPoolSize.descriptorCount = m_framesInFlight;
-
-	VkDescriptorPoolSize materialsDescriptorPoolSize = {};
-	materialsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	materialsDescriptorPoolSize.descriptorCount = m_framesInFlight;
-
-	VkDescriptorPoolSize texturesDescriptorPoolSize = {};
-	texturesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	texturesDescriptorPoolSize.descriptorCount = 131072 * m_framesInFlight;
-
-	std::array<VkDescriptorPoolSize, 5> descriptorPoolSizes = { perDrawDescriptorPoolSize, cameraDescriptorPoolSize, objectsDescriptorPoolSize, materialsDescriptorPoolSize, texturesDescriptorPoolSize };
-	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
-	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	descriptorPoolCreateInfo.pNext = nullptr;
-	descriptorPoolCreateInfo.flags = 0;
-	descriptorPoolCreateInfo.maxSets = m_framesInFlight;
-	descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(descriptorPoolSizes.size());
-	descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes.data();
-	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool));
-
-	// Allocate descriptor sets
-	m_descriptorSets.resize(m_framesInFlight);
-	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
-		descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		descriptorSetAllocateInfo.pNext = nullptr;
-		descriptorSetAllocateInfo.descriptorPool = m_descriptorPool;
-		descriptorSetAllocateInfo.descriptorSetCount = 1;
-		descriptorSetAllocateInfo.pSetLayouts = &m_descriptorSetLayout;
-		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_descriptorSets[i]));
-	}
-
-	// Update descriptor sets
-	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
-
-		VkDescriptorBufferInfo perDrawDescriptorBufferInfo;
-		perDrawDescriptorBufferInfo.buffer = perDrawBuffers[i].handle;
-		perDrawDescriptorBufferInfo.offset = 0;
-		perDrawDescriptorBufferInfo.range = 32768;
-
-		VkWriteDescriptorSet perDrawDescriptorWriteDescriptorSet = {};
-		perDrawDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		perDrawDescriptorWriteDescriptorSet.pNext = nullptr;
-		perDrawDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		perDrawDescriptorWriteDescriptorSet.dstBinding = 0;
-		perDrawDescriptorWriteDescriptorSet.dstArrayElement = 0;
-		perDrawDescriptorWriteDescriptorSet.descriptorCount = 1;
-		perDrawDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		perDrawDescriptorWriteDescriptorSet.pImageInfo = nullptr;
-		perDrawDescriptorWriteDescriptorSet.pBufferInfo = &perDrawDescriptorBufferInfo;
-		perDrawDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
-		writeDescriptorSets.push_back(perDrawDescriptorWriteDescriptorSet);
-
-		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
-		cameraDescriptorBufferInfo.buffer = cameraBuffers[i].handle;
-		cameraDescriptorBufferInfo.offset = 0;
-		cameraDescriptorBufferInfo.range = sizeof(NtshEngn::Math::mat4) * 2 + sizeof(NtshEngn::Math::vec4);
-
-		VkWriteDescriptorSet cameraDescriptorWriteDescriptorSet = {};
-		cameraDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		cameraDescriptorWriteDescriptorSet.pNext = nullptr;
-		cameraDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		cameraDescriptorWriteDescriptorSet.dstBinding = 1;
-		cameraDescriptorWriteDescriptorSet.dstArrayElement = 0;
-		cameraDescriptorWriteDescriptorSet.descriptorCount = 1;
-		cameraDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		cameraDescriptorWriteDescriptorSet.pImageInfo = nullptr;
-		cameraDescriptorWriteDescriptorSet.pBufferInfo = &cameraDescriptorBufferInfo;
-		cameraDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
-		writeDescriptorSets.push_back(cameraDescriptorWriteDescriptorSet);
-
-		VkDescriptorBufferInfo objectsDescriptorBufferInfo;
-		objectsDescriptorBufferInfo.buffer = objectBuffers[i].handle;
-		objectsDescriptorBufferInfo.offset = 0;
-		objectsDescriptorBufferInfo.range = 32768;
-
-		VkWriteDescriptorSet objectsDescriptorWriteDescriptorSet = {};
-		objectsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		objectsDescriptorWriteDescriptorSet.pNext = nullptr;
-		objectsDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		objectsDescriptorWriteDescriptorSet.dstBinding = 2;
-		objectsDescriptorWriteDescriptorSet.dstArrayElement = 0;
-		objectsDescriptorWriteDescriptorSet.descriptorCount = 1;
-		objectsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		objectsDescriptorWriteDescriptorSet.pImageInfo = nullptr;
-		objectsDescriptorWriteDescriptorSet.pBufferInfo = &objectsDescriptorBufferInfo;
-		objectsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
-		writeDescriptorSets.push_back(objectsDescriptorWriteDescriptorSet);
-
-		VkDescriptorBufferInfo materialsDescriptorBufferInfo;
-		materialsDescriptorBufferInfo.buffer = materialBuffers[i].handle;
-		materialsDescriptorBufferInfo.offset = 0;
-		materialsDescriptorBufferInfo.range = 32768;
-
-		VkWriteDescriptorSet materialsDescriptorWriteDescriptorSet = {};
-		materialsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		materialsDescriptorWriteDescriptorSet.pNext = nullptr;
-		materialsDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		materialsDescriptorWriteDescriptorSet.dstBinding = 3;
-		materialsDescriptorWriteDescriptorSet.dstArrayElement = 0;
-		materialsDescriptorWriteDescriptorSet.descriptorCount = 1;
-		materialsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		materialsDescriptorWriteDescriptorSet.pImageInfo = nullptr;
-		materialsDescriptorWriteDescriptorSet.pBufferInfo = &materialsDescriptorBufferInfo;
-		materialsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
-		writeDescriptorSets.push_back(materialsDescriptorWriteDescriptorSet);
-
-		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
-	}
-
-	m_descriptorSetsNeedUpdate.resize(m_framesInFlight);
-	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		m_descriptorSetsNeedUpdate[i] = false;
-	}
-}
-
 void GBuffer::descriptorSetNeedsUpdate(uint32_t frameInFlight) {
 	m_descriptorSetsNeedUpdate[frameInFlight] = true;
 }
@@ -592,9 +461,7 @@ void GBuffer::createImages(uint32_t width, uint32_t height) {
 	gBufferCreateInfo.flags = 0;
 	gBufferCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 	gBufferCreateInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
-	gBufferCreateInfo.extent.width = imageExtent.width;
-	gBufferCreateInfo.extent.height = imageExtent.height;
-	gBufferCreateInfo.extent.depth = 1;
+	gBufferCreateInfo.extent = imageExtent;
 	gBufferCreateInfo.mipLevels = 1;
 	gBufferCreateInfo.arrayLayers = 1;
 	gBufferCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -1215,4 +1082,136 @@ void GBuffer::createGraphicsPipeline() {
 
 	vkDestroyShaderModule(m_device, vertexShaderModule, nullptr);
 	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
+}
+
+void GBuffer::createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffers,
+	const std::vector<VulkanBuffer>& cameraBuffers,
+	const std::vector<VulkanBuffer>& objectBuffers,
+	const std::vector<VulkanBuffer>& materialBuffers) {
+	// Create descriptor pool
+	VkDescriptorPoolSize perDrawDescriptorPoolSize = {};
+	perDrawDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	perDrawDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	VkDescriptorPoolSize cameraDescriptorPoolSize = {};
+	cameraDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	cameraDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	VkDescriptorPoolSize objectsDescriptorPoolSize = {};
+	objectsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	objectsDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	VkDescriptorPoolSize materialsDescriptorPoolSize = {};
+	materialsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	materialsDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	VkDescriptorPoolSize texturesDescriptorPoolSize = {};
+	texturesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	texturesDescriptorPoolSize.descriptorCount = 131072 * m_framesInFlight;
+
+	std::array<VkDescriptorPoolSize, 5> descriptorPoolSizes = { perDrawDescriptorPoolSize, cameraDescriptorPoolSize, objectsDescriptorPoolSize, materialsDescriptorPoolSize, texturesDescriptorPoolSize };
+	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
+	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	descriptorPoolCreateInfo.pNext = nullptr;
+	descriptorPoolCreateInfo.flags = 0;
+	descriptorPoolCreateInfo.maxSets = m_framesInFlight;
+	descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(descriptorPoolSizes.size());
+	descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes.data();
+	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool));
+
+	// Allocate descriptor sets
+	m_descriptorSets.resize(m_framesInFlight);
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
+		descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		descriptorSetAllocateInfo.pNext = nullptr;
+		descriptorSetAllocateInfo.descriptorPool = m_descriptorPool;
+		descriptorSetAllocateInfo.descriptorSetCount = 1;
+		descriptorSetAllocateInfo.pSetLayouts = &m_descriptorSetLayout;
+		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_descriptorSets[i]));
+	}
+
+	// Update descriptor sets
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
+
+		VkDescriptorBufferInfo perDrawDescriptorBufferInfo;
+		perDrawDescriptorBufferInfo.buffer = perDrawBuffers[i].handle;
+		perDrawDescriptorBufferInfo.offset = 0;
+		perDrawDescriptorBufferInfo.range = 32768;
+
+		VkWriteDescriptorSet perDrawDescriptorWriteDescriptorSet = {};
+		perDrawDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		perDrawDescriptorWriteDescriptorSet.pNext = nullptr;
+		perDrawDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		perDrawDescriptorWriteDescriptorSet.dstBinding = 0;
+		perDrawDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		perDrawDescriptorWriteDescriptorSet.descriptorCount = 1;
+		perDrawDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		perDrawDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		perDrawDescriptorWriteDescriptorSet.pBufferInfo = &perDrawDescriptorBufferInfo;
+		perDrawDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(perDrawDescriptorWriteDescriptorSet);
+
+		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
+		cameraDescriptorBufferInfo.buffer = cameraBuffers[i].handle;
+		cameraDescriptorBufferInfo.offset = 0;
+		cameraDescriptorBufferInfo.range = sizeof(NtshEngn::Math::mat4) * 2 + sizeof(NtshEngn::Math::vec4);
+
+		VkWriteDescriptorSet cameraDescriptorWriteDescriptorSet = {};
+		cameraDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		cameraDescriptorWriteDescriptorSet.pNext = nullptr;
+		cameraDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		cameraDescriptorWriteDescriptorSet.dstBinding = 1;
+		cameraDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		cameraDescriptorWriteDescriptorSet.descriptorCount = 1;
+		cameraDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		cameraDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		cameraDescriptorWriteDescriptorSet.pBufferInfo = &cameraDescriptorBufferInfo;
+		cameraDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(cameraDescriptorWriteDescriptorSet);
+
+		VkDescriptorBufferInfo objectsDescriptorBufferInfo;
+		objectsDescriptorBufferInfo.buffer = objectBuffers[i].handle;
+		objectsDescriptorBufferInfo.offset = 0;
+		objectsDescriptorBufferInfo.range = 32768;
+
+		VkWriteDescriptorSet objectsDescriptorWriteDescriptorSet = {};
+		objectsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		objectsDescriptorWriteDescriptorSet.pNext = nullptr;
+		objectsDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		objectsDescriptorWriteDescriptorSet.dstBinding = 2;
+		objectsDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		objectsDescriptorWriteDescriptorSet.descriptorCount = 1;
+		objectsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		objectsDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		objectsDescriptorWriteDescriptorSet.pBufferInfo = &objectsDescriptorBufferInfo;
+		objectsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(objectsDescriptorWriteDescriptorSet);
+
+		VkDescriptorBufferInfo materialsDescriptorBufferInfo;
+		materialsDescriptorBufferInfo.buffer = materialBuffers[i].handle;
+		materialsDescriptorBufferInfo.offset = 0;
+		materialsDescriptorBufferInfo.range = 32768;
+
+		VkWriteDescriptorSet materialsDescriptorWriteDescriptorSet = {};
+		materialsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		materialsDescriptorWriteDescriptorSet.pNext = nullptr;
+		materialsDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		materialsDescriptorWriteDescriptorSet.dstBinding = 3;
+		materialsDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		materialsDescriptorWriteDescriptorSet.descriptorCount = 1;
+		materialsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		materialsDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		materialsDescriptorWriteDescriptorSet.pBufferInfo = &materialsDescriptorBufferInfo;
+		materialsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(materialsDescriptorWriteDescriptorSet);
+
+		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+	}
+
+	m_descriptorSetsNeedUpdate.resize(m_framesInFlight);
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		m_descriptorSetsNeedUpdate[i] = false;
+	}
 }

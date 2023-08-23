@@ -234,6 +234,7 @@ void NtshEngn::GraphicsModule::init() {
 
 	VkPhysicalDeviceFeatures physicalDeviceFeatures = {};
 	physicalDeviceFeatures.multiDrawIndirect = VK_TRUE;
+	physicalDeviceFeatures.depthClamp = VK_TRUE;
 	physicalDeviceFeatures.samplerAnisotropy = VK_TRUE;
 	
 	// Create the logical device
@@ -450,6 +451,19 @@ void NtshEngn::GraphicsModule::init() {
 		m_vkCmdEndRenderingKHR,
 		m_vkCmdPipelineBarrier2KHR);
 
+	m_shadowMapping.init(m_device,
+		m_graphicsComputeQueue,
+		m_graphicsComputeQueueFamilyIndex,
+		m_allocator,
+		m_initializationFence,
+		m_framesInFlight,
+		m_objectBuffers,
+		m_materialBuffers,
+		m_vkCmdBeginRenderingKHR,
+		m_vkCmdEndRenderingKHR,
+		m_vkCmdPipelineBarrier2KHR,
+		ecs);
+
 	createCompositingResources();
 
 	createToneMappingResources();
@@ -544,11 +558,16 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	void* data;
 
 	// Update camera buffer
+	float cameraNearPlane = 0.0f;
+	float cameraFarPlane = 0.0f;
 	Math::mat4 cameraView;
 	Math::mat4 cameraProjection;
 	if (m_mainCamera != std::numeric_limits<uint32_t>::max()) {
 		const Camera& camera = ecs->getComponent<Camera>(m_mainCamera);
 		const Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
+
+		cameraNearPlane = camera.nearPlane;
+		cameraFarPlane = camera.farPlane;
 
 		cameraView = Math::lookAtRH(cameraTransform.position, cameraTransform.position + cameraTransform.rotation, Math::vec3(0.0f, 1.0f, 0.0));
 		cameraProjection = Math::perspectiveRH(Math::toRad(camera.fov), m_viewport.width / m_viewport.height, camera.nearPlane, camera.farPlane);
@@ -635,6 +654,12 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 	// Update descriptor sets if needed
 	m_gBuffer.updateDescriptorSets(m_currentFrameInFlight, m_textures, m_textureImageViews, m_textureSamplers);
+	m_shadowMapping.updateDescriptorSets(m_currentFrameInFlight, m_textures, m_textureImageViews, m_textureSamplers);
+	if (m_compositingDescriptorSetsNeedShadowUpdate[m_currentFrameInFlight]) {
+		updateCompositingDescriptorSetsShadow(m_currentFrameInFlight);
+
+		m_compositingDescriptorSetsNeedShadowUpdate[m_currentFrameInFlight] = false;
+	}
 	if (m_uiTextDescriptorSetsNeedUpdate[m_currentFrameInFlight]) {
 		updateUITextDescriptorSet(m_currentFrameInFlight);
 
@@ -725,6 +750,21 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		m_vertexBuffer,
 		m_indexBuffer
 	);
+
+	// Draw shadow mapping
+	if (m_mainCamera != std::numeric_limits<uint32_t>::max()) {
+		m_shadowMapping.draw(m_renderingCommandBuffers[m_currentFrameInFlight],
+			m_currentFrameInFlight,
+			cameraNearPlane,
+			cameraFarPlane,
+			cameraView,
+			cameraProjection,
+			m_objects,
+			m_meshes,
+			m_vertexBuffer,
+			m_indexBuffer
+		);
+	}
 
 	// Begin compositing rendering
 	VkRenderingAttachmentInfo compositingAttachmentInfo = {};
@@ -1098,8 +1138,12 @@ void NtshEngn::GraphicsModule::destroy() {
 	vkDestroyPipeline(m_device, m_compositingGraphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(m_device, m_compositingGraphicsPipelineLayout, nullptr);
 	vkDestroyDescriptorSetLayout(m_device, m_compositingDescriptorSetLayout, nullptr);
+	vkDestroySampler(m_device, m_compositingShadowSampler, nullptr);
 	vkDestroySampler(m_device, m_compositingSampler, nullptr);
 	m_compositingImage.destroy(m_device, m_allocator);
+
+	// Destroy shadow mapping
+	m_shadowMapping.destroy();
 
 	// Destroy G-Buffer
 	m_gBuffer.destroy();
@@ -1643,9 +1687,10 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	m_textureImageViews.push_back(textureImageView);
 	m_textureSizes.push_back({ static_cast<float>(image.width), static_cast<float>(image.height) });
 
-	// Mark G-Buffer descriptor sets for update
+	// Mark descriptor sets for update
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		m_gBuffer.descriptorSetNeedsUpdate(i);
+		m_shadowMapping.descriptorSetNeedsUpdate(i);
 	}
 
 	return static_cast<ImageID>(m_textureImages.size() - 1);
@@ -1998,9 +2043,11 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 	else if (componentID == ecs->getComponentId<Light>()) {
 		const Light& light = ecs->getComponent<Light>(entity);
 
+		bool compositingShadowDescriptorSetsNeedUpdate = false;
 		switch (light.type) {
 		case LightType::Directional:
 			m_lights.directionalLights.insert(entity);
+			compositingShadowDescriptorSetsNeedUpdate = m_shadowMapping.createDirectionalLightShadowMap(entity);
 			break;
 			
 		case LightType::Point:
@@ -2013,7 +2060,14 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 
 		default: // Arbitrarily consider it a directional light
 			m_lights.directionalLights.insert(entity);
+			m_shadowMapping.createDirectionalLightShadowMap(entity);
 			break;
+		}
+
+		if (compositingShadowDescriptorSetsNeedUpdate) {
+			for (uint32_t i = 0; i < m_framesInFlight; i++) {
+				m_compositingDescriptorSetsNeedShadowUpdate[i] = true;
+			}
 		}
 	}
 }
@@ -2036,6 +2090,7 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 		switch (light.type) {
 		case LightType::Directional:
 			m_lights.directionalLights.erase(entity);
+			m_shadowMapping.destroyDirectionalLightShadowMap(entity);
 			break;
 
 		case LightType::Point:
@@ -2048,6 +2103,7 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 
 		default: // Arbitrarily consider it a directional light
 			m_lights.directionalLights.erase(entity);
+			m_shadowMapping.destroyDirectionalLightShadowMap(entity);
 			break;
 		}
 	}
@@ -2283,14 +2339,34 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 	gBufferEmissiveDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	gBufferEmissiveDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
-	std::vector<VkDescriptorSetLayoutBinding> gBufferDescriptorSetLayoutBindings = { cameraDescriptorSetLayoutBinding, lightsDescriptorSetLayoutBinding, gBufferPositionDescriptorSetLayoutBinding, gBufferNormalDescriptorSetLayoutBinding, gBufferDiffuseDescriptorSetLayoutBinding, gBufferMaterialDescriptorSetLayoutBinding, gBufferEmissiveDescriptorSetLayoutBinding };
+	VkDescriptorSetLayoutBinding cascadeSceneDescriptorSetLayoutBinding = {};
+	cascadeSceneDescriptorSetLayoutBinding.binding = 7;
+	cascadeSceneDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	cascadeSceneDescriptorSetLayoutBinding.descriptorCount = 1;
+	cascadeSceneDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	cascadeSceneDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
+	VkDescriptorSetLayoutBinding shadowMapsDescriptorSetLayoutBinding = {};
+	shadowMapsDescriptorSetLayoutBinding.binding = 8;
+	shadowMapsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	shadowMapsDescriptorSetLayoutBinding.descriptorCount = 131072;
+	shadowMapsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	shadowMapsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	std::array<VkDescriptorBindingFlags, 9> descriptorBindingFlags = { 0, 0, 0, 0, 0, 0, 0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
+	VkDescriptorSetLayoutBindingFlagsCreateInfo descriptorSetLayoutBindingFlagsCreateInfo = {};
+	descriptorSetLayoutBindingFlagsCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+	descriptorSetLayoutBindingFlagsCreateInfo.pNext = nullptr;
+	descriptorSetLayoutBindingFlagsCreateInfo.bindingCount = static_cast<uint32_t>(descriptorBindingFlags.size());
+	descriptorSetLayoutBindingFlagsCreateInfo.pBindingFlags = descriptorBindingFlags.data();
+
+	std::array<VkDescriptorSetLayoutBinding, 9> compositingDescriptorSetLayoutBindings = { cameraDescriptorSetLayoutBinding, lightsDescriptorSetLayoutBinding, gBufferPositionDescriptorSetLayoutBinding, gBufferNormalDescriptorSetLayoutBinding, gBufferDiffuseDescriptorSetLayoutBinding, gBufferMaterialDescriptorSetLayoutBinding, gBufferEmissiveDescriptorSetLayoutBinding, cascadeSceneDescriptorSetLayoutBinding, shadowMapsDescriptorSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
 	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	descriptorSetLayoutCreateInfo.pNext = nullptr;
+	descriptorSetLayoutCreateInfo.pNext = &descriptorSetLayoutBindingFlagsCreateInfo;
 	descriptorSetLayoutCreateInfo.flags = 0;
-	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(gBufferDescriptorSetLayoutBindings.size());
-	descriptorSetLayoutCreateInfo.pBindings = gBufferDescriptorSetLayoutBindings.data();
+	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(compositingDescriptorSetLayoutBindings.size());
+	descriptorSetLayoutCreateInfo.pBindings = compositingDescriptorSetLayoutBindings.data();
 	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_compositingDescriptorSetLayout));
 
 	// Create graphics pipeline
@@ -2334,11 +2410,21 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 	vertexShaderStageCreateInfo.pName = "main";
 	vertexShaderStageCreateInfo.pSpecializationInfo = nullptr;
 
-	const std::string fragmentShaderCode = R"GLSL(
+	std::string fragmentShaderCode = R"GLSL(
 		#version 460
 		#extension GL_EXT_nonuniform_qualifier : enable
 
+		#define SHADOW_MAPPING_CASCADE_COUNT )GLSL";
+	fragmentShaderCode += std::to_string(SHADOW_MAPPING_CASCADE_COUNT);
+	fragmentShaderCode += R"GLSL(
 		#define M_PI 3.1415926535897932384626433832795
+
+		const mat4 shadowCascadeBias = mat4(
+			0.5, 0.0, 0.0, 0.0,
+			0.0, 0.5, 0.0, 0.0,
+			0.0, 0.0, 1.0, 0.0,
+			0.5, 0.5, 0.0, 1.0
+		);
 
 		// BRDF
 		float distribution(float NdotH, float roughness) {
@@ -2413,6 +2499,15 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 			vec2 cutoffs;
 		};
 
+		struct CascadeInfo {
+			mat4 viewProj;
+			float splitDepth;
+		};
+
+		struct CascadePerLightInfo {
+			CascadeInfo info[SHADOW_MAPPING_CASCADE_COUNT];
+		};
+
 		layout(set = 0, binding = 0) uniform Camera {
 			mat4 view;
 			mat4 projection;
@@ -2430,9 +2525,30 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 		layout(set = 0, binding = 5) uniform sampler2D gBufferMaterialSampler;
 		layout(set = 0, binding = 6) uniform sampler2D gBufferEmissiveSampler;
 
+		layout(set = 0, binding = 7) restrict readonly buffer Cascades {
+			CascadePerLightInfo info[];
+		} cascades;
+
+		layout(set = 0, binding = 8) uniform sampler2DArray shadowMaps[];
+
 		layout(location = 0) in vec2 uv;
 
 		layout(location = 0) out vec4 outColor;
+
+		// Shadows
+		float directionalLightShadows(uint directionalLightIndex, uint cascadeIndex, vec4 shadowCoord, vec2 offset) {
+			float shadow = 1.0;
+			float bias = 0.0005;
+
+			if ((shadowCoord.z > -1.0) && (shadowCoord.z < 1.0)) {
+				float distance = texture(shadowMaps[directionalLightIndex], vec3(shadowCoord.xy + offset, cascadeIndex)).r;
+				if ((shadowCoord.w > 0.0) && (distance < shadowCoord.z - bias)) {
+					shadow = 0.0;
+				}
+			}
+
+			return shadow;
+		}
 
 		void main() {
 			vec4 diffuseSample = texture(gBufferDiffuseSampler, uv);
@@ -2445,6 +2561,7 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 			vec3 emissiveSample = texture(gBufferEmissiveSampler, uv).rgb;
 
 			vec3 position = positionSample;
+			vec3 viewPosition = vec3(camera.view * vec4(position, 1.0));
 			vec3 n = normalSample;
 			vec3 d = vec3(diffuseSample);
 			vec3 v = normalize(camera.position - position);
@@ -2454,8 +2571,17 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 			uint lightIndex = 0;
 			// Directional Lights
 			for (uint i = 0; i < lights.count.x; i++) {
+				uint cascadeIndex = 0;
+				for (uint j = 0; j < SHADOW_MAPPING_CASCADE_COUNT - 1; j++) {
+					if (viewPosition.z < cascades.info[i].info[j].splitDepth) {
+						cascadeIndex = j + 1;
+					}
+				}
+
+				vec4 shadowCoord = (shadowCascadeBias * cascades.info[i].info[cascadeIndex].viewProj) * vec4(position, 1.0);
+
 				vec3 l = normalize(-lights.info[lightIndex].direction);
-				color += shade(n, v, l, lights.info[lightIndex].color, d, metalnessSample, roughnessSample);
+				color += shade(n, v, l, lights.info[lightIndex].color, d, metalnessSample, roughnessSample) * directionalLightShadows(i, cascadeIndex, shadowCoord / shadowCoord.w, vec2(0.0));
 
 				lightIndex++;
 			}
@@ -2582,10 +2708,7 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 	colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
 	colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 	colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
-	colorBlendAttachmentState.colorWriteMask = { VK_COLOR_COMPONENT_R_BIT |
-		VK_COLOR_COMPONENT_G_BIT |
-		VK_COLOR_COMPONENT_B_BIT |
-		VK_COLOR_COMPONENT_A_BIT };
+	colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
 	VkPipelineColorBlendStateCreateInfo colorBlendStateCreateInfo = {};
 	colorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
@@ -2660,6 +2783,12 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
 	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_compositingSampler));
 
+	samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+	samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+	samplerCreateInfo.anisotropyEnable = VK_TRUE;
+	samplerCreateInfo.maxAnisotropy = 1.0f;
+	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_compositingShadowSampler));
+
 	// Create descriptor pool
 	VkDescriptorPoolSize cameraDescriptorPoolSize = {};
 	cameraDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -2673,7 +2802,15 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 	gBufferImagesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	gBufferImagesDescriptorPoolSize.descriptorCount = 5;
 
-	std::vector<VkDescriptorPoolSize> descriptorPoolSizes = { cameraDescriptorPoolSize, lightsDescriptorPoolSize, gBufferImagesDescriptorPoolSize };
+	VkDescriptorPoolSize cascadeSceneDescriptorPoolSize = {};
+	cascadeSceneDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	cascadeSceneDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	VkDescriptorPoolSize shadowMapsDescriptorPoolSize = {};
+	shadowMapsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	shadowMapsDescriptorPoolSize.descriptorCount = 131072 * m_framesInFlight;
+
+	std::array<VkDescriptorPoolSize, 5> descriptorPoolSizes = { cameraDescriptorPoolSize, lightsDescriptorPoolSize, gBufferImagesDescriptorPoolSize, cascadeSceneDescriptorPoolSize, shadowMapsDescriptorPoolSize };
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.pNext = nullptr;
@@ -2730,12 +2867,34 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 		lightsDescriptorWriteDescriptorSet.pBufferInfo = &lightsDescriptorBufferInfo;
 		lightsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
-		std::vector<VkWriteDescriptorSet> writeDescriptorSets = { cameraDescriptorWriteDescriptorSet, lightsDescriptorWriteDescriptorSet };
+		VkDescriptorBufferInfo cascadeSceneDescriptorBufferInfo;
+		cascadeSceneDescriptorBufferInfo.buffer = m_shadowMapping.getCascadeSceneBuffer(i).handle;
+		cascadeSceneDescriptorBufferInfo.offset = 0;
+		cascadeSceneDescriptorBufferInfo.range = 65536;
+
+		VkWriteDescriptorSet cascadeSceneDescriptorWriteDescriptorSet = {};
+		cascadeSceneDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		cascadeSceneDescriptorWriteDescriptorSet.pNext = nullptr;
+		cascadeSceneDescriptorWriteDescriptorSet.dstSet = m_compositingDescriptorSets[i];
+		cascadeSceneDescriptorWriteDescriptorSet.dstBinding = 7;
+		cascadeSceneDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		cascadeSceneDescriptorWriteDescriptorSet.descriptorCount = 1;
+		cascadeSceneDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		cascadeSceneDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		cascadeSceneDescriptorWriteDescriptorSet.pBufferInfo = &cascadeSceneDescriptorBufferInfo;
+		cascadeSceneDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+
+		std::array<VkWriteDescriptorSet, 3> writeDescriptorSets = { cameraDescriptorWriteDescriptorSet, lightsDescriptorWriteDescriptorSet, cascadeSceneDescriptorWriteDescriptorSet };
 
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 	}
 
 	updateCompositingDescriptorSets();
+
+	m_compositingDescriptorSetsNeedShadowUpdate.resize(m_framesInFlight);
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		m_compositingDescriptorSetsNeedShadowUpdate[i] = false;
+	}
 }
 
 void NtshEngn::GraphicsModule::createCompositingImage() {
@@ -2961,6 +3120,31 @@ void NtshEngn::GraphicsModule::updateCompositingDescriptorSets() {
 
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 	}
+}
+
+void NtshEngn::GraphicsModule::updateCompositingDescriptorSetsShadow(uint32_t frameInFlight) {
+	const std::vector<LayeredVulkanImage> shadowMaps = m_shadowMapping.getShadowMapImages();
+
+	std::vector<VkDescriptorImageInfo> directionalLightShadowCascadeImageDescriptorImageInfos(shadowMaps.size());
+	for (uint32_t i = 0; i < shadowMaps.size(); i++) {
+		directionalLightShadowCascadeImageDescriptorImageInfos[i].sampler = m_compositingShadowSampler;
+		directionalLightShadowCascadeImageDescriptorImageInfos[i].imageView = shadowMaps[i].views[shadowMaps[i].views.size() - 1];
+		directionalLightShadowCascadeImageDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	}
+
+	VkWriteDescriptorSet directionalLightShadowCascadeImageDescriptorWriteDescriptorSet = {};
+	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.pNext = nullptr;
+	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.dstSet = m_compositingDescriptorSets[frameInFlight];
+	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.dstBinding = 8;
+	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.dstArrayElement = 0;
+	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(directionalLightShadowCascadeImageDescriptorImageInfos.size());
+	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.pImageInfo = directionalLightShadowCascadeImageDescriptorImageInfos.data();
+	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
+	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+
+	vkUpdateDescriptorSets(m_device, 1, &directionalLightShadowCascadeImageDescriptorWriteDescriptorSet, 0, nullptr);
 }
 
 void NtshEngn::GraphicsModule::createToneMappingResources() {
