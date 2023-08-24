@@ -569,7 +569,7 @@ void FrustumCulling::createComputePipeline() {
 
 		void main() {
 			uint objectIndex = gl_GlobalInvocationID.x;
-			if (objectIndex > inDrawIndirect.drawCount) {
+			if (objectIndex >= inDrawIndirect.drawCount) {
 				return;
 			}
 
