@@ -1,4 +1,4 @@
-# NutshellEngine-GraphicsModule - Vulkan Renderer
-![Vulkan Renderer](https://i.imgur.com/rP4riaN.png)
+# NutshellEngine-GraphicsModule - Neige
+![Neige](https://i.imgur.com/r4FkR9m.png)
 
-NutshellEngine Graphics Module drawing models (meshes and textures) using Vulkan.
+NutshellEngine Graphics Module implementing rendering technics, to be used in a game or application.
