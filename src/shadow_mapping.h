@@ -7,9 +7,14 @@ struct ShadowCascade {
 	float splitDepth;
 };
 
-struct ShadowMapCascade {
+struct DirectionalLightShadowMap {
 	LayeredVulkanImage shadowMap;
 	std::array<ShadowCascade, SHADOW_MAPPING_CASCADE_COUNT> cascades;
+};
+
+struct SpotLightShadowMap {
+	LayeredVulkanImage shadowMap;
+	NtshEngn::Math::mat4 viewProj;
 };
 
 class ShadowMapping {
@@ -45,8 +50,11 @@ public:
 		const std::vector<VkImageView>& textureImageViews,
 		const std::unordered_map<std::string, VkSampler>& textureSamplers);
 
-	bool createDirectionalLightShadowMap(NtshEngn::Entity entity);
+	void createDirectionalLightShadowMap(NtshEngn::Entity entity);
 	void destroyDirectionalLightShadowMap(NtshEngn::Entity entity);
+
+	void createSpotLightShadowMap(NtshEngn::Entity entity);
+	void destroySpotLightShadowMap(NtshEngn::Entity entity);
 
 	VulkanBuffer& getCascadeSceneBuffer(uint32_t frameInFlight);
 	std::vector<LayeredVulkanImage> getShadowMapImages();
@@ -56,22 +64,28 @@ private:
 
 	void createDescriptorSetLayout();
 
-	void createGraphicsPipeline();
+	void createGraphicsPipelines();
+	void createDirectionalLightShadowGraphicsPipeline();
+	void createSpotLightShadowMapGraphicsPipeline();
 
 	void createDescriptorSets(const std::vector<VulkanBuffer>& objectBuffers,
 		const std::vector<VulkanBuffer>& materialBuffers);
 
 private:
-	std::vector<VulkanBuffer> m_cascadeBuffers;
+	std::vector<VulkanBuffer> m_shadowBuffers;
 	std::vector<VulkanBuffer> m_cascadeSceneBuffers;
 
 	std::vector<NtshEngn::Entity> m_directionalLightEntities;
-	std::vector<ShadowMapCascade> m_directionalLightShadowMapCascades;
+	std::vector<DirectionalLightShadowMap> m_directionalLightShadowMaps;
+	std::vector<NtshEngn::Entity> m_spotLightEntities;
+	std::vector<SpotLightShadowMap> m_spotLightShadowMaps;
 
 	VkDescriptorSetLayout m_descriptorSetLayout;
 
-	VkPipeline m_graphicsPipeline;
-	VkPipelineLayout m_graphicsPipelineLayout;
+	VkPipeline m_directionalLightShadowGraphicsPipeline;
+	VkPipelineLayout m_directionalLightShadowGraphicsPipelineLayout;
+	VkPipeline m_spotLightShadowGraphicsPipeline;
+	VkPipelineLayout m_spotLightShadowGraphicsPipelineLayout;
 
 	VkDescriptorPool m_descriptorPool;
 	std::vector<VkDescriptorSet> m_descriptorSets;

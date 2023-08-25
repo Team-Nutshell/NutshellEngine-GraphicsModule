@@ -2047,7 +2047,8 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		switch (light.type) {
 		case LightType::Directional:
 			m_lights.directionalLights.insert(entity);
-			compositingShadowDescriptorSetsNeedUpdate = m_shadowMapping.createDirectionalLightShadowMap(entity);
+			m_shadowMapping.createDirectionalLightShadowMap(entity);
+			compositingShadowDescriptorSetsNeedUpdate = true;
 			break;
 			
 		case LightType::Point:
@@ -2056,11 +2057,14 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 
 		case LightType::Spot:
 			m_lights.spotLights.insert(entity);
+			m_shadowMapping.createSpotLightShadowMap(entity);
+			compositingShadowDescriptorSetsNeedUpdate = true;
 			break;
 
 		default: // Arbitrarily consider it a directional light
 			m_lights.directionalLights.insert(entity);
 			m_shadowMapping.createDirectionalLightShadowMap(entity);
+			compositingShadowDescriptorSetsNeedUpdate = true;
 			break;
 		}
 
@@ -2087,10 +2091,12 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 	else if (componentID == ecs->getComponentId<Light>()) {
 		const Light& light = ecs->getComponent<Light>(entity);
 
+		bool compositingShadowDescriptorSetsNeedUpdate = false;
 		switch (light.type) {
 		case LightType::Directional:
 			m_lights.directionalLights.erase(entity);
 			m_shadowMapping.destroyDirectionalLightShadowMap(entity);
+			compositingShadowDescriptorSetsNeedUpdate = true;
 			break;
 
 		case LightType::Point:
@@ -2099,12 +2105,21 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 
 		case LightType::Spot:
 			m_lights.spotLights.erase(entity);
+			m_shadowMapping.destroySpotLightShadowMap(entity);
+			compositingShadowDescriptorSetsNeedUpdate = true;
 			break;
 
 		default: // Arbitrarily consider it a directional light
 			m_lights.directionalLights.erase(entity);
 			m_shadowMapping.destroyDirectionalLightShadowMap(entity);
+			compositingShadowDescriptorSetsNeedUpdate = true;
 			break;
+		}
+
+		if (compositingShadowDescriptorSetsNeedUpdate) {
+			for (uint32_t i = 0; i < m_framesInFlight; i++) {
+				m_compositingDescriptorSetsNeedShadowUpdate[i] = true;
+			}
 		}
 	}
 }
@@ -2419,7 +2434,7 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 	fragmentShaderCode += R"GLSL(
 		#define M_PI 3.1415926535897932384626433832795
 
-		const mat4 shadowCascadeBias = mat4(
+		const mat4 shadowOffset = mat4(
 			0.5, 0.0, 0.0, 0.0,
 			0.0, 0.5, 0.0, 0.0,
 			0.0, 0.0, 1.0, 0.0,
@@ -2499,13 +2514,9 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 			vec2 cutoffs;
 		};
 
-		struct CascadeInfo {
+		struct ShadowInfo {
 			mat4 viewProj;
 			float splitDepth;
-		};
-
-		struct CascadePerLightInfo {
-			CascadeInfo info[SHADOW_MAPPING_CASCADE_COUNT];
 		};
 
 		layout(set = 0, binding = 0) uniform Camera {
@@ -2525,9 +2536,9 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 		layout(set = 0, binding = 5) uniform sampler2D gBufferMaterialSampler;
 		layout(set = 0, binding = 6) uniform sampler2D gBufferEmissiveSampler;
 
-		layout(set = 0, binding = 7) restrict readonly buffer Cascades {
-			CascadePerLightInfo info[];
-		} cascades;
+		layout(set = 0, binding = 7) restrict readonly buffer Shadows {
+			ShadowInfo info[];
+		} shadows;
 
 		layout(set = 0, binding = 8) uniform sampler2DArray shadowMaps[];
 
@@ -2536,13 +2547,12 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 		layout(location = 0) out vec4 outColor;
 
 		// Shadows
-		float directionalLightShadows(uint directionalLightIndex, uint cascadeIndex, vec4 shadowCoord, vec2 offset) {
+		float shadowValue(uint lightIndex, uint cascadeIndex, vec4 shadowCoord, float bias) {
 			float shadow = 1.0;
-			float bias = 0.005;
 
 			if ((shadowCoord.z > -1.0) && (shadowCoord.z < 1.0)) {
-				float distance = texture(shadowMaps[directionalLightIndex], vec3(shadowCoord.xy + offset, cascadeIndex)).r;
-				if ((shadowCoord.w > 0.0) && (distance < shadowCoord.z - bias)) {
+				float distance = texture(shadowMaps[lightIndex], vec3(shadowCoord.xy, cascadeIndex)).r;
+				if (distance < (shadowCoord.z - bias)) {
 					shadow = 0.0;
 				}
 			}
@@ -2571,17 +2581,18 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 			uint lightIndex = 0;
 			// Directional Lights
 			for (uint i = 0; i < lights.count.x; i++) {
+				vec3 l = normalize(-lights.info[lightIndex].direction);
+
 				uint cascadeIndex = 0;
 				for (uint j = 0; j < SHADOW_MAPPING_CASCADE_COUNT - 1; j++) {
-					if (viewPosition.z < cascades.info[i].info[j].splitDepth) {
+					if (viewPosition.z < shadows.info[i * SHADOW_MAPPING_CASCADE_COUNT + j].splitDepth) {
 						cascadeIndex = j + 1;
 					}
 				}
 
-				vec4 shadowCoord = (shadowCascadeBias * cascades.info[i].info[cascadeIndex].viewProj) * vec4(position, 1.0);
+				vec4 shadowCoord = (shadowOffset * shadows.info[i * SHADOW_MAPPING_CASCADE_COUNT + cascadeIndex].viewProj) * vec4(position, 1.0);
 
-				vec3 l = normalize(-lights.info[lightIndex].direction);
-				color += shade(n, v, l, lights.info[lightIndex].color, d, metalnessSample, roughnessSample) * directionalLightShadows(i, cascadeIndex, shadowCoord / shadowCoord.w, vec2(0.0));
+				color += shade(n, v, l, lights.info[lightIndex].color, d, metalnessSample, roughnessSample) * shadowValue(i, cascadeIndex, shadowCoord / shadowCoord.w, 0.005);
 
 				lightIndex++;
 			}
@@ -2602,7 +2613,10 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 				float epsilon = cos(lights.info[lightIndex].cutoffs.y) - cos(lights.info[lightIndex].cutoffs.x);
 				float intensity = clamp((theta - cos(lights.info[lightIndex].cutoffs.x)) / epsilon, 0.0, 1.0);
 				intensity = 1.0 - intensity;
-				color += shade(n, v, l, lights.info[lightIndex].color * intensity, d * intensity, metalnessSample, roughnessSample);
+
+				vec4 shadowCoord = (shadowOffset * shadows.info[lights.count.x * SHADOW_MAPPING_CASCADE_COUNT + i].viewProj) * vec4(position, 1.0);
+
+				color += shade(n, v, l, lights.info[lightIndex].color * intensity, d * intensity, metalnessSample, roughnessSample) * shadowValue(lights.count.x + i, 0, shadowCoord / shadowCoord.w, 0.00005);
 
 				lightIndex++;
 			}
@@ -2785,8 +2799,6 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 
 	samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
 	samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-	samplerCreateInfo.anisotropyEnable = VK_TRUE;
-	samplerCreateInfo.maxAnisotropy = 1.0f;
 	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_compositingShadowSampler));
 
 	// Create descriptor pool
@@ -3125,26 +3137,26 @@ void NtshEngn::GraphicsModule::updateCompositingDescriptorSets() {
 void NtshEngn::GraphicsModule::updateCompositingDescriptorSetsShadow(uint32_t frameInFlight) {
 	const std::vector<LayeredVulkanImage> shadowMaps = m_shadowMapping.getShadowMapImages();
 
-	std::vector<VkDescriptorImageInfo> directionalLightShadowCascadeImageDescriptorImageInfos(shadowMaps.size());
+	std::vector<VkDescriptorImageInfo> shadowMapImageDescriptorImageInfos(shadowMaps.size());
 	for (uint32_t i = 0; i < shadowMaps.size(); i++) {
-		directionalLightShadowCascadeImageDescriptorImageInfos[i].sampler = m_compositingShadowSampler;
-		directionalLightShadowCascadeImageDescriptorImageInfos[i].imageView = shadowMaps[i].views[shadowMaps[i].views.size() - 1];
-		directionalLightShadowCascadeImageDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		shadowMapImageDescriptorImageInfos[i].sampler = m_compositingShadowSampler;
+		shadowMapImageDescriptorImageInfos[i].imageView = shadowMaps[i].views[shadowMaps[i].views.size() - 1];
+		shadowMapImageDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
 
-	VkWriteDescriptorSet directionalLightShadowCascadeImageDescriptorWriteDescriptorSet = {};
-	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.pNext = nullptr;
-	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.dstSet = m_compositingDescriptorSets[frameInFlight];
-	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.dstBinding = 8;
-	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.dstArrayElement = 0;
-	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(directionalLightShadowCascadeImageDescriptorImageInfos.size());
-	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.pImageInfo = directionalLightShadowCascadeImageDescriptorImageInfos.data();
-	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
-	directionalLightShadowCascadeImageDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+	VkWriteDescriptorSet shadowMapImageDescriptorWriteDescriptorSet = {};
+	shadowMapImageDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	shadowMapImageDescriptorWriteDescriptorSet.pNext = nullptr;
+	shadowMapImageDescriptorWriteDescriptorSet.dstSet = m_compositingDescriptorSets[frameInFlight];
+	shadowMapImageDescriptorWriteDescriptorSet.dstBinding = 8;
+	shadowMapImageDescriptorWriteDescriptorSet.dstArrayElement = 0;
+	shadowMapImageDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(shadowMapImageDescriptorImageInfos.size());
+	shadowMapImageDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	shadowMapImageDescriptorWriteDescriptorSet.pImageInfo = shadowMapImageDescriptorImageInfos.data();
+	shadowMapImageDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
+	shadowMapImageDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
-	vkUpdateDescriptorSets(m_device, 1, &directionalLightShadowCascadeImageDescriptorWriteDescriptorSet, 0, nullptr);
+	vkUpdateDescriptorSets(m_device, 1, &shadowMapImageDescriptorWriteDescriptorSet, 0, nullptr);
 }
 
 void NtshEngn::GraphicsModule::createToneMappingResources() {
