@@ -65,11 +65,13 @@ list(APPEND NTSHENGN_DEFINES NTSHENGN_CURRENT_MODULE_GRAPHICS)
 set(MODULE_SOURCES
 	src/ntshengn_graphics_module.cpp
 	src/frustum_culling.cpp
+	src/fxaa.cpp
 	src/gbuffer.cpp
 	src/shadow_mapping.cpp)	
 set(MODULE_HEADERS
 	src/ntshengn_graphics_module.h
 	src/frustum_culling.h
+	src/fxaa.h
 	src/gbuffer.h
 	src/shadow_mapping.h
 	src/common.h)

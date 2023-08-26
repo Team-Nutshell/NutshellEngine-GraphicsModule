@@ -468,6 +468,16 @@ void NtshEngn::GraphicsModule::init() {
 
 	createToneMappingResources();
 
+	m_fxaa.init(m_device,
+		m_graphicsComputeQueueFamilyIndex,
+		m_toneMappingImage.view,
+		m_swapchainFormat,
+		m_viewport,
+		m_scissor,
+		m_vkCmdBeginRenderingKHR,
+		m_vkCmdEndRenderingKHR,
+		m_vkCmdPipelineBarrier2KHR);
+
 	createUIResources();
 
 	createDefaultResources();
@@ -718,7 +728,25 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	compositingFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	compositingFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	std::vector<VkImageMemoryBarrier2> startFrameImageMemoryBarriers = { swapchainOrDrawImageMemoryBarrier, compositingFragmentToColorAttachmentImageMemoryBarrier };
+	VkImageMemoryBarrier2 toneMappingFragmentToColorAttachmentImageMemoryBarrier = {};
+	toneMappingFragmentToColorAttachmentImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	toneMappingFragmentToColorAttachmentImageMemoryBarrier.pNext = nullptr;
+	toneMappingFragmentToColorAttachmentImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	toneMappingFragmentToColorAttachmentImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+	toneMappingFragmentToColorAttachmentImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	toneMappingFragmentToColorAttachmentImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	toneMappingFragmentToColorAttachmentImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	toneMappingFragmentToColorAttachmentImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	toneMappingFragmentToColorAttachmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	toneMappingFragmentToColorAttachmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	toneMappingFragmentToColorAttachmentImageMemoryBarrier.image = m_toneMappingImage.handle;
+	toneMappingFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	toneMappingFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	toneMappingFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.levelCount = 1;
+	toneMappingFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	toneMappingFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	std::array<VkImageMemoryBarrier2, 3> startFrameImageMemoryBarriers = { swapchainOrDrawImageMemoryBarrier, compositingFragmentToColorAttachmentImageMemoryBarrier, toneMappingFragmentToColorAttachmentImageMemoryBarrier };
 	VkDependencyInfo startFrameDependencyInfo = {};
 	startFrameDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	startFrameDependencyInfo.pNext = nullptr;
@@ -766,7 +794,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		);
 	}
 
-	// Begin compositing rendering
+	// Compositing
 	VkRenderingAttachmentInfo compositingAttachmentInfo = {};
 	compositingAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	compositingAttachmentInfo.pNext = nullptr;
@@ -805,7 +833,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	// End compositing rendering
 	m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight]);
 
-	// Layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+	// Compositing layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 	VkImageMemoryBarrier2 compositingColorAttachmentToFragmentImageMemoryBarrier = {};
 	compositingColorAttachmentToFragmentImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	compositingColorAttachmentToFragmentImageMemoryBarrier.pNext = nullptr;
@@ -835,19 +863,19 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	compositingDependencyInfo.imageMemoryBarrierCount = 1;
 	compositingDependencyInfo.pImageMemoryBarriers = &compositingColorAttachmentToFragmentImageMemoryBarrier;
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &compositingDependencyInfo);
-
-	// Tonemapping
-	VkRenderingAttachmentInfo renderingSwapchainAttachmentInfo = {};
-	renderingSwapchainAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	renderingSwapchainAttachmentInfo.pNext = nullptr;
-	renderingSwapchainAttachmentInfo.imageView = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImage.view;
-	renderingSwapchainAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	renderingSwapchainAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
-	renderingSwapchainAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
-	renderingSwapchainAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	renderingSwapchainAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	renderingSwapchainAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	renderingSwapchainAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
+	
+	// Tone mapping
+	VkRenderingAttachmentInfo toneMappingAttachmentInfo = {};
+	toneMappingAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	toneMappingAttachmentInfo.pNext = nullptr;
+	toneMappingAttachmentInfo.imageView = m_toneMappingImage.view;
+	toneMappingAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	toneMappingAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+	toneMappingAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
+	toneMappingAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	toneMappingAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	toneMappingAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	toneMappingAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 	VkRenderingInfo toneMappingRenderingInfo = {};
 	toneMappingRenderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -857,7 +885,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	toneMappingRenderingInfo.layerCount = 1;
 	toneMappingRenderingInfo.viewMask = 0;
 	toneMappingRenderingInfo.colorAttachmentCount = 1;
-	toneMappingRenderingInfo.pColorAttachments = &renderingSwapchainAttachmentInfo;
+	toneMappingRenderingInfo.pColorAttachments = &toneMappingAttachmentInfo;
 	toneMappingRenderingInfo.pDepthAttachment = nullptr;
 	toneMappingRenderingInfo.pStencilAttachment = nullptr;
 	m_vkCmdBeginRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight], &toneMappingRenderingInfo);
@@ -871,40 +899,53 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 	m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight]);
 
+	// Tone mapping layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+	VkImageMemoryBarrier2 toneMappingColorAttachmentToFragmentImageMemoryBarrier = {};
+	toneMappingColorAttachmentToFragmentImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	toneMappingColorAttachmentToFragmentImageMemoryBarrier.pNext = nullptr;
+	toneMappingColorAttachmentToFragmentImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	toneMappingColorAttachmentToFragmentImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	toneMappingColorAttachmentToFragmentImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	toneMappingColorAttachmentToFragmentImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+	toneMappingColorAttachmentToFragmentImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	toneMappingColorAttachmentToFragmentImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	toneMappingColorAttachmentToFragmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	toneMappingColorAttachmentToFragmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	toneMappingColorAttachmentToFragmentImageMemoryBarrier.image = m_toneMappingImage.handle;
+	toneMappingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	toneMappingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	toneMappingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.levelCount = 1;
+	toneMappingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	toneMappingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	VkDependencyInfo toneMappingDependencyInfo = {};
+	toneMappingDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	toneMappingDependencyInfo.pNext = nullptr;
+	toneMappingDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	toneMappingDependencyInfo.memoryBarrierCount = 0;
+	toneMappingDependencyInfo.pMemoryBarriers = nullptr;
+	toneMappingDependencyInfo.bufferMemoryBarrierCount = 0;
+	toneMappingDependencyInfo.pBufferMemoryBarriers = nullptr;
+	toneMappingDependencyInfo.imageMemoryBarrierCount = 1;
+	toneMappingDependencyInfo.pImageMemoryBarriers = &toneMappingColorAttachmentToFragmentImageMemoryBarrier;
+	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &toneMappingDependencyInfo);
+
+	// FXAA
+	m_fxaa.draw(m_renderingCommandBuffers[m_currentFrameInFlight], (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage.handle, (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImage.view);
+
+	// UI
 	if (!m_uiElements.empty()) {
-		// Image memory barrier between tonemapping and UI
-		VkImageMemoryBarrier2 tonemappingUIImageMemoryBarrier = {};
-		tonemappingUIImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-		tonemappingUIImageMemoryBarrier.pNext = nullptr;
-		tonemappingUIImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-		tonemappingUIImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-		tonemappingUIImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-		tonemappingUIImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-		tonemappingUIImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		tonemappingUIImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		tonemappingUIImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
-		tonemappingUIImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
-		tonemappingUIImageMemoryBarrier.image = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage.handle;
-		tonemappingUIImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		tonemappingUIImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
-		tonemappingUIImageMemoryBarrier.subresourceRange.levelCount = 1;
-		tonemappingUIImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-		tonemappingUIImageMemoryBarrier.subresourceRange.layerCount = 1;
-
-		VkDependencyInfo tonemappingUIDependencyInfo = {};
-		tonemappingUIDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-		tonemappingUIDependencyInfo.pNext = nullptr;
-		tonemappingUIDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-		tonemappingUIDependencyInfo.memoryBarrierCount = 0;
-		tonemappingUIDependencyInfo.pMemoryBarriers = nullptr;
-		tonemappingUIDependencyInfo.bufferMemoryBarrierCount = 0;
-		tonemappingUIDependencyInfo.pBufferMemoryBarriers = nullptr;
-		tonemappingUIDependencyInfo.imageMemoryBarrierCount = 1;
-		tonemappingUIDependencyInfo.pImageMemoryBarriers = &tonemappingUIImageMemoryBarrier;
-		m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &tonemappingUIDependencyInfo);
-
-		// UI
+		VkRenderingAttachmentInfo renderingSwapchainAttachmentInfo = {};
+		renderingSwapchainAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+		renderingSwapchainAttachmentInfo.pNext = nullptr;
+		renderingSwapchainAttachmentInfo.imageView = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImage.view;
+		renderingSwapchainAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		renderingSwapchainAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+		renderingSwapchainAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
+		renderingSwapchainAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		renderingSwapchainAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+		renderingSwapchainAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		renderingSwapchainAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 		VkRenderingInfo uiRenderingInfo = {};
 		uiRenderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -1126,12 +1167,16 @@ void NtshEngn::GraphicsModule::destroy() {
 	vkDestroySampler(m_device, m_uiLinearSampler, nullptr);
 	vkDestroySampler(m_device, m_uiNearestSampler, nullptr);
 
+	// Destroy FXAA
+	m_fxaa.destroy();
+
 	// Destroy tone mapping resources
 	vkDestroyDescriptorPool(m_device, m_toneMappingDescriptorPool, nullptr);
 	vkDestroyPipeline(m_device, m_toneMappingGraphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(m_device, m_toneMappingGraphicsPipelineLayout, nullptr);
 	vkDestroyDescriptorSetLayout(m_device, m_toneMappingDescriptorSetLayout, nullptr);
 	vkDestroySampler(m_device, m_toneMappingSampler, nullptr);
+	m_toneMappingImage.destroy(m_device, m_allocator);
 
 	// Destroy compositing resources
 	vkDestroyDescriptorPool(m_device, m_compositingDescriptorPool, nullptr);
@@ -3160,6 +3205,8 @@ void NtshEngn::GraphicsModule::updateCompositingDescriptorSetsShadow(uint32_t fr
 }
 
 void NtshEngn::GraphicsModule::createToneMappingResources() {
+	createToneMappingImage();
+
 	// Create descriptor set layout
 	VkDescriptorSetLayoutBinding colorImageDescriptorSetLayoutBinding = {};
 	colorImageDescriptorSetLayoutBinding.binding = 0;
@@ -3431,6 +3478,138 @@ void NtshEngn::GraphicsModule::createToneMappingResources() {
 	NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_toneMappingDescriptorSet));
 
 	updateToneMappingDescriptorSet();
+}
+
+void NtshEngn::GraphicsModule::createToneMappingImage() {
+	// Create image
+	VkExtent3D imageExtent;
+	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+		imageExtent.width = static_cast<uint32_t>(windowModule->getWidth(windowModule->getMainWindowID()));
+		imageExtent.height = static_cast<uint32_t>(windowModule->getHeight(windowModule->getMainWindowID()));
+	}
+	else {
+		imageExtent.width = 1280;
+		imageExtent.height = 720;
+	}
+	imageExtent.depth = 1;
+
+	VkImageCreateInfo imageCreateInfo = {};
+	imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageCreateInfo.pNext = nullptr;
+	imageCreateInfo.flags = 0;
+	imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageCreateInfo.format = m_swapchainFormat;
+	imageCreateInfo.extent.width = imageExtent.width;
+	imageCreateInfo.extent.height = imageExtent.height;
+	imageCreateInfo.extent.depth = 1;
+	imageCreateInfo.mipLevels = 1;
+	imageCreateInfo.arrayLayers = 1;
+	imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	imageCreateInfo.queueFamilyIndexCount = 1;
+	imageCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
+	imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+	VmaAllocationCreateInfo imageAllocationCreateInfo = {};
+	imageAllocationCreateInfo.flags = 0;
+	imageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &imageCreateInfo, &imageAllocationCreateInfo, &m_toneMappingImage.handle, &m_toneMappingImage.allocation, nullptr));
+
+	VkImageViewCreateInfo imageViewCreateInfo = {};
+	imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	imageViewCreateInfo.pNext = nullptr;
+	imageViewCreateInfo.flags = 0;
+	imageViewCreateInfo.image = m_toneMappingImage.handle;
+	imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	imageViewCreateInfo.format = m_swapchainFormat;
+	imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+	imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+	imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+	imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+	imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+	imageViewCreateInfo.subresourceRange.levelCount = 1;
+	imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+	imageViewCreateInfo.subresourceRange.layerCount = 1;
+	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &imageViewCreateInfo, nullptr, &m_toneMappingImage.view));
+
+	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+	VkCommandPool commandPool;
+
+	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
+	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	commandPoolCreateInfo.pNext = nullptr;
+	commandPoolCreateInfo.flags = 0;
+	commandPoolCreateInfo.queueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &commandPool));
+
+	VkCommandBuffer commandBuffer;
+
+	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
+	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	commandBufferAllocateInfo.pNext = nullptr;
+	commandBufferAllocateInfo.commandPool = commandPool;
+	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	commandBufferAllocateInfo.commandBufferCount = 1;
+	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &commandBuffer));
+
+	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	commandBufferBeginInfo.pNext = nullptr;
+	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	commandBufferBeginInfo.pInheritanceInfo = nullptr;
+	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo));
+
+	VkImageMemoryBarrier2 imageMemoryBarrier = {};
+	imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	imageMemoryBarrier.pNext = nullptr;
+	imageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+	imageMemoryBarrier.srcAccessMask = 0;
+	imageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	imageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	imageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	imageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	imageMemoryBarrier.image = m_toneMappingImage.handle;
+	imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	imageMemoryBarrier.subresourceRange.levelCount = 1;
+	imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	imageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	VkDependencyInfo dependencyInfo = {};
+	dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	dependencyInfo.pNext = nullptr;
+	dependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	dependencyInfo.memoryBarrierCount = 0;
+	dependencyInfo.pMemoryBarriers = nullptr;
+	dependencyInfo.bufferMemoryBarrierCount = 0;
+	dependencyInfo.pBufferMemoryBarriers = nullptr;
+	dependencyInfo.imageMemoryBarrierCount = 1;
+	dependencyInfo.pImageMemoryBarriers = &imageMemoryBarrier;
+	m_vkCmdPipelineBarrier2KHR(commandBuffer, &dependencyInfo);
+
+	NTSHENGN_VK_CHECK(vkEndCommandBuffer(commandBuffer));
+
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.pNext = nullptr;
+	submitInfo.waitSemaphoreCount = 0;
+	submitInfo.pWaitSemaphores = nullptr;
+	submitInfo.pWaitDstStageMask = nullptr;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+	submitInfo.signalSemaphoreCount = 0;
+	submitInfo.pSignalSemaphores = nullptr;
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &submitInfo, m_initializationFence));
+	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
+
+	vkDestroyCommandPool(m_device, commandPool, nullptr);
 }
 
 void NtshEngn::GraphicsModule::updateToneMappingDescriptorSet() {
@@ -4788,8 +4967,15 @@ void NtshEngn::GraphicsModule::resize() {
 		m_compositingImage.destroy(m_device, m_allocator);
 		createCompositingImage();
 
-		// Recreate G-Buffer
+		// Recreate tone mapping image and image view
+		m_toneMappingImage.destroy(m_device, m_allocator);
+		createToneMappingImage();
+
+		// Resize G-Buffer
 		m_gBuffer.onResize(static_cast<uint32_t>(windowModule->getWidth(windowModule->getMainWindowID())), static_cast<uint32_t>(windowModule->getHeight(windowModule->getMainWindowID())));
+
+		// Resize FXAA
+		m_fxaa.onResize(static_cast<uint32_t>(windowModule->getWidth(windowModule->getMainWindowID())), static_cast<uint32_t>(windowModule->getHeight(windowModule->getMainWindowID())), m_toneMappingImage.view);
 
 		// Update descriptor sets using these images
 		updateCompositingDescriptorSets();

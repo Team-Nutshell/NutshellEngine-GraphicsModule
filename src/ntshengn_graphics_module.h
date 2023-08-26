@@ -2,6 +2,7 @@
 #include "../Common/module_interfaces/ntshengn_graphics_module_interface.h"
 #include "common.h"
 #include "frustum_culling.h"
+#include "fxaa.h"
 #include "gbuffer.h"
 #include "shadow_mapping.h"
 #include <vector>
@@ -76,6 +77,7 @@ namespace NtshEngn {
 
 		// Tone mapping resources
 		void createToneMappingResources();
+		void createToneMappingImage();
 		void updateToneMappingDescriptorSet();
 
 		// UI resources
@@ -137,10 +139,9 @@ namespace NtshEngn {
 		VulkanBuffer m_indexBuffer;
 
 		FrustumCulling m_frustumCulling;
-
 		GBuffer m_gBuffer;
-
 		ShadowMapping m_shadowMapping;
+		FXAA m_fxaa;
 
 		VulkanImage m_compositingImage;
 		VkSampler m_compositingSampler;
@@ -152,6 +153,7 @@ namespace NtshEngn {
 		VkPipeline m_compositingGraphicsPipeline;
 		VkPipelineLayout m_compositingGraphicsPipelineLayout;
 
+		VulkanImage m_toneMappingImage;
 		VkSampler m_toneMappingSampler;
 		VkDescriptorSetLayout m_toneMappingDescriptorSetLayout;
 		VkDescriptorPool m_toneMappingDescriptorPool;
