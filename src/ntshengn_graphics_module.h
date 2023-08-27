@@ -5,6 +5,7 @@
 #include "fxaa.h"
 #include "gbuffer.h"
 #include "shadow_mapping.h"
+#include "ssao.h"
 #include <vector>
 #include <limits>
 #include <queue>
@@ -140,6 +141,7 @@ namespace NtshEngn {
 
 		FrustumCulling m_frustumCulling;
 		GBuffer m_gBuffer;
+		SSAO m_ssao;
 		ShadowMapping m_shadowMapping;
 		FXAA m_fxaa;
 

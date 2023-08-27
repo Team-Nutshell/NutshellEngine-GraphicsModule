@@ -32,6 +32,8 @@
 #define SHADOW_MAPPING_RESOLUTION 2048
 #define SHADOW_MAPPING_CASCADE_COUNT 3
 
+#define SSAO_SAMPLE_COUNT 64
+
 #define NTSHENGN_VK_CHECK(f) \
 	do { \
 		int64_t check = f; \

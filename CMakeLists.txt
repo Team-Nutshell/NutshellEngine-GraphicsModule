@@ -67,13 +67,15 @@ set(MODULE_SOURCES
 	src/frustum_culling.cpp
 	src/fxaa.cpp
 	src/gbuffer.cpp
-	src/shadow_mapping.cpp)	
+	src/shadow_mapping.cpp
+	src/ssao.cpp)	
 set(MODULE_HEADERS
 	src/ntshengn_graphics_module.h
 	src/frustum_culling.h
 	src/fxaa.h
 	src/gbuffer.h
 	src/shadow_mapping.h
+	src/ssao.h
 	src/common.h)
 
 set(SOURCES ${MODULE_SOURCES})

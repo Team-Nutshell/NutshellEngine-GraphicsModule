@@ -542,8 +542,8 @@ void ShadowMapping::createDirectionalLightShadowMap(NtshEngn::Entity entity) {
 	shadowMapImageMemoryBarrier.pNext = nullptr;
 	shadowMapImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
 	shadowMapImageMemoryBarrier.srcAccessMask = 0;
-	shadowMapImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
-	shadowMapImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	shadowMapImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	shadowMapImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
 	shadowMapImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	shadowMapImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 	shadowMapImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
@@ -689,8 +689,8 @@ void ShadowMapping::createSpotLightShadowMap(NtshEngn::Entity entity) {
 	shadowMapImageMemoryBarrier.pNext = nullptr;
 	shadowMapImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
 	shadowMapImageMemoryBarrier.srcAccessMask = 0;
-	shadowMapImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
-	shadowMapImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	shadowMapImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	shadowMapImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
 	shadowMapImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	shadowMapImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 	shadowMapImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
@@ -829,7 +829,7 @@ void ShadowMapping::createDescriptorSetLayout() {
 
 void ShadowMapping::createGraphicsPipelines() {
 	createDirectionalLightShadowGraphicsPipeline();
-	createSpotLightShadowMapGraphicsPipeline();
+	createSpotLightShadowGraphicsPipeline();
 }
 
 void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
@@ -1091,7 +1091,7 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
 }
 
-void ShadowMapping::createSpotLightShadowMapGraphicsPipeline() {
+void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 	// Create graphics pipeline
 	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
 	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;

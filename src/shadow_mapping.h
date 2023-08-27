@@ -66,7 +66,7 @@ private:
 
 	void createGraphicsPipelines();
 	void createDirectionalLightShadowGraphicsPipeline();
-	void createSpotLightShadowMapGraphicsPipeline();
+	void createSpotLightShadowGraphicsPipeline();
 
 	void createDescriptorSets(const std::vector<VulkanBuffer>& objectBuffers,
 		const std::vector<VulkanBuffer>& materialBuffers);
