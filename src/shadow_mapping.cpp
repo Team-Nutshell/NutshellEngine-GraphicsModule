@@ -37,7 +37,7 @@ void ShadowMapping::init(VkDevice device,
 	m_scissor.extent.width = SHADOW_MAPPING_RESOLUTION;
 	m_scissor.extent.height = SHADOW_MAPPING_RESOLUTION;
 
-	createBuffers();
+	createImageAndBuffers();
 	createDescriptorSetLayout();
 	createGraphicsPipelines();
 	createDescriptorSets(objectBuffers, materialBuffers);
@@ -65,6 +65,7 @@ void ShadowMapping::destroy() {
 	for (auto& directionalLightShadowMap : m_directionalLightShadowMaps) {
 		directionalLightShadowMap.shadowMap.destroy(m_device, m_allocator);
 	}
+	m_dummyShadowMap.destroy(m_device, m_allocator);
 }
 
 void ShadowMapping::draw(VkCommandBuffer commandBuffer,
@@ -542,8 +543,8 @@ void ShadowMapping::createDirectionalLightShadowMap(NtshEngn::Entity entity) {
 	shadowMapImageMemoryBarrier.pNext = nullptr;
 	shadowMapImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
 	shadowMapImageMemoryBarrier.srcAccessMask = 0;
-	shadowMapImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-	shadowMapImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+	shadowMapImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+	shadowMapImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 	shadowMapImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	shadowMapImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 	shadowMapImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
@@ -689,8 +690,8 @@ void ShadowMapping::createSpotLightShadowMap(NtshEngn::Entity entity) {
 	shadowMapImageMemoryBarrier.pNext = nullptr;
 	shadowMapImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
 	shadowMapImageMemoryBarrier.srcAccessMask = 0;
-	shadowMapImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-	shadowMapImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+	shadowMapImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+	shadowMapImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 	shadowMapImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	shadowMapImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 	shadowMapImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
@@ -748,6 +749,10 @@ VulkanBuffer& ShadowMapping::getCascadeSceneBuffer(uint32_t frameInFlight) {
 
 std::vector<LayeredVulkanImage> ShadowMapping::getShadowMapImages() {
 	std::vector<LayeredVulkanImage> shadowMapImages;
+	if (m_directionalLightEntities.empty() && m_spotLightEntities.empty()) {
+		shadowMapImages.push_back(m_dummyShadowMap);
+	}
+
 	for (size_t i = 0; i < m_directionalLightEntities.size(); i++) {
 		shadowMapImages.push_back(m_directionalLightShadowMaps[i].shadowMap);
 	}
@@ -758,7 +763,131 @@ std::vector<LayeredVulkanImage> ShadowMapping::getShadowMapImages() {
 	return shadowMapImages;
 }
 
-void ShadowMapping::createBuffers() {
+void ShadowMapping::createImageAndBuffers() {
+	// Dummy shadow map
+	VkImageCreateInfo dummyShadowMapImageCreateInfo = {};
+	dummyShadowMapImageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	dummyShadowMapImageCreateInfo.pNext = nullptr;
+	dummyShadowMapImageCreateInfo.flags = 0;
+	dummyShadowMapImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	dummyShadowMapImageCreateInfo.format = VK_FORMAT_D32_SFLOAT;
+	dummyShadowMapImageCreateInfo.extent.width = 1;
+	dummyShadowMapImageCreateInfo.extent.height = 1;
+	dummyShadowMapImageCreateInfo.extent.depth = 1;
+	dummyShadowMapImageCreateInfo.mipLevels = 1;
+	dummyShadowMapImageCreateInfo.arrayLayers = 1;
+	dummyShadowMapImageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	dummyShadowMapImageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	dummyShadowMapImageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
+	dummyShadowMapImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	dummyShadowMapImageCreateInfo.queueFamilyIndexCount = 1;
+	dummyShadowMapImageCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	dummyShadowMapImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+	VmaAllocationCreateInfo dummyShadowMapImageAllocationCreateInfo = {};
+	dummyShadowMapImageAllocationCreateInfo.flags = 0;
+	dummyShadowMapImageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &dummyShadowMapImageCreateInfo, &dummyShadowMapImageAllocationCreateInfo, &m_dummyShadowMap.handle, &m_dummyShadowMap.allocation, nullptr));
+	
+	VkImageView dummyShadowMapView;
+
+	VkImageViewCreateInfo dummyShadowMapImageViewCreateInfo = {};
+	dummyShadowMapImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	dummyShadowMapImageViewCreateInfo.pNext = nullptr;
+	dummyShadowMapImageViewCreateInfo.flags = 0;
+	dummyShadowMapImageViewCreateInfo.image = m_dummyShadowMap.handle;
+	dummyShadowMapImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	dummyShadowMapImageViewCreateInfo.format = VK_FORMAT_D32_SFLOAT;
+	dummyShadowMapImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+	dummyShadowMapImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+	dummyShadowMapImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+	dummyShadowMapImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+	dummyShadowMapImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	dummyShadowMapImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+	dummyShadowMapImageViewCreateInfo.subresourceRange.levelCount = 1;
+	dummyShadowMapImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+	dummyShadowMapImageViewCreateInfo.subresourceRange.layerCount = 1;
+	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &dummyShadowMapImageViewCreateInfo, nullptr, &dummyShadowMapView));
+
+	m_dummyShadowMap.views.push_back(dummyShadowMapView);
+
+	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+	VkCommandPool commandPool;
+
+	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
+	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	commandPoolCreateInfo.pNext = nullptr;
+	commandPoolCreateInfo.flags = 0;
+	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
+	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &commandPool));
+
+	VkCommandBuffer commandBuffer;
+
+	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
+	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	commandBufferAllocateInfo.pNext = nullptr;
+	commandBufferAllocateInfo.commandPool = commandPool;
+	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	commandBufferAllocateInfo.commandBufferCount = 1;
+	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &commandBuffer));
+
+	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	commandBufferBeginInfo.pNext = nullptr;
+	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	commandBufferBeginInfo.pInheritanceInfo = nullptr;
+	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo));
+
+	VkImageMemoryBarrier2 dummyShadowMapImageMemoryBarrier = {};
+	dummyShadowMapImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	dummyShadowMapImageMemoryBarrier.pNext = nullptr;
+	dummyShadowMapImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+	dummyShadowMapImageMemoryBarrier.srcAccessMask = 0;
+	dummyShadowMapImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	dummyShadowMapImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+	dummyShadowMapImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	dummyShadowMapImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	dummyShadowMapImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	dummyShadowMapImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	dummyShadowMapImageMemoryBarrier.image = m_dummyShadowMap.handle;
+	dummyShadowMapImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	dummyShadowMapImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	dummyShadowMapImageMemoryBarrier.subresourceRange.levelCount = 1;
+	dummyShadowMapImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	dummyShadowMapImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	VkDependencyInfo dependencyInfo = {};
+	dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	dependencyInfo.pNext = nullptr;
+	dependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	dependencyInfo.memoryBarrierCount = 0;
+	dependencyInfo.pMemoryBarriers = nullptr;
+	dependencyInfo.bufferMemoryBarrierCount = 0;
+	dependencyInfo.pBufferMemoryBarriers = nullptr;
+	dependencyInfo.imageMemoryBarrierCount = 1;
+	dependencyInfo.pImageMemoryBarriers = &dummyShadowMapImageMemoryBarrier;
+	m_vkCmdPipelineBarrier2KHR(commandBuffer, &dependencyInfo);
+
+	NTSHENGN_VK_CHECK(vkEndCommandBuffer(commandBuffer));
+
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.pNext = nullptr;
+	submitInfo.waitSemaphoreCount = 0;
+	submitInfo.pWaitSemaphores = nullptr;
+	submitInfo.pWaitDstStageMask = nullptr;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+	submitInfo.signalSemaphoreCount = 0;
+	submitInfo.pSignalSemaphores = nullptr;
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_initializationFence));
+	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
+
+	vkDestroyCommandPool(m_device, commandPool, nullptr);
+
+	// Buffers
 	m_shadowBuffers.resize(m_framesInFlight);
 	m_cascadeSceneBuffers.resize(m_framesInFlight);
 	VkBufferCreateInfo bufferCreateInfo = {};

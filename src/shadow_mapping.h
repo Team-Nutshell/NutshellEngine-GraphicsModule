@@ -60,7 +60,7 @@ public:
 	std::vector<LayeredVulkanImage> getShadowMapImages();
 
 private:
-	void createBuffers();
+	void createImageAndBuffers();
 
 	void createDescriptorSetLayout();
 
@@ -75,6 +75,7 @@ private:
 	std::vector<VulkanBuffer> m_shadowBuffers;
 	std::vector<VulkanBuffer> m_cascadeSceneBuffers;
 
+	LayeredVulkanImage m_dummyShadowMap;
 	std::vector<NtshEngn::Entity> m_directionalLightEntities;
 	std::vector<DirectionalLightShadowMap> m_directionalLightShadowMaps;
 	std::vector<NtshEngn::Entity> m_spotLightEntities;
