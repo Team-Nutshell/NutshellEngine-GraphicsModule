@@ -2622,16 +2622,22 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 
 		// Shadows
 		float shadowValue(uint lightIndex, uint cascadeIndex, vec4 shadowCoord, float bias) {
-			float shadow = 1.0;
+			float shadow = 0.0;
+			if (shadowCoord.z > 1.0) {
+				return 1.0;
+			}
 
-			if ((shadowCoord.z > -1.0) && (shadowCoord.z < 1.0)) {
-				float distance = texture(shadowMaps[lightIndex], vec3(shadowCoord.xy, cascadeIndex)).r;
-				if (distance < (shadowCoord.z - bias)) {
-					shadow = 0.0;
+			vec2 texelSize = 0.75 * (1.0 / textureSize(shadowMaps[lightIndex], 0).xy);
+			for (int x = -1; x <= 1; x++) {
+				for (int y = -1; y <= 1; y++) {
+					float depth = texture(shadowMaps[lightIndex], vec3(shadowCoord.xy + (vec2(x, y) * texelSize), cascadeIndex)).r;
+					if (depth >= (shadowCoord.z - bias)) {
+						shadow += 1.0;
+					}
 				}
 			}
 
-			return shadow;
+			return shadow / 9.0;
 		}
 
 		void main() {
