@@ -275,6 +275,7 @@ void NtshEngn::GraphicsModule::init() {
 	}
 	// Or create an image to draw on
 	else {
+		m_drawImageFormat = VK_FORMAT_R8G8B8A8_SRGB;
 		m_imageCount = 1;
 
 		m_viewport.x = 0.0f;
@@ -1655,11 +1656,11 @@ void NtshEngn::GraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
 	}
 
 	std::vector<VkSurfaceFormatKHR> surfaceFormats = getSurfaceFormats();
-	m_swapchainFormat = surfaceFormats[0].format;
+	m_drawImageFormat = surfaceFormats[0].format;
 	VkColorSpaceKHR swapchainColorSpace = surfaceFormats[0].colorSpace;
 	for (const VkSurfaceFormatKHR& surfaceFormat : surfaceFormats) {
 		if (surfaceFormat.format == VK_FORMAT_B8G8R8A8_SRGB && surfaceFormat.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR) {
-			m_swapchainFormat = surfaceFormat.format;
+			m_drawImageFormat = surfaceFormat.format;
 			swapchainColorSpace = surfaceFormat.colorSpace;
 			break;
 		}
@@ -1699,7 +1700,7 @@ void NtshEngn::GraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
 	swapchainCreateInfo.flags = 0;
 	swapchainCreateInfo.surface = m_surface;
 	swapchainCreateInfo.minImageCount = minImageCount;
-	swapchainCreateInfo.imageFormat = m_swapchainFormat;
+	swapchainCreateInfo.imageFormat = m_drawImageFormat;
 	swapchainCreateInfo.imageColorSpace = swapchainColorSpace;
 	swapchainCreateInfo.imageExtent = swapchainExtent;
 	swapchainCreateInfo.imageArrayLayers = 1;
@@ -1731,7 +1732,7 @@ void NtshEngn::GraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
 		swapchainImageViewCreateInfo.flags = 0;
 		swapchainImageViewCreateInfo.image = m_swapchainImages[i];
 		swapchainImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		swapchainImageViewCreateInfo.format = m_swapchainFormat;
+		swapchainImageViewCreateInfo.format = m_drawImageFormat;
 		swapchainImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
 		swapchainImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
 		swapchainImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
@@ -1763,10 +1764,7 @@ void NtshEngn::GraphicsModule::createToneMappingResources() {
 	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_toneMappingDescriptorSetLayout));
 
 	// Create graphics pipeline
-	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-		pipelineRenderingColorFormat = m_swapchainFormat;
-	}
+	VkFormat pipelineRenderingColorFormat = m_drawImageFormat;
 
 	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
 	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
