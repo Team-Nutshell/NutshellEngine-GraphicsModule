@@ -8,7 +8,7 @@
 #include <array>
 
 void NtshEngn::GraphicsModule::init() {
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		m_framesInFlight = 2;
 	}
 	else {
@@ -62,7 +62,7 @@ void NtshEngn::GraphicsModule::init() {
 #if defined(NTSHENGN_DEBUG)
 	instanceExtensions.push_back("VK_EXT_debug_utils");
 #endif
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		instanceExtensions.push_back("VK_KHR_surface");
 		instanceExtensions.push_back("VK_KHR_get_surface_capabilities2");
 		instanceExtensions.push_back("VK_KHR_get_physical_device_properties2");
@@ -95,24 +95,24 @@ void NtshEngn::GraphicsModule::init() {
 #endif
 
 	// Create surface
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 #if defined(NTSHENGN_OS_WINDOWS)
-		HWND windowHandle = reinterpret_cast<HWND>(windowModule->getNativeHandle(windowModule->getMainWindowID()));
+		HWND windowHandle = reinterpret_cast<HWND>(windowModule->getWindowNativeHandle(windowModule->getMainWindowID()));
 		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.pNext = nullptr;
 		surfaceCreateInfo.flags = 0;
-		surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(windowModule->getNativeAdditionalInformation(windowModule->getMainWindowID()));
+		surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(windowModule->getWindowNativeAdditionalInformation(windowModule->getMainWindowID()));
 		surfaceCreateInfo.hwnd = windowHandle;
 		auto createWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateWin32SurfaceKHR");
 		NTSHENGN_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
 #elif defined(NTSHENGN_OS_LINUX)
-		Window windowHandle = reinterpret_cast<Window>(windowModule->getNativeHandle(windowModule->getMainWindowID()));
+		Window windowHandle = reinterpret_cast<Window>(windowModule->getWindowNativeHandle(windowModule->getMainWindowID()));
 		VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.pNext = nullptr;
 		surfaceCreateInfo.flags = 0;
-		surfaceCreateInfo.dpy = reinterpret_cast<Window>(windowModule->getNativeAdditionalInformation(windowModule->getMainWindowID()));
+		surfaceCreateInfo.dpy = reinterpret_cast<Window>(windowModule->getWindowNativeAdditionalInformation(windowModule->getMainWindowID()));
 		surfaceCreateInfo.window = windowHandle;
 		auto createXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateXlibSurfaceKHR");
 		NTSHENGN_VK_CHECK(createXlibSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
@@ -187,7 +187,7 @@ void NtshEngn::GraphicsModule::init() {
 	m_graphicsQueueFamilyIndex = 0;
 	for (const VkQueueFamilyProperties& queueFamilyProperty : queueFamilyProperties) {
 		if (queueFamilyProperty.queueCount > 0 && (queueFamilyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
-			if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+			if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 				VkBool32 presentSupport;
 				vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsQueueFamilyIndex, m_surface, &presentSupport);
 				if (presentSupport) {
@@ -247,7 +247,7 @@ void NtshEngn::GraphicsModule::init() {
 		"VK_KHR_dynamic_rendering",
 		"VK_KHR_maintenance3",
 		"VK_EXT_descriptor_indexing" };
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		deviceExtensions.push_back("VK_KHR_swapchain");
 	}
 	deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
@@ -277,7 +277,7 @@ void NtshEngn::GraphicsModule::init() {
 	NTSHENGN_VK_CHECK(vmaCreateAllocator(&vmaAllocatorCreateInfo, &m_allocator));
 
 	// Create the swapchain
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		createSwapchain(VK_NULL_HANDLE);
 	}
 	// Or create an image to draw on
@@ -453,7 +453,7 @@ void NtshEngn::GraphicsModule::init() {
 void NtshEngn::GraphicsModule::update(double dt) {
 	NTSHENGN_UNUSED(dt);
 
-	if (windowModule && !windowModule->isOpen(windowModule->getMainWindowID())) {
+	if (windowModule && !windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		// Do not update if the main window got closed
 		return;
 	}
@@ -461,7 +461,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_fences[m_currentFrameInFlight], VK_TRUE, std::numeric_limits<uint64_t>::max()));
 
 	uint32_t imageIndex = m_imageCount - 1;
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		VkResult acquireNextImageResult = vkAcquireNextImageKHR(m_device, m_swapchain, std::numeric_limits<uint64_t>::max(), m_imageAvailableSemaphores[m_currentFrameInFlight], VK_NULL_HANDLE, &imageIndex);
 		if (acquireNextImageResult == VK_ERROR_OUT_OF_DATE_KHR) {
 			resize();
@@ -563,7 +563,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	undefinedToColorAttachmentOptimalImageMemoryBarrier.image = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.image = (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.subresourceRange.levelCount = 1;
@@ -594,7 +594,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	VkRenderingAttachmentInfo renderingSwapchainAttachmentInfo = {};
 	renderingSwapchainAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	renderingSwapchainAttachmentInfo.pNext = nullptr;
-	renderingSwapchainAttachmentInfo.imageView = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImageView;
+	renderingSwapchainAttachmentInfo.imageView = (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImageView;
 	renderingSwapchainAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	renderingSwapchainAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
 	renderingSwapchainAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
@@ -665,7 +665,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		sceneUIImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		sceneUIImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 		sceneUIImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-		sceneUIImageMemoryBarrier.image = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage;
+		sceneUIImageMemoryBarrier.image = (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage;
 		sceneUIImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		sceneUIImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
 		sceneUIImageMemoryBarrier.subresourceRange.levelCount = 1;
@@ -756,7 +756,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	}
 
 	// Layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		VkImageMemoryBarrier2 colorAttachmentOptimalToPresentSrcImageMemoryBarrier = {};
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 		colorAttachmentOptimalToPresentSrcImageMemoryBarrier.pNext = nullptr;
@@ -806,7 +806,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	submitInfo.pSignalSemaphores = &m_renderFinishedSemaphores[imageIndex];
 	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fences[m_currentFrameInFlight]));
 
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		VkPresentInfoKHR presentInfo = {};
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		presentInfo.pNext = nullptr;
@@ -1895,8 +1895,8 @@ void NtshEngn::GraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
 	}
 
 	VkExtent2D swapchainExtent = {};
-	swapchainExtent.width = static_cast<uint32_t>(windowModule->getWidth(windowModule->getMainWindowID()));
-	swapchainExtent.height = static_cast<uint32_t>(windowModule->getHeight(windowModule->getMainWindowID()));
+	swapchainExtent.width = static_cast<uint32_t>(windowModule->getWindowWidth(windowModule->getMainWindowID()));
+	swapchainExtent.height = static_cast<uint32_t>(windowModule->getWindowHeight(windowModule->getMainWindowID()));
 
 	m_viewport.x = 0.0f;
 	m_viewport.y = 0.0f;
@@ -1990,9 +1990,9 @@ void NtshEngn::GraphicsModule::createDepthImage() {
 	depthImageCreateInfo.flags = 0;
 	depthImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
 	depthImageCreateInfo.format = VK_FORMAT_D32_SFLOAT;
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-		depthImageCreateInfo.extent.width = static_cast<uint32_t>(windowModule->getWidth(windowModule->getMainWindowID()));
-		depthImageCreateInfo.extent.height = static_cast<uint32_t>(windowModule->getHeight(windowModule->getMainWindowID()));
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
+		depthImageCreateInfo.extent.width = static_cast<uint32_t>(windowModule->getWindowWidth(windowModule->getMainWindowID()));
+		depthImageCreateInfo.extent.height = static_cast<uint32_t>(windowModule->getWindowHeight(windowModule->getMainWindowID()));
 	}
 	else {
 		depthImageCreateInfo.extent.width = 1280;
@@ -3881,8 +3881,8 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 }
 
 void NtshEngn::GraphicsModule::resize() {
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-		while ((windowModule->getWidth(windowModule->getMainWindowID()) == 0) || (windowModule->getHeight(windowModule->getMainWindowID()) == 0)) {
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
+		while ((windowModule->getWindowWidth(windowModule->getMainWindowID()) == 0) || (windowModule->getWindowHeight(windowModule->getMainWindowID()) == 0)) {
 			windowModule->pollEvents();
 		}
 
