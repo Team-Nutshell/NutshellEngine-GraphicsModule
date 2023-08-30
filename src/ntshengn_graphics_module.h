@@ -258,7 +258,8 @@ namespace NtshEngn {
 		VkSwapchainKHR m_swapchain = VK_NULL_HANDLE;
 		std::vector<VkImage> m_swapchainImages;
 		std::vector<VkImageView> m_swapchainImageViews;
-		VkFormat m_swapchainFormat;
+
+		VkFormat m_drawImageFormat;
 
 		VkImage m_drawImage;
 		VmaAllocation m_drawImageAllocation;
