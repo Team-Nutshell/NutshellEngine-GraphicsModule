@@ -5,7 +5,7 @@
 #include <array>
 
 void NtshEngn::GraphicsModule::init() {
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		m_framesInFlight = 2;
 	}
 	else {
@@ -59,7 +59,7 @@ void NtshEngn::GraphicsModule::init() {
 #if defined(NTSHENGN_DEBUG)
 	instanceExtensions.push_back("VK_EXT_debug_utils");
 #endif
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		instanceExtensions.push_back("VK_KHR_surface");
 		instanceExtensions.push_back("VK_KHR_get_surface_capabilities2");
 		instanceExtensions.push_back("VK_KHR_get_physical_device_properties2");
@@ -92,7 +92,7 @@ void NtshEngn::GraphicsModule::init() {
 #endif
 
 	// Create surface
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 #if defined(NTSHENGN_OS_WINDOWS)
 		HWND windowHandle = reinterpret_cast<HWND>(windowModule->getNativeHandle(windowModule->getMainWindowID()));
 		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
@@ -184,7 +184,7 @@ void NtshEngn::GraphicsModule::init() {
 	m_graphicsComputeQueueFamilyIndex = 0;
 	for (const VkQueueFamilyProperties& queueFamilyProperty : queueFamilyProperties) {
 		if (queueFamilyProperty.queueCount > 0 && (queueFamilyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT) && (queueFamilyProperty.queueFlags & VK_QUEUE_COMPUTE_BIT)) {
-			if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+			if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 				VkBool32 presentSupport;
 				vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsComputeQueueFamilyIndex, m_surface, &presentSupport);
 				if (presentSupport) {
@@ -252,7 +252,7 @@ void NtshEngn::GraphicsModule::init() {
 		"VK_KHR_maintenance3",
 		"VK_EXT_descriptor_indexing",
 		"VK_KHR_draw_indirect_count" };
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		deviceExtensions.push_back("VK_KHR_swapchain");
 	}
 	deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
@@ -282,7 +282,7 @@ void NtshEngn::GraphicsModule::init() {
 	NTSHENGN_VK_CHECK(vmaCreateAllocator(&vmaAllocatorCreateInfo, &m_allocator));
 
 	// Create the swapchain
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		createSwapchain(VK_NULL_HANDLE);
 	}
 	// Or create an image to draw on
@@ -550,7 +550,7 @@ void NtshEngn::GraphicsModule::init() {
 void NtshEngn::GraphicsModule::update(double dt) {
 	NTSHENGN_UNUSED(dt);
 
-	if (windowModule && !windowModule->isOpen(windowModule->getMainWindowID())) {
+	if (windowModule && !windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		// Do not update if the main window got closed
 		return;
 	}
@@ -558,7 +558,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_fences[m_currentFrameInFlight], VK_TRUE, std::numeric_limits<uint64_t>::max()));
 
 	uint32_t imageIndex = m_imageCount - 1;
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		VkResult acquireNextImageResult = vkAcquireNextImageKHR(m_device, m_swapchain, std::numeric_limits<uint64_t>::max(), m_imageAvailableSemaphores[m_currentFrameInFlight], VK_NULL_HANDLE, &imageIndex);
 		if (acquireNextImageResult == VK_ERROR_OUT_OF_DATE_KHR) {
 			resize();
@@ -719,7 +719,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	swapchainOrDrawImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	swapchainOrDrawImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	swapchainOrDrawImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
-	swapchainOrDrawImageMemoryBarrier.image = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage.handle;
+	swapchainOrDrawImageMemoryBarrier.image = (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage.handle;
 	swapchainOrDrawImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	swapchainOrDrawImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
 	swapchainOrDrawImageMemoryBarrier.subresourceRange.levelCount = 1;
@@ -949,14 +949,14 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &toneMappingDependencyInfo);
 
 	// FXAA
-	m_fxaa.draw(m_renderingCommandBuffers[m_currentFrameInFlight], (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage.handle, (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImage.view);
+	m_fxaa.draw(m_renderingCommandBuffers[m_currentFrameInFlight], (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage.handle, (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImage.view);
 
 	// UI
 	if (!m_uiElements.empty()) {
 		VkRenderingAttachmentInfo renderingSwapchainAttachmentInfo = {};
 		renderingSwapchainAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 		renderingSwapchainAttachmentInfo.pNext = nullptr;
-		renderingSwapchainAttachmentInfo.imageView = (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImage.view;
+		renderingSwapchainAttachmentInfo.imageView = (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImage.view;
 		renderingSwapchainAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		renderingSwapchainAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
 		renderingSwapchainAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
@@ -1034,7 +1034,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	}
 
 	// Layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		VkImageMemoryBarrier2 colorAttachmentToPresentSrcImageMemoryBarrier = {};
 		colorAttachmentToPresentSrcImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 		colorAttachmentToPresentSrcImageMemoryBarrier.pNext = nullptr;
@@ -1084,7 +1084,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	submitInfo.pSignalSemaphores = &m_renderFinishedSemaphores[imageIndex];
 	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &submitInfo, m_fences[m_currentFrameInFlight]));
 
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		VkPresentInfoKHR presentInfo = {};
 		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		presentInfo.pNext = nullptr;
@@ -2280,8 +2280,8 @@ void NtshEngn::GraphicsModule::createSwapchain(VkSwapchainKHR oldSwapchain) {
 	}
 
 	VkExtent2D swapchainExtent = {};
-	swapchainExtent.width = static_cast<uint32_t>(windowModule->getWidth(windowModule->getMainWindowID()));
-	swapchainExtent.height = static_cast<uint32_t>(windowModule->getHeight(windowModule->getMainWindowID()));
+	swapchainExtent.width = static_cast<uint32_t>(windowModule->getWindowWidth(windowModule->getMainWindowID()));
+	swapchainExtent.height = static_cast<uint32_t>(windowModule->getWindowHeight(windowModule->getMainWindowID()));
 
 	m_viewport.x = 0.0f;
 	m_viewport.y = 0.0f;
@@ -3000,9 +3000,9 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 void NtshEngn::GraphicsModule::createCompositingImage() {
 	// Create image
 	VkExtent3D imageExtent;
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-		imageExtent.width = static_cast<uint32_t>(windowModule->getWidth(windowModule->getMainWindowID()));
-		imageExtent.height = static_cast<uint32_t>(windowModule->getHeight(windowModule->getMainWindowID()));
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
+		imageExtent.width = static_cast<uint32_t>(windowModule->getWindowWidth(windowModule->getMainWindowID()));
+		imageExtent.height = static_cast<uint32_t>(windowModule->getWindowHeight(windowModule->getMainWindowID()));
 	}
 	else {
 		imageExtent.width = 1280;
@@ -3539,9 +3539,9 @@ void NtshEngn::GraphicsModule::createToneMappingResources() {
 void NtshEngn::GraphicsModule::createToneMappingImage() {
 	// Create image
 	VkExtent3D imageExtent;
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-		imageExtent.width = static_cast<uint32_t>(windowModule->getWidth(windowModule->getMainWindowID()));
-		imageExtent.height = static_cast<uint32_t>(windowModule->getHeight(windowModule->getMainWindowID()));
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
+		imageExtent.width = static_cast<uint32_t>(windowModule->getWindowWidth(windowModule->getMainWindowID()));
+		imageExtent.height = static_cast<uint32_t>(windowModule->getWindowHeight(windowModule->getMainWindowID()));
 	}
 	else {
 		imageExtent.width = 1280;
@@ -4992,8 +4992,8 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 }
 
 void NtshEngn::GraphicsModule::resize() {
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-		while ((windowModule->getWidth(windowModule->getMainWindowID()) == 0) || (windowModule->getHeight(windowModule->getMainWindowID()) == 0)) {
+	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
+		while ((windowModule->getWindowWidth(windowModule->getMainWindowID()) == 0) || (windowModule->getWindowHeight(windowModule->getMainWindowID()) == 0)) {
 			windowModule->pollEvents();
 		}
 
@@ -5016,13 +5016,13 @@ void NtshEngn::GraphicsModule::resize() {
 		createToneMappingImage();
 
 		// Resize G-Buffer
-		m_gBuffer.onResize(static_cast<uint32_t>(windowModule->getWidth(windowModule->getMainWindowID())), static_cast<uint32_t>(windowModule->getHeight(windowModule->getMainWindowID())));
+		m_gBuffer.onResize(static_cast<uint32_t>(windowModule->getWindowWidth(windowModule->getMainWindowID())), static_cast<uint32_t>(windowModule->getWindowHeight(windowModule->getMainWindowID())));
 
 		// Resize SSAO
-		m_ssao.onResize(static_cast<uint32_t>(windowModule->getWidth(windowModule->getMainWindowID())), static_cast<uint32_t>(windowModule->getHeight(windowModule->getMainWindowID())), m_gBuffer.getPosition().view, m_gBuffer.getNormal().view);
+		m_ssao.onResize(static_cast<uint32_t>(windowModule->getWindowWidth(windowModule->getMainWindowID())), static_cast<uint32_t>(windowModule->getWindowHeight(windowModule->getMainWindowID())), m_gBuffer.getPosition().view, m_gBuffer.getNormal().view);
 
 		// Resize FXAA
-		m_fxaa.onResize(static_cast<uint32_t>(windowModule->getWidth(windowModule->getMainWindowID())), static_cast<uint32_t>(windowModule->getHeight(windowModule->getMainWindowID())), m_toneMappingImage.view);
+		m_fxaa.onResize(static_cast<uint32_t>(windowModule->getWindowWidth(windowModule->getMainWindowID())), static_cast<uint32_t>(windowModule->getWindowHeight(windowModule->getMainWindowID())), m_toneMappingImage.view);
 
 		// Update descriptor sets using these images
 		updateCompositingDescriptorSets();
