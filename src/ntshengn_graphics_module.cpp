@@ -302,7 +302,7 @@ void NtshEngn::GraphicsModule::init() {
 		imageCreateInfo.pNext = nullptr;
 		imageCreateInfo.flags = 0;
 		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-		imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+		imageCreateInfo.format = m_drawImageFormat;
 		imageCreateInfo.extent.width = 1280;
 		imageCreateInfo.extent.height = 720;
 		imageCreateInfo.extent.depth = 1;
