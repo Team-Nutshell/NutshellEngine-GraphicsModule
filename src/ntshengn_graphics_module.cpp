@@ -3283,10 +3283,7 @@ void NtshEngn::GraphicsModule::createToneMappingResources() {
 	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_toneMappingDescriptorSetLayout));
 
 	// Create graphics pipeline
-	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-		pipelineRenderingColorFormat = m_drawImageFormat;
-	}
+	VkFormat pipelineRenderingColorFormat = m_drawImageFormat;
 
 	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
 	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
@@ -3778,10 +3775,7 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_uiTextDescriptorSetLayout));
 
 	// Create graphics pipeline
-	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-		pipelineRenderingColorFormat = m_drawImageFormat;
-	}
+	VkFormat pipelineRenderingColorFormat = m_drawImageFormat;
 
 	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
 	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
@@ -4117,10 +4111,7 @@ void NtshEngn::GraphicsModule::updateUITextDescriptorSet(uint32_t frameInFlight)
 
 void NtshEngn::GraphicsModule::createUILineResources() {
 	// Create graphics pipeline
-	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-		pipelineRenderingColorFormat = m_drawImageFormat;
-	}
+	VkFormat pipelineRenderingColorFormat = m_drawImageFormat;
 
 	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
 	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
@@ -4344,10 +4335,7 @@ void NtshEngn::GraphicsModule::createUILineResources() {
 
 void NtshEngn::GraphicsModule::createUIRectangleResources() {
 	// Create graphics pipeline
-	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-		pipelineRenderingColorFormat = m_drawImageFormat;
-	}
+	VkFormat pipelineRenderingColorFormat = m_drawImageFormat;
 
 	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
 	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
@@ -4600,10 +4588,7 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_uiImageDescriptorSetLayout));
 
 	// Create graphics pipeline
-	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R8G8B8A8_SRGB;
-	if (windowModule && windowModule->isOpen(windowModule->getMainWindowID())) {
-		pipelineRenderingColorFormat = m_drawImageFormat;
-	}
+	VkFormat pipelineRenderingColorFormat = m_drawImageFormat;
 
 	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
 	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
