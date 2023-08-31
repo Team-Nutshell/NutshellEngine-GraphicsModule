@@ -330,21 +330,21 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	NTSHENGN_UNUSED(mesh);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 
-	return std::numeric_limits<MeshID>::max();
+	return NTSHENGN_MESH_UNKNOWN;
 }
 
 NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	NTSHENGN_UNUSED(image);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 
-	return std::numeric_limits<ImageID>::max();
+	return NTSHENGN_IMAGE_UNKNOWN;
 }
 
 NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	NTSHENGN_UNUSED(font);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 
-	return std::numeric_limits<FontID>::max();
+	return NTSHENGN_FONT_UNKNOWN;
 }
 
 void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::string& text, const Math::vec2& position, const Math::vec4& color) {
