@@ -140,6 +140,7 @@ struct InternalUIImage {
 	NtshEngn::Math::vec2 v1 = { 0.0f, 0.0f };
 	NtshEngn::Math::vec2 v2 = { 0.0f, 0.0f };
 	NtshEngn::Math::vec2 v3 = { 0.0f, 0.0f };
+	NtshEngn::Math::vec2 reverseUV = { 0.0f, 0.0f };
 };
 
 namespace NtshEngn {

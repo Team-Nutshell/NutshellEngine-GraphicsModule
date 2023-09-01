@@ -922,8 +922,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 				vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_uiImageGraphicsPipeline);
 				vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_uiImageGraphicsPipelineLayout, 0, 1, &m_uiImageDescriptorSets[m_currentFrameInFlight], 0, nullptr);
-				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiImageGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4 * sizeof(Math::vec2), &uiImage.v0);
-				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiImageGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 4 * sizeof(Math::vec2), sizeof(Math::vec4) + sizeof(uint32_t), &uiImage.color);
+				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiImageGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 5 * sizeof(Math::vec2), &uiImage.v0);
+				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiImageGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 5 * sizeof(Math::vec2) + sizeof(Math::vec2), sizeof(Math::vec4) + sizeof(uint32_t), &uiImage.color);
 
 				vkCmdDraw(m_renderingCommandBuffers[m_currentFrameInFlight], 6, 1, 0, 0);
 
@@ -1895,7 +1895,7 @@ void NtshEngn::GraphicsModule::drawUIRectangle(const Math::vec2& position, const
 void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter imageSamplerFilter, const Math::vec2& position, float rotation, const Math::vec2& scale, const Math::vec4& color) {
 	NTSHENGN_ASSERT(imageID < m_textureImages.size());
 
-	const Math::mat3 transform = Math::translate(position) * Math::rotate(rotation) * Math::scale(scale);
+	const Math::mat3 transform = Math::translate(position) * Math::rotate(rotation) * Math::scale(Math::vec2(std::abs(scale.x), std::abs(scale.y)));
 	const float x = (m_textureSizes[imageID].x) / 2.0f;
 	const float y = (m_textureSizes[imageID].y) / 2.0f;
 
@@ -1929,6 +1929,8 @@ void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter i
 	uiImage.v1 = Math::vec2((v1.x / m_viewport.width) * 2.0f - 1.0f, (v1.y / m_viewport.height) * 2.0f - 1.0f);
 	uiImage.v2 = Math::vec2((v2.x / m_viewport.width) * 2.0f - 1.0f, (v2.y / m_viewport.height) * 2.0f - 1.0f);
 	uiImage.v3 = Math::vec2((v3.x / m_viewport.width) * 2.0f - 1.0f, (v3.y / m_viewport.height) * 2.0f - 1.0f);
+	uiImage.reverseUV.x = (scale.x >= 0.0f) ? 0.0f : 1.0f;
+	uiImage.reverseUV.y = (scale.y >= 0.0f) ? 0.0f : 1.0f;
 	uiImage.color = color;
 	m_uiImages.push(uiImage);
 
@@ -4467,6 +4469,7 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 			vec2 v1;
 			vec2 v2;
 			vec2 v3;
+			vec2 reverseUV;
 		} uTPI;
 
 		layout(location = 0) out vec2 outUv;
@@ -4474,19 +4477,19 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 		void main() {
 			if ((gl_VertexIndex == 0) || (gl_VertexIndex == 3)) {
 				gl_Position = vec4(uTPI.v0, 0.0, 1.0);
-				outUv = vec2(1.0, 0.0);
+				outUv = vec2(1.0 - uTPI.reverseUV.x, 0.0 + uTPI.reverseUV.y);
 			}
 			else if (gl_VertexIndex == 1) {
 				gl_Position = vec4(uTPI.v1, 0.0, 1.0);
-				outUv = vec2(0.0, 0.0);
+				outUv = vec2(0.0 + uTPI.reverseUV.x, 0.0 + uTPI.reverseUV.y);
 			}
 			else if ((gl_VertexIndex == 2) || (gl_VertexIndex == 4)) {
 				gl_Position = vec4(uTPI.v2, 0.0, 1.0);
-				outUv = vec2(0.0, 1.0);
+				outUv = vec2(0.0 + uTPI.reverseUV.x, 1.0 - uTPI.reverseUV.y);
 			}
 			else if (gl_VertexIndex == 5) {
 				gl_Position = vec4(uTPI.v3, 0.0, 1.0);
-				outUv = vec2(1.0, 1.0);
+				outUv = vec2(1.0 - uTPI.reverseUV.x, 1.0 - uTPI.reverseUV.y);
 			}
 		}
 	)GLSL";
@@ -4515,7 +4518,7 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 		#extension GL_EXT_nonuniform_qualifier : enable
 
 		layout(push_constant) uniform UITextureInfo {
-			layout(offset = 32) vec4 color;
+			layout(offset = 48) vec4 color;
 			uint uiTextureIndex;
 		} uTI;
 
@@ -4583,7 +4586,7 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 	rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
 	rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
 	rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
-	rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_NONE;
+	rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
 	rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	rasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
 	rasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
@@ -4646,11 +4649,11 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 	VkPushConstantRange vertexPushConstantRange = {};
 	vertexPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	vertexPushConstantRange.offset = 0;
-	vertexPushConstantRange.size = 4 * sizeof(Math::vec2);
+	vertexPushConstantRange.size = 5 * sizeof(Math::vec2);
 
 	VkPushConstantRange fragmentPushConstantRange = {};
 	fragmentPushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragmentPushConstantRange.offset = 4 * sizeof(Math::vec2);
+	fragmentPushConstantRange.offset = 5 * sizeof(Math::vec2) + sizeof(Math::vec2);
 	fragmentPushConstantRange.size = sizeof(Math::vec4) + sizeof(uint32_t);
 
 	std::array<VkPushConstantRange, 2> pushConstantRanges = { vertexPushConstantRange, fragmentPushConstantRange };
