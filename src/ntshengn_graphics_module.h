@@ -22,6 +22,42 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBits
 	return VK_FALSE;
 }
 
+enum class UIElement {
+	Text,
+	Line,
+	Rectangle,
+	Image
+};
+
+struct InternalUIText {
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
+	NtshEngn::FontID fontID;
+
+	uint32_t charactersCount = 0;
+	uint32_t bufferOffset = 0;
+};
+
+struct InternalUILine {
+	NtshEngn::Math::vec4 positions = { 0.0f, 0.0f, 0.0f, 0.0f };
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
+};
+
+struct InternalUIRectangle {
+	NtshEngn::Math::vec4 positions = { 0.0f, 0.0f, 0.0f, 0.0f };
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
+};
+
+struct InternalUIImage {
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
+	uint32_t uiTextureIndex;
+
+	NtshEngn::Math::vec2 v0 = { 0.0f, 0.0f };
+	NtshEngn::Math::vec2 v1 = { 0.0f, 0.0f };
+	NtshEngn::Math::vec2 v2 = { 0.0f, 0.0f };
+	NtshEngn::Math::vec2 v3 = { 0.0f, 0.0f };
+	NtshEngn::Math::vec2 reverseUV = { 0.0f, 0.0f };
+};
+
 namespace NtshEngn {
 
 	class GraphicsModule : public GraphicsModuleInterface {
