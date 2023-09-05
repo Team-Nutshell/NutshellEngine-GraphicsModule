@@ -1351,11 +1351,11 @@ void NtshEngn::GraphicsModule::destroy() {
 	vmaDestroyBuffer(m_allocator, m_indexBuffer, m_indexBufferAllocation);
 	vmaDestroyBuffer(m_allocator, m_vertexBuffer, m_vertexBufferAllocation);
 
-	// Destroy initialization command pool
-	vkDestroyCommandPool(m_device, m_initializationCommandPool, nullptr);
-
 	// Destroy initialization fence
 	vkDestroyFence(m_device, m_initializationFence, nullptr);
+
+	// Destroy initialization command pool
+	vkDestroyCommandPool(m_device, m_initializationCommandPool, nullptr);
 
 	// Destroy swapchain
 	if (m_swapchain != VK_NULL_HANDLE) {
