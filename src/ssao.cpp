@@ -5,6 +5,8 @@ void SSAO::init(VkDevice device,
 	VkQueue graphicsQueue,
 	uint32_t graphicsQueueFamilyIndex,
 	VmaAllocator allocator,
+	VkCommandPool initializationCommandPool,
+	VkCommandBuffer initializationCommandBuffer,
 	VkFence initializationFence,
 	VkImageView positionImageView,
 	VkImageView normalImageView,
@@ -19,6 +21,8 @@ void SSAO::init(VkDevice device,
 	m_graphicsQueue = graphicsQueue;
 	m_graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
 	m_allocator = allocator;
+	m_initializationCommandPool = initializationCommandPool;
+	m_initializationCommandBuffer = initializationCommandBuffer;
 	m_initializationFence = initializationFence;
 	m_viewport = viewport;
 	m_scissor = scissor;
@@ -336,31 +340,14 @@ void SSAO::createImagesAndBuffer(uint32_t width, uint32_t height) {
 	memcpy(data, randomData.data(), 16 * 4 * sizeof(float));
 	vmaUnmapMemory(m_allocator, stagingBuffer.allocation);
 
-	VkCommandPool commandPool;
-
-	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
-	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	commandPoolCreateInfo.pNext = nullptr;
-	commandPoolCreateInfo.flags = 0;
-	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
-	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &commandPool));
-
-	VkCommandBuffer commandBuffer;
-
-	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	commandBufferAllocateInfo.pNext = nullptr;
-	commandBufferAllocateInfo.commandPool = commandPool;
-	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	commandBufferAllocateInfo.commandBufferCount = 1;
-	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &commandBuffer));
+	NTSHENGN_VK_CHECK(vkResetCommandPool(m_device, m_initializationCommandPool, 0));
 
 	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
 	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	commandBufferBeginInfo.pNext = nullptr;
 	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	commandBufferBeginInfo.pInheritanceInfo = nullptr;
-	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo));
+	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(m_initializationCommandBuffer, &commandBufferBeginInfo));
 
 	VkImageMemoryBarrier2 undefinedToTransferDstImageMemoryBarrier = {};
 	undefinedToTransferDstImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -390,7 +377,7 @@ void SSAO::createImagesAndBuffer(uint32_t width, uint32_t height) {
 	undefinedToTransferDstDependencyInfo.pBufferMemoryBarriers = nullptr;
 	undefinedToTransferDstDependencyInfo.imageMemoryBarrierCount = 1;
 	undefinedToTransferDstDependencyInfo.pImageMemoryBarriers = &undefinedToTransferDstImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(commandBuffer, &undefinedToTransferDstDependencyInfo);
+	m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &undefinedToTransferDstDependencyInfo);
 
 	VkBufferImageCopy bufferImageCopy = {};
 	bufferImageCopy.bufferOffset = 0;
@@ -406,7 +393,7 @@ void SSAO::createImagesAndBuffer(uint32_t width, uint32_t height) {
 	bufferImageCopy.imageExtent.width = 4;
 	bufferImageCopy.imageExtent.height = 4;
 	bufferImageCopy.imageExtent.depth = 1;
-	vkCmdCopyBufferToImage(commandBuffer, stagingBuffer.handle, m_randomImage.handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferImageCopy);
+	vkCmdCopyBufferToImage(m_initializationCommandBuffer, stagingBuffer.handle, m_randomImage.handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferImageCopy);
 
 	VkImageMemoryBarrier2 transferDstToShaderReadOnlyImageMemoryBarrier = {};
 	transferDstToShaderReadOnlyImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -436,9 +423,9 @@ void SSAO::createImagesAndBuffer(uint32_t width, uint32_t height) {
 	transferDstToShaderReadOnlyDependencyInfo.pBufferMemoryBarriers = nullptr;
 	transferDstToShaderReadOnlyDependencyInfo.imageMemoryBarrierCount = 1;
 	transferDstToShaderReadOnlyDependencyInfo.pImageMemoryBarriers = &transferDstToShaderReadOnlyImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(commandBuffer, &transferDstToShaderReadOnlyDependencyInfo);
+	m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &transferDstToShaderReadOnlyDependencyInfo);
 
-	NTSHENGN_VK_CHECK(vkEndCommandBuffer(commandBuffer));
+	NTSHENGN_VK_CHECK(vkEndCommandBuffer(m_initializationCommandBuffer));
 
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -447,14 +434,13 @@ void SSAO::createImagesAndBuffer(uint32_t width, uint32_t height) {
 	submitInfo.pWaitSemaphores = nullptr;
 	submitInfo.pWaitDstStageMask = nullptr;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
+	submitInfo.pCommandBuffers = &m_initializationCommandBuffer;
 	submitInfo.signalSemaphoreCount = 0;
 	submitInfo.pSignalSemaphores = nullptr;
 	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_initializationFence));
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 
-	vkDestroyCommandPool(m_device, commandPool, nullptr);
 	stagingBuffer.destroy(m_allocator);
 
 	// Random sample buffer

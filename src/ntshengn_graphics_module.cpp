@@ -347,6 +347,23 @@ void NtshEngn::GraphicsModule::init() {
 		NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &imageViewCreateInfo, nullptr, &m_drawImage.view));
 	}
 
+	// Create initialization command pool
+	VkCommandPoolCreateInfo initializationCommandPoolCreateInfo = {};
+	initializationCommandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	initializationCommandPoolCreateInfo.pNext = nullptr;
+	initializationCommandPoolCreateInfo.flags = 0;
+	initializationCommandPoolCreateInfo.queueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &initializationCommandPoolCreateInfo, nullptr, &m_initializationCommandPool));
+
+	// Allocate initialization command pool
+	VkCommandBufferAllocateInfo initializationCommandBufferAllocateInfo = {};
+	initializationCommandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	initializationCommandBufferAllocateInfo.pNext = nullptr;
+	initializationCommandBufferAllocateInfo.commandPool = m_initializationCommandPool;
+	initializationCommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	initializationCommandBufferAllocateInfo.commandBufferCount = 1;
+	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &initializationCommandBufferAllocateInfo, &m_initializationCommandBuffer));
+
 	// Create initialization fence
 	VkFenceCreateInfo initializationFenceCreateInfo = {};
 	initializationFenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -430,7 +447,6 @@ void NtshEngn::GraphicsModule::init() {
 		m_graphicsComputeQueue,
 		m_graphicsComputeQueueFamilyIndex,
 		m_allocator,
-		m_initializationFence,
 		m_framesInFlight,
 		m_vkCmdPipelineBarrier2KHR,
 		jobSystem,
@@ -440,6 +456,8 @@ void NtshEngn::GraphicsModule::init() {
 		m_graphicsComputeQueue,
 		m_graphicsComputeQueueFamilyIndex,
 		m_allocator,
+		m_initializationCommandPool,
+		m_initializationCommandBuffer,
 		m_initializationFence,
 		m_viewport,
 		m_scissor,
@@ -456,6 +474,8 @@ void NtshEngn::GraphicsModule::init() {
 		m_graphicsComputeQueue,
 		m_graphicsComputeQueueFamilyIndex,
 		m_allocator,
+		m_initializationCommandPool,
+		m_initializationCommandBuffer,
 		m_initializationFence,
 		m_gBuffer.getPosition().view,
 		m_gBuffer.getNormal().view,
@@ -471,6 +491,8 @@ void NtshEngn::GraphicsModule::init() {
 		m_graphicsComputeQueue,
 		m_graphicsComputeQueueFamilyIndex,
 		m_allocator,
+		m_initializationCommandPool,
+		m_initializationCommandBuffer,
 		m_initializationFence,
 		m_framesInFlight,
 		m_objectBuffers,
@@ -1235,6 +1257,9 @@ void NtshEngn::GraphicsModule::destroy() {
 	// Destroy initialization fence
 	vkDestroyFence(m_device, m_initializationFence, nullptr);
 
+	// Destroy initialization command pool
+	vkDestroyCommandPool(m_device, m_initializationCommandPool, nullptr);
+
 	// Destroy swapchain
 	if (m_swapchain != VK_NULL_HANDLE) {
 		for (VkImageView& swapchainImageView : m_swapchainImageViews) {
@@ -1306,45 +1331,28 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	vmaUnmapMemory(m_allocator, vertexAndIndexStagingBufferAllocation);
 
 	// Copy staging buffer
-	VkCommandPool buffersCopyCommandPool;
-
-	VkCommandPoolCreateInfo buffersCopyCommandPoolCreateInfo = {};
-	buffersCopyCommandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	buffersCopyCommandPoolCreateInfo.pNext = nullptr;
-	buffersCopyCommandPoolCreateInfo.flags = 0;
-	buffersCopyCommandPoolCreateInfo.queueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
-	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &buffersCopyCommandPoolCreateInfo, nullptr, &buffersCopyCommandPool));
-
-	VkCommandBuffer buffersCopyCommandBuffer;
-
-	VkCommandBufferAllocateInfo buffersCopyCommandBufferAllocateInfo = {};
-	buffersCopyCommandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	buffersCopyCommandBufferAllocateInfo.pNext = nullptr;
-	buffersCopyCommandBufferAllocateInfo.commandPool = buffersCopyCommandPool;
-	buffersCopyCommandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	buffersCopyCommandBufferAllocateInfo.commandBufferCount = 1;
-	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &buffersCopyCommandBufferAllocateInfo, &buffersCopyCommandBuffer));
+	NTSHENGN_VK_CHECK(vkResetCommandPool(m_device, m_initializationCommandPool, 0));
 
 	VkCommandBufferBeginInfo vertexAndIndexBuffersCopyBeginInfo = {};
 	vertexAndIndexBuffersCopyBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	vertexAndIndexBuffersCopyBeginInfo.pNext = nullptr;
 	vertexAndIndexBuffersCopyBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	vertexAndIndexBuffersCopyBeginInfo.pInheritanceInfo = nullptr;
-	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(buffersCopyCommandBuffer, &vertexAndIndexBuffersCopyBeginInfo));
+	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(m_initializationCommandBuffer, &vertexAndIndexBuffersCopyBeginInfo));
 
 	VkBufferCopy vertexBufferCopy = {};
 	vertexBufferCopy.srcOffset = 0;
 	vertexBufferCopy.dstOffset = m_currentVertexOffset * sizeof(Vertex);
 	vertexBufferCopy.size = mesh.vertices.size() * sizeof(Vertex);
-	vkCmdCopyBuffer(buffersCopyCommandBuffer, vertexAndIndexStagingBuffer, m_vertexBuffer.handle, 1, &vertexBufferCopy);
+	vkCmdCopyBuffer(m_initializationCommandBuffer, vertexAndIndexStagingBuffer, m_vertexBuffer.handle, 1, &vertexBufferCopy);
 
 	VkBufferCopy indexBufferCopy = {};
 	indexBufferCopy.srcOffset = mesh.vertices.size() * sizeof(Vertex);
 	indexBufferCopy.dstOffset = m_currentIndexOffset * sizeof(uint32_t);
 	indexBufferCopy.size = mesh.indices.size() * sizeof(uint32_t);
-	vkCmdCopyBuffer(buffersCopyCommandBuffer, vertexAndIndexStagingBuffer, m_indexBuffer.handle, 1, &indexBufferCopy);
+	vkCmdCopyBuffer(m_initializationCommandBuffer, vertexAndIndexStagingBuffer, m_indexBuffer.handle, 1, &indexBufferCopy);
 
-	NTSHENGN_VK_CHECK(vkEndCommandBuffer(buffersCopyCommandBuffer));
+	NTSHENGN_VK_CHECK(vkEndCommandBuffer(m_initializationCommandBuffer));
 
 	VkSubmitInfo buffersCopySubmitInfo = {};
 	buffersCopySubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1353,14 +1361,13 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	buffersCopySubmitInfo.pWaitSemaphores = nullptr;
 	buffersCopySubmitInfo.pWaitDstStageMask = nullptr;
 	buffersCopySubmitInfo.commandBufferCount = 1;
-	buffersCopySubmitInfo.pCommandBuffers = &buffersCopyCommandBuffer;
+	buffersCopySubmitInfo.pCommandBuffers = &m_initializationCommandBuffer;
 	buffersCopySubmitInfo.signalSemaphoreCount = 0;
 	buffersCopySubmitInfo.pSignalSemaphores = nullptr;
 	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &buffersCopySubmitInfo, m_initializationFence));
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 
-	vkDestroyCommandPool(m_device, buffersCopyCommandPool, nullptr);
 	vmaDestroyBuffer(m_allocator, vertexAndIndexStagingBuffer, vertexAndIndexStagingBufferAllocation);
 
 	m_currentVertexOffset += static_cast<int32_t>(mesh.vertices.size());
@@ -1586,31 +1593,14 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	vmaUnmapMemory(m_allocator, textureStagingBufferAllocation);
 
 	// Copy staging buffer
-	VkCommandPool commandPool;
-
-	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
-	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	commandPoolCreateInfo.pNext = nullptr;
-	commandPoolCreateInfo.flags = 0;
-	commandPoolCreateInfo.queueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
-	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &commandPool));
-
-	VkCommandBuffer commandBuffer;
-
-	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	commandBufferAllocateInfo.pNext = nullptr;
-	commandBufferAllocateInfo.commandPool = commandPool;
-	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	commandBufferAllocateInfo.commandBufferCount = 1;
-	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &commandBuffer));
+	NTSHENGN_VK_CHECK(vkResetCommandPool(m_device, m_initializationCommandPool, 0));
 
 	VkCommandBufferBeginInfo textureCopyBeginInfo = {};
 	textureCopyBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	textureCopyBeginInfo.pNext = nullptr;
 	textureCopyBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	textureCopyBeginInfo.pInheritanceInfo = nullptr;
-	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(commandBuffer, &textureCopyBeginInfo));
+	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(m_initializationCommandBuffer, &textureCopyBeginInfo));
 
 	VkImageMemoryBarrier2 undefinedToTransferDstImageMemoryBarrier = {};
 	undefinedToTransferDstImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -1640,7 +1630,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	undefinedToTransferDstDependencyInfo.pBufferMemoryBarriers = nullptr;
 	undefinedToTransferDstDependencyInfo.imageMemoryBarrierCount = 1;
 	undefinedToTransferDstDependencyInfo.pImageMemoryBarriers = &undefinedToTransferDstImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(commandBuffer, &undefinedToTransferDstDependencyInfo);
+	m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &undefinedToTransferDstDependencyInfo);
 
 	VkBufferImageCopy textureBufferCopy = {};
 	textureBufferCopy.bufferOffset = 0;
@@ -1656,7 +1646,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	textureBufferCopy.imageExtent.width = image.width;
 	textureBufferCopy.imageExtent.height = image.height;
 	textureBufferCopy.imageExtent.depth = 1;
-	vkCmdCopyBufferToImage(commandBuffer, textureStagingBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &textureBufferCopy);
+	vkCmdCopyBufferToImage(m_initializationCommandBuffer, textureStagingBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &textureBufferCopy);
 
 	VkImageMemoryBarrier2 mipMapGenerationImageMemoryBarrier = {};
 	mipMapGenerationImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -1690,7 +1680,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 		mipMapGenerationDependencyInfo.pBufferMemoryBarriers = nullptr;
 		mipMapGenerationDependencyInfo.imageMemoryBarrierCount = 1;
 		mipMapGenerationDependencyInfo.pImageMemoryBarriers = &mipMapGenerationImageMemoryBarrier;
-		m_vkCmdPipelineBarrier2KHR(commandBuffer, &mipMapGenerationDependencyInfo);
+		m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &mipMapGenerationDependencyInfo);
 
 		VkImageBlit imageBlit = {};
 		imageBlit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -1713,7 +1703,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 		imageBlit.dstOffsets[1].x = mipWidth > 1 ? mipWidth / 2 : 1;
 		imageBlit.dstOffsets[1].y = mipHeight > 1 ? mipHeight / 2 : 1;
 		imageBlit.dstOffsets[1].z = 1;
-		vkCmdBlitImage(commandBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageBlit, VK_FILTER_LINEAR);
+		vkCmdBlitImage(m_initializationCommandBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageBlit, VK_FILTER_LINEAR);
 
 		mipMapGenerationImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
 		mipMapGenerationImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
@@ -1723,13 +1713,13 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 		mipMapGenerationImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		mipMapGenerationDependencyInfo.pImageMemoryBarriers = &mipMapGenerationImageMemoryBarrier;
-		m_vkCmdPipelineBarrier2KHR(commandBuffer, &mipMapGenerationDependencyInfo);
+		m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &mipMapGenerationDependencyInfo);
 
 		mipWidth = mipWidth > 1 ? mipWidth / 2 : 1;
 		mipHeight = mipHeight > 1 ? mipHeight / 2 : 1;
 	}
 
-	NTSHENGN_VK_CHECK(vkEndCommandBuffer(commandBuffer));
+	NTSHENGN_VK_CHECK(vkEndCommandBuffer(m_initializationCommandBuffer));
 
 	VkSubmitInfo buffersCopySubmitInfo = {};
 	buffersCopySubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1738,14 +1728,13 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	buffersCopySubmitInfo.pWaitSemaphores = nullptr;
 	buffersCopySubmitInfo.pWaitDstStageMask = nullptr;
 	buffersCopySubmitInfo.commandBufferCount = 1;
-	buffersCopySubmitInfo.pCommandBuffers = &commandBuffer;
+	buffersCopySubmitInfo.pCommandBuffers = &m_initializationCommandBuffer;
 	buffersCopySubmitInfo.signalSemaphoreCount = 0;
 	buffersCopySubmitInfo.pSignalSemaphores = nullptr;
 	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &buffersCopySubmitInfo, m_initializationFence));
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 
-	vkDestroyCommandPool(m_device, commandPool, nullptr);
 	vmaDestroyBuffer(m_allocator, textureStagingBuffer, textureStagingBufferAllocation);
 
 	m_textureImages.push_back(textureImage);

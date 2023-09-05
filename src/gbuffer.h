@@ -7,6 +7,8 @@ public:
 		VkQueue graphicsQueue,
 		uint32_t graphicsQueueFamilyIndex,
 		VmaAllocator allocator,
+		VkCommandPool initializationCommandPool,
+		VkCommandBuffer initializationCommandBuffer,
 		VkFence initializationFence,
 		VkViewport viewport,
 		VkRect2D scissor,
@@ -75,6 +77,8 @@ private:
 	VkQueue m_graphicsQueue;
 	uint32_t m_graphicsQueueFamilyIndex;
 	VmaAllocator m_allocator;
+	VkCommandPool m_initializationCommandPool;
+	VkCommandBuffer m_initializationCommandBuffer;
 	VkFence m_initializationFence;
 	VkViewport m_viewport;
 	VkRect2D m_scissor;

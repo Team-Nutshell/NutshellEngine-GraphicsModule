@@ -18,7 +18,6 @@ public:
 		VkQueue computeQueue,
 		uint32_t computeQueueFamilyIndex,
 		VmaAllocator allocator,
-		VkFence initializationFence,
 		uint32_t framesInFlight,
 		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR,
 		NtshEngn::JobSystem* jobSystem,
@@ -68,7 +67,6 @@ private:
 	VkQueue m_computeQueue;
 	uint32_t m_computeQueueFamilyIndex;
 	VmaAllocator m_allocator;
-	VkFence m_initializationFence;
 	uint32_t m_framesInFlight;
 
 	PFN_vkCmdPipelineBarrier2KHR m_vkCmdPipelineBarrier2KHR;

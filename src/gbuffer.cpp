@@ -4,6 +4,8 @@ void GBuffer::init(VkDevice device,
 	VkQueue graphicsQueue,
 	uint32_t graphicsQueueFamilyIndex,
 	VmaAllocator allocator,
+	VkCommandPool initializationCommandPool,
+	VkCommandBuffer initializationCommandBuffer,
 	VkFence initializationFence,
 	VkViewport viewport,
 	VkRect2D scissor,
@@ -19,6 +21,8 @@ void GBuffer::init(VkDevice device,
 	m_graphicsQueue = graphicsQueue;
 	m_graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
 	m_allocator = allocator;
+	m_initializationCommandPool = initializationCommandPool;
+	m_initializationCommandBuffer = initializationCommandBuffer;
 	m_initializationFence = initializationFence;
 	m_viewport = viewport;
 	m_scissor = scissor;
@@ -531,31 +535,14 @@ void GBuffer::createImages(uint32_t width, uint32_t height) {
 	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &gBufferViewCreateInfo, nullptr, &m_depth.view));
 
 	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL and VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-	VkCommandPool commandPool;
-
-	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
-	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	commandPoolCreateInfo.pNext = nullptr;
-	commandPoolCreateInfo.flags = 0;
-	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
-	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &commandPool));
-
-	VkCommandBuffer commandBuffer;
-
-	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	commandBufferAllocateInfo.pNext = nullptr;
-	commandBufferAllocateInfo.commandPool = commandPool;
-	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	commandBufferAllocateInfo.commandBufferCount = 1;
-	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &commandBuffer));
+	NTSHENGN_VK_CHECK(vkResetCommandPool(m_device, m_initializationCommandPool, 0));
 
 	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
 	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	commandBufferBeginInfo.pNext = nullptr;
 	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	commandBufferBeginInfo.pInheritanceInfo = nullptr;
-	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo));
+	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(m_initializationCommandBuffer, &commandBufferBeginInfo));
 
 	VkImageMemoryBarrier2 gBufferPositionImageMemoryBarrier = {};
 	gBufferPositionImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -676,9 +663,9 @@ void GBuffer::createImages(uint32_t width, uint32_t height) {
 	dependencyInfo.pBufferMemoryBarriers = nullptr;
 	dependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(imageMemoryBarriers.size());
 	dependencyInfo.pImageMemoryBarriers = imageMemoryBarriers.data();
-	m_vkCmdPipelineBarrier2KHR(commandBuffer, &dependencyInfo);
+	m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &dependencyInfo);
 
-	NTSHENGN_VK_CHECK(vkEndCommandBuffer(commandBuffer));
+	NTSHENGN_VK_CHECK(vkEndCommandBuffer(m_initializationCommandBuffer));
 
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -687,14 +674,12 @@ void GBuffer::createImages(uint32_t width, uint32_t height) {
 	submitInfo.pWaitSemaphores = nullptr;
 	submitInfo.pWaitDstStageMask = nullptr;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
+	submitInfo.pCommandBuffers = &m_initializationCommandBuffer;
 	submitInfo.signalSemaphoreCount = 0;
 	submitInfo.pSignalSemaphores = nullptr;
 	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_initializationFence));
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
-
-	vkDestroyCommandPool(m_device, commandPool, nullptr);
 }
 
 void GBuffer::destroyImages() {

@@ -6,7 +6,6 @@ void FrustumCulling::init(VkDevice device,
 	VkQueue computeQueue,
 	uint32_t computeQueueFamilyIndex,
 	VmaAllocator allocator,
-	VkFence initializationFence,
 	uint32_t framesInFlight,
 	PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR, 
 	NtshEngn::JobSystem* jobSystem,
@@ -15,7 +14,6 @@ void FrustumCulling::init(VkDevice device,
 	m_computeQueue = computeQueue;
 	m_computeQueueFamilyIndex = computeQueueFamilyIndex;
 	m_allocator = allocator;
-	m_initializationFence = initializationFence;
 	m_framesInFlight = framesInFlight;
 	m_vkCmdPipelineBarrier2KHR = vkCmdPipelineBarrier2KHR;
 	m_jobSystem = jobSystem;

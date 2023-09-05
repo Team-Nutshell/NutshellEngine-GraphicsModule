@@ -6,6 +6,8 @@ void ShadowMapping::init(VkDevice device,
 	VkQueue graphicsQueue,
 	uint32_t graphicsQueueFamilyIndex,
 	VmaAllocator allocator,
+	VkCommandPool initializationCommandPool,
+	VkCommandBuffer initializationCommandBuffer,
 	VkFence initializationFence,
 	uint32_t framesInFlight,
 	const std::vector<VulkanBuffer>& objectBuffers,
@@ -18,6 +20,8 @@ void ShadowMapping::init(VkDevice device,
 	m_graphicsQueue = graphicsQueue;
 	m_graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
 	m_allocator = allocator;
+	m_initializationCommandPool = initializationCommandPool;
+	m_initializationCommandBuffer = initializationCommandBuffer;
 	m_initializationFence = initializationFence;
 	m_framesInFlight = framesInFlight;
 	m_vkCmdBeginRenderingKHR = vkCmdBeginRenderingKHR;
@@ -511,31 +515,14 @@ void ShadowMapping::createDirectionalLightShadowMap(NtshEngn::Entity entity) {
 	m_directionalLightShadowMaps.push_back(directionalLightShadowMap);
 
 	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-	VkCommandPool commandPool;
-
-	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
-	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	commandPoolCreateInfo.pNext = nullptr;
-	commandPoolCreateInfo.flags = 0;
-	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
-	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &commandPool));
-
-	VkCommandBuffer commandBuffer;
-
-	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	commandBufferAllocateInfo.pNext = nullptr;
-	commandBufferAllocateInfo.commandPool = commandPool;
-	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	commandBufferAllocateInfo.commandBufferCount = 1;
-	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &commandBuffer));
+	NTSHENGN_VK_CHECK(vkResetCommandPool(m_device, m_initializationCommandPool, 0));
 
 	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
 	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	commandBufferBeginInfo.pNext = nullptr;
 	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	commandBufferBeginInfo.pInheritanceInfo = nullptr;
-	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo));
+	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(m_initializationCommandBuffer, &commandBufferBeginInfo));
 
 	VkImageMemoryBarrier2 shadowMapImageMemoryBarrier = {};
 	shadowMapImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -565,9 +552,9 @@ void ShadowMapping::createDirectionalLightShadowMap(NtshEngn::Entity entity) {
 	dependencyInfo.pBufferMemoryBarriers = nullptr;
 	dependencyInfo.imageMemoryBarrierCount = 1;
 	dependencyInfo.pImageMemoryBarriers = &shadowMapImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(commandBuffer, &dependencyInfo);
+	m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &dependencyInfo);
 
-	NTSHENGN_VK_CHECK(vkEndCommandBuffer(commandBuffer));
+	NTSHENGN_VK_CHECK(vkEndCommandBuffer(m_initializationCommandBuffer));
 
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -576,14 +563,12 @@ void ShadowMapping::createDirectionalLightShadowMap(NtshEngn::Entity entity) {
 	submitInfo.pWaitSemaphores = nullptr;
 	submitInfo.pWaitDstStageMask = nullptr;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
+	submitInfo.pCommandBuffers = &m_initializationCommandBuffer;
 	submitInfo.signalSemaphoreCount = 0;
 	submitInfo.pSignalSemaphores = nullptr;
 	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_initializationFence));
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
-
-	vkDestroyCommandPool(m_device, commandPool, nullptr);
 }
 
 void ShadowMapping::destroyDirectionalLightShadowMap(NtshEngn::Entity entity) {
@@ -658,31 +643,14 @@ void ShadowMapping::createSpotLightShadowMap(NtshEngn::Entity entity) {
 	m_spotLightShadowMaps.push_back(spotLightShadowMap);
 
 	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-	VkCommandPool commandPool;
-
-	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
-	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	commandPoolCreateInfo.pNext = nullptr;
-	commandPoolCreateInfo.flags = 0;
-	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
-	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &commandPool));
-
-	VkCommandBuffer commandBuffer;
-
-	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	commandBufferAllocateInfo.pNext = nullptr;
-	commandBufferAllocateInfo.commandPool = commandPool;
-	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	commandBufferAllocateInfo.commandBufferCount = 1;
-	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &commandBuffer));
+	NTSHENGN_VK_CHECK(vkResetCommandPool(m_device, m_initializationCommandPool, 0));
 
 	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
 	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	commandBufferBeginInfo.pNext = nullptr;
 	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	commandBufferBeginInfo.pInheritanceInfo = nullptr;
-	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo));
+	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(m_initializationCommandBuffer, &commandBufferBeginInfo));
 
 	VkImageMemoryBarrier2 shadowMapImageMemoryBarrier = {};
 	shadowMapImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -712,9 +680,9 @@ void ShadowMapping::createSpotLightShadowMap(NtshEngn::Entity entity) {
 	dependencyInfo.pBufferMemoryBarriers = nullptr;
 	dependencyInfo.imageMemoryBarrierCount = 1;
 	dependencyInfo.pImageMemoryBarriers = &shadowMapImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(commandBuffer, &dependencyInfo);
+	m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &dependencyInfo);
 
-	NTSHENGN_VK_CHECK(vkEndCommandBuffer(commandBuffer));
+	NTSHENGN_VK_CHECK(vkEndCommandBuffer(m_initializationCommandBuffer));
 
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -723,14 +691,12 @@ void ShadowMapping::createSpotLightShadowMap(NtshEngn::Entity entity) {
 	submitInfo.pWaitSemaphores = nullptr;
 	submitInfo.pWaitDstStageMask = nullptr;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
+	submitInfo.pCommandBuffers = &m_initializationCommandBuffer;
 	submitInfo.signalSemaphoreCount = 0;
 	submitInfo.pSignalSemaphores = nullptr;
 	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_initializationFence));
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
-
-	vkDestroyCommandPool(m_device, commandPool, nullptr);
 }
 
 void ShadowMapping::destroySpotLightShadowMap(NtshEngn::Entity entity) {
@@ -812,31 +778,14 @@ void ShadowMapping::createImageAndBuffers() {
 	m_dummyShadowMap.views.push_back(dummyShadowMapView);
 
 	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-	VkCommandPool commandPool;
-
-	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
-	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	commandPoolCreateInfo.pNext = nullptr;
-	commandPoolCreateInfo.flags = 0;
-	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
-	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &commandPool));
-
-	VkCommandBuffer commandBuffer;
-
-	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	commandBufferAllocateInfo.pNext = nullptr;
-	commandBufferAllocateInfo.commandPool = commandPool;
-	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	commandBufferAllocateInfo.commandBufferCount = 1;
-	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &commandBuffer));
+	NTSHENGN_VK_CHECK(vkResetCommandPool(m_device, m_initializationCommandPool, 0));
 
 	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
 	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	commandBufferBeginInfo.pNext = nullptr;
 	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	commandBufferBeginInfo.pInheritanceInfo = nullptr;
-	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo));
+	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(m_initializationCommandBuffer, &commandBufferBeginInfo));
 
 	VkImageMemoryBarrier2 dummyShadowMapImageMemoryBarrier = {};
 	dummyShadowMapImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -866,9 +815,9 @@ void ShadowMapping::createImageAndBuffers() {
 	dependencyInfo.pBufferMemoryBarriers = nullptr;
 	dependencyInfo.imageMemoryBarrierCount = 1;
 	dependencyInfo.pImageMemoryBarriers = &dummyShadowMapImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(commandBuffer, &dependencyInfo);
+	m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &dependencyInfo);
 
-	NTSHENGN_VK_CHECK(vkEndCommandBuffer(commandBuffer));
+	NTSHENGN_VK_CHECK(vkEndCommandBuffer(m_initializationCommandBuffer));
 
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -877,14 +826,12 @@ void ShadowMapping::createImageAndBuffers() {
 	submitInfo.pWaitSemaphores = nullptr;
 	submitInfo.pWaitDstStageMask = nullptr;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
+	submitInfo.pCommandBuffers = &m_initializationCommandBuffer;
 	submitInfo.signalSemaphoreCount = 0;
 	submitInfo.pSignalSemaphores = nullptr;
 	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_initializationFence));
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
-
-	vkDestroyCommandPool(m_device, commandPool, nullptr);
 
 	// Buffers
 	m_shadowBuffers.resize(m_framesInFlight);
