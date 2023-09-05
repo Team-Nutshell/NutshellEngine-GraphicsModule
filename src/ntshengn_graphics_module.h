@@ -330,6 +330,9 @@ namespace NtshEngn {
 		std::vector<VkSemaphore> m_imageAvailableSemaphores;
 		std::vector<VkSemaphore> m_renderFinishedSemaphores;
 
+		VkCommandPool m_initializationCommandPool;
+		VkCommandBuffer m_initializationCommandBuffer;
+
 		VkFence m_initializationFence;
 
 		PFN_vkCmdBeginRenderingKHR m_vkCmdBeginRenderingKHR;
