@@ -1691,10 +1691,10 @@ void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter i
 
 const NtshEngn::ComponentMask NtshEngn::GraphicsModule::getComponentMask() const {
 	ComponentMask componentMask;
-	componentMask.set(ecs->getComponentId<SphereCollidable>());
-	componentMask.set(ecs->getComponentId<AABBCollidable>());
-	componentMask.set(ecs->getComponentId<CapsuleCollidable>());
-	componentMask.set(ecs->getComponentId<Camera>());
+	componentMask.set(ecs->getComponentID<SphereCollidable>());
+	componentMask.set(ecs->getComponentID<AABBCollidable>());
+	componentMask.set(ecs->getComponentID<CapsuleCollidable>());
+	componentMask.set(ecs->getComponentID<Camera>());
 
 	return componentMask;
 }
@@ -1705,25 +1705,25 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		m_objects[entity].index = attributeObjectIndex();
 	}
 
-	if (componentID == ecs->getComponentId<AABBCollidable>()) {
+	if (componentID == ecs->getComponentID<AABBCollidable>()) {
 		const AABBCollidable collidable = ecs->getComponent<AABBCollidable>(entity);
 
 		InternalObject& object = m_objects[entity];
 		object.aabbMeshIndex = createAABB(collidable.collider.min, collidable.collider.max);
 	}
-	else if (componentID == ecs->getComponentId<SphereCollidable>()) {
+	else if (componentID == ecs->getComponentID<SphereCollidable>()) {
 		const SphereCollidable collidable = ecs->getComponent<SphereCollidable>(entity);
 
 		InternalObject& object = m_objects[entity];
 		object.sphereMeshIndex = createSphere(collidable.collider.center, collidable.collider.radius);
 	}
-	else if (componentID == ecs->getComponentId<CapsuleCollidable>()) {
+	else if (componentID == ecs->getComponentID<CapsuleCollidable>()) {
 		const CapsuleCollidable& collidable = ecs->getComponent<CapsuleCollidable>(entity);
 
 		InternalObject& object = m_objects[entity];
 		object.capsuleMeshIndex = createCapsule(collidable.collider.base, collidable.collider.tip, collidable.collider.radius);
 	}
-	else if (componentID == ecs->getComponentId<Camera>()) {
+	else if (componentID == ecs->getComponentID<Camera>()) {
 		if (m_mainCamera == std::numeric_limits<uint32_t>::max()) {
 			m_mainCamera = entity;
 		}
@@ -1731,7 +1731,7 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 }
 
 void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component componentID) {
-	if (componentID == ecs->getComponentId<SphereCollidable>()) {
+	if (componentID == ecs->getComponentID<SphereCollidable>()) {
 		InternalObject& object = m_objects[entity];
 		object.sphereMeshIndex = std::numeric_limits<size_t>::max();
 
@@ -1742,7 +1742,7 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 			m_objects.erase(entity);
 		}
 	}
-	else if (componentID == ecs->getComponentId<AABBCollidable>()) {
+	else if (componentID == ecs->getComponentID<AABBCollidable>()) {
 		InternalObject& object = m_objects[entity];
 		object.aabbMeshIndex = std::numeric_limits<size_t>::max();
 
@@ -1753,7 +1753,7 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 			m_objects.erase(entity);
 		}
 	}
-	else if (componentID == ecs->getComponentId<CapsuleCollidable>()) {
+	else if (componentID == ecs->getComponentID<CapsuleCollidable>()) {
 		InternalObject& object = m_objects[entity];
 		object.capsuleMeshIndex = std::numeric_limits<size_t>::max();
 
@@ -1764,7 +1764,7 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 			m_objects.erase(entity);
 		}
 	}
-	else if (componentID == ecs->getComponentId<Camera>()) {
+	else if (componentID == ecs->getComponentID<Camera>()) {
 		if (m_mainCamera == entity) {
 			m_mainCamera = std::numeric_limits<uint32_t>::max();
 		}
