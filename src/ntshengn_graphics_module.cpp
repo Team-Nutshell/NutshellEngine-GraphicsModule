@@ -1149,19 +1149,19 @@ void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter i
 
 const NtshEngn::ComponentMask NtshEngn::GraphicsModule::getComponentMask() const {
 	ComponentMask componentMask;
-	componentMask.set(ecs->getComponentId<Camera>());
-	componentMask.set(ecs->getComponentId<Light>());
+	componentMask.set(ecs->getComponentID<Camera>());
+	componentMask.set(ecs->getComponentID<Light>());
 
 	return componentMask;
 }
 
 void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component componentID) {
-	if (componentID == ecs->getComponentId<Camera>()) {
+	if (componentID == ecs->getComponentID<Camera>()) {
 		if (m_mainCamera == std::numeric_limits<uint32_t>::max()) {
 			m_mainCamera = entity;
 		}
 	}
-	else if (componentID == ecs->getComponentId<Light>()) {
+	else if (componentID == ecs->getComponentID<Light>()) {
 		const Light& light = ecs->getComponent<Light>(entity);
 
 		switch (light.type) {
@@ -1185,12 +1185,12 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 }
 
 void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component componentID) {
-	if (componentID == ecs->getComponentId<Camera>()) {
+	if (componentID == ecs->getComponentID<Camera>()) {
 		if (m_mainCamera == entity) {
 			m_mainCamera = std::numeric_limits<uint32_t>::max();
 		}
 	}
-	else if (componentID == ecs->getComponentId<Light>()) {
+	else if (componentID == ecs->getComponentID<Light>()) {
 		const Light& light = ecs->getComponent<Light>(entity);
 
 		switch (light.type) {
