@@ -556,7 +556,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		vmaUnmapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight]);
 	}
 
-	// Update objects buffer
+	// Update object buffer
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight], &data));
 	for (auto& it : m_objects) {
 		const Transform& objectTransform = ecs->getComponent<Transform>(it.first);
@@ -584,7 +584,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	}
 	vmaUnmapMemory(m_allocator, m_materialBufferAllocations[m_currentFrameInFlight]);
 
-	// Update lights buffer
+	// Update light buffer
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_lightBufferAllocations[m_currentFrameInFlight], &data));
 	std::array<uint32_t, 4> lightsCount = { static_cast<uint32_t>(m_lights.directionalLights.size()), static_cast<uint32_t>(m_lights.pointLights.size()), static_cast<uint32_t>(m_lights.spotLights.size()), 0 };
 	memcpy(data, lightsCount.data(), 4 * sizeof(uint32_t));
