@@ -1244,22 +1244,22 @@ void NtshEngn::GraphicsModule::destroy() {
 		vkDestroyCommandPool(m_device, m_renderingCommandPools[i], nullptr);
 	}
 
-	// Destroy lights buffers
+	// Destroy light buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		vmaDestroyBuffer(m_allocator, m_lightBuffers[i], m_lightBufferAllocations[i]);
 	}
 
-	// Destroy materials buffers
+	// Destroy material buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		vmaDestroyBuffer(m_allocator, m_materialBuffers[i], m_materialBufferAllocations[i]);
 	}
 
-	// Destroy meshes buffers
+	// Destroy mesh buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		vmaDestroyBuffer(m_allocator, m_meshBuffers[i], m_meshBufferAllocations[i]);
 	}
 
-	// Destroy objects buffers
+	// Destroy object buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		vmaDestroyBuffer(m_allocator, m_objectBuffers[i], m_objectBufferAllocations[i]);
 	}
@@ -2257,51 +2257,52 @@ const NtshEngn::ComponentMask NtshEngn::GraphicsModule::getComponentMask() const
 void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component componentID) {
 	if (componentID == ecs->getComponentID<Renderable>()) {
 		const Renderable& renderable = ecs->getComponent<Renderable>(entity);
+		const ModelPrimitive& modelPrimitive = renderable.model->primitives[renderable.modelPrimitiveIndex];
 
 		InternalObject object;
 		object.index = attributeObjectIndex();
-		if (renderable.mesh->vertices.size() != 0) {
-			object.meshID = load(*renderable.mesh);
+		if (modelPrimitive.mesh.vertices.size() != 0) {
+			object.meshID = load(modelPrimitive.mesh);
 		}
 		InternalMaterial material;
-		if (renderable.material->diffuseTexture.image) {
-			ImageID imageID = load(*renderable.material->diffuseTexture.image);
-			std::string samplerKey = createSampler(renderable.material->diffuseTexture.imageSampler);
+		if (modelPrimitive.material.diffuseTexture.image) {
+			ImageID imageID = load(*modelPrimitive.material.diffuseTexture.image);
+			std::string samplerKey = createSampler(modelPrimitive.material.diffuseTexture.imageSampler);
 			uint32_t textureID = addToTextures({ imageID, samplerKey });
 			material.diffuseTextureIndex = textureID;
 		}
-		if (renderable.material->normalTexture.image) {
-			ImageID imageID = load(*renderable.material->normalTexture.image);
-			std::string samplerKey = createSampler(renderable.material->normalTexture.imageSampler);
+		if (modelPrimitive.material.normalTexture.image) {
+			ImageID imageID = load(*modelPrimitive.material.normalTexture.image);
+			std::string samplerKey = createSampler(modelPrimitive.material.normalTexture.imageSampler);
 			uint32_t textureID = addToTextures({ imageID, samplerKey });
 			material.normalTextureIndex = textureID;
 		}
-		if (renderable.material->metalnessTexture.image) {
-			ImageID imageID = load(*renderable.material->metalnessTexture.image);
-			std::string samplerKey = createSampler(renderable.material->metalnessTexture.imageSampler);
+		if (modelPrimitive.material.metalnessTexture.image) {
+			ImageID imageID = load(*modelPrimitive.material.metalnessTexture.image);
+			std::string samplerKey = createSampler(modelPrimitive.material.metalnessTexture.imageSampler);
 			uint32_t textureID = addToTextures({ imageID, samplerKey });
 			material.metalnessTextureIndex = textureID;
 		}
-		if (renderable.material->roughnessTexture.image) {
-			ImageID imageID = load(*renderable.material->roughnessTexture.image);
-			std::string samplerKey = createSampler(renderable.material->roughnessTexture.imageSampler);
+		if (modelPrimitive.material.roughnessTexture.image) {
+			ImageID imageID = load(*modelPrimitive.material.roughnessTexture.image);
+			std::string samplerKey = createSampler(modelPrimitive.material.roughnessTexture.imageSampler);
 			uint32_t textureID = addToTextures({ imageID, samplerKey });
 			material.roughnessTextureIndex = textureID;
 		}
-		if (renderable.material->occlusionTexture.image) {
-			ImageID imageID = load(*renderable.material->occlusionTexture.image);
-			std::string samplerKey = createSampler(renderable.material->occlusionTexture.imageSampler);
+		if (modelPrimitive.material.occlusionTexture.image) {
+			ImageID imageID = load(*modelPrimitive.material.occlusionTexture.image);
+			std::string samplerKey = createSampler(modelPrimitive.material.occlusionTexture.imageSampler);
 			uint32_t textureID = addToTextures({ imageID, samplerKey });
 			material.occlusionTextureIndex = textureID;
 		}
-		if (renderable.material->emissiveTexture.image) {
-			ImageID imageID = load(*renderable.material->emissiveTexture.image);
-			std::string samplerKey = createSampler(renderable.material->emissiveTexture.imageSampler);
+		if (modelPrimitive.material.emissiveTexture.image) {
+			ImageID imageID = load(*modelPrimitive.material.emissiveTexture.image);
+			std::string samplerKey = createSampler(modelPrimitive.material.emissiveTexture.imageSampler);
 			uint32_t textureID = addToTextures({ imageID, samplerKey });
 			material.emissiveTextureIndex = textureID;
 		}
-		material.emissiveFactor = renderable.material->emissiveFactor;
-		material.alphaCutoff = renderable.material->alphaCutoff;
+		material.emissiveFactor = modelPrimitive.material.emissiveFactor;
+		material.alphaCutoff = modelPrimitive.material.alphaCutoff;
 		uint32_t materialID = addToMaterials(material);
 		object.materialIndex = materialID;
 		m_objects[entity] = object;
@@ -2361,6 +2362,7 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component componentID) {
 	if (componentID == ecs->getComponentID<Renderable>()) {
 		const InternalObject& object = m_objects[entity];
+
 		retrieveObjectIndex(object.index);
 
 		m_objects.erase(entity);
