@@ -6,6 +6,7 @@
 #include "../external/glslang/StandAlone/DirStackFileIncluder.h"
 #include <limits>
 #include <array>
+#include <cmath>
 
 void NtshEngn::GraphicsModule::init() {
 	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
@@ -232,7 +233,7 @@ void NtshEngn::GraphicsModule::init() {
 
 	VkPhysicalDeviceFeatures physicalDeviceFeatures = {};
 	physicalDeviceFeatures.samplerAnisotropy = VK_TRUE;
-	
+
 	// Create the logical device
 	VkDeviceCreateInfo deviceCreateInfo = {};
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -416,6 +417,57 @@ void NtshEngn::GraphicsModule::init() {
 		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &objectBufferCreateInfo, &bufferAllocationCreateInfo, &m_objectBuffers[i], &m_objectBufferAllocations[i], nullptr));
 	}
 
+	// Create mesh storage buffer
+	VkBufferCreateInfo meshBufferCreateInfo = {};
+	meshBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	meshBufferCreateInfo.pNext = nullptr;
+	meshBufferCreateInfo.flags = 0;
+	meshBufferCreateInfo.size = 32768;
+	meshBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	meshBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	meshBufferCreateInfo.queueFamilyIndexCount = 1;
+	meshBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+
+	VmaAllocationCreateInfo meshBufferAllocationCreateInfo = {};
+	meshBufferAllocationCreateInfo.flags = 0;
+	meshBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &meshBufferCreateInfo, &meshBufferAllocationCreateInfo, &m_meshBuffer, &m_meshBufferAllocation, nullptr));
+
+	// Create joint matrix storage buffer
+	VkBufferCreateInfo jointMatrixBufferCreateInfo = {};
+	jointMatrixBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	jointMatrixBufferCreateInfo.pNext = nullptr;
+	jointMatrixBufferCreateInfo.flags = 0;
+	jointMatrixBufferCreateInfo.size = 4096 * sizeof(Math::mat4);
+	jointMatrixBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	jointMatrixBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	jointMatrixBufferCreateInfo.queueFamilyIndexCount = 1;
+	jointMatrixBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+
+	VmaAllocationCreateInfo jointMatrixBufferAllocationCreateInfo = {};
+	jointMatrixBufferAllocationCreateInfo.flags = 0;
+	jointMatrixBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &jointMatrixBufferCreateInfo, &jointMatrixBufferAllocationCreateInfo, &m_jointMatrixBuffer, &m_jointMatrixBufferAllocation, nullptr));
+
+	// Create joint transform storage buffers
+	m_jointTransformBuffers.resize(m_framesInFlight);
+	m_jointTransformBufferAllocations.resize(m_framesInFlight);
+	VkBufferCreateInfo jointTransformBufferCreateInfo = {};
+	jointTransformBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	jointTransformBufferCreateInfo.pNext = nullptr;
+	jointTransformBufferCreateInfo.flags = 0;
+	jointTransformBufferCreateInfo.size = 4096 * sizeof(Math::mat4);
+	jointTransformBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+	jointTransformBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	jointTransformBufferCreateInfo.queueFamilyIndexCount = 1;
+	jointTransformBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &jointTransformBufferCreateInfo, &bufferAllocationCreateInfo, &m_jointTransformBuffers[i], &m_jointTransformBufferAllocations[i], nullptr));
+	}
+
 	// Create material storage buffers
 	m_materialBuffers.resize(m_framesInFlight);
 	m_materialBufferAllocations.resize(m_framesInFlight);
@@ -504,8 +556,6 @@ void NtshEngn::GraphicsModule::init() {
 }
 
 void NtshEngn::GraphicsModule::update(double dt) {
-	NTSHENGN_UNUSED(dt);
-
 	if (windowModule && !windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		// Do not update if the main window got closed
 		return;
@@ -570,10 +620,156 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		size_t offset = (it.second.index * (sizeof(Math::mat4) + sizeof(Math::vec4))); // vec4 is used here for padding
 
 		memcpy(reinterpret_cast<char*>(data) + offset, objectModel.data(), sizeof(Math::mat4));
-		const uint32_t materialID = (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0;
-		memcpy(reinterpret_cast<char*>(data) + offset + sizeof(Math::mat4), &materialID, sizeof(uint32_t));
+		const std::array<uint32_t, 3> objectIndices = { (it.second.meshID < m_meshes.size()) ? it.second.meshID : 0, it.second.jointTransformOffset, (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0 };
+		memcpy(reinterpret_cast<char*>(data) + offset + sizeof(Math::mat4), objectIndices.data(), 3 * sizeof(uint32_t));
 	}
 	vmaUnmapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight]);
+
+	// Update joint transform buffer
+	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_jointTransformBufferAllocations[m_currentFrameInFlight], &data));
+	for (auto& it : m_objects) {
+		const Renderable& objectRenderable = ecs->getComponent<Renderable>(it.first);
+		const ModelPrimitive& modelPrimitive = objectRenderable.model->primitives[objectRenderable.modelPrimitiveIndex];
+		const Mesh& mesh = modelPrimitive.mesh;
+
+		if (!mesh.joints.empty()) {
+			std::vector<Math::mat4> jointTransformMatrices(mesh.joints.size());
+
+			if (m_playingAnimations.find(&it.second) != m_playingAnimations.end()) {
+				PlayingAnimation& playingAnimation = m_playingAnimations[&it.second];
+				const Animation& animation = objectRenderable.model->animations[m_playingAnimations[&it.second].animationIndex];
+
+				std::queue<std::pair<uint32_t, uint32_t>> jointsAndParents;
+				jointsAndParents.push({ 0, std::numeric_limits<uint32_t>::max() });
+				while (!jointsAndParents.empty()) {
+					uint32_t jointIndex = jointsAndParents.front().first;
+					Math::mat4 parentJointTransformMatrix = Math::mat4();
+					if (jointsAndParents.front().second != std::numeric_limits<uint32_t>::max()) {
+						parentJointTransformMatrix = jointTransformMatrices[jointsAndParents.front().second];
+					}
+
+					if (animation.jointChannels.find(jointIndex) != animation.jointChannels.end()) {
+						const std::vector<AnimationChannel>& channels = animation.jointChannels.at(jointIndex);
+
+						Math::vec3 translation = Math::vec3(mesh.joints[jointIndex].baseTransform.w);
+						Math::mat3 baseRotationMat = Math::mat3(Math::normalize(mesh.joints[jointIndex].baseTransform.x), Math::normalize(mesh.joints[jointIndex].baseTransform.y), Math::normalize(mesh.joints[jointIndex].baseTransform.z));
+						Math::quat rotation = Math::quat(std::sqrt(1.0f + baseRotationMat[0][0] + baseRotationMat[1][1] + baseRotationMat[2][2]) / 2.0f, 0.0f, 0.0f, 0.0f);
+						rotation.b = (baseRotationMat[2][1] - baseRotationMat[1][2]) / (4.0f * rotation.a);
+						rotation.c = (baseRotationMat[0][2] - baseRotationMat[2][0]) / (4.0f * rotation.a);
+						rotation.d = (baseRotationMat[1][0] - baseRotationMat[0][1]) / (4.0f * rotation.a);
+						Math::vec3 scale = Math::vec3(mesh.joints[jointIndex].baseTransform.x.length(), mesh.joints[jointIndex].baseTransform.y.length(), mesh.joints[jointIndex].baseTransform.z.length());
+						for (const AnimationChannel& channel : channels) {
+							// Find previous keyframe
+							uint32_t keyframe = 0;
+							bool foundKeyframe = false;
+							for (size_t i = 0; i < channel.keyframes.size() - 1; i++) {
+								if (playingAnimation.time < channel.keyframes[i + 1].timestamp) {
+									keyframe = static_cast<uint32_t>(i);
+									foundKeyframe = true;
+									break;
+								}
+								else if (playingAnimation.time == channel.keyframes[i + 1].timestamp) {
+									keyframe = static_cast<uint32_t>(i) + 1;
+									foundKeyframe = true;
+									break;
+								}
+							}
+							if (!foundKeyframe) {
+								// Time after the last channel keyframe
+								keyframe = static_cast<uint32_t>(channel.keyframes.size()) - 1;
+							}
+
+							if (channel.interpolationType == AnimationChannelInterpolationType::Step) {
+								// Step interpolation
+								if (channel.transformType == AnimationChannelTransformType::Translation) {
+									translation = Math::vec3(channel.keyframes[keyframe].value);
+								}
+								else if (channel.transformType == AnimationChannelTransformType::Rotation) {
+									rotation = Math::quat(channel.keyframes[keyframe].value.x, channel.keyframes[keyframe].value.y, channel.keyframes[keyframe].value.z, channel.keyframes[keyframe].value.w);
+								}
+								else if (channel.transformType == AnimationChannelTransformType::Scale) {
+									scale = Math::vec3(channel.keyframes[keyframe].value);
+								}
+							}
+							else if (channel.interpolationType == AnimationChannelInterpolationType::Linear) {
+								// Linear interpolation
+								const Math::vec4& channelPrevious = channel.keyframes[keyframe].value;
+
+								if ((keyframe + 1) >= channel.keyframes.size()) {
+									// Last keyframe
+									if (channel.transformType == AnimationChannelTransformType::Translation) {
+										translation = Math::vec3(channelPrevious);
+									}
+									else if (channel.transformType == AnimationChannelTransformType::Rotation) {
+										rotation = Math::quat(channelPrevious.x, channelPrevious.y, channelPrevious.z, channelPrevious.w);
+									}
+									else if (channel.transformType == AnimationChannelTransformType::Scale) {
+										scale = Math::vec3(channelPrevious);
+									}
+								}
+								else {
+									const Math::vec4& channelNext = channel.keyframes[keyframe + 1].value;
+
+									const float timestampPrevious = channel.keyframes[keyframe].timestamp;
+									const float timestampNext = channel.keyframes[keyframe + 1].timestamp;
+									const float interpolationValue = 1.0f - ((timestampNext - playingAnimation.time) / (timestampNext - timestampPrevious));
+
+									if (channel.transformType == AnimationChannelTransformType::Translation) {
+										translation = Math::vec3(Math::lerp(channelPrevious.x, channelNext.x, interpolationValue),
+											Math::lerp(channelPrevious.y, channelNext.y, interpolationValue),
+											Math::lerp(channelPrevious.z, channelNext.z, interpolationValue));
+									}
+									else if (channel.transformType == AnimationChannelTransformType::Rotation) {
+										rotation = Math::normalize(Math::slerp(Math::quat(channelPrevious.x, channelPrevious.y, channelPrevious.z, channelPrevious.w),
+											Math::quat(channelNext.x, channelNext.y, channelNext.z, channelNext.w),
+											interpolationValue));
+									}
+									else if (channel.transformType == AnimationChannelTransformType::Scale) {
+										scale = Math::vec3(Math::lerp(channelPrevious.x, channelNext.x, interpolationValue),
+											Math::lerp(channelPrevious.y, channelNext.y, interpolationValue),
+											Math::lerp(channelPrevious.z, channelNext.z, interpolationValue));
+									}
+								}
+							}
+						}
+
+						const Math::mat4 jointTransformMatrix = Math::translate(translation) *
+							Math::to_mat4(rotation) *
+							Math::scale(scale);
+
+						jointTransformMatrices[jointIndex] = parentJointTransformMatrix *
+							jointTransformMatrix;
+					}
+					else {
+						jointTransformMatrices[jointIndex] = parentJointTransformMatrix;
+					}
+
+					for (uint32_t jointChild : mesh.joints[jointIndex].children) {
+						jointsAndParents.push({ jointChild, jointIndex });
+					}
+
+					jointsAndParents.pop();
+				}
+
+				if (m_playingAnimations[&it.second].isPlaying) {
+					playingAnimation.time += static_cast<float>(dt) / 1000.0f;
+				}
+
+				// Loop animation
+				if (playingAnimation.time >= animation.duration) {
+					m_playingAnimations.erase(&it.second);
+				}
+			}
+			else {
+				for (size_t i = 0; i < mesh.joints.size(); i++) {
+					jointTransformMatrices[i] = mesh.joints[i].baseTransform;
+				}
+			}
+
+			memcpy(reinterpret_cast<char*>(data) + (sizeof(Math::mat4) * it.second.jointTransformOffset), jointTransformMatrices.data(), sizeof(Math::mat4) * m_meshes[it.second.meshID].jointCount);
+		}
+	}
+	vmaUnmapMemory(m_allocator, m_jointTransformBufferAllocations[m_currentFrameInFlight]);
 
 	// Update material buffer
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_materialBufferAllocations[m_currentFrameInFlight], &data));
@@ -1068,6 +1264,17 @@ void NtshEngn::GraphicsModule::destroy() {
 		vmaDestroyBuffer(m_allocator, m_materialBuffers[i], m_materialBufferAllocations[i]);
 	}
 
+	// Destroy joint matrix buffer
+	vmaDestroyBuffer(m_allocator, m_jointMatrixBuffer, m_jointMatrixBufferAllocation);
+
+	// Destroy joint transform buffers
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		vmaDestroyBuffer(m_allocator, m_jointTransformBuffers[i], m_jointTransformBufferAllocations[i]);
+	}
+
+	// Destroy mesh buffer
+	vmaDestroyBuffer(m_allocator, m_meshBuffer, m_meshBufferAllocation);
+
 	// Destroy object buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		vmaDestroyBuffer(m_allocator, m_objectBuffers[i], m_objectBufferAllocations[i]);
@@ -1133,7 +1340,7 @@ void NtshEngn::GraphicsModule::destroy() {
 	vmaDestroyImage(m_allocator, m_colorImage, m_colorImageAllocation);
 
 	// Destroy samplers
-	for (const auto& sampler: m_textureSamplers) {
+	for (const auto& sampler : m_textureSamplers) {
 		vkDestroySampler(m_device, sampler.second, nullptr);
 	}
 
@@ -1192,7 +1399,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 		return m_meshAddresses[&mesh];
 	}
 
-	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset });
+	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset, !mesh.joints.empty() ? m_currentJointOffset : 0, 0 });
 	m_meshAddresses[&mesh] = static_cast<MeshID>(m_meshes.size() - 1);
 
 	// Vertex and Index staging buffer
@@ -1221,15 +1428,71 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	memcpy(reinterpret_cast<char*>(data) + (mesh.vertices.size() * sizeof(Vertex)), mesh.indices.data(), mesh.indices.size() * sizeof(uint32_t));
 	vmaUnmapMemory(m_allocator, vertexAndIndexStagingBufferAllocation);
 
-	// Copy staging buffer
+	// Mesh buffer
+	VkBuffer meshStagingBuffer;
+	VmaAllocation meshStagingBufferAllocation;
+
+	VkBufferCreateInfo meshStagingBufferCreateInfo = {};
+	meshStagingBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	meshStagingBufferCreateInfo.pNext = nullptr;
+	meshStagingBufferCreateInfo.flags = 0;
+	meshStagingBufferCreateInfo.size = sizeof(uint32_t) * 2;
+	meshStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	meshStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	meshStagingBufferCreateInfo.queueFamilyIndexCount = 1;
+	meshStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+
+	VmaAllocationCreateInfo meshStagingBufferAllocationCreateInfo = {};
+	meshStagingBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+	meshStagingBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &meshStagingBufferCreateInfo, &meshStagingBufferAllocationCreateInfo, &meshStagingBuffer, &meshStagingBufferAllocation, nullptr));
+
+	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, meshStagingBufferAllocation, &data));
+	std::array<uint32_t, 2> meshSkin = { !mesh.joints.empty() ? static_cast<uint32_t>(1) : static_cast<uint32_t>(0), m_meshes.back().jointOffset };
+	memcpy(data, meshSkin.data(), sizeof(uint32_t) * 2);
+	vmaUnmapMemory(m_allocator, meshStagingBufferAllocation);
+
+	// Joint matrix staging buffer
+	VkBuffer jointMatrixStagingBuffer = VK_NULL_HANDLE;
+	VmaAllocation jointMatrixStagingBufferAllocation = VK_NULL_HANDLE;
+
+	std::vector<Math::mat4> jointMatrices;
+	if (!mesh.joints.empty()) {
+		for (size_t i = 0; i < mesh.joints.size(); i++) {
+			jointMatrices.push_back(mesh.joints[i].inverseBindMatrix);
+		}
+
+		VkBufferCreateInfo jointMatrixStagingBufferCreateInfo = {};
+		jointMatrixStagingBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		jointMatrixStagingBufferCreateInfo.pNext = nullptr;
+		jointMatrixStagingBufferCreateInfo.flags = 0;
+		jointMatrixStagingBufferCreateInfo.size = mesh.joints.size() * sizeof(Math::mat4);
+		jointMatrixStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		jointMatrixStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		jointMatrixStagingBufferCreateInfo.queueFamilyIndexCount = 1;
+		jointMatrixStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+
+		VmaAllocationCreateInfo jointMatrixStagingBufferAllocationCreateInfo = {};
+		jointMatrixStagingBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+		jointMatrixStagingBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &jointMatrixStagingBufferCreateInfo, &jointMatrixStagingBufferAllocationCreateInfo, &jointMatrixStagingBuffer, &jointMatrixStagingBufferAllocation, nullptr));
+
+		NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, jointMatrixStagingBufferAllocation, &data));
+		memcpy(data, jointMatrices.data(), mesh.joints.size() * sizeof(Math::mat4));
+		vmaUnmapMemory(m_allocator, jointMatrixStagingBufferAllocation);
+
+		m_meshes.back().jointCount = static_cast<uint32_t>(mesh.joints.size());
+	}
+
+	// Copy staging buffers
 	NTSHENGN_VK_CHECK(vkResetCommandPool(m_device, m_initializationCommandPool, 0));
 
-	VkCommandBufferBeginInfo vertexAndIndexBuffersCopyBeginInfo = {};
-	vertexAndIndexBuffersCopyBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	vertexAndIndexBuffersCopyBeginInfo.pNext = nullptr;
-	vertexAndIndexBuffersCopyBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-	vertexAndIndexBuffersCopyBeginInfo.pInheritanceInfo = nullptr;
-	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(m_initializationCommandBuffer, &vertexAndIndexBuffersCopyBeginInfo));
+	VkCommandBufferBeginInfo stagingBuffersCopyBeginInfo = {};
+	stagingBuffersCopyBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	stagingBuffersCopyBeginInfo.pNext = nullptr;
+	stagingBuffersCopyBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	stagingBuffersCopyBeginInfo.pInheritanceInfo = nullptr;
+	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(m_initializationCommandBuffer, &stagingBuffersCopyBeginInfo));
 
 	VkBufferCopy vertexBufferCopy = {};
 	vertexBufferCopy.srcOffset = 0;
@@ -1242,6 +1505,20 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	indexBufferCopy.dstOffset = m_currentIndexOffset * sizeof(uint32_t);
 	indexBufferCopy.size = mesh.indices.size() * sizeof(uint32_t);
 	vkCmdCopyBuffer(m_initializationCommandBuffer, vertexAndIndexStagingBuffer, m_indexBuffer, 1, &indexBufferCopy);
+
+	VkBufferCopy meshBufferCopy = {};
+	meshBufferCopy.srcOffset = 0;
+	meshBufferCopy.dstOffset = (m_meshes.size() - 1) * sizeof(uint32_t) * 2;
+	meshBufferCopy.size = sizeof(uint32_t) * 2;
+	vkCmdCopyBuffer(m_initializationCommandBuffer, meshStagingBuffer, m_meshBuffer, 1, &meshBufferCopy);
+
+	if (!mesh.joints.empty()) {
+		VkBufferCopy jointMatrixBufferCopy = {};
+		jointMatrixBufferCopy.srcOffset = 0;
+		jointMatrixBufferCopy.dstOffset = m_currentJointOffset * sizeof(Math::mat4);
+		jointMatrixBufferCopy.size = mesh.joints.size() * sizeof(Math::mat4);
+		vkCmdCopyBuffer(m_initializationCommandBuffer, jointMatrixStagingBuffer, m_jointMatrixBuffer, 1, &jointMatrixBufferCopy);
+	}
 
 	NTSHENGN_VK_CHECK(vkEndCommandBuffer(m_initializationCommandBuffer));
 
@@ -1259,10 +1536,15 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 
+	if (!mesh.joints.empty()) {
+		vmaDestroyBuffer(m_allocator, jointMatrixStagingBuffer, jointMatrixStagingBufferAllocation);
+	}
+	vmaDestroyBuffer(m_allocator, meshStagingBuffer, meshStagingBufferAllocation);
 	vmaDestroyBuffer(m_allocator, vertexAndIndexStagingBuffer, vertexAndIndexStagingBufferAllocation);
 
 	m_currentVertexOffset += static_cast<int32_t>(mesh.vertices.size());
 	m_currentIndexOffset += static_cast<uint32_t>(mesh.indices.size());
+	m_currentJointOffset += m_meshes.back().jointCount;
 
 	return static_cast<MeshID>(m_meshes.size() - 1);
 }
@@ -1804,6 +2086,55 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	return static_cast<FontID>(m_fonts.size() - 1);
 }
 
+void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex) {
+	if (!ecs->hasComponent<Renderable>(entity)) {
+		NTSHENGN_MODULE_WARNING("Entity " + (ecs->entityHasName(entity) ? ("\"" + ecs->getEntityName(entity) + "\"") : std::to_string(entity)) + " does not have a Renderable component, when trying to play animation " + std::to_string(animationIndex) + ".");
+		return;
+	}
+
+	const Renderable& renderable = ecs->getComponent<Renderable>(entity);
+
+	if (animationIndex >= renderable.model->animations.size()) {
+		NTSHENGN_MODULE_WARNING("Animation " + std::to_string(animationIndex) + " does not exist for Entity " + (ecs->entityHasName(entity) ? ("\"" + ecs->getEntityName(entity) + "\"") : std::to_string(entity)) + "\'s model.");
+		return;
+	}
+
+	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
+		if (m_playingAnimations[&m_objects[entity]].animationIndex == animationIndex) {
+			m_playingAnimations[&m_objects[entity]].isPlaying = true;
+			return;
+		}
+	}
+
+	PlayingAnimation playingAnimation;
+	playingAnimation.animationIndex = animationIndex;
+	m_playingAnimations[&m_objects[entity]] = playingAnimation;
+}
+
+void NtshEngn::GraphicsModule::pauseAnimation(Entity entity) {
+	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
+		if (m_playingAnimations[&m_objects[entity]].isPlaying) {
+			m_playingAnimations[&m_objects[entity]].isPlaying = false;
+		}
+	}
+}
+
+void NtshEngn::GraphicsModule::stopAnimation(Entity entity) {
+	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
+		m_playingAnimations.erase(&m_objects[entity]);
+	}
+}
+
+bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animationIndex) {
+	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
+		if (m_playingAnimations[&m_objects[entity]].animationIndex == animationIndex) {
+			return m_playingAnimations[&m_objects[entity]].isPlaying;;
+		}
+	}
+
+	return false;
+}
+
 void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::string& text, const Math::vec2& position, const Math::vec4& color) {
 	NTSHENGN_ASSERT(fontID < m_fonts.size());
 
@@ -1921,6 +2252,9 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		object.index = attributeObjectIndex();
 		if (modelPrimitive.mesh.vertices.size() != 0) {
 			object.meshID = load(modelPrimitive.mesh);
+			if (!modelPrimitive.mesh.joints.empty()) {
+				object.jointTransformOffset = static_cast<uint32_t>(m_freeJointTransformOffsets.addBlock(static_cast<size_t>(m_meshes[object.meshID].jointCount)));
+			}
 		}
 		InternalMaterial material;
 		if (modelPrimitive.material.diffuseTexture.image) {
@@ -1977,7 +2311,7 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		case LightType::Directional:
 			m_lights.directionalLights.insert(entity);
 			break;
-			
+
 		case LightType::Point:
 			m_lights.pointLights.insert(entity);
 			break;
@@ -1998,6 +2332,10 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 		const InternalObject& object = m_objects[entity];
 
 		retrieveObjectIndex(object.index);
+
+		if (m_meshes[object.meshID].jointCount > 0) {
+			m_freeJointTransformOffsets.freeBlock(static_cast<size_t>(object.jointTransformOffset), static_cast<size_t>(m_meshes[object.meshID].jointCount));
+		}
 
 		m_objects.erase(entity);
 	}
@@ -2057,7 +2395,7 @@ std::vector<VkSurfaceFormatKHR> NtshEngn::GraphicsModule::getSurfaceFormats() {
 		surfaceFormat2.pNext = nullptr;
 	}
 	NTSHENGN_VK_CHECK(vkGetPhysicalDeviceSurfaceFormats2KHR(m_physicalDevice, &surfaceInfo, &surfaceFormatsCount, surfaceFormats2.data()));
-	
+
 	std::vector<VkSurfaceFormatKHR> surfaceFormats;
 	for (const VkSurfaceFormat2KHR surfaceFormat2 : surfaceFormats2) {
 		surfaceFormats.push_back(surfaceFormat2.surfaceFormat);
@@ -2396,35 +2734,56 @@ void NtshEngn::GraphicsModule::createDescriptorSetLayout() {
 	objectsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	objectsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
+	VkDescriptorSetLayoutBinding meshesDescriptorSetLayoutBinding = {};
+	meshesDescriptorSetLayoutBinding.binding = 2;
+	meshesDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	meshesDescriptorSetLayoutBinding.descriptorCount = 1;
+	meshesDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	meshesDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding jointMatricesDescriptorSetLayoutBinding = {};
+	jointMatricesDescriptorSetLayoutBinding.binding = 3;
+	jointMatricesDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	jointMatricesDescriptorSetLayoutBinding.descriptorCount = 1;
+	jointMatricesDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	jointMatricesDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding jointTransformsDescriptorSetLayoutBinding = {};
+	jointTransformsDescriptorSetLayoutBinding.binding = 4;
+	jointTransformsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	jointTransformsDescriptorSetLayoutBinding.descriptorCount = 1;
+	jointTransformsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	jointTransformsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
 	VkDescriptorSetLayoutBinding materialsDescriptorSetLayoutBinding = {};
-	materialsDescriptorSetLayoutBinding.binding = 2;
+	materialsDescriptorSetLayoutBinding.binding = 5;
 	materialsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	materialsDescriptorSetLayoutBinding.descriptorCount = 1;
 	materialsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	materialsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding lightsDescriptorSetLayoutBinding = {};
-	lightsDescriptorSetLayoutBinding.binding = 3;
+	lightsDescriptorSetLayoutBinding.binding = 6;
 	lightsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	lightsDescriptorSetLayoutBinding.descriptorCount = 1;
 	lightsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	lightsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding texturesDescriptorSetLayoutBinding = {};
-	texturesDescriptorSetLayoutBinding.binding = 4;
+	texturesDescriptorSetLayoutBinding.binding = 7;
 	texturesDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	texturesDescriptorSetLayoutBinding.descriptorCount = 131072;
 	texturesDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	texturesDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
-	std::array<VkDescriptorBindingFlags, 5> descriptorBindingFlags = { 0, 0, 0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
+	std::array<VkDescriptorBindingFlags, 8> descriptorBindingFlags = { 0, 0, 0, 0, 0, 0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
 	VkDescriptorSetLayoutBindingFlagsCreateInfo descriptorSetLayoutBindingFlagsCreateInfo = {};
 	descriptorSetLayoutBindingFlagsCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
 	descriptorSetLayoutBindingFlagsCreateInfo.pNext = nullptr;
 	descriptorSetLayoutBindingFlagsCreateInfo.bindingCount = static_cast<uint32_t>(descriptorBindingFlags.size());
 	descriptorSetLayoutBindingFlagsCreateInfo.pBindingFlags = descriptorBindingFlags.data();
 
-	std::array<VkDescriptorSetLayoutBinding, 5> descriptorSetLayoutBindings = { cameraDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding, materialsDescriptorSetLayoutBinding, lightsDescriptorSetLayoutBinding, texturesDescriptorSetLayoutBinding };
+	std::array<VkDescriptorSetLayoutBinding, 8> descriptorSetLayoutBindings = { cameraDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding, meshesDescriptorSetLayoutBinding, jointMatricesDescriptorSetLayoutBinding, jointTransformsDescriptorSetLayoutBinding, materialsDescriptorSetLayoutBinding, lightsDescriptorSetLayoutBinding, texturesDescriptorSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
 	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	descriptorSetLayoutCreateInfo.pNext = &descriptorSetLayoutBindingFlagsCreateInfo;
@@ -2641,7 +3000,18 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 
 		struct ObjectInfo {
 			mat4 model;
+			uint meshID;
+			uint jointTransformOffset;
 			uint materialID;
+		};
+
+		struct MeshInfo {
+			uint hasSkin;
+			uint jointOffset;
+		};
+
+		struct JointMatrixInfo {
+			mat4 inverseBindMatrix;
 		};
 
 		layout(set = 0, binding = 0) uniform Camera {
@@ -2654,6 +3024,18 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 			ObjectInfo info[];
 		} objects;
 
+		layout(std430, set = 0, binding = 2) restrict readonly buffer Meshes {
+			MeshInfo info[];
+		} meshes;
+
+		layout(std430, set = 0, binding = 3) restrict readonly buffer JointMatrices {
+			JointMatrixInfo info[];
+		} jointMatrices;
+
+		layout(std430, set = 0, binding = 4) restrict readonly buffer JointTransforms {
+			mat4 matrix[];
+		} jointTransforms;
+
 		layout(push_constant) uniform ObjectID {
 			uint objectID;
 		} oID;
@@ -2663,6 +3045,8 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 		layout(location = 2) in vec2 uv;
 		layout(location = 3) in vec3 color;
 		layout(location = 4) in vec4 tangent;
+		layout(location = 5) in uvec4 joints;
+		layout(location = 6) in vec4 weights;
 
 		layout(location = 0) out vec3 outPosition;
 		layout(location = 1) out vec2 outUV;
@@ -2671,15 +3055,30 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 		layout(location = 4) out mat3 outTBN;
 
 		void main() {
-			outPosition = vec3(objects.info[oID.objectID].model * vec4(position, 1.0));
+			mat4 skinMatrix = mat4(1.0);
+			if (meshes.info[objects.info[oID.objectID].meshID].hasSkin == 1) {
+				uint jointOffset = meshes.info[objects.info[oID.objectID].meshID].jointOffset;
+				uint jointTransformOffset = objects.info[oID.objectID].jointTransformOffset;
+
+				mat4 joint0Matrix = jointTransforms.matrix[jointTransformOffset + joints.x] * jointMatrices.info[jointOffset + joints.x].inverseBindMatrix;
+				mat4 joint1Matrix = jointTransforms.matrix[jointTransformOffset + joints.y] * jointMatrices.info[jointOffset + joints.y].inverseBindMatrix;
+				mat4 joint2Matrix = jointTransforms.matrix[jointTransformOffset + joints.z] * jointMatrices.info[jointOffset + joints.z].inverseBindMatrix;
+				mat4 joint3Matrix = jointTransforms.matrix[jointTransformOffset + joints.w] * jointMatrices.info[jointOffset + joints.w].inverseBindMatrix;
+
+				skinMatrix = (weights.x * joint0Matrix) + (weights.y * joint1Matrix) + (weights.z * joint2Matrix) + (weights.w * joint3Matrix);
+			}
+			outPosition = vec3(objects.info[oID.objectID].model * skinMatrix * vec4(position, 1.0));
 			outUV = uv;
 			outMaterialID = objects.info[oID.objectID].materialID;
 			outCameraPosition = camera.position;
 
-			vec3 bitangent = cross(normal, tangent.xyz) * tangent.w;
-			vec3 T = vec3(objects.info[oID.objectID].model * vec4(tangent.xyz, 0.0));
+			vec3 skinnedNormal = vec3(transpose(inverse(skinMatrix)) * vec4(normal, 0.0));
+			vec3 skinnedTangent = vec3(skinMatrix * vec4(tangent.xyz, 0.0));
+
+			vec3 bitangent = cross(skinnedNormal, skinnedTangent) * tangent.w;
+			vec3 T = vec3(objects.info[oID.objectID].model * vec4(skinnedTangent, 0.0));
 			vec3 B = vec3(objects.info[oID.objectID].model * vec4(bitangent, 0.0));
-			vec3 N = vec3(objects.info[oID.objectID].model * vec4(normal, 0.0));
+			vec3 N = vec3(objects.info[oID.objectID].model * vec4(skinnedNormal, 0.0));
 			outTBN = mat3(T, B, N);
 
 			gl_Position = camera.projection * camera.view * vec4(outPosition, 1.0);
@@ -2795,16 +3194,16 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 			vec2 cutoff;
 		};
 
-		layout(set = 0, binding = 2) restrict readonly buffer Materials {
+		layout(set = 0, binding = 5) restrict readonly buffer Materials {
 			MaterialInfo info[];
 		} materials;
 
-		layout(set = 0, binding = 3) restrict readonly buffer Lights {
+		layout(set = 0, binding = 6) restrict readonly buffer Lights {
 			uvec3 count;
 			LightInfo info[];
 		} lights;
 
-		layout(set = 0, binding = 4) uniform sampler2D textures[];
+		layout(set = 0, binding = 7) uniform sampler2D textures[];
 
 		layout(location = 0) in vec3 position;
 		layout(location = 1) in vec2 uv;
@@ -2924,7 +3323,19 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 	vertexTangentInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
 	vertexTangentInputAttributeDescription.offset = offsetof(Vertex, tangent);
 
-	std::array<VkVertexInputAttributeDescription, 5> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexNormalInputAttributeDescription, vertexUVInputAttributeDescription, vertexColorInputAttributeDescription, vertexTangentInputAttributeDescription };
+	VkVertexInputAttributeDescription vertexJointsInputAttributeDescription = {};
+	vertexJointsInputAttributeDescription.location = 5;
+	vertexJointsInputAttributeDescription.binding = 0;
+	vertexJointsInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_UINT;
+	vertexJointsInputAttributeDescription.offset = offsetof(Vertex, joints);
+
+	VkVertexInputAttributeDescription vertexWeightsInputAttributeDescription = {};
+	vertexWeightsInputAttributeDescription.location = 6;
+	vertexWeightsInputAttributeDescription.binding = 0;
+	vertexWeightsInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	vertexWeightsInputAttributeDescription.offset = offsetof(Vertex, weights);
+
+	std::array<VkVertexInputAttributeDescription, 7> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexNormalInputAttributeDescription, vertexUVInputAttributeDescription, vertexColorInputAttributeDescription, vertexTangentInputAttributeDescription, vertexJointsInputAttributeDescription, vertexWeightsInputAttributeDescription };
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
 	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputStateCreateInfo.pNext = nullptr;
@@ -3067,7 +3478,19 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 	VkDescriptorPoolSize objectsDescriptorPoolSize = {};
 	objectsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	objectsDescriptorPoolSize.descriptorCount = m_framesInFlight;
-	
+
+	VkDescriptorPoolSize meshesDescriptorPoolSize = {};
+	meshesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	meshesDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	VkDescriptorPoolSize jointMatricesDescriptorPoolSize = {};
+	jointMatricesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	jointMatricesDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	VkDescriptorPoolSize jointTransformsDescriptorPoolSize = {};
+	jointTransformsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	jointTransformsDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
 	VkDescriptorPoolSize materialsDescriptorPoolSize = {};
 	materialsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	materialsDescriptorPoolSize.descriptorCount = m_framesInFlight;
@@ -3080,7 +3503,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 	texturesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	texturesDescriptorPoolSize.descriptorCount = 131072 * m_framesInFlight;
 
-	std::array<VkDescriptorPoolSize, 5> descriptorPoolSizes = { cameraDescriptorPoolSize, objectsDescriptorPoolSize, materialsDescriptorPoolSize, lightsDescriptorPoolSize, texturesDescriptorPoolSize };
+	std::array<VkDescriptorPoolSize, 8> descriptorPoolSizes = { cameraDescriptorPoolSize, objectsDescriptorPoolSize, meshesDescriptorPoolSize, jointMatricesDescriptorPoolSize, jointTransformsDescriptorPoolSize, materialsDescriptorPoolSize, lightsDescriptorPoolSize, texturesDescriptorPoolSize };
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.pNext = nullptr;
@@ -3105,11 +3528,8 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 	// Update descriptor sets
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
-		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
-		VkDescriptorBufferInfo objectsDescriptorBufferInfo;
-		VkDescriptorBufferInfo materialsDescriptorBufferInfo;
-		VkDescriptorBufferInfo lightsDescriptorBufferInfo;
 
+		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
 		cameraDescriptorBufferInfo.buffer = m_cameraBuffers[i];
 		cameraDescriptorBufferInfo.offset = 0;
 		cameraDescriptorBufferInfo.range = sizeof(Math::mat4) * 2 + sizeof(Math::vec4);
@@ -3127,6 +3547,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		cameraDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(cameraDescriptorWriteDescriptorSet);
 
+		VkDescriptorBufferInfo objectsDescriptorBufferInfo;
 		objectsDescriptorBufferInfo.buffer = m_objectBuffers[i];
 		objectsDescriptorBufferInfo.offset = 0;
 		objectsDescriptorBufferInfo.range = 32768;
@@ -3144,6 +3565,61 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		objectsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(objectsDescriptorWriteDescriptorSet);
 
+		VkDescriptorBufferInfo meshesDescriptorBufferInfo;
+		meshesDescriptorBufferInfo.buffer = m_meshBuffer;
+		meshesDescriptorBufferInfo.offset = 0;
+		meshesDescriptorBufferInfo.range = 32768;
+
+		VkWriteDescriptorSet meshesDescriptorWriteDescriptorSet = {};
+		meshesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		meshesDescriptorWriteDescriptorSet.pNext = nullptr;
+		meshesDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		meshesDescriptorWriteDescriptorSet.dstBinding = 2;
+		meshesDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		meshesDescriptorWriteDescriptorSet.descriptorCount = 1;
+		meshesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		meshesDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		meshesDescriptorWriteDescriptorSet.pBufferInfo = &meshesDescriptorBufferInfo;
+		meshesDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(meshesDescriptorWriteDescriptorSet);
+
+		VkDescriptorBufferInfo jointMatricesDescriptorBufferInfo;
+		jointMatricesDescriptorBufferInfo.buffer = m_jointMatrixBuffer;
+		jointMatricesDescriptorBufferInfo.offset = 0;
+		jointMatricesDescriptorBufferInfo.range = 4096 * sizeof(Math::mat4);
+
+		VkWriteDescriptorSet jointMatricesDescriptorWriteDescriptorSet = {};
+		jointMatricesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		jointMatricesDescriptorWriteDescriptorSet.pNext = nullptr;
+		jointMatricesDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		jointMatricesDescriptorWriteDescriptorSet.dstBinding = 3;
+		jointMatricesDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		jointMatricesDescriptorWriteDescriptorSet.descriptorCount = 1;
+		jointMatricesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		jointMatricesDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		jointMatricesDescriptorWriteDescriptorSet.pBufferInfo = &jointMatricesDescriptorBufferInfo;
+		jointMatricesDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(jointMatricesDescriptorWriteDescriptorSet);
+
+		VkDescriptorBufferInfo jointTransformsDescriptorBufferInfo;
+		jointTransformsDescriptorBufferInfo.buffer = m_jointTransformBuffers[i];
+		jointTransformsDescriptorBufferInfo.offset = 0;
+		jointTransformsDescriptorBufferInfo.range = 4096 * sizeof(Math::mat4);
+
+		VkWriteDescriptorSet jointTransformsDescriptorWriteDescriptorSet = {};
+		jointTransformsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		jointTransformsDescriptorWriteDescriptorSet.pNext = nullptr;
+		jointTransformsDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		jointTransformsDescriptorWriteDescriptorSet.dstBinding = 4;
+		jointTransformsDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		jointTransformsDescriptorWriteDescriptorSet.descriptorCount = 1;
+		jointTransformsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		jointTransformsDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		jointTransformsDescriptorWriteDescriptorSet.pBufferInfo = &jointTransformsDescriptorBufferInfo;
+		jointTransformsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(jointTransformsDescriptorWriteDescriptorSet);
+
+		VkDescriptorBufferInfo materialsDescriptorBufferInfo;
 		materialsDescriptorBufferInfo.buffer = m_materialBuffers[i];
 		materialsDescriptorBufferInfo.offset = 0;
 		materialsDescriptorBufferInfo.range = 32768;
@@ -3152,7 +3628,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		materialsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		materialsDescriptorWriteDescriptorSet.pNext = nullptr;
 		materialsDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		materialsDescriptorWriteDescriptorSet.dstBinding = 2;
+		materialsDescriptorWriteDescriptorSet.dstBinding = 5;
 		materialsDescriptorWriteDescriptorSet.dstArrayElement = 0;
 		materialsDescriptorWriteDescriptorSet.descriptorCount = 1;
 		materialsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -3161,6 +3637,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		materialsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(materialsDescriptorWriteDescriptorSet);
 
+		VkDescriptorBufferInfo lightsDescriptorBufferInfo;
 		lightsDescriptorBufferInfo.buffer = m_lightBuffers[i];
 		lightsDescriptorBufferInfo.offset = 0;
 		lightsDescriptorBufferInfo.range = 32768;
@@ -3169,7 +3646,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		lightsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		lightsDescriptorWriteDescriptorSet.pNext = nullptr;
 		lightsDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		lightsDescriptorWriteDescriptorSet.dstBinding = 3;
+		lightsDescriptorWriteDescriptorSet.dstBinding = 6;
 		lightsDescriptorWriteDescriptorSet.dstArrayElement = 0;
 		lightsDescriptorWriteDescriptorSet.descriptorCount = 1;
 		lightsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -3199,7 +3676,7 @@ void NtshEngn::GraphicsModule::updateDescriptorSet(uint32_t frameInFlight) {
 	texturesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	texturesDescriptorWriteDescriptorSet.pNext = nullptr;
 	texturesDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[frameInFlight];
-	texturesDescriptorWriteDescriptorSet.dstBinding = 4;
+	texturesDescriptorWriteDescriptorSet.dstBinding = 7;
 	texturesDescriptorWriteDescriptorSet.dstArrayElement = 0;
 	texturesDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(texturesDescriptorImageInfos.size());
 	texturesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -4818,7 +5295,7 @@ void NtshEngn::GraphicsModule::resize() {
 
 		// Recreate the swapchain
 		createSwapchain(m_swapchain);
-		
+
 		// Destroy depth image and image view
 		vkDestroyImageView(m_device, m_depthImageView, nullptr);
 		vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
@@ -4970,10 +5447,10 @@ void NtshEngn::GraphicsModule::retrieveObjectIndex(uint32_t objectIndex) {
 	m_freeObjectsIndices.insert(m_freeObjectsIndices.begin(), objectIndex);
 }
 
-extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface* createModule() {
+extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface * createModule() {
 	return new NtshEngn::GraphicsModule;
 }
 
-extern "C" NTSHENGN_MODULE_API void destroyModule(NtshEngn::GraphicsModuleInterface* m) {
+extern "C" NTSHENGN_MODULE_API void destroyModule(NtshEngn::GraphicsModuleInterface * m) {
 	delete m;
 }
