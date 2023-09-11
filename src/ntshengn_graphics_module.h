@@ -4,6 +4,7 @@
 #include "../Common/utils/ntshengn_defines.h"
 #include "../Common/utils/ntshengn_enums.h"
 #include "../Common/utils/ntshengn_utils_math.h"
+#include "../Common/utils/ntshengn_utils_block_suballocator.h"
 #include "../Module/utils/ntshengn_module_defines.h"
 #if defined(NTSHENGN_OS_WINDOWS)
 #define VK_USE_PLATFORM_WIN32_KHR
@@ -41,7 +42,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBits
 	NTSHENGN_UNUSED(messageType);
 	NTSHENGN_UNUSED(pCallbackData);
 	NTSHENGN_UNUSED(pUserData);
-	
+
 	NTSHENGN_VK_VALIDATION(pCallbackData->pMessage);
 
 	return VK_FALSE;
@@ -59,6 +60,9 @@ struct InternalMesh {
 	uint32_t indexCount;
 	uint32_t firstIndex;
 	int32_t vertexOffset;
+
+	uint32_t jointOffset;
+	uint32_t jointCount;
 };
 
 struct InternalTexture {
@@ -91,7 +95,14 @@ struct InternalObject {
 	uint32_t index;
 
 	NtshEngn::MeshID meshID = 0;
+	uint32_t jointTransformOffset = 0;
 	uint32_t materialIndex = 0;
+};
+
+struct PlayingAnimation {
+	uint32_t animationIndex;
+	float time = 0.0f;
+	bool isPlaying = true;
 };
 
 struct InternalLight {
@@ -159,6 +170,16 @@ namespace NtshEngn {
 		ImageID load(const Image& image);
 		// Loads the font described in the font parameter in the internal format and returns a unique identifier
 		FontID load(const Font& font);
+
+		// Plays an animation for an entity, indexed in the entity's model animation list
+		void playAnimation(Entity entity, uint32_t animationIndex);
+		// Pauses an animation played by an entity
+		void pauseAnimation(Entity entity);
+		// Stops an animation played by an entity
+		void stopAnimation(Entity entity);
+
+		// Returns true if the entity is currently playing the animation with index animationIndex, else, returns false
+		bool isAnimationPlaying(Entity entity, uint32_t animationIndex);
 
 		// Draws a text on the UI with the font in the fontID parameter using the position on screen and color
 		void drawUIText(FontID fontID, const std::string& text, const Math::vec2& position, const Math::vec4& color);
@@ -349,6 +370,15 @@ namespace NtshEngn {
 		std::vector<VkBuffer> m_objectBuffers;
 		std::vector<VmaAllocation> m_objectBufferAllocations;
 
+		VkBuffer m_meshBuffer;
+		VmaAllocation m_meshBufferAllocation;
+
+		VkBuffer m_jointMatrixBuffer;
+		VmaAllocation m_jointMatrixBufferAllocation;
+
+		std::vector<VkBuffer> m_jointTransformBuffers;
+		std::vector<VmaAllocation> m_jointTransformBufferAllocations;
+
 		std::vector<VkBuffer> m_materialBuffers;
 		std::vector<VmaAllocation> m_materialBufferAllocations;
 
@@ -366,6 +396,7 @@ namespace NtshEngn {
 		std::vector<InternalMesh> m_meshes;
 		int32_t m_currentVertexOffset = 0;
 		uint32_t m_currentIndexOffset = 0;
+		uint32_t m_currentJointOffset = 0;
 		std::unordered_map<const Mesh*, MeshID> m_meshAddresses;
 
 		std::vector<VkImage> m_textureImages;
@@ -385,6 +416,9 @@ namespace NtshEngn {
 
 		std::unordered_map<Entity, InternalObject> m_objects;
 		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
+		BlockSuballocator m_freeJointTransformOffsets{ 4096 };
+
+		std::unordered_map<InternalObject*, PlayingAnimation> m_playingAnimations;
 
 		Entity m_mainCamera = std::numeric_limits<uint32_t>::max();
 
