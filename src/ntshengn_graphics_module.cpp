@@ -1592,6 +1592,26 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	return static_cast<FontID>(m_fonts.size() - 1);
 }
 
+void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex) {
+	NTSHENGN_UNUSED(entity);
+	NTSHENGN_UNUSED(animationIndex);
+}
+
+void NtshEngn::GraphicsModule::pauseAnimation(Entity entity) {
+	NTSHENGN_UNUSED(entity);
+}
+
+void NtshEngn::GraphicsModule::stopAnimation(Entity entity) {
+	NTSHENGN_UNUSED(entity);
+}
+
+bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animationIndex) {
+	NTSHENGN_UNUSED(entity);
+	NTSHENGN_UNUSED(animationIndex);
+
+	return false;
+}
+
 void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::string& text, const Math::vec2& position, const Math::vec4& color) {
 	NTSHENGN_ASSERT(fontID < m_fonts.size());
 
