@@ -3028,11 +3028,11 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 			MeshInfo info[];
 		} meshes;
 
-		layout(std430, set = 0, binding = 3) restrict readonly buffer JointMatrices {
+		layout(set = 0, binding = 3) restrict readonly buffer JointMatrices {
 			JointMatrixInfo info[];
 		} jointMatrices;
 
-		layout(std430, set = 0, binding = 4) restrict readonly buffer JointTransforms {
+		layout(set = 0, binding = 4) restrict readonly buffer JointTransforms {
 			mat4 matrix[];
 		} jointTransforms;
 
