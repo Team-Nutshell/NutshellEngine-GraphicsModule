@@ -716,7 +716,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 									const float timestampPrevious = channel.keyframes[keyframe].timestamp;
 									const float timestampNext = channel.keyframes[keyframe + 1].timestamp;
-									const float interpolationValue = 1.0f - ((timestampNext - playingAnimation.time) / (timestampNext - timestampPrevious));
+									const float interpolationValue = (playingAnimation.time - timestampPrevious) / (timestampNext - timestampPrevious);
 
 									if (channel.transformType == AnimationChannelTransformType::Translation) {
 										translation = Math::vec3(Math::lerp(channelPrevious.x, channelNext.x, interpolationValue),
