@@ -61,7 +61,6 @@ struct InternalMesh {
 	uint32_t firstIndex;
 	int32_t vertexOffset;
 
-	uint32_t jointOffset;
 	uint32_t jointCount;
 };
 
@@ -372,9 +371,6 @@ namespace NtshEngn {
 
 		VkBuffer m_meshBuffer;
 		VmaAllocation m_meshBufferAllocation;
-
-		VkBuffer m_jointMatrixBuffer;
-		VmaAllocation m_jointMatrixBufferAllocation;
 
 		std::vector<VkBuffer> m_jointTransformBuffers;
 		std::vector<VmaAllocation> m_jointTransformBufferAllocations;
