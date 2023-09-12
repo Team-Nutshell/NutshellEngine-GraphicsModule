@@ -61,6 +61,9 @@ struct InternalMesh {
 	uint32_t firstIndex;
 	int32_t vertexOffset;
 
+	uint32_t jointOffset;
+	uint32_t jointCount;
+
 	NtshEngn::Math::vec3 aabbMin = { 0.0f, 0.0f, 0.0f };
 	NtshEngn::Math::vec3 aabbMax = { 0.0f, 0.0f, 0.0f };
 };
@@ -95,7 +98,14 @@ struct InternalObject {
 	uint32_t index;
 
 	NtshEngn::MeshID meshID = 0;
+	uint32_t jointTransformOffset = 0;
 	uint32_t materialIndex = 0;
+};
+
+struct PlayingAnimation {
+	uint32_t animationIndex;
+	float time = 0.0f;
+	bool isPlaying = true;
 };
 
 struct InternalLight {

@@ -1,5 +1,6 @@
 #pragma once
 #include "../Common/module_interfaces/ntshengn_graphics_module_interface.h"
+#include "../Common/utils/ntshengn_utils_block_suballocator.h"
 #include "common.h"
 #include "frustum_culling.h"
 #include "fxaa.h"
@@ -74,6 +75,16 @@ namespace NtshEngn {
 		ImageID load(const Image& image);
 		// Loads the font described in the font parameter in the internal format and returns a unique identifier
 		FontID load(const Font& font);
+
+		// Plays an animation for an entity, indexed in the entity's model animation list
+		void playAnimation(Entity entity, uint32_t animationIndex);
+		// Pauses an animation played by an entity
+		void pauseAnimation(Entity entity);
+		// Stops an animation played by an entity
+		void stopAnimation(Entity entity);
+
+		// Returns true if the entity is currently playing the animation with index animationIndex, else, returns false
+		bool isAnimationPlaying(Entity entity, uint32_t animationIndex);
 
 		// Draws a text on the UI with the font in the fontID parameter using the position on screen and color
 		void drawUIText(FontID fontID, const std::string& text, const Math::vec2& position, const Math::vec4& color);
@@ -248,6 +259,12 @@ namespace NtshEngn {
 
 		std::vector<VulkanBuffer> m_objectBuffers;
 
+		VulkanBuffer m_meshBuffer;
+
+		VulkanBuffer m_jointMatrixBuffer;
+
+		std::vector<VulkanBuffer> m_jointTransformBuffers;
+
 		std::vector<VulkanBuffer> m_materialBuffers;
 
 		std::vector<VulkanBuffer> m_lightBuffers;
@@ -263,6 +280,7 @@ namespace NtshEngn {
 		std::vector<InternalMesh> m_meshes;
 		int32_t m_currentVertexOffset = 0;
 		uint32_t m_currentIndexOffset = 0;
+		uint32_t m_currentJointOffset = 0;
 		std::unordered_map<const Mesh*, MeshID> m_meshAddresses;
 
 		std::vector<VkImage> m_textureImages;
@@ -282,6 +300,9 @@ namespace NtshEngn {
 
 		std::unordered_map<Entity, InternalObject> m_objects;
 		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
+		BlockSuballocator m_freeJointTransformOffsets{ 4096 };
+
+		std::unordered_map<InternalObject*, PlayingAnimation> m_playingAnimations;
 
 		Entity m_mainCamera = std::numeric_limits<uint32_t>::max();
 
