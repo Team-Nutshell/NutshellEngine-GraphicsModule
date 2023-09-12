@@ -28,6 +28,9 @@ public:
 		VkFence initializationFence,
 		uint32_t framesInFlight,
 		const std::vector<VulkanBuffer>& objectBuffers,
+		VulkanBuffer meshBuffer,
+		VulkanBuffer jointMatrixBuffer,
+		const std::vector<VulkanBuffer>& jointTransformBuffers,
 		const std::vector<VulkanBuffer>& materialBuffers,
 		PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 		PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
@@ -71,6 +74,9 @@ private:
 	void createSpotLightShadowGraphicsPipeline();
 
 	void createDescriptorSets(const std::vector<VulkanBuffer>& objectBuffers,
+		VulkanBuffer meshBuffer,
+		VulkanBuffer jointMatrixBuffer,
+		const std::vector<VulkanBuffer>& jointTransformBuffers,
 		const std::vector<VulkanBuffer>& materialBuffers);
 
 private:

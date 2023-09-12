@@ -236,7 +236,7 @@ void NtshEngn::GraphicsModule::init() {
 	physicalDeviceFeatures.multiDrawIndirect = VK_TRUE;
 	physicalDeviceFeatures.depthClamp = VK_TRUE;
 	physicalDeviceFeatures.samplerAnisotropy = VK_TRUE;
-	
+
 	// Create the logical device
 	VkDeviceCreateInfo deviceCreateInfo = {};
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -515,6 +515,9 @@ void NtshEngn::GraphicsModule::init() {
 		m_frustumCulling.getPerDrawBuffers(),
 		m_cameraBuffers,
 		m_objectBuffers,
+		m_meshBuffer,
+		m_jointMatrixBuffer,
+		m_jointTransformBuffers,
 		m_materialBuffers,
 		m_vkCmdBeginRenderingKHR,
 		m_vkCmdEndRenderingKHR,
@@ -546,6 +549,9 @@ void NtshEngn::GraphicsModule::init() {
 		m_initializationFence,
 		m_framesInFlight,
 		m_objectBuffers,
+		m_meshBuffer,
+		m_jointMatrixBuffer,
+		m_jointTransformBuffers,
 		m_materialBuffers,
 		m_vkCmdBeginRenderingKHR,
 		m_vkCmdEndRenderingKHR,
@@ -5336,7 +5342,7 @@ void NtshEngn::GraphicsModule::resize() {
 
 		// Recreate the swapchain
 		createSwapchain(m_swapchain);
-		
+
 		// Recreate compositing image and image view
 		m_compositingImage.destroy(m_device, m_allocator);
 		createCompositingImage();

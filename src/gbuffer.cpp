@@ -13,6 +13,9 @@ void GBuffer::init(VkDevice device,
 	const std::vector<VulkanBuffer>& perDrawBuffers,
 	const std::vector<VulkanBuffer>& cameraBuffers,
 	const std::vector<VulkanBuffer>& objectBuffers,
+	VulkanBuffer meshBuffer,
+	VulkanBuffer jointMatrixBuffer,
+	const std::vector<VulkanBuffer>& jointTransformBuffers,
 	const std::vector<VulkanBuffer>& materialBuffers,
 	PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 	PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
@@ -35,7 +38,7 @@ void GBuffer::init(VkDevice device,
 	createImages(m_scissor.extent.width, m_scissor.extent.height);
 	createDescriptorSetLayout();
 	createGraphicsPipeline();
-	createDescriptorSets(perDrawBuffers, cameraBuffers, objectBuffers, materialBuffers);
+	createDescriptorSets(perDrawBuffers, cameraBuffers, objectBuffers, meshBuffer, jointMatrixBuffer, jointTransformBuffers, materialBuffers);
 }
 
 void GBuffer::destroy() {
@@ -410,7 +413,7 @@ void GBuffer::updateDescriptorSets(uint32_t frameInFlight,
 	texturesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	texturesDescriptorWriteDescriptorSet.pNext = nullptr;
 	texturesDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[frameInFlight];
-	texturesDescriptorWriteDescriptorSet.dstBinding = 4;
+	texturesDescriptorWriteDescriptorSet.dstBinding = 7;
 	texturesDescriptorWriteDescriptorSet.dstArrayElement = 0;
 	texturesDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(texturesDescriptorImageInfos.size());
 	texturesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -713,28 +716,49 @@ void GBuffer::createDescriptorSetLayout() {
 	objectsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	objectsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
+	VkDescriptorSetLayoutBinding meshesDescriptorSetLayoutBinding = {};
+	meshesDescriptorSetLayoutBinding.binding = 3;
+	meshesDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	meshesDescriptorSetLayoutBinding.descriptorCount = 1;
+	meshesDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	meshesDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding jointMatricesDescriptorSetLayoutBinding = {};
+	jointMatricesDescriptorSetLayoutBinding.binding = 4;
+	jointMatricesDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	jointMatricesDescriptorSetLayoutBinding.descriptorCount = 1;
+	jointMatricesDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	jointMatricesDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding jointTransformsDescriptorSetLayoutBinding = {};
+	jointTransformsDescriptorSetLayoutBinding.binding = 5;
+	jointTransformsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	jointTransformsDescriptorSetLayoutBinding.descriptorCount = 1;
+	jointTransformsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	jointTransformsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
 	VkDescriptorSetLayoutBinding materialsDescriptorSetLayoutBinding = {};
-	materialsDescriptorSetLayoutBinding.binding = 3;
+	materialsDescriptorSetLayoutBinding.binding = 6;
 	materialsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	materialsDescriptorSetLayoutBinding.descriptorCount = 1;
 	materialsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	materialsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding texturesDescriptorSetLayoutBinding = {};
-	texturesDescriptorSetLayoutBinding.binding = 4;
+	texturesDescriptorSetLayoutBinding.binding = 7;
 	texturesDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	texturesDescriptorSetLayoutBinding.descriptorCount = 131072;
 	texturesDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	texturesDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
-	std::array<VkDescriptorBindingFlags, 5> descriptorBindingFlags = { 0, 0, 0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
+	std::array<VkDescriptorBindingFlags, 8> descriptorBindingFlags = { 0, 0, 0, 0, 0, 0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
 	VkDescriptorSetLayoutBindingFlagsCreateInfo descriptorSetLayoutBindingFlagsCreateInfo = {};
 	descriptorSetLayoutBindingFlagsCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
 	descriptorSetLayoutBindingFlagsCreateInfo.pNext = nullptr;
 	descriptorSetLayoutBindingFlagsCreateInfo.bindingCount = static_cast<uint32_t>(descriptorBindingFlags.size());
 	descriptorSetLayoutBindingFlagsCreateInfo.pBindingFlags = descriptorBindingFlags.data();
 
-	std::array<VkDescriptorSetLayoutBinding, 5> descriptorSetLayoutBindings = { perDrawDescriptorSetLayoutBinding, cameraDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding, materialsDescriptorSetLayoutBinding, texturesDescriptorSetLayoutBinding };
+	std::array<VkDescriptorSetLayoutBinding, 8> descriptorSetLayoutBindings = { perDrawDescriptorSetLayoutBinding, cameraDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding, meshesDescriptorSetLayoutBinding, jointMatricesDescriptorSetLayoutBinding, jointTransformsDescriptorSetLayoutBinding, materialsDescriptorSetLayoutBinding, texturesDescriptorSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
 	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	descriptorSetLayoutCreateInfo.pNext = &descriptorSetLayoutBindingFlagsCreateInfo;
@@ -762,6 +786,22 @@ void GBuffer::createGraphicsPipeline() {
 			uint objectID;
 		};
 
+		struct ObjectInfo {
+			mat4 model;
+			uint meshID;
+			uint jointTransformOffset;
+			uint materialID;
+		};
+
+		struct MeshInfo {
+			uint hasSkin;
+			uint jointOffset;
+		};
+
+		struct JointMatrixInfo {
+			mat4 inverseBindMatrix;
+		};
+
 		layout(std430, set = 0, binding = 0) restrict readonly buffer PerDraw {
 			PerDrawInfo info[];
 		} perDraw;
@@ -772,20 +812,29 @@ void GBuffer::createGraphicsPipeline() {
 			vec3 position;
 		} camera;
 
-		struct ObjectInfo {
-			mat4 model;
-			uint materialID;
-		};
-
 		layout(std430, set = 0, binding = 2) restrict readonly buffer Objects {
 			ObjectInfo info[];
 		} objects;
+
+		layout(std430, set = 0, binding = 3) restrict readonly buffer Meshes {
+			MeshInfo info[];
+		} meshes;
+
+		layout(std430, set = 0, binding = 4) restrict readonly buffer JointMatrices {
+			JointMatrixInfo info[];
+		} jointMatrices;
+
+		layout(std430, set = 0, binding = 5) restrict readonly buffer JointTransforms {
+			mat4 matrix[];
+		} jointTransforms;
 
 		layout(location = 0) in vec3 position;
 		layout(location = 1) in vec3 normal;
 		layout(location = 2) in vec2 uv;
 		layout(location = 3) in vec3 color;
 		layout(location = 4) in vec4 tangent;
+		layout(location = 5) in uvec4 joints;
+		layout(location = 6) in vec4 weights;
 
 		layout(location = 0) out vec3 outPosition;
 		layout(location = 1) out vec2 outUV;
@@ -795,14 +844,28 @@ void GBuffer::createGraphicsPipeline() {
 		void main() {
 			uint objectID = perDraw.info[gl_DrawID].objectID;
 
-			outPosition = vec3(objects.info[objectID].model * vec4(position, 1.0));
+			mat4 skinMatrix = mat4(1.0);
+			if (meshes.info[objects.info[objectID].meshID].hasSkin == 1) {
+				uint jointOffset = meshes.info[objects.info[objectID].meshID].jointOffset;
+				uint jointTransformOffset = objects.info[objectID].jointTransformOffset;
+
+				mat4 joint0Matrix = jointTransforms.matrix[jointTransformOffset + joints.x] * jointMatrices.info[jointOffset + joints.x].inverseBindMatrix;
+				mat4 joint1Matrix = jointTransforms.matrix[jointTransformOffset + joints.y] * jointMatrices.info[jointOffset + joints.y].inverseBindMatrix;
+				mat4 joint2Matrix = jointTransforms.matrix[jointTransformOffset + joints.z] * jointMatrices.info[jointOffset + joints.z].inverseBindMatrix;
+				mat4 joint3Matrix = jointTransforms.matrix[jointTransformOffset + joints.w] * jointMatrices.info[jointOffset + joints.w].inverseBindMatrix;
+
+				skinMatrix = (weights.x * joint0Matrix) + (weights.y * joint1Matrix) + (weights.z * joint2Matrix) + (weights.w * joint3Matrix);
+			}
+			outPosition = vec3(objects.info[objectID].model * skinMatrix * vec4(position, 1.0));
 			outUV = uv;
 			outMaterialID = objects.info[objectID].materialID;
 
-			vec3 bitangent = cross(normal, tangent.xyz) * tangent.w;
-			vec3 T = vec3(objects.info[objectID].model * vec4(tangent.xyz, 0.0));
+			vec3 skinnedNormal = vec3(transpose(inverse(skinMatrix)) * vec4(normal, 0.0));
+			vec3 skinnedTangent = vec3(skinMatrix * vec4(tangent.xyz, 0.0));
+			vec3 bitangent = cross(skinnedNormal, skinnedTangent) * tangent.w;
+			vec3 T = vec3(objects.info[objectID].model * vec4(skinnedTangent, 0.0));
 			vec3 B = vec3(objects.info[objectID].model * vec4(bitangent, 0.0));
-			vec3 N = vec3(objects.info[objectID].model * vec4(normal, 0.0));
+			vec3 N = vec3(objects.info[objectID].model * vec4(skinnedNormal, 0.0));
 			outTBN = mat3(T, B, N);
 
 			gl_Position = camera.projection * camera.view * vec4(outPosition, 1.0);
@@ -843,11 +906,11 @@ void GBuffer::createGraphicsPipeline() {
 			float alphaCutoff;
 		};
 
-		layout(set = 0, binding = 3) restrict readonly buffer Materials {
+		layout(set = 0, binding = 6) restrict readonly buffer Materials {
 			MaterialInfo info[];
 		} materials;
 
-		layout(set = 0, binding = 4) uniform sampler2D textures[];
+		layout(set = 0, binding = 7) uniform sampler2D textures[];
 
 		layout(location = 0) in vec3 position;
 		layout(location = 1) in vec2 uv;
@@ -939,7 +1002,19 @@ void GBuffer::createGraphicsPipeline() {
 	vertexTangentInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
 	vertexTangentInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, tangent);
 
-	std::array<VkVertexInputAttributeDescription, 5> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexNormalInputAttributeDescription, vertexUVInputAttributeDescription, vertexColorInputAttributeDescription, vertexTangentInputAttributeDescription };
+	VkVertexInputAttributeDescription vertexJointsInputAttributeDescription = {};
+	vertexJointsInputAttributeDescription.location = 5;
+	vertexJointsInputAttributeDescription.binding = 0;
+	vertexJointsInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_UINT;
+	vertexJointsInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, joints);
+
+	VkVertexInputAttributeDescription vertexWeightsInputAttributeDescription = {};
+	vertexWeightsInputAttributeDescription.location = 6;
+	vertexWeightsInputAttributeDescription.binding = 0;
+	vertexWeightsInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	vertexWeightsInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, weights);
+
+	std::array<VkVertexInputAttributeDescription, 7> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexNormalInputAttributeDescription, vertexUVInputAttributeDescription, vertexColorInputAttributeDescription, vertexTangentInputAttributeDescription, vertexJointsInputAttributeDescription, vertexWeightsInputAttributeDescription };
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
 	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputStateCreateInfo.pNext = nullptr;
@@ -1072,9 +1147,12 @@ void GBuffer::createGraphicsPipeline() {
 void GBuffer::createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffers,
 	const std::vector<VulkanBuffer>& cameraBuffers,
 	const std::vector<VulkanBuffer>& objectBuffers,
+	VulkanBuffer meshBuffer,
+	VulkanBuffer jointMatrixBuffer,
+	const std::vector<VulkanBuffer>& jointTransformBuffers,
 	const std::vector<VulkanBuffer>& materialBuffers) {
 	// Create descriptor pool
-	VkDescriptorPoolSize perDrawDescriptorPoolSize = {};
+  	VkDescriptorPoolSize perDrawDescriptorPoolSize = {};
 	perDrawDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	perDrawDescriptorPoolSize.descriptorCount = m_framesInFlight;
 
@@ -1086,6 +1164,18 @@ void GBuffer::createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffe
 	objectsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	objectsDescriptorPoolSize.descriptorCount = m_framesInFlight;
 
+	VkDescriptorPoolSize meshesDescriptorPoolSize = {};
+	meshesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	meshesDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	VkDescriptorPoolSize jointMatricesDescriptorPoolSize = {};
+	jointMatricesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	jointMatricesDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	VkDescriptorPoolSize jointTransformsDescriptorPoolSize = {};
+	jointTransformsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	jointTransformsDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
 	VkDescriptorPoolSize materialsDescriptorPoolSize = {};
 	materialsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	materialsDescriptorPoolSize.descriptorCount = m_framesInFlight;
@@ -1094,7 +1184,7 @@ void GBuffer::createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffe
 	texturesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	texturesDescriptorPoolSize.descriptorCount = 131072 * m_framesInFlight;
 
-	std::array<VkDescriptorPoolSize, 5> descriptorPoolSizes = { perDrawDescriptorPoolSize, cameraDescriptorPoolSize, objectsDescriptorPoolSize, materialsDescriptorPoolSize, texturesDescriptorPoolSize };
+	std::array<VkDescriptorPoolSize, 8> descriptorPoolSizes = { perDrawDescriptorPoolSize, cameraDescriptorPoolSize, objectsDescriptorPoolSize, meshesDescriptorPoolSize, jointMatricesDescriptorPoolSize, jointTransformsDescriptorPoolSize, materialsDescriptorPoolSize, texturesDescriptorPoolSize };
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.pNext = nullptr;
@@ -1174,6 +1264,60 @@ void GBuffer::createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffe
 		objectsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(objectsDescriptorWriteDescriptorSet);
 
+		VkDescriptorBufferInfo meshesDescriptorBufferInfo;
+		meshesDescriptorBufferInfo.buffer = meshBuffer.handle;
+		meshesDescriptorBufferInfo.offset = 0;
+		meshesDescriptorBufferInfo.range = 32768;
+
+		VkWriteDescriptorSet meshesDescriptorWriteDescriptorSet = {};
+		meshesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		meshesDescriptorWriteDescriptorSet.pNext = nullptr;
+		meshesDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		meshesDescriptorWriteDescriptorSet.dstBinding = 3;
+		meshesDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		meshesDescriptorWriteDescriptorSet.descriptorCount = 1;
+		meshesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		meshesDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		meshesDescriptorWriteDescriptorSet.pBufferInfo = &meshesDescriptorBufferInfo;
+		meshesDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(meshesDescriptorWriteDescriptorSet);
+
+		VkDescriptorBufferInfo jointMatricesDescriptorBufferInfo;
+		jointMatricesDescriptorBufferInfo.buffer = jointMatrixBuffer.handle;
+		jointMatricesDescriptorBufferInfo.offset = 0;
+		jointMatricesDescriptorBufferInfo.range = 4096 * sizeof(NtshEngn::Math::mat4);
+
+		VkWriteDescriptorSet jointMatricesDescriptorWriteDescriptorSet = {};
+		jointMatricesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		jointMatricesDescriptorWriteDescriptorSet.pNext = nullptr;
+		jointMatricesDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		jointMatricesDescriptorWriteDescriptorSet.dstBinding = 4;
+		jointMatricesDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		jointMatricesDescriptorWriteDescriptorSet.descriptorCount = 1;
+		jointMatricesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		jointMatricesDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		jointMatricesDescriptorWriteDescriptorSet.pBufferInfo = &jointMatricesDescriptorBufferInfo;
+		jointMatricesDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(jointMatricesDescriptorWriteDescriptorSet);
+
+		VkDescriptorBufferInfo jointTransformsDescriptorBufferInfo;
+		jointTransformsDescriptorBufferInfo.buffer = jointTransformBuffers[i].handle;
+		jointTransformsDescriptorBufferInfo.offset = 0;
+		jointTransformsDescriptorBufferInfo.range = 4096 * sizeof(NtshEngn::Math::mat4);
+
+		VkWriteDescriptorSet jointTransformsDescriptorWriteDescriptorSet = {};
+		jointTransformsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		jointTransformsDescriptorWriteDescriptorSet.pNext = nullptr;
+		jointTransformsDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		jointTransformsDescriptorWriteDescriptorSet.dstBinding = 5;
+		jointTransformsDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		jointTransformsDescriptorWriteDescriptorSet.descriptorCount = 1;
+		jointTransformsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		jointTransformsDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		jointTransformsDescriptorWriteDescriptorSet.pBufferInfo = &jointTransformsDescriptorBufferInfo;
+		jointTransformsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(jointTransformsDescriptorWriteDescriptorSet);
+
 		VkDescriptorBufferInfo materialsDescriptorBufferInfo;
 		materialsDescriptorBufferInfo.buffer = materialBuffers[i].handle;
 		materialsDescriptorBufferInfo.offset = 0;
@@ -1183,7 +1327,7 @@ void GBuffer::createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffe
 		materialsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		materialsDescriptorWriteDescriptorSet.pNext = nullptr;
 		materialsDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		materialsDescriptorWriteDescriptorSet.dstBinding = 3;
+		materialsDescriptorWriteDescriptorSet.dstBinding = 6;
 		materialsDescriptorWriteDescriptorSet.dstArrayElement = 0;
 		materialsDescriptorWriteDescriptorSet.descriptorCount = 1;
 		materialsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;

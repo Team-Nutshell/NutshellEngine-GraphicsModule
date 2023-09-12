@@ -16,6 +16,9 @@ public:
 		const std::vector<VulkanBuffer>& perDrawBuffers,
 		const std::vector<VulkanBuffer>& cameraBuffers,
 		const std::vector<VulkanBuffer>& objectBuffers,
+		VulkanBuffer meshBuffer,
+		VulkanBuffer jointMatrixBuffer,
+		const std::vector<VulkanBuffer>& jointTransformBuffers,
 		const std::vector<VulkanBuffer>& materialBuffers,
 		PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 		PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
@@ -54,6 +57,9 @@ private:
 	void createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffers,
 		const std::vector<VulkanBuffer>& cameraBuffers,
 		const std::vector<VulkanBuffer>& objectBuffers,
+		VulkanBuffer meshBuffer,
+		VulkanBuffer jointMatrixBuffer,
+		const std::vector<VulkanBuffer>& jointTransformBuffers,
 		const std::vector<VulkanBuffer>& materialBuffers);
 
 private:
