@@ -17,7 +17,6 @@ public:
 		const std::vector<VulkanBuffer>& cameraBuffers,
 		const std::vector<VulkanBuffer>& objectBuffers,
 		VulkanBuffer meshBuffer,
-		VulkanBuffer jointMatrixBuffer,
 		const std::vector<VulkanBuffer>& jointTransformBuffers,
 		const std::vector<VulkanBuffer>& materialBuffers,
 		PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
@@ -58,7 +57,6 @@ private:
 		const std::vector<VulkanBuffer>& cameraBuffers,
 		const std::vector<VulkanBuffer>& objectBuffers,
 		VulkanBuffer meshBuffer,
-		VulkanBuffer jointMatrixBuffer,
 		const std::vector<VulkanBuffer>& jointTransformBuffers,
 		const std::vector<VulkanBuffer>& materialBuffers);
 

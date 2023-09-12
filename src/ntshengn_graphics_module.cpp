@@ -426,23 +426,6 @@ void NtshEngn::GraphicsModule::init() {
 
 	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &meshBufferCreateInfo, &meshBufferAllocationCreateInfo, &m_meshBuffer.handle, &m_meshBuffer.allocation, nullptr));
 
-	// Create joint matrix storage buffer
-	VkBufferCreateInfo jointMatrixBufferCreateInfo = {};
-	jointMatrixBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	jointMatrixBufferCreateInfo.pNext = nullptr;
-	jointMatrixBufferCreateInfo.flags = 0;
-	jointMatrixBufferCreateInfo.size = 4096 * sizeof(Math::mat4);
-	jointMatrixBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-	jointMatrixBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	jointMatrixBufferCreateInfo.queueFamilyIndexCount = 1;
-	jointMatrixBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
-
-	VmaAllocationCreateInfo jointMatrixBufferAllocationCreateInfo = {};
-	jointMatrixBufferAllocationCreateInfo.flags = 0;
-	jointMatrixBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-
-	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &jointMatrixBufferCreateInfo, &jointMatrixBufferAllocationCreateInfo, &m_jointMatrixBuffer.handle, &m_jointMatrixBuffer.allocation, nullptr));
-
 	// Create joint transform storage buffers
 	m_jointTransformBuffers.resize(m_framesInFlight);
 	VkBufferCreateInfo jointTransformBufferCreateInfo = {};
@@ -516,7 +499,6 @@ void NtshEngn::GraphicsModule::init() {
 		m_cameraBuffers,
 		m_objectBuffers,
 		m_meshBuffer,
-		m_jointMatrixBuffer,
 		m_jointTransformBuffers,
 		m_materialBuffers,
 		m_vkCmdBeginRenderingKHR,
@@ -550,7 +532,6 @@ void NtshEngn::GraphicsModule::init() {
 		m_framesInFlight,
 		m_objectBuffers,
 		m_meshBuffer,
-		m_jointMatrixBuffer,
 		m_jointTransformBuffers,
 		m_materialBuffers,
 		m_vkCmdBeginRenderingKHR,
@@ -707,34 +688,38 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	for (auto& it : m_objects) {
 		const Renderable& objectRenderable = ecs->getComponent<Renderable>(it.first);
 		const ModelPrimitive& modelPrimitive = objectRenderable.model->primitives[objectRenderable.modelPrimitiveIndex];
-		const Mesh& mesh = modelPrimitive.mesh;
+		const Skin& skin = modelPrimitive.mesh.skin;
 
-		if (!mesh.joints.empty()) {
-			std::vector<Math::mat4> jointTransformMatrices(mesh.joints.size());
+		if (!skin.joints.empty()) {
+			std::vector<Math::mat4> jointTransformMatrices(skin.joints.size());
+			std::vector<Math::mat4> parentJointTransformMatrices(skin.joints.size());
 
 			if (m_playingAnimations.find(&it.second) != m_playingAnimations.end()) {
 				PlayingAnimation& playingAnimation = m_playingAnimations[&it.second];
 				const Animation& animation = objectRenderable.model->animations[m_playingAnimations[&it.second].animationIndex];
 
 				std::queue<std::pair<uint32_t, uint32_t>> jointsAndParents;
-				jointsAndParents.push({ 0, std::numeric_limits<uint32_t>::max() });
+				jointsAndParents.push({ skin.rootJoint, std::numeric_limits<uint32_t>::max() });
 				while (!jointsAndParents.empty()) {
 					uint32_t jointIndex = jointsAndParents.front().first;
 					Math::mat4 parentJointTransformMatrix = Math::mat4();
 					if (jointsAndParents.front().second != std::numeric_limits<uint32_t>::max()) {
-						parentJointTransformMatrix = jointTransformMatrices[jointsAndParents.front().second];
+						parentJointTransformMatrix = parentJointTransformMatrices[jointsAndParents.front().second];
+					}
+					else {
+						parentJointTransformMatrix = skin.baseMatrix;
 					}
 
 					if (animation.jointChannels.find(jointIndex) != animation.jointChannels.end()) {
 						const std::vector<AnimationChannel>& channels = animation.jointChannels.at(jointIndex);
 
-						Math::vec3 translation = Math::vec3(mesh.joints[jointIndex].baseTransform.w);
-						Math::mat3 baseRotationMat = Math::mat3(Math::normalize(mesh.joints[jointIndex].baseTransform.x), Math::normalize(mesh.joints[jointIndex].baseTransform.y), Math::normalize(mesh.joints[jointIndex].baseTransform.z));
+						Math::vec3 translation = Math::vec3(skin.joints[jointIndex].localTransform.w);
+						Math::mat3 baseRotationMat = Math::mat3(Math::normalize(skin.joints[jointIndex].localTransform.x), Math::normalize(skin.joints[jointIndex].localTransform.y), Math::normalize(skin.joints[jointIndex].localTransform.z));
 						Math::quat rotation = Math::quat(std::sqrt(1.0f + baseRotationMat[0][0] + baseRotationMat[1][1] + baseRotationMat[2][2]) / 2.0f, 0.0f, 0.0f, 0.0f);
 						rotation.b = (baseRotationMat[2][1] - baseRotationMat[1][2]) / (4.0f * rotation.a);
 						rotation.c = (baseRotationMat[0][2] - baseRotationMat[2][0]) / (4.0f * rotation.a);
 						rotation.d = (baseRotationMat[1][0] - baseRotationMat[0][1]) / (4.0f * rotation.a);
-						Math::vec3 scale = Math::vec3(mesh.joints[jointIndex].baseTransform.x.length(), mesh.joints[jointIndex].baseTransform.y.length(), mesh.joints[jointIndex].baseTransform.z.length());
+						Math::vec3 scale = Math::vec3(skin.joints[jointIndex].localTransform.x.length(), skin.joints[jointIndex].localTransform.y.length(), skin.joints[jointIndex].localTransform.z.length());
 						for (const AnimationChannel& channel : channels) {
 							// Find previous keyframe
 							uint32_t keyframe = 0;
@@ -754,6 +739,10 @@ void NtshEngn::GraphicsModule::update(double dt) {
 							if (!foundKeyframe) {
 								// Time after the last channel keyframe
 								keyframe = static_cast<uint32_t>(channel.keyframes.size()) - 1;
+							}
+
+							if (playingAnimation.time < channel.keyframes[keyframe].timestamp) {
+								continue;
 							}
 
 							if (channel.interpolationType == AnimationChannelInterpolationType::Step) {
@@ -789,7 +778,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 									const float timestampPrevious = channel.keyframes[keyframe].timestamp;
 									const float timestampNext = channel.keyframes[keyframe + 1].timestamp;
-									const float interpolationValue = 1.0f - ((timestampNext - playingAnimation.time) / (timestampNext - timestampPrevious));
+									const float interpolationValue = (playingAnimation.time - timestampPrevious) / (timestampNext - timestampPrevious);
 
 									if (channel.transformType == AnimationChannelTransformType::Translation) {
 										translation = Math::vec3(Math::lerp(channelPrevious.x, channelNext.x, interpolationValue),
@@ -814,14 +803,19 @@ void NtshEngn::GraphicsModule::update(double dt) {
 							Math::to_mat4(rotation) *
 							Math::scale(scale);
 
-						jointTransformMatrices[jointIndex] = parentJointTransformMatrix *
-							jointTransformMatrix;
+						jointTransformMatrices[jointIndex] = parentJointTransformMatrix * jointTransformMatrix;
+						parentJointTransformMatrices[jointIndex] = jointTransformMatrices[jointIndex];
+						jointTransformMatrices[jointIndex] *= skin.joints[jointIndex].inverseBindMatrix;
+						jointTransformMatrices[jointIndex] = skin.inverseGlobalTransform * jointTransformMatrices[jointIndex];
 					}
 					else {
-						jointTransformMatrices[jointIndex] = parentJointTransformMatrix;
+						jointTransformMatrices[jointIndex] = parentJointTransformMatrix * skin.joints[jointIndex].localTransform;
+						parentJointTransformMatrices[jointIndex] = jointTransformMatrices[jointIndex];
+						jointTransformMatrices[jointIndex] *= skin.joints[jointIndex].inverseBindMatrix;
+						jointTransformMatrices[jointIndex] = skin.inverseGlobalTransform * jointTransformMatrices[jointIndex];
 					}
 
-					for (uint32_t jointChild : mesh.joints[jointIndex].children) {
+					for (uint32_t jointChild : skin.joints[jointIndex].children) {
 						jointsAndParents.push({ jointChild, jointIndex });
 					}
 
@@ -832,14 +826,34 @@ void NtshEngn::GraphicsModule::update(double dt) {
 					playingAnimation.time += static_cast<float>(dt) / 1000.0f;
 				}
 
-				// Loop animation
+				// End animation
 				if (playingAnimation.time >= animation.duration) {
 					m_playingAnimations.erase(&it.second);
 				}
 			}
 			else {
-				for (size_t i = 0; i < mesh.joints.size(); i++) {
-					jointTransformMatrices[i] = mesh.joints[i].baseTransform;
+				std::queue<std::pair<uint32_t, uint32_t>> jointsAndParents;
+				jointsAndParents.push({ skin.rootJoint, std::numeric_limits<uint32_t>::max() });
+				while (!jointsAndParents.empty()) {
+					uint32_t jointIndex = jointsAndParents.front().first;
+					Math::mat4 parentJointTransformMatrix = Math::mat4();
+					if (jointsAndParents.front().second != std::numeric_limits<uint32_t>::max()) {
+						parentJointTransformMatrix = parentJointTransformMatrices[jointsAndParents.front().second];
+					}
+					else {
+						parentJointTransformMatrix = skin.baseMatrix;
+					}
+
+					jointTransformMatrices[jointIndex] = parentJointTransformMatrix * skin.joints[jointIndex].localTransform;
+					parentJointTransformMatrices[jointIndex] = jointTransformMatrices[jointIndex];
+					jointTransformMatrices[jointIndex] *= skin.joints[jointIndex].inverseBindMatrix;
+					jointTransformMatrices[jointIndex] = skin.inverseGlobalTransform * jointTransformMatrices[jointIndex];
+
+					for (uint32_t jointChild : skin.joints[jointIndex].children) {
+						jointsAndParents.push({ jointChild, jointIndex });
+					}
+
+					jointsAndParents.pop();
 				}
 			}
 
@@ -1370,9 +1384,6 @@ void NtshEngn::GraphicsModule::destroy() {
 		m_materialBuffers[i].destroy(m_allocator);
 	}
 
-	// Destroy joint matrix buffer
-	vmaDestroyBuffer(m_allocator, m_jointMatrixBuffer.handle, m_jointMatrixBuffer.allocation);
-
 	// Destroy joint transform buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		vmaDestroyBuffer(m_allocator, m_jointTransformBuffers[i].handle, m_jointTransformBuffers[i].allocation);
@@ -1511,8 +1522,13 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	}
 
 	std::array<Math::vec3, 2> meshAABB = assetManager->calculateAABB(mesh);
+	if (!mesh.skin.joints.empty()) {
+		// Scale the AABB to try to cover the animation
+		meshAABB[0] *= 3.0f;
+		meshAABB[1] *= 3.0f;
+	}
 
-	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset, !mesh.joints.empty() ? m_currentJointOffset : 0, 0, meshAABB[0], meshAABB[1] });
+	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset, static_cast<uint32_t>(mesh.skin.joints.size()), meshAABB[0], meshAABB[1] });
 	m_meshAddresses[&mesh] = static_cast<MeshID>(m_meshes.size() - 1);
 
 	// Vertex and Index staging buffer
@@ -1549,7 +1565,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	meshStagingBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	meshStagingBufferCreateInfo.pNext = nullptr;
 	meshStagingBufferCreateInfo.flags = 0;
-	meshStagingBufferCreateInfo.size = sizeof(uint32_t) * 2;
+	meshStagingBufferCreateInfo.size = sizeof(uint32_t);
 	meshStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	meshStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	meshStagingBufferCreateInfo.queueFamilyIndexCount = 1;
@@ -1561,43 +1577,11 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &meshStagingBufferCreateInfo, &meshStagingBufferAllocationCreateInfo, &meshStagingBuffer, &meshStagingBufferAllocation, nullptr));
 
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, meshStagingBufferAllocation, &data));
-	std::array<uint32_t, 2> meshSkin = { !mesh.joints.empty() ? static_cast<uint32_t>(1) : static_cast<uint32_t>(0), m_meshes.back().jointOffset };
-	memcpy(data, meshSkin.data(), sizeof(uint32_t) * 2);
+	uint32_t meshSkin = { !mesh.skin.joints.empty() ? static_cast<uint32_t>(1) : static_cast<uint32_t>(0) };
+	memcpy(data, &meshSkin, sizeof(uint32_t));
 	vmaUnmapMemory(m_allocator, meshStagingBufferAllocation);
 
-	// Joint matrix staging buffer
-	VkBuffer jointMatrixStagingBuffer = VK_NULL_HANDLE;
-	VmaAllocation jointMatrixStagingBufferAllocation = VK_NULL_HANDLE;
-
-	std::vector<Math::mat4> jointMatrices;
-	if (!mesh.joints.empty()) {
-		for (size_t i = 0; i < mesh.joints.size(); i++) {
-			jointMatrices.push_back(mesh.joints[i].inverseBindMatrix);
-		}
-
-		VkBufferCreateInfo jointMatrixStagingBufferCreateInfo = {};
-		jointMatrixStagingBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		jointMatrixStagingBufferCreateInfo.pNext = nullptr;
-		jointMatrixStagingBufferCreateInfo.flags = 0;
-		jointMatrixStagingBufferCreateInfo.size = mesh.joints.size() * sizeof(Math::mat4);
-		jointMatrixStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-		jointMatrixStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		jointMatrixStagingBufferCreateInfo.queueFamilyIndexCount = 1;
-		jointMatrixStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
-
-		VmaAllocationCreateInfo jointMatrixStagingBufferAllocationCreateInfo = {};
-		jointMatrixStagingBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-		jointMatrixStagingBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &jointMatrixStagingBufferCreateInfo, &jointMatrixStagingBufferAllocationCreateInfo, &jointMatrixStagingBuffer, &jointMatrixStagingBufferAllocation, nullptr));
-
-		NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, jointMatrixStagingBufferAllocation, &data));
-		memcpy(data, jointMatrices.data(), mesh.joints.size() * sizeof(Math::mat4));
-		vmaUnmapMemory(m_allocator, jointMatrixStagingBufferAllocation);
-
-		m_meshes.back().jointCount = static_cast<uint32_t>(mesh.joints.size());
-	}
-
-	// Copy staging buffer
+	// Copy staging buffers
 	NTSHENGN_VK_CHECK(vkResetCommandPool(m_device, m_initializationCommandPool, 0));
 
 	VkCommandBufferBeginInfo stagingBuffersCopyBeginInfo = {};
@@ -1621,17 +1605,9 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 
 	VkBufferCopy meshBufferCopy = {};
 	meshBufferCopy.srcOffset = 0;
-	meshBufferCopy.dstOffset = (m_meshes.size() - 1) * sizeof(uint32_t) * 2;
-	meshBufferCopy.size = sizeof(uint32_t) * 2;
+	meshBufferCopy.dstOffset = (m_meshes.size() - 1) * sizeof(uint32_t);
+	meshBufferCopy.size = sizeof(uint32_t);
 	vkCmdCopyBuffer(m_initializationCommandBuffer, meshStagingBuffer, m_meshBuffer.handle, 1, &meshBufferCopy);
-
-	if (!mesh.joints.empty()) {
-		VkBufferCopy jointMatrixBufferCopy = {};
-		jointMatrixBufferCopy.srcOffset = 0;
-		jointMatrixBufferCopy.dstOffset = m_currentJointOffset * sizeof(Math::mat4);
-		jointMatrixBufferCopy.size = mesh.joints.size() * sizeof(Math::mat4);
-		vkCmdCopyBuffer(m_initializationCommandBuffer, jointMatrixStagingBuffer, m_jointMatrixBuffer.handle, 1, &jointMatrixBufferCopy);
-	}
 
 	NTSHENGN_VK_CHECK(vkEndCommandBuffer(m_initializationCommandBuffer));
 
@@ -1649,9 +1625,6 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 
-	if (!mesh.joints.empty()) {
-		vmaDestroyBuffer(m_allocator, jointMatrixStagingBuffer, jointMatrixStagingBufferAllocation);
-	}
 	vmaDestroyBuffer(m_allocator, meshStagingBuffer, meshStagingBufferAllocation);
 	vmaDestroyBuffer(m_allocator, vertexAndIndexStagingBuffer, vertexAndIndexStagingBufferAllocation);
 
@@ -2384,7 +2357,7 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		object.index = attributeObjectIndex();
 		if (modelPrimitive.mesh.vertices.size() != 0) {
 			object.meshID = load(modelPrimitive.mesh);
-			if (!modelPrimitive.mesh.joints.empty()) {
+			if (!modelPrimitive.mesh.skin.joints.empty()) {
 				object.jointTransformOffset = static_cast<uint32_t>(m_freeJointTransformOffsets.addBlock(static_cast<size_t>(m_meshes[object.meshID].jointCount)));
 			}
 		}

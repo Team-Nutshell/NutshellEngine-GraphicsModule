@@ -61,7 +61,6 @@ struct InternalMesh {
 	uint32_t firstIndex;
 	int32_t vertexOffset;
 
-	uint32_t jointOffset;
 	uint32_t jointCount;
 
 	NtshEngn::Math::vec3 aabbMin = { 0.0f, 0.0f, 0.0f };

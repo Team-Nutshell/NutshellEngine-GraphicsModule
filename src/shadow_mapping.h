@@ -29,7 +29,6 @@ public:
 		uint32_t framesInFlight,
 		const std::vector<VulkanBuffer>& objectBuffers,
 		VulkanBuffer meshBuffer,
-		VulkanBuffer jointMatrixBuffer,
 		const std::vector<VulkanBuffer>& jointTransformBuffers,
 		const std::vector<VulkanBuffer>& materialBuffers,
 		PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
@@ -75,7 +74,6 @@ private:
 
 	void createDescriptorSets(const std::vector<VulkanBuffer>& objectBuffers,
 		VulkanBuffer meshBuffer,
-		VulkanBuffer jointMatrixBuffer,
 		const std::vector<VulkanBuffer>& jointTransformBuffers,
 		const std::vector<VulkanBuffer>& materialBuffers);
 

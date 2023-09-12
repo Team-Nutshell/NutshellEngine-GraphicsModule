@@ -261,8 +261,6 @@ namespace NtshEngn {
 
 		VulkanBuffer m_meshBuffer;
 
-		VulkanBuffer m_jointMatrixBuffer;
-
 		std::vector<VulkanBuffer> m_jointTransformBuffers;
 
 		std::vector<VulkanBuffer> m_materialBuffers;

@@ -12,7 +12,6 @@ void ShadowMapping::init(VkDevice device,
 	uint32_t framesInFlight,
 	const std::vector<VulkanBuffer>& objectBuffers,
 	VulkanBuffer meshBuffer,
-	VulkanBuffer jointMatrixBuffer,
 	const std::vector<VulkanBuffer>& jointTransformBuffers,
 	const std::vector<VulkanBuffer>& materialBuffers,
 	PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
@@ -47,7 +46,7 @@ void ShadowMapping::init(VkDevice device,
 	createImageAndBuffers();
 	createDescriptorSetLayout();
 	createGraphicsPipelines();
-	createDescriptorSets(objectBuffers, meshBuffer, jointMatrixBuffer, jointTransformBuffers, materialBuffers);
+	createDescriptorSets(objectBuffers, meshBuffer, jointTransformBuffers, materialBuffers);
 }
 
 void ShadowMapping::destroy() {
@@ -418,7 +417,7 @@ void ShadowMapping::updateDescriptorSets(uint32_t frameInFlight, const std::vect
 	texturesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	texturesDescriptorWriteDescriptorSet.pNext = nullptr;
 	texturesDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[frameInFlight];
-	texturesDescriptorWriteDescriptorSet.dstBinding = 6;
+	texturesDescriptorWriteDescriptorSet.dstBinding = 5;
 	texturesDescriptorWriteDescriptorSet.dstArrayElement = 0;
 	texturesDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(texturesDescriptorImageInfos.size());
 	texturesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -881,42 +880,35 @@ void ShadowMapping::createDescriptorSetLayout() {
 	meshesDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	meshesDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
-	VkDescriptorSetLayoutBinding jointMatricesDescriptorSetLayoutBinding = {};
-	jointMatricesDescriptorSetLayoutBinding.binding = 3;
-	jointMatricesDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	jointMatricesDescriptorSetLayoutBinding.descriptorCount = 1;
-	jointMatricesDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	jointMatricesDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
 	VkDescriptorSetLayoutBinding jointTransformsDescriptorSetLayoutBinding = {};
-	jointTransformsDescriptorSetLayoutBinding.binding = 4;
+	jointTransformsDescriptorSetLayoutBinding.binding = 3;
 	jointTransformsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	jointTransformsDescriptorSetLayoutBinding.descriptorCount = 1;
 	jointTransformsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	jointTransformsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding materialsDescriptorSetLayoutBinding = {};
-	materialsDescriptorSetLayoutBinding.binding = 5;
+	materialsDescriptorSetLayoutBinding.binding = 4;
 	materialsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	materialsDescriptorSetLayoutBinding.descriptorCount = 1;
 	materialsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	materialsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding texturesDescriptorSetLayoutBinding = {};
-	texturesDescriptorSetLayoutBinding.binding = 6;
+	texturesDescriptorSetLayoutBinding.binding = 5;
 	texturesDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	texturesDescriptorSetLayoutBinding.descriptorCount = 131072;
 	texturesDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	texturesDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
-	std::array<VkDescriptorBindingFlags, 7> descriptorBindingFlags = { 0, 0, 0, 0, 0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
+	std::array<VkDescriptorBindingFlags, 6> descriptorBindingFlags = { 0, 0, 0, 0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
 	VkDescriptorSetLayoutBindingFlagsCreateInfo descriptorSetLayoutBindingFlagsCreateInfo = {};
 	descriptorSetLayoutBindingFlagsCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
 	descriptorSetLayoutBindingFlagsCreateInfo.pNext = nullptr;
 	descriptorSetLayoutBindingFlagsCreateInfo.bindingCount = static_cast<uint32_t>(descriptorBindingFlags.size());
 	descriptorSetLayoutBindingFlagsCreateInfo.pBindingFlags = descriptorBindingFlags.data();
 
-	std::array<VkDescriptorSetLayoutBinding, 7> descriptorSetLayoutBindings = { cascadeDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding, meshesDescriptorSetLayoutBinding, jointMatricesDescriptorSetLayoutBinding, jointTransformsDescriptorSetLayoutBinding, materialsDescriptorSetLayoutBinding, texturesDescriptorSetLayoutBinding };
+	std::array<VkDescriptorSetLayoutBinding, 6> descriptorSetLayoutBindings = { cascadeDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding, meshesDescriptorSetLayoutBinding, jointTransformsDescriptorSetLayoutBinding, materialsDescriptorSetLayoutBinding, texturesDescriptorSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
 	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	descriptorSetLayoutCreateInfo.pNext = &descriptorSetLayoutBindingFlagsCreateInfo;
@@ -962,11 +954,6 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 
 		struct MeshInfo {
 			uint hasSkin;
-			uint jointOffset;
-		};
-
-		struct JointMatrixInfo {
-			mat4 inverseBindMatrix;
 		};
 
 		layout(set = 0, binding = 0) restrict readonly buffer Shadows {
@@ -981,11 +968,7 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 			MeshInfo info[];
 		} meshes;
 
-		layout(std430, set = 0, binding = 3) restrict readonly buffer JointMatrices {
-			JointMatrixInfo info[];
-		} jointMatrices;
-
-		layout(std430, set = 0, binding = 4) restrict readonly buffer JointTransforms {
+		layout(set = 0, binding = 3) restrict readonly buffer JointTransforms {
 			mat4 matrix[];
 		} jointTransforms;
 
@@ -1006,15 +989,12 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 		void main() {
 			mat4 skinMatrix = mat4(1.0);
 			if (meshes.info[objects.info[pC.objectID].meshID].hasSkin == 1) {
-				uint jointOffset = meshes.info[objects.info[pC.objectID].meshID].jointOffset;
 				uint jointTransformOffset = objects.info[pC.objectID].jointTransformOffset;
 
-				mat4 joint0Matrix = jointTransforms.matrix[jointTransformOffset + joints.x] * jointMatrices.info[jointOffset + joints.x].inverseBindMatrix;
-				mat4 joint1Matrix = jointTransforms.matrix[jointTransformOffset + joints.y] * jointMatrices.info[jointOffset + joints.y].inverseBindMatrix;
-				mat4 joint2Matrix = jointTransforms.matrix[jointTransformOffset + joints.z] * jointMatrices.info[jointOffset + joints.z].inverseBindMatrix;
-				mat4 joint3Matrix = jointTransforms.matrix[jointTransformOffset + joints.w] * jointMatrices.info[jointOffset + joints.w].inverseBindMatrix;
-
-				skinMatrix = (weights.x * joint0Matrix) + (weights.y * joint1Matrix) + (weights.z * joint2Matrix) + (weights.w * joint3Matrix);
+				skinMatrix = (weights.x * jointTransforms.matrix[jointTransformOffset + joints.x]) +
+					(weights.y * jointTransforms.matrix[jointTransformOffset + joints.y]) +
+					(weights.z * jointTransforms.matrix[jointTransformOffset + joints.z]) +
+					(weights.w * jointTransforms.matrix[jointTransformOffset + joints.w]);
 			}
 			outUv = uv;
 			outMaterialID = objects.info[pC.objectID].materialID;
@@ -1057,11 +1037,11 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 			float alphaCutoff;
 		};
 
-		layout(set = 0, binding = 5) restrict readonly buffer Materials {
+		layout(set = 0, binding = 4) restrict readonly buffer Materials {
 			MaterialInfo info[];
 		} materials;
 
-		layout(set = 0, binding = 6) uniform sampler2D textures[];
+		layout(set = 0, binding = 5) uniform sampler2D textures[];
 
 		layout(location = 0) in vec2 uv;
 		layout(location = 1) in flat uint materialID;
@@ -1266,11 +1246,6 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 
 		struct MeshInfo {
 			uint hasSkin;
-			uint jointOffset;
-		};
-
-		struct JointMatrixInfo {
-			mat4 inverseBindMatrix;
 		};
 
 		layout(set = 0, binding = 0) restrict readonly buffer Shadows {
@@ -1285,11 +1260,7 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 			MeshInfo info[];
 		} meshes;
 
-		layout(std430, set = 0, binding = 3) restrict readonly buffer JointMatrices {
-			JointMatrixInfo info[];
-		} jointMatrices;
-
-		layout(std430, set = 0, binding = 4) restrict readonly buffer JointTransforms {
+		layout(std430, set = 0, binding = 3) restrict readonly buffer JointTransforms {
 			mat4 matrix[];
 		} jointTransforms;
 
@@ -1309,15 +1280,12 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 		void main() {
 			mat4 skinMatrix = mat4(1.0);
 			if (meshes.info[objects.info[pC.objectID].meshID].hasSkin == 1) {
-				uint jointOffset = meshes.info[objects.info[pC.objectID].meshID].jointOffset;
 				uint jointTransformOffset = objects.info[pC.objectID].jointTransformOffset;
 
-				mat4 joint0Matrix = jointTransforms.matrix[jointTransformOffset + joints.x] * jointMatrices.info[jointOffset + joints.x].inverseBindMatrix;
-				mat4 joint1Matrix = jointTransforms.matrix[jointTransformOffset + joints.y] * jointMatrices.info[jointOffset + joints.y].inverseBindMatrix;
-				mat4 joint2Matrix = jointTransforms.matrix[jointTransformOffset + joints.z] * jointMatrices.info[jointOffset + joints.z].inverseBindMatrix;
-				mat4 joint3Matrix = jointTransforms.matrix[jointTransformOffset + joints.w] * jointMatrices.info[jointOffset + joints.w].inverseBindMatrix;
-
-				skinMatrix = (weights.x * joint0Matrix) + (weights.y * joint1Matrix) + (weights.z * joint2Matrix) + (weights.w * joint3Matrix);
+				skinMatrix = (weights.x * jointTransforms.matrix[jointTransformOffset + joints.x]) +
+					(weights.y * jointTransforms.matrix[jointTransformOffset + joints.y]) +
+					(weights.z * jointTransforms.matrix[jointTransformOffset + joints.z]) +
+					(weights.w * jointTransforms.matrix[jointTransformOffset + joints.w]);
 			}
 			outUv = uv;
 			outMaterialID = objects.info[pC.objectID].materialID;
@@ -1360,11 +1328,11 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 			float alphaCutoff;
 		};
 
-		layout(set = 0, binding = 5) restrict readonly buffer Materials {
+		layout(set = 0, binding = 4) restrict readonly buffer Materials {
 			MaterialInfo info[];
 		} materials;
 
-		layout(set = 0, binding = 6) uniform sampler2D textures[];
+		layout(set = 0, binding = 5) uniform sampler2D textures[];
 
 		layout(location = 0) in vec2 uv;
 		layout(location = 1) in flat uint materialID;
@@ -1544,7 +1512,6 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 
 void ShadowMapping::createDescriptorSets(const std::vector<VulkanBuffer>& objectBuffers,
 	VulkanBuffer meshBuffer,
-	VulkanBuffer jointMatrixBuffer,
 	const std::vector<VulkanBuffer>& jointTransformBuffers,
 	const std::vector<VulkanBuffer>& materialBuffers) {
 	// Create descriptor pool
@@ -1560,10 +1527,6 @@ void ShadowMapping::createDescriptorSets(const std::vector<VulkanBuffer>& object
 	meshesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	meshesDescriptorPoolSize.descriptorCount = m_framesInFlight;
 
-	VkDescriptorPoolSize jointMatricesDescriptorPoolSize = {};
-	jointMatricesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	jointMatricesDescriptorPoolSize.descriptorCount = m_framesInFlight;
-
 	VkDescriptorPoolSize jointTransformsDescriptorPoolSize = {};
 	jointTransformsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	jointTransformsDescriptorPoolSize.descriptorCount = m_framesInFlight;
@@ -1576,7 +1539,7 @@ void ShadowMapping::createDescriptorSets(const std::vector<VulkanBuffer>& object
 	texturesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	texturesDescriptorPoolSize.descriptorCount = 131072 * m_framesInFlight;
 
-	std::array<VkDescriptorPoolSize, 7> descriptorPoolSizes = { cascadeDescriptorPoolSize, objectsDescriptorPoolSize, meshesDescriptorPoolSize, jointMatricesDescriptorPoolSize, jointTransformsDescriptorPoolSize, materialsDescriptorPoolSize, texturesDescriptorPoolSize };
+	std::array<VkDescriptorPoolSize, 6> descriptorPoolSizes = { cascadeDescriptorPoolSize, objectsDescriptorPoolSize, meshesDescriptorPoolSize, jointTransformsDescriptorPoolSize, materialsDescriptorPoolSize, texturesDescriptorPoolSize };
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.pNext = nullptr;
@@ -1656,24 +1619,6 @@ void ShadowMapping::createDescriptorSets(const std::vector<VulkanBuffer>& object
 		meshesDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(meshesDescriptorWriteDescriptorSet);
 
-		VkDescriptorBufferInfo jointMatricesDescriptorBufferInfo;
-		jointMatricesDescriptorBufferInfo.buffer = jointMatrixBuffer.handle;
-		jointMatricesDescriptorBufferInfo.offset = 0;
-		jointMatricesDescriptorBufferInfo.range = 4096 * sizeof(NtshEngn::Math::mat4);
-
-		VkWriteDescriptorSet jointMatricesDescriptorWriteDescriptorSet = {};
-		jointMatricesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		jointMatricesDescriptorWriteDescriptorSet.pNext = nullptr;
-		jointMatricesDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		jointMatricesDescriptorWriteDescriptorSet.dstBinding = 3;
-		jointMatricesDescriptorWriteDescriptorSet.dstArrayElement = 0;
-		jointMatricesDescriptorWriteDescriptorSet.descriptorCount = 1;
-		jointMatricesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		jointMatricesDescriptorWriteDescriptorSet.pImageInfo = nullptr;
-		jointMatricesDescriptorWriteDescriptorSet.pBufferInfo = &jointMatricesDescriptorBufferInfo;
-		jointMatricesDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
-		writeDescriptorSets.push_back(jointMatricesDescriptorWriteDescriptorSet);
-
 		VkDescriptorBufferInfo jointTransformsDescriptorBufferInfo;
 		jointTransformsDescriptorBufferInfo.buffer = jointTransformBuffers[i].handle;
 		jointTransformsDescriptorBufferInfo.offset = 0;
@@ -1683,7 +1628,7 @@ void ShadowMapping::createDescriptorSets(const std::vector<VulkanBuffer>& object
 		jointTransformsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		jointTransformsDescriptorWriteDescriptorSet.pNext = nullptr;
 		jointTransformsDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		jointTransformsDescriptorWriteDescriptorSet.dstBinding = 4;
+		jointTransformsDescriptorWriteDescriptorSet.dstBinding = 3;
 		jointTransformsDescriptorWriteDescriptorSet.dstArrayElement = 0;
 		jointTransformsDescriptorWriteDescriptorSet.descriptorCount = 1;
 		jointTransformsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -1701,7 +1646,7 @@ void ShadowMapping::createDescriptorSets(const std::vector<VulkanBuffer>& object
 		materialsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		materialsDescriptorWriteDescriptorSet.pNext = nullptr;
 		materialsDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		materialsDescriptorWriteDescriptorSet.dstBinding = 5;
+		materialsDescriptorWriteDescriptorSet.dstBinding = 4;
 		materialsDescriptorWriteDescriptorSet.dstArrayElement = 0;
 		materialsDescriptorWriteDescriptorSet.descriptorCount = 1;
 		materialsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
