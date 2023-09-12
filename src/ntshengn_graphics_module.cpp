@@ -679,6 +679,10 @@ void NtshEngn::GraphicsModule::update(double dt) {
 								keyframe = static_cast<uint32_t>(channel.keyframes.size()) - 1;
 							}
 
+							if (playingAnimation.time < channel.keyframes[keyframe].timestamp) {
+								continue;
+							}
+
 							if (channel.interpolationType == AnimationChannelInterpolationType::Step) {
 								// Step interpolation
 								if (channel.transformType == AnimationChannelTransformType::Translation) {
