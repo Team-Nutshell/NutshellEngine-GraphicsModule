@@ -5447,10 +5447,10 @@ void NtshEngn::GraphicsModule::retrieveObjectIndex(uint32_t objectIndex) {
 	m_freeObjectsIndices.insert(m_freeObjectsIndices.begin(), objectIndex);
 }
 
-extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface * createModule() {
+extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface* createModule() {
 	return new NtshEngn::GraphicsModule;
 }
 
-extern "C" NTSHENGN_MODULE_API void destroyModule(NtshEngn::GraphicsModuleInterface * m) {
+extern "C" NTSHENGN_MODULE_API void destroyModule(NtshEngn::GraphicsModuleInterface* m) {
 	delete m;
 }
