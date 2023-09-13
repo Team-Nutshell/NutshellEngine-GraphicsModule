@@ -670,21 +670,25 @@ void NtshEngn::GraphicsModule::update(double dt) {
 								continue;
 							}
 
+							const AnimationKeyframe& previousKeyframe = channel.keyframes[keyframe];
+
 							if (channel.interpolationType == AnimationChannelInterpolationType::Step) {
+								const Math::vec4 channelPrevious = previousKeyframe.value;
+
 								// Step interpolation
 								if (channel.transformType == AnimationChannelTransformType::Translation) {
-									translation = Math::vec3(channel.keyframes[keyframe].value);
+									translation = Math::vec3(channelPrevious);
 								}
 								else if (channel.transformType == AnimationChannelTransformType::Rotation) {
-									rotation = Math::quat(channel.keyframes[keyframe].value.x, channel.keyframes[keyframe].value.y, channel.keyframes[keyframe].value.z, channel.keyframes[keyframe].value.w);
+									rotation = Math::quat(channelPrevious.x, channelPrevious.y, channelPrevious.z, channelPrevious.w);
 								}
 								else if (channel.transformType == AnimationChannelTransformType::Scale) {
-									scale = Math::vec3(channel.keyframes[keyframe].value);
+									scale = Math::vec3(channelPrevious);
 								}
 							}
 							else if (channel.interpolationType == AnimationChannelInterpolationType::Linear) {
 								// Linear interpolation
-								const Math::vec4& channelPrevious = channel.keyframes[keyframe].value;
+								const Math::vec4& channelPrevious = previousKeyframe.value;
 
 								if ((keyframe + 1) >= channel.keyframes.size()) {
 									// Last keyframe
@@ -699,10 +703,11 @@ void NtshEngn::GraphicsModule::update(double dt) {
 									}
 								}
 								else {
-									const Math::vec4& channelNext = channel.keyframes[keyframe + 1].value;
+									const AnimationKeyframe& nextKeyframe = channel.keyframes[keyframe + 1];
+									const Math::vec4& channelNext = nextKeyframe.value;
 
-									const float timestampPrevious = channel.keyframes[keyframe].timestamp;
-									const float timestampNext = channel.keyframes[keyframe + 1].timestamp;
+									const float timestampPrevious = previousKeyframe.timestamp;
+									const float timestampNext = nextKeyframe.timestamp;
 									const float interpolationValue = (playingAnimation.time - timestampPrevious) / (timestampNext - timestampPrevious);
 
 									if (channel.transformType == AnimationChannelTransformType::Translation) {
