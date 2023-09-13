@@ -1524,8 +1524,10 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	std::array<Math::vec3, 2> meshAABB = assetManager->calculateAABB(mesh);
 	if (!mesh.skin.joints.empty()) {
 		// Scale the AABB to try to cover the animation
-		meshAABB[0] *= 3.0f;
-		meshAABB[1] *= 3.0f;
+		const Math::vec3 aabbCenter = (meshAABB[0] + meshAABB[1]) / 2.0f;
+		const Math::vec3 aabbSize = (meshAABB[1] - meshAABB[0]) / 2.0f;
+		meshAABB[0] = aabbCenter - (aabbSize * 3.0f);
+		meshAABB[1] = aabbCenter + (aabbSize * 3.0f);
 	}
 
 	m_meshes.push_back({ static_cast<uint32_t>(mesh.indices.size()), m_currentIndexOffset, m_currentVertexOffset, static_cast<uint32_t>(mesh.skin.joints.size()), meshAABB[0], meshAABB[1] });
