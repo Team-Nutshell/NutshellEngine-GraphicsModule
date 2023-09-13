@@ -670,7 +670,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 								continue;
 							}
 
-							const AnimationKeyframe& previousKeyframe = channel.keyframes[keyframe];
+							const AnimationChannelKeyframe& previousKeyframe = channel.keyframes[keyframe];
 
 							if (channel.interpolationType == AnimationChannelInterpolationType::Step) {
 								const Math::vec4 channelPrevious = previousKeyframe.value;
@@ -703,7 +703,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 									}
 								}
 								else {
-									const AnimationKeyframe& nextKeyframe = channel.keyframes[keyframe + 1];
+									const AnimationChannelKeyframe& nextKeyframe = channel.keyframes[keyframe + 1];
 									const Math::vec4& channelNext = nextKeyframe.value;
 
 									const float timestampPrevious = previousKeyframe.timestamp;
