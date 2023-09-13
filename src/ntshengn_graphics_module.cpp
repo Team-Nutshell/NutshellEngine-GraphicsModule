@@ -647,26 +647,9 @@ void NtshEngn::GraphicsModule::update(double dt) {
 						Math::vec3 scale = Math::vec3(skin.joints[jointIndex].localTransform.x.length(), skin.joints[jointIndex].localTransform.y.length(), skin.joints[jointIndex].localTransform.z.length());
 						for (const AnimationChannel& channel : channels) {
 							// Find previous keyframe
-							uint32_t keyframe = 0;
-							bool foundKeyframe = false;
-							for (size_t i = 0; i < channel.keyframes.size() - 1; i++) {
-								if (playingAnimation.time < channel.keyframes[i + 1].timestamp) {
-									keyframe = static_cast<uint32_t>(i);
-									foundKeyframe = true;
-									break;
-								}
-								else if (playingAnimation.time == channel.keyframes[i + 1].timestamp) {
-									keyframe = static_cast<uint32_t>(i) + 1;
-									foundKeyframe = true;
-									break;
-								}
-							}
-							if (!foundKeyframe) {
-								// Time after the last channel keyframe
-								keyframe = static_cast<uint32_t>(channel.keyframes.size()) - 1;
-							}
+							uint32_t keyframe = findPreviousAnimationKeyframe(playingAnimation.time, channel.keyframes);
 
-							if (playingAnimation.time < channel.keyframes[keyframe].timestamp) {
+							if (keyframe == std::numeric_limits<uint32_t>::max()) {
 								continue;
 							}
 
@@ -2103,7 +2086,7 @@ void NtshEngn::GraphicsModule::stopAnimation(Entity entity) {
 bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animationIndex) {
 	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
 		if (m_playingAnimations[&m_objects[entity]].animationIndex == animationIndex) {
-			return m_playingAnimations[&m_objects[entity]].isPlaying;;
+			return m_playingAnimations[&m_objects[entity]].isPlaying;
 		}
 	}
 
@@ -5365,6 +5348,44 @@ uint32_t NtshEngn::GraphicsModule::addToMaterials(const InternalMaterial& materi
 	m_materials.push_back(material);
 
 	return static_cast<uint32_t>(m_materials.size()) - 1;
+}
+
+uint32_t NtshEngn::GraphicsModule::findPreviousAnimationKeyframe(float time, const std::vector<AnimationChannelKeyframe>& keyframes) {
+	if (!keyframes.empty()) {
+		if (time < keyframes[0].timestamp) {
+			return std::numeric_limits<uint32_t>::max();
+		}
+		else {
+			// Dichotomy
+			uint32_t keyframeStart = 0;
+			uint32_t keyframeEnd = static_cast<uint32_t>(keyframes.size()) - 1;
+
+			while (true) {
+				if (keyframeStart == keyframeEnd) {
+					return keyframeStart;
+				}
+
+				const uint32_t half = (keyframeStart + keyframeEnd) / 2;
+				if (half == (static_cast<uint32_t>(keyframes.size()) - 1)) {
+					return half;
+				}
+
+				const float halfTimestamp = keyframes[half].timestamp;
+				if ((time >= halfTimestamp) && (time < keyframes[half + 1].timestamp)) {
+					return half;
+				}
+
+				if (time < halfTimestamp) {
+					keyframeEnd = half - 1;
+				}
+				else {
+					keyframeStart = half + 1;
+				}
+			}
+		}
+	}
+
+	return std::numeric_limits<uint32_t>::max();
 }
 
 uint32_t NtshEngn::GraphicsModule::attributeObjectIndex() {

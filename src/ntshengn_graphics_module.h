@@ -254,6 +254,9 @@ namespace NtshEngn {
 		// Add to materials
 		uint32_t addToMaterials(const InternalMaterial& material);
 
+		// Find previous animation keyframe
+		uint32_t findPreviousAnimationKeyframe(float time, const std::vector<AnimationChannelKeyframe>& keyframes);
+
 		// Attribute an InternalObject index
 		uint32_t attributeObjectIndex();
 
