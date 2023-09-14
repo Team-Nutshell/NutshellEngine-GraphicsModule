@@ -399,7 +399,7 @@ void NtshEngn::GraphicsModule::init() {
 	objectBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	objectBufferCreateInfo.pNext = nullptr;
 	objectBufferCreateInfo.flags = 0;
-	objectBufferCreateInfo.size = 32768;
+	objectBufferCreateInfo.size = 262144;
 	objectBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	objectBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	objectBufferCreateInfo.queueFamilyIndexCount = 1;

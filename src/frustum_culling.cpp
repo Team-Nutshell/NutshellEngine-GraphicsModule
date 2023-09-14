@@ -417,7 +417,7 @@ void FrustumCulling::createBuffers() {
 #if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
 	// Create frustum culling buffers
 	m_gpuFrustumCullingBuffers.resize(m_framesInFlight);
-	bufferCreateInfo.size = 65536;
+	bufferCreateInfo.size = 262144;
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
@@ -695,7 +695,7 @@ void FrustumCulling::createDescriptorSets() {
 		VkDescriptorBufferInfo frustumCullingDescriptorBufferInfo;
 		frustumCullingDescriptorBufferInfo.buffer = m_gpuFrustumCullingBuffers[i].handle;
 		frustumCullingDescriptorBufferInfo.offset = 0;
-		frustumCullingDescriptorBufferInfo.range = 65536;
+		frustumCullingDescriptorBufferInfo.range = 262144;
 
 		VkWriteDescriptorSet frustumCullingDescriptorWriteDescriptorSet = {};
 		frustumCullingDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

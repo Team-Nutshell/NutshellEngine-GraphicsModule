@@ -1224,7 +1224,7 @@ void GBuffer::createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffe
 		VkDescriptorBufferInfo objectsDescriptorBufferInfo;
 		objectsDescriptorBufferInfo.buffer = objectBuffers[i].handle;
 		objectsDescriptorBufferInfo.offset = 0;
-		objectsDescriptorBufferInfo.range = 32768;
+		objectsDescriptorBufferInfo.range = 262144;
 
 		VkWriteDescriptorSet objectsDescriptorWriteDescriptorSet = {};
 		objectsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
