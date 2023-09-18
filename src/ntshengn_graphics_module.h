@@ -236,7 +236,7 @@ namespace NtshEngn {
 
 		InternalLights m_lights;
 
-		Entity m_mainCamera = std::numeric_limits<uint32_t>::max();
+		Entity m_mainCamera = NTSHENGN_ENTITY_UNKNOWN;
 	};
 
 }

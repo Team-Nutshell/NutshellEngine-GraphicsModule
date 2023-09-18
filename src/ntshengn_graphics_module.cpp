@@ -648,9 +648,13 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		return;
 	}
 
-	const Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
-	Math::vec4 cameraPosition = Math::vec4(cameraTransform.position, 0.0f);
-	Math::vec4 cameraDirection = Math::vec4(cameraTransform.rotation, 0.0f);
+	Math::vec4 cameraPosition = { 0.0f, 0.0f, 0.0f, 0.0f };
+	Math::vec4 cameraDirection = { 0.0f, 0.0f, -1.0f, 0.0f };
+	if (m_mainCamera != NTSHENGN_ENTITY_UNKNOWN) {
+		const Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
+		cameraPosition = Math::vec4(cameraTransform.position, 0.0f);
+		cameraDirection = Math::vec4(cameraTransform.rotation, 0.0f);
+	}
 
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_fences[m_currentFrameInFlight], VK_TRUE, std::numeric_limits<uint64_t>::max()));
 
@@ -1118,19 +1122,23 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex) {
 	NTSHENGN_UNUSED(entity);
 	NTSHENGN_UNUSED(animationIndex);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
 void NtshEngn::GraphicsModule::pauseAnimation(Entity entity) {
 	NTSHENGN_UNUSED(entity);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
 void NtshEngn::GraphicsModule::stopAnimation(Entity entity) {
 	NTSHENGN_UNUSED(entity);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
 bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animationIndex) {
 	NTSHENGN_UNUSED(entity);
 	NTSHENGN_UNUSED(animationIndex);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 
 	return false;
 }
@@ -1177,7 +1185,7 @@ const NtshEngn::ComponentMask NtshEngn::GraphicsModule::getComponentMask() const
 
 void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component componentID) {
 	if (componentID == ecs->getComponentID<Camera>()) {
-		if (m_mainCamera == std::numeric_limits<uint32_t>::max()) {
+		if (m_mainCamera == NTSHENGN_ENTITY_UNKNOWN) {
 			m_mainCamera = entity;
 		}
 	}
@@ -1207,7 +1215,7 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component componentID) {
 	if (componentID == ecs->getComponentID<Camera>()) {
 		if (m_mainCamera == entity) {
-			m_mainCamera = std::numeric_limits<uint32_t>::max();
+			m_mainCamera = NTSHENGN_ENTITY_UNKNOWN;
 		}
 	}
 	else if (componentID == ecs->getComponentID<Light>()) {
