@@ -610,7 +610,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	void* data;
 
 	// Update camera buffer
-	if (m_mainCamera != std::numeric_limits<uint32_t>::max()) {
+	if (m_mainCamera != NTSHENGN_ENTITY_UNKNOWN) {
 		const Camera& camera = ecs->getComponent<Camera>(m_mainCamera);
 		const Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
 
@@ -2336,7 +2336,7 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		m_sampleBatch = 0;
 	}
 	else if (componentID == ecs->getComponentID<Camera>()) {
-		if (m_mainCamera == std::numeric_limits<uint32_t>::max()) {
+		if (m_mainCamera == NTSHENGN_ENTITY_UNKNOWN) {
 			m_mainCamera = entity;
 			
 			PreviousCamera previousCamera;
@@ -2393,7 +2393,7 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 	}
 	else if (componentID == ecs->getComponentID<Camera>()) {
 		if (m_mainCamera == entity) {
-			m_mainCamera = std::numeric_limits<uint32_t>::max();
+			m_mainCamera = NTSHENGN_ENTITY_UNKNOWN;
 
 			m_sampleBatch = 0;
 		}

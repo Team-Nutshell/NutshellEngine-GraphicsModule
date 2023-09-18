@@ -468,7 +468,7 @@ namespace NtshEngn {
 		std::unordered_map<Entity, InternalObject> m_objects;
 		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
 
-		Entity m_mainCamera = std::numeric_limits<uint32_t>::max();
+		Entity m_mainCamera = NTSHENGN_ENTITY_UNKNOWN;
 
 		InternalLights m_lights;
 
