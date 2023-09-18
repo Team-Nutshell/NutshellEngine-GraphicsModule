@@ -419,7 +419,7 @@ namespace NtshEngn {
 
 		std::unordered_map<InternalObject*, PlayingAnimation> m_playingAnimations;
 
-		Entity m_mainCamera = std::numeric_limits<uint32_t>::max();
+		Entity m_mainCamera = NTSHENGN_ENTITY_UNKNOWN;
 
 		InternalLights m_lights;
 
