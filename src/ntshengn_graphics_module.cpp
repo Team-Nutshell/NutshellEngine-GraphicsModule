@@ -645,7 +645,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	float cameraFarPlane = 0.0f;
 	Math::mat4 cameraView;
 	Math::mat4 cameraProjection;
-	if (m_mainCamera != std::numeric_limits<uint32_t>::max()) {
+	if (m_mainCamera != NTSHENGN_ENTITY_UNKNOWN) {
 		const Camera& camera = ecs->getComponent<Camera>(m_mainCamera);
 		const Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
 
@@ -1001,7 +1001,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 	// Frustum culling
 	uint32_t drawCount = 0;
-	if (m_mainCamera != std::numeric_limits<uint32_t>::max()) {
+	if (m_mainCamera != NTSHENGN_ENTITY_UNKNOWN) {
 		drawCount = m_frustumCulling.culling(m_renderingCommandBuffers[m_currentFrameInFlight],
 			m_currentFrameInFlight,
 			cameraView,
@@ -2395,7 +2395,7 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		m_objects[entity] = object;
 	}
 	else if (componentID == ecs->getComponentID<Camera>()) {
-		if (m_mainCamera == std::numeric_limits<uint32_t>::max()) {
+		if (m_mainCamera == NTSHENGN_ENTITY_UNKNOWN) {
 			m_mainCamera = entity;
 		}
 	}
@@ -2449,7 +2449,7 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 	}
 	else if (componentID == ecs->getComponentID<Camera>()) {
 		if (m_mainCamera == entity) {
-			m_mainCamera = std::numeric_limits<uint32_t>::max();
+			m_mainCamera = NTSHENGN_ENTITY_UNKNOWN;
 		}
 	}
 	else if (componentID == ecs->getComponentID<Light>()) {
