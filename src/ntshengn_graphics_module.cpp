@@ -905,19 +905,23 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex) {
 	NTSHENGN_UNUSED(entity);
 	NTSHENGN_UNUSED(animationIndex);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
 void NtshEngn::GraphicsModule::pauseAnimation(Entity entity) {
 	NTSHENGN_UNUSED(entity);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
 void NtshEngn::GraphicsModule::stopAnimation(Entity entity) {
 	NTSHENGN_UNUSED(entity);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
 bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animationIndex) {
 	NTSHENGN_UNUSED(entity);
 	NTSHENGN_UNUSED(animationIndex);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 
 	return false;
 }
