@@ -504,7 +504,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	void* data;
 
 	// Update camera buffer
-	if (m_mainCamera != std::numeric_limits<uint32_t>::max()) {
+	if (m_mainCamera != NTSHENGN_ENTITY_UNKNOWN) {
 		const Camera& camera = ecs->getComponent<Camera>(m_mainCamera);
 		const Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
 
@@ -527,14 +527,14 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			Math::rotate(objectTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f));
 		Math::vec3 objectScale = objectTransform.scale;
 
-		if (it.second.capsuleMeshIndex != std::numeric_limits<size_t>::max()) {
+		if (it.second.capsuleMeshIndex != NTSHENGN_MESH_UNKNOWN) {
 			Collidable collidable = ecs->getComponent<Collidable>(it.first);
 			ColliderCapsule* colliderCapsule = static_cast<ColliderCapsule*>(collidable.collider.get());
 
 			objectRotation = Math::translate(colliderCapsule->base) * objectRotation * Math::translate(colliderCapsule->base * -1.0f);
 		}
 
-		if (it.second.sphereMeshIndex != std::numeric_limits<size_t>::max()) {
+		if (it.second.sphereMeshIndex != NTSHENGN_MESH_UNKNOWN) {
 			objectScale = Math::vec3(std::max(objectTransform.scale[0], std::max(objectTransform.scale[1], objectTransform.scale[2])));
 		}
 
@@ -657,13 +657,16 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_graphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &it.second.index);
 
 		// Draw
-		if (it.second.aabbMeshIndex != std::numeric_limits<size_t>::max()) {
-			vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_meshes[it.second.aabbMeshIndex].indexCount, 1, m_meshes[it.second.aabbMeshIndex].firstIndex, m_meshes[it.second.aabbMeshIndex].vertexOffset, 0);
-		}
-		if (it.second.sphereMeshIndex != std::numeric_limits<size_t>::max()) {
+		if (it.second.sphereMeshIndex != NTSHENGN_MESH_UNKNOWN) {
 			vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_meshes[it.second.sphereMeshIndex].indexCount, 1, m_meshes[it.second.sphereMeshIndex].firstIndex, m_meshes[it.second.sphereMeshIndex].vertexOffset, 0);
 		}
-		if (it.second.capsuleMeshIndex != std::numeric_limits<size_t>::max()) {
+		if (it.second.aabbMeshIndex != NTSHENGN_MESH_UNKNOWN) {
+			vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_meshes[it.second.aabbMeshIndex].indexCount, 1, m_meshes[it.second.aabbMeshIndex].firstIndex, m_meshes[it.second.aabbMeshIndex].vertexOffset, 0);
+		}
+		if (it.second.obbMeshIndex != NTSHENGN_MESH_UNKNOWN) {
+			vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_meshes[it.second.obbMeshIndex].indexCount, 1, m_meshes[it.second.obbMeshIndex].firstIndex, m_meshes[it.second.obbMeshIndex].vertexOffset, 0);
+		}
+		if (it.second.capsuleMeshIndex != NTSHENGN_MESH_UNKNOWN) {
 			vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_meshes[it.second.capsuleMeshIndex].indexCount, 1, m_meshes[it.second.capsuleMeshIndex].firstIndex, m_meshes[it.second.capsuleMeshIndex].vertexOffset, 0);
 		}
 	}
@@ -1597,19 +1600,23 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex) {
 	NTSHENGN_UNUSED(entity);
 	NTSHENGN_UNUSED(animationIndex);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
 void NtshEngn::GraphicsModule::pauseAnimation(Entity entity) {
 	NTSHENGN_UNUSED(entity);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
 void NtshEngn::GraphicsModule::stopAnimation(Entity entity) {
 	NTSHENGN_UNUSED(entity);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
 bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animationIndex) {
 	NTSHENGN_UNUSED(entity);
 	NTSHENGN_UNUSED(animationIndex);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 
 	return false;
 }
@@ -1740,6 +1747,12 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 			InternalObject& object = m_objects[entity];
 			object.aabbMeshIndex = createAABB(colliderAABB->min, colliderAABB->max);
 		}
+		else if (collidable.collider->getType() == ColliderShapeType::OBB) {
+			ColliderOBB* colliderOBB = static_cast<ColliderOBB*>(collidable.collider.get());
+
+			InternalObject& object = m_objects[entity];
+			object.obbMeshIndex = createOBB(colliderOBB->center, colliderOBB->halfExtent, colliderOBB->rotation);
+		}
 		else if (collidable.collider->getType() == ColliderShapeType::Capsule) {
 			ColliderCapsule* colliderCapsule = static_cast<ColliderCapsule*>(collidable.collider.get());
 
@@ -1760,10 +1773,11 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 
 		if (collidable.collider->getType() == ColliderShapeType::Sphere) {
 			InternalObject& object = m_objects[entity];
-			object.sphereMeshIndex = std::numeric_limits<size_t>::max();
+			object.sphereMeshIndex = NTSHENGN_MESH_UNKNOWN;
 
-			if ((object.aabbMeshIndex == std::numeric_limits<size_t>::max()) ||
-				(object.capsuleMeshIndex == std::numeric_limits<size_t>::max())) {
+			if ((object.aabbMeshIndex == NTSHENGN_MESH_UNKNOWN) ||
+				(object.obbMeshIndex == NTSHENGN_MESH_UNKNOWN) ||
+				(object.capsuleMeshIndex == NTSHENGN_MESH_UNKNOWN)) {
 				retrieveObjectIndex(object.index);
 
 				m_objects.erase(entity);
@@ -1771,10 +1785,23 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 		}
 		else if (collidable.collider->getType() == ColliderShapeType::AABB) {
 			InternalObject& object = m_objects[entity];
-			object.aabbMeshIndex = std::numeric_limits<size_t>::max();
+			object.aabbMeshIndex = NTSHENGN_MESH_UNKNOWN;
 
-			if ((object.sphereMeshIndex == std::numeric_limits<size_t>::max()) ||
-				(object.capsuleMeshIndex == std::numeric_limits<size_t>::max())) {
+			if ((object.sphereMeshIndex == NTSHENGN_MESH_UNKNOWN) ||
+				(object.obbMeshIndex == NTSHENGN_MESH_UNKNOWN) ||
+				(object.capsuleMeshIndex == NTSHENGN_MESH_UNKNOWN)) {
+				retrieveObjectIndex(object.index);
+
+				m_objects.erase(entity);
+			}
+		}
+		else if (collidable.collider->getType() == ColliderShapeType::OBB) {
+			InternalObject& object = m_objects[entity];
+			object.obbMeshIndex = NTSHENGN_MESH_UNKNOWN;
+
+			if ((object.sphereMeshIndex == NTSHENGN_MESH_UNKNOWN) ||
+				(object.aabbMeshIndex == NTSHENGN_MESH_UNKNOWN) ||
+				(object.capsuleMeshIndex == NTSHENGN_MESH_UNKNOWN)) {
 				retrieveObjectIndex(object.index);
 
 				m_objects.erase(entity);
@@ -1782,10 +1809,11 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 		}
 		else if (collidable.collider->getType() == ColliderShapeType::Capsule) {
 			InternalObject& object = m_objects[entity];
-			object.capsuleMeshIndex = std::numeric_limits<size_t>::max();
+			object.capsuleMeshIndex = NTSHENGN_MESH_UNKNOWN;
 
-			if ((object.sphereMeshIndex == std::numeric_limits<size_t>::max()) ||
-				(object.aabbMeshIndex == std::numeric_limits<size_t>::max())) {
+			if ((object.sphereMeshIndex == NTSHENGN_MESH_UNKNOWN) ||
+				(object.aabbMeshIndex == NTSHENGN_MESH_UNKNOWN) ||
+				(object.obbMeshIndex == NTSHENGN_MESH_UNKNOWN)) {
 				retrieveObjectIndex(object.index);
 
 				m_objects.erase(entity);
@@ -3917,18 +3945,67 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createAABB(const Math::vec3& min, con
 	cubeMesh.vertices[7].color = { 1.0f, 0.0f, 0.0f };
 
 	cubeMesh.indices = {
-	0, 1,
-	1, 2,
-	2, 3,
-	3, 0,
-	4, 5,
-	5, 6,
-	6, 7,
-	7, 4,
-	0, 4,
-	1, 5,
-	2, 6,
-	3, 7
+		0, 1,
+		1, 2,
+		2, 3,
+		3, 0,
+		4, 5,
+		5, 6,
+		6, 7,
+		7, 4,
+		0, 4,
+		1, 5,
+		2, 6,
+		3, 7
+	};
+
+	return load(cubeMesh);
+}
+
+NtshEngn::MeshID NtshEngn::GraphicsModule::createOBB(const Math::vec3& center, const Math::vec3& halfExtent, const Math::vec3& rotation) {
+	const Math::vec3 min = { -1.0f, -1.0f, -1.0f };
+	const Math::vec3 max = { 1.0f, 1.0f, 1.0f };
+
+	const Math::mat4 transformMatrix = Math::translate(center) *
+		Math::rotate(rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
+		Math::rotate(rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
+		Math::rotate(rotation.z, Math::vec3(0.0f, 0.0f, 1.0f)) *
+		Math::scale(halfExtent);
+
+	Model* cubeModel = assetManager->createModel();
+	cubeModel->primitives.resize(1);
+	Mesh& cubeMesh = cubeModel->primitives[0].mesh;
+	cubeMesh.vertices.resize(8);
+	cubeMesh.vertices[0].position = Math::vec3(transformMatrix * Math::vec4(min.x, min.y, min.z, 1.0f));
+	cubeMesh.vertices[0].color = { 1.0f, 1.0f, 0.0f };
+	cubeMesh.vertices[1].position = Math::vec3(transformMatrix * Math::vec4(max.x, min.y, min.z, 1.0f));
+	cubeMesh.vertices[1].color = { 1.0f, 1.0f, 0.0f };
+	cubeMesh.vertices[2].position = Math::vec3(transformMatrix * Math::vec4(max.x, min.y, max.z, 1.0f));
+	cubeMesh.vertices[2].color = { 1.0f, 1.0f, 0.0f };
+	cubeMesh.vertices[3].position = Math::vec3(transformMatrix * Math::vec4(min.x, min.y, max.z, 1.0f));
+	cubeMesh.vertices[3].color = { 1.0f, 1.0f, 0.0f };
+	cubeMesh.vertices[4].position = Math::vec3(transformMatrix * Math::vec4(min.x, max.y, min.z, 1.0f));
+	cubeMesh.vertices[4].color = { 1.0f, 1.0f, 0.0f };
+	cubeMesh.vertices[5].position = Math::vec3(transformMatrix * Math::vec4(max.x, max.y, min.z, 1.0f));
+	cubeMesh.vertices[5].color = { 1.0f, 1.0f, 0.0f };
+	cubeMesh.vertices[6].position = Math::vec3(transformMatrix * Math::vec4(max.x, max.y, max.z, 1.0f));
+	cubeMesh.vertices[6].color = { 1.0f, 1.0f, 0.0f };
+	cubeMesh.vertices[7].position = Math::vec3(transformMatrix * Math::vec4(min.x, max.y, max.z, 1.0f));
+	cubeMesh.vertices[7].color = { 1.0f, 1.0f, 0.0f };
+
+	cubeMesh.indices = {
+		0, 1,
+		1, 2,
+		2, 3,
+		3, 0,
+		4, 5,
+		5, 6,
+		6, 7,
+		7, 4,
+		0, 4,
+		1, 5,
+		2, 6,
+		3, 7
 	};
 
 	return load(cubeMesh);
@@ -3938,14 +4015,13 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createSphere(const Math::vec3& center
 	Model* sphereModel = assetManager->createModel();
 	sphereModel->primitives.resize(1);
 	Mesh& sphereMesh = sphereModel->primitives[0].mesh;
-	const float pi = 3.1415926535897932384626433832795f;
 	const size_t nbLongLat = 25;
-	const float thetaStep = pi / static_cast<size_t>(nbLongLat);
-	const float phiStep = 2.0f * (pi / static_cast<size_t>(nbLongLat));
+	const float thetaStep = Math::PI / static_cast<size_t>(nbLongLat);
+	const float phiStep = 2.0f * (Math::PI / static_cast<size_t>(nbLongLat));
 	
-	for (float theta = 0.0f; theta < 2.0f * pi; theta += thetaStep) {
-		for (float phi = 0.0f; phi < pi; phi += phiStep) {
-			if ((phi + phiStep) >= pi) {
+	for (float theta = 0.0f; theta < 2.0f * Math::PI; theta += thetaStep) {
+		for (float phi = 0.0f; phi < Math::PI; phi += phiStep) {
+			if ((phi + phiStep) >= Math::PI) {
 				Vertex vertex;
 				vertex.position = { center.x,
 					-radius + center.y,
@@ -3978,10 +4054,9 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const Math::vec3& base,
 	Model* capsuleModel = assetManager->createModel();
 	capsuleModel->primitives.resize(1);
 	Mesh& capsuleMesh = capsuleModel->primitives[0].mesh;
-	const float pi = 3.1415926535897932384626433832795f;
 	const size_t nbLongLat = 25;
-	const float thetaStep = pi / static_cast<size_t>(nbLongLat);
-	const float phiStep = 2.0f * (pi / static_cast<size_t>(nbLongLat));
+	const float thetaStep = Math::PI / static_cast<size_t>(nbLongLat);
+	const float phiStep = 2.0f * (Math::PI / static_cast<size_t>(nbLongLat));
 
 	const Math::vec3 baseTipDifference = tip - base;
 	const Math::vec3 facing = Math::vec3(0.0f, 1.0f, 0.0f);
@@ -3996,10 +4071,10 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const Math::vec3& base,
 
 	// Base
 	std::vector<uint32_t> baseFinal;
-	for (float theta = 0.0f; theta < 2.0f * pi; theta += thetaStep) {
+	for (float theta = 0.0f; theta < 2.0f * Math::PI; theta += thetaStep) {
 		baseFinal.push_back(static_cast<uint32_t>(capsuleMesh.vertices.size()));
-		for (float phi = pi / 2.0f; phi < pi; phi += phiStep) {
-			if ((phi + phiStep) >= pi) {
+		for (float phi = Math::PI / 2.0f; phi < Math::PI; phi += phiStep) {
+			if ((phi + phiStep) >= Math::PI) {
 				Vertex vertex;
 				Math::vec3 position = Math::vec3(0.0f, -1.0f, 0.0f) * radius;
 				Math::vec3 transformedPosition = rotation * Math::vec4(position, 1.0f);
@@ -4033,8 +4108,8 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const Math::vec3& base,
 
 	// Tip
 	std::vector<uint32_t> tipFinal;
-	for (float theta = 0.0f; theta < 2.0f * pi; theta += thetaStep) {
-		for (float phi = 0.0f; phi < pi / 2.0f; phi += phiStep) {
+	for (float theta = 0.0f; theta < 2.0f * Math::PI; theta += thetaStep) {
+		for (float phi = 0.0f; phi < Math::PI / 2.0f; phi += phiStep) {
 			Vertex vertex;
 			Math::vec3 position = Math::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * radius;
 			Math::vec3 transformedPosition = rotation * Math::vec4(position, 1.0f);

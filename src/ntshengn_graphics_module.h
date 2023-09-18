@@ -75,9 +75,10 @@ struct InternalFont {
 struct InternalObject {
 	uint32_t index;
 
-	size_t aabbMeshIndex = std::numeric_limits<size_t>::max();
-	size_t sphereMeshIndex = std::numeric_limits<size_t>::max();
-	size_t capsuleMeshIndex = std::numeric_limits<size_t>::max();
+	NtshEngn::MeshID sphereMeshIndex = NTSHENGN_MESH_UNKNOWN;
+	NtshEngn::MeshID aabbMeshIndex = NTSHENGN_MESH_UNKNOWN;
+	NtshEngn::MeshID obbMeshIndex = NTSHENGN_MESH_UNKNOWN;
+	NtshEngn::MeshID capsuleMeshIndex = NTSHENGN_MESH_UNKNOWN;
 	uint32_t textureIndex = 0;
 };
 
@@ -211,8 +212,9 @@ namespace NtshEngn {
 		void retrieveObjectIndex(uint32_t objectIndex);
 
 		// Create meshes for colliders
-		MeshID createAABB(const Math::vec3& min, const Math::vec3& max);
 		MeshID createSphere(const Math::vec3& center, float radius);
+		MeshID createAABB(const Math::vec3& min, const Math::vec3& max);
+		MeshID createOBB(const Math::vec3& center, const Math::vec3& halfExtent, const Math::vec3& rotation);
 		MeshID createCapsule(const Math::vec3& base, const Math::vec3& tip, float radius);
 
 	private:
@@ -333,7 +335,7 @@ namespace NtshEngn {
 		std::unordered_map<Entity, InternalObject> m_objects;
 		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
 
-		Entity m_mainCamera = std::numeric_limits<uint32_t>::max();
+		Entity m_mainCamera = NTSHENGN_ENTITY_UNKNOWN;
 
 		std::queue<UIElement> m_uiElements;
 
