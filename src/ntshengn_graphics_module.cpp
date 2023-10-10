@@ -245,9 +245,14 @@ void NtshEngn::GraphicsModule::init() {
 	physicalDeviceBufferDeviceAddressFeatures.pNext = &physicalDeviceAccelerationStructureFeatures;
 	physicalDeviceBufferDeviceAddressFeatures.bufferDeviceAddress = VK_TRUE;
 
+	VkPhysicalDeviceScalarBlockLayoutFeaturesEXT physicalDeviceScalarBlockLayoutFeaturesEXT = {};
+	physicalDeviceScalarBlockLayoutFeaturesEXT.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES_EXT;
+	physicalDeviceScalarBlockLayoutFeaturesEXT.pNext = &physicalDeviceBufferDeviceAddressFeatures;
+	physicalDeviceScalarBlockLayoutFeaturesEXT.scalarBlockLayout = VK_TRUE;
+
 	VkPhysicalDeviceDescriptorIndexingFeatures physicalDeviceDescriptorIndexingFeatures = {};
 	physicalDeviceDescriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-	physicalDeviceDescriptorIndexingFeatures.pNext = &physicalDeviceBufferDeviceAddressFeatures;
+	physicalDeviceDescriptorIndexingFeatures.pNext = &physicalDeviceScalarBlockLayoutFeaturesEXT;
 	physicalDeviceDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
 	physicalDeviceDescriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing = VK_TRUE;
 	physicalDeviceDescriptorIndexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
@@ -283,6 +288,7 @@ void NtshEngn::GraphicsModule::init() {
 		"VK_KHR_shader_float_controls",
 		"VK_KHR_spirv_1_4",
 		"VK_EXT_descriptor_indexing",
+		"VK_EXT_scalar_block_layout",
 		"VK_KHR_ray_tracing_pipeline",
 		"VK_KHR_buffer_device_address",
 		"VK_KHR_deferred_host_operations",
@@ -3011,6 +3017,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 	const std::string rayGenShaderCode = R"GLSL(
 		#version 460
 		#extension GL_EXT_ray_tracing : require
+		#extension GL_EXT_scalar_block_layout : enable
 
 		layout(set = 0, binding = 0, rgba32f) uniform writeonly image2D image; 
 		layout(set = 0, binding = 1) uniform accelerationStructureEXT tlas;
