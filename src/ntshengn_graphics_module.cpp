@@ -3176,6 +3176,7 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 	samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
 	samplerCreateInfo.minLod = 0.0f;
 	samplerCreateInfo.maxLod = 0.0f;
+	samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
 	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
 	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_compositingSampler));
 
@@ -3805,6 +3806,7 @@ void NtshEngn::GraphicsModule::createToneMappingResources() {
 	samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
 	samplerCreateInfo.minLod = 0.0f;
 	samplerCreateInfo.maxLod = 0.0f;
+	samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
 	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
 	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_toneMappingSampler));
 
@@ -4006,6 +4008,7 @@ void NtshEngn::GraphicsModule::createUIResources() {
 	samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
 	samplerCreateInfo.minLod = 0.0f;
 	samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
+	samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
 	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
 	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_uiNearestSampler));
 
