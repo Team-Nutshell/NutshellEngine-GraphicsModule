@@ -2940,29 +2940,29 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 		}
 
 		void main() {
-			vec4 diffuseSample = texture(gBufferDiffuseSampler, uv);
-			vec3 positionSample = texture(gBufferPositionSampler, uv).xyz;
-			vec3 normalSample = texture(gBufferNormalSampler, uv).xyz;
-			vec3 materialSample = texture(gBufferMaterialSampler, uv).xyz;
-			float metalnessSample = materialSample.b;
-			float roughnessSample = materialSample.g;
-			float occlusionSample = materialSample.r;
-			vec3 emissiveSample = texture(gBufferEmissiveSampler, uv).rgb;
+			const vec4 diffuseSample = texture(gBufferDiffuseSampler, uv);
+			const vec3 positionSample = texture(gBufferPositionSampler, uv).xyz;
+			const vec3 normalSample = texture(gBufferNormalSampler, uv).xyz;
+			const vec3 materialSample = texture(gBufferMaterialSampler, uv).xyz;
+			const float metalnessSample = materialSample.b;
+			const float roughnessSample = materialSample.g;
+			const float occlusionSample = materialSample.r;
+			const vec3 emissiveSample = texture(gBufferEmissiveSampler, uv).rgb;
 
-			float ssaoSample = texture(ssaoSampler, uv).r;
+			const float ssaoSample = texture(ssaoSampler, uv).r;
 
-			vec3 position = positionSample;
-			vec3 viewPosition = vec3(camera.view * vec4(position, 1.0));
-			vec3 n = normalSample;
-			vec3 d = vec3(diffuseSample);
-			vec3 v = normalize(camera.position - position);
+			const vec3 position = positionSample;
+			const vec3 viewPosition = vec3(camera.view * vec4(position, 1.0));
+			const vec3 n = normalSample;
+			const vec3 d = vec3(diffuseSample);
+			const vec3 v = normalize(camera.position - position);
 
 			vec3 color = vec3(0.0);
 
 			uint lightIndex = 0;
 			// Directional Lights
 			for (uint i = 0; i < lights.count.x; i++) {
-				vec3 l = normalize(-lights.info[lightIndex].direction);
+				const vec3 l = normalize(-lights.info[lightIndex].direction);
 
 				uint cascadeIndex = 0;
 				for (uint j = 0; j < SHADOW_MAPPING_CASCADE_COUNT - 1; j++) {
@@ -2971,7 +2971,7 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 					}
 				}
 
-				vec4 shadowCoord = (shadowOffset * shadows.info[i * SHADOW_MAPPING_CASCADE_COUNT + cascadeIndex].viewProj) * vec4(position, 1.0);
+				const vec4 shadowCoord = (shadowOffset * shadows.info[i * SHADOW_MAPPING_CASCADE_COUNT + cascadeIndex].viewProj) * vec4(position, 1.0);
 
 				color += shade(n, v, l, lights.info[lightIndex].color, d, metalnessSample, roughnessSample) * shadowValue(i, cascadeIndex, shadowCoord / shadowCoord.w, 0.005);
 
@@ -2979,23 +2979,23 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 			}
 			// Point Lights
 			for (uint i = 0; i < lights.count.y; i++) {
-				vec3 l = normalize(lights.info[lightIndex].position - position);
-				float distance = length(lights.info[lightIndex].position - position);
-				float attenuation = 1.0 / (distance * distance);
-				vec3 radiance = lights.info[lightIndex].color * attenuation;
+				const vec3 l = normalize(lights.info[lightIndex].position - position);
+				const float distance = length(lights.info[lightIndex].position - position);
+				const float attenuation = 1.0 / (distance * distance);
+				const vec3 radiance = lights.info[lightIndex].color * attenuation;
 				color += shade(n, v, l, radiance, d, metalnessSample, roughnessSample);
 
 				lightIndex++;
 			}
 			// Spot Lights
 			for (uint i = 0; i < lights.count.z; i++) {
-				vec3 l = normalize(lights.info[lightIndex].position - position);
-				float theta = dot(l, normalize(-lights.info[lightIndex].direction));
-				float epsilon = cos(lights.info[lightIndex].cutoffs.y) - cos(lights.info[lightIndex].cutoffs.x);
+				const vec3 l = normalize(lights.info[lightIndex].position - position);
+				const float theta = dot(l, normalize(-lights.info[lightIndex].direction));
+				const float epsilon = cos(lights.info[lightIndex].cutoffs.y) - cos(lights.info[lightIndex].cutoffs.x);
 				float intensity = clamp((theta - cos(lights.info[lightIndex].cutoffs.x)) / epsilon, 0.0, 1.0);
 				intensity = 1.0 - intensity;
 
-				vec4 shadowCoord = (shadowOffset * shadows.info[lights.count.x * SHADOW_MAPPING_CASCADE_COUNT + i].viewProj) * vec4(position, 1.0);
+				const vec4 shadowCoord = (shadowOffset * shadows.info[lights.count.x * SHADOW_MAPPING_CASCADE_COUNT + i].viewProj) * vec4(position, 1.0);
 
 				color += shade(n, v, l, lights.info[lightIndex].color * intensity, d * intensity, metalnessSample, roughnessSample) * shadowValue(lights.count.x + i, 0, shadowCoord / shadowCoord.w, 0.00005);
 
