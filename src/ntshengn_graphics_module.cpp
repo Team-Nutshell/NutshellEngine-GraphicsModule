@@ -657,14 +657,11 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_graphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &it.second.index);
 
 		// Draw
+		if (it.second.boxMeshIndex != NTSHENGN_MESH_UNKNOWN) {
+			vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_meshes[it.second.boxMeshIndex].indexCount, 1, m_meshes[it.second.boxMeshIndex].firstIndex, m_meshes[it.second.boxMeshIndex].vertexOffset, 0);
+		}
 		if (it.second.sphereMeshIndex != NTSHENGN_MESH_UNKNOWN) {
 			vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_meshes[it.second.sphereMeshIndex].indexCount, 1, m_meshes[it.second.sphereMeshIndex].firstIndex, m_meshes[it.second.sphereMeshIndex].vertexOffset, 0);
-		}
-		if (it.second.aabbMeshIndex != NTSHENGN_MESH_UNKNOWN) {
-			vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_meshes[it.second.aabbMeshIndex].indexCount, 1, m_meshes[it.second.aabbMeshIndex].firstIndex, m_meshes[it.second.aabbMeshIndex].vertexOffset, 0);
-		}
-		if (it.second.obbMeshIndex != NTSHENGN_MESH_UNKNOWN) {
-			vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_meshes[it.second.obbMeshIndex].indexCount, 1, m_meshes[it.second.obbMeshIndex].firstIndex, m_meshes[it.second.obbMeshIndex].vertexOffset, 0);
 		}
 		if (it.second.capsuleMeshIndex != NTSHENGN_MESH_UNKNOWN) {
 			vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_meshes[it.second.capsuleMeshIndex].indexCount, 1, m_meshes[it.second.capsuleMeshIndex].firstIndex, m_meshes[it.second.capsuleMeshIndex].vertexOffset, 0);
@@ -1735,23 +1732,17 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 	if (componentID == ecs->getComponentID<Collidable>()) {
 		Collidable collidable = ecs->getComponent<Collidable>(entity);
 
-		if (collidable.collider->getType() == ColliderShapeType::Sphere) {
+		if (collidable.collider->getType() == ColliderShapeType::Box) {
+			ColliderBox* colliderBox = static_cast<ColliderBox*>(collidable.collider.get());
+
+			InternalObject& object = m_objects[entity];
+			object.boxMeshIndex = createBox(colliderBox->center, colliderBox->halfExtent, colliderBox->rotation);
+		}
+		else if (collidable.collider->getType() == ColliderShapeType::Sphere) {
 			ColliderSphere* colliderSphere = static_cast<ColliderSphere*>(collidable.collider.get());
 
 			InternalObject& object = m_objects[entity];
 			object.sphereMeshIndex = createSphere(colliderSphere->center, colliderSphere->radius);
-		}
-		else if (collidable.collider->getType() == ColliderShapeType::AABB) {
-			ColliderAABB* colliderAABB = static_cast<ColliderAABB*>(collidable.collider.get());
-
-			InternalObject& object = m_objects[entity];
-			object.aabbMeshIndex = createAABB(colliderAABB->min, colliderAABB->max);
-		}
-		else if (collidable.collider->getType() == ColliderShapeType::OBB) {
-			ColliderOBB* colliderOBB = static_cast<ColliderOBB*>(collidable.collider.get());
-
-			InternalObject& object = m_objects[entity];
-			object.obbMeshIndex = createOBB(colliderOBB->center, colliderOBB->halfExtent, colliderOBB->rotation);
 		}
 		else if (collidable.collider->getType() == ColliderShapeType::Capsule) {
 			ColliderCapsule* colliderCapsule = static_cast<ColliderCapsule*>(collidable.collider.get());
@@ -1771,53 +1762,29 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 	if (componentID == ecs->getComponentID<Collidable>()) {
 		Collidable collidable = ecs->getComponent<Collidable>(entity);
 
+		if (collidable.collider->getType() == ColliderShapeType::Box) {
+			InternalObject& object = m_objects[entity];
+			object.boxMeshIndex = NTSHENGN_MESH_UNKNOWN;
+			
+			retrieveObjectIndex(object.index);
+
+			m_objects.erase(entity);
+		}
 		if (collidable.collider->getType() == ColliderShapeType::Sphere) {
 			InternalObject& object = m_objects[entity];
 			object.sphereMeshIndex = NTSHENGN_MESH_UNKNOWN;
 
-			if ((object.aabbMeshIndex == NTSHENGN_MESH_UNKNOWN) ||
-				(object.obbMeshIndex == NTSHENGN_MESH_UNKNOWN) ||
-				(object.capsuleMeshIndex == NTSHENGN_MESH_UNKNOWN)) {
-				retrieveObjectIndex(object.index);
+			retrieveObjectIndex(object.index);
 
-				m_objects.erase(entity);
-			}
-		}
-		else if (collidable.collider->getType() == ColliderShapeType::AABB) {
-			InternalObject& object = m_objects[entity];
-			object.aabbMeshIndex = NTSHENGN_MESH_UNKNOWN;
-
-			if ((object.sphereMeshIndex == NTSHENGN_MESH_UNKNOWN) ||
-				(object.obbMeshIndex == NTSHENGN_MESH_UNKNOWN) ||
-				(object.capsuleMeshIndex == NTSHENGN_MESH_UNKNOWN)) {
-				retrieveObjectIndex(object.index);
-
-				m_objects.erase(entity);
-			}
-		}
-		else if (collidable.collider->getType() == ColliderShapeType::OBB) {
-			InternalObject& object = m_objects[entity];
-			object.obbMeshIndex = NTSHENGN_MESH_UNKNOWN;
-
-			if ((object.sphereMeshIndex == NTSHENGN_MESH_UNKNOWN) ||
-				(object.aabbMeshIndex == NTSHENGN_MESH_UNKNOWN) ||
-				(object.capsuleMeshIndex == NTSHENGN_MESH_UNKNOWN)) {
-				retrieveObjectIndex(object.index);
-
-				m_objects.erase(entity);
-			}
+			m_objects.erase(entity);
 		}
 		else if (collidable.collider->getType() == ColliderShapeType::Capsule) {
 			InternalObject& object = m_objects[entity];
 			object.capsuleMeshIndex = NTSHENGN_MESH_UNKNOWN;
 
-			if ((object.sphereMeshIndex == NTSHENGN_MESH_UNKNOWN) ||
-				(object.aabbMeshIndex == NTSHENGN_MESH_UNKNOWN) ||
-				(object.obbMeshIndex == NTSHENGN_MESH_UNKNOWN)) {
-				retrieveObjectIndex(object.index);
+			retrieveObjectIndex(object.index);
 
-				m_objects.erase(entity);
-			}
+			m_objects.erase(entity);
 		}
 	}
 	else if (componentID == ecs->getComponentID<Camera>()) {
@@ -3922,47 +3889,7 @@ void NtshEngn::GraphicsModule::retrieveObjectIndex(uint32_t objectIndex) {
 	m_freeObjectsIndices.insert(m_freeObjectsIndices.begin(), objectIndex);
 }
 
-NtshEngn::MeshID NtshEngn::GraphicsModule::createAABB(const Math::vec3& min, const Math::vec3& max) {
-	Model* cubeModel = assetManager->createModel();
-	cubeModel->primitives.resize(1);
-	Mesh& cubeMesh = cubeModel->primitives[0].mesh;
-	cubeMesh.vertices.resize(8);
-	cubeMesh.vertices[0].position = { min.x, min.y, min.z };
-	cubeMesh.vertices[0].color = { 1.0f, 0.0f, 0.0f };
-	cubeMesh.vertices[1].position = { max.x, min.y, min.z };
-	cubeMesh.vertices[1].color = { 1.0f, 0.0f, 0.0f };
-	cubeMesh.vertices[2].position = { max.x, min.y, max.z };
-	cubeMesh.vertices[2].color = { 1.0f, 0.0f, 0.0f };
-	cubeMesh.vertices[3].position = { min.x, min.y, max.z };
-	cubeMesh.vertices[3].color = { 1.0f, 0.0f, 0.0f };
-	cubeMesh.vertices[4].position = { min.x, max.y, min.z };
-	cubeMesh.vertices[4].color = { 1.0f, 0.0f, 0.0f };
-	cubeMesh.vertices[5].position = { max.x, max.y, min.z };
-	cubeMesh.vertices[5].color = { 1.0f, 0.0f, 0.0f };
-	cubeMesh.vertices[6].position = { max.x, max.y, max.z };
-	cubeMesh.vertices[6].color = { 1.0f, 0.0f, 0.0f };
-	cubeMesh.vertices[7].position = { min.x, max.y, max.z };
-	cubeMesh.vertices[7].color = { 1.0f, 0.0f, 0.0f };
-
-	cubeMesh.indices = {
-		0, 1,
-		1, 2,
-		2, 3,
-		3, 0,
-		4, 5,
-		5, 6,
-		6, 7,
-		7, 4,
-		0, 4,
-		1, 5,
-		2, 6,
-		3, 7
-	};
-
-	return load(cubeMesh);
-}
-
-NtshEngn::MeshID NtshEngn::GraphicsModule::createOBB(const Math::vec3& center, const Math::vec3& halfExtent, const Math::vec3& rotation) {
+NtshEngn::MeshID NtshEngn::GraphicsModule::createBox(const Math::vec3& center, const Math::vec3& halfExtent, const Math::vec3& rotation) {
 	const Math::vec3 min = { -1.0f, -1.0f, -1.0f };
 	const Math::vec3 max = { 1.0f, 1.0f, 1.0f };
 

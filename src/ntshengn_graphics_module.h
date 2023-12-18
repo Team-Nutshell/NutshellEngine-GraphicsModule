@@ -75,9 +75,8 @@ struct InternalFont {
 struct InternalObject {
 	uint32_t index;
 
+	NtshEngn::MeshID boxMeshIndex = NTSHENGN_MESH_UNKNOWN;
 	NtshEngn::MeshID sphereMeshIndex = NTSHENGN_MESH_UNKNOWN;
-	NtshEngn::MeshID aabbMeshIndex = NTSHENGN_MESH_UNKNOWN;
-	NtshEngn::MeshID obbMeshIndex = NTSHENGN_MESH_UNKNOWN;
 	NtshEngn::MeshID capsuleMeshIndex = NTSHENGN_MESH_UNKNOWN;
 	uint32_t textureIndex = 0;
 };
@@ -212,9 +211,8 @@ namespace NtshEngn {
 		void retrieveObjectIndex(uint32_t objectIndex);
 
 		// Create meshes for colliders
+		MeshID createBox(const Math::vec3& center, const Math::vec3& halfExtent, const Math::vec3& rotation);
 		MeshID createSphere(const Math::vec3& center, float radius);
-		MeshID createAABB(const Math::vec3& min, const Math::vec3& max);
-		MeshID createOBB(const Math::vec3& center, const Math::vec3& halfExtent, const Math::vec3& rotation);
 		MeshID createCapsule(const Math::vec3& base, const Math::vec3& tip, float radius);
 
 	private:
