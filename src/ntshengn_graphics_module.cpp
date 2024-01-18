@@ -3690,18 +3690,18 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec2 uv = v0.uv * barycentrics.x + v1.uv * barycentrics.y + v2.uv * barycentrics.z;
 
 			// Material
-			vec4 diffuseSample = texture(textures[material.diffuseTextureIndex], uv);
+			vec4 diffuseSample = texture(textures[nonuniformEXT(material.diffuseTextureIndex)], uv);
 			if (diffuseSample.a < material.alphaCutoff) {
 				payload.dontAccumulate = true;
 				payload.rayOrigin = offsetPositionAlongNormal(worldPosition, gl_WorldRayDirectionEXT);
 				payload.rayDirection = gl_WorldRayDirectionEXT;
 				return;
 			}
-			vec3 normalSample = texture(textures[material.normalTextureIndex], uv).xyz;
-			float metalnessSample = texture(textures[material.metalnessTextureIndex], uv).b;
-			float roughnessSample = texture(textures[material.roughnessTextureIndex], uv).g;
-			float occlusionSample = texture(textures[material.occlusionTextureIndex], uv).r;
-			vec3 emissiveSample = texture(textures[material.emissiveTextureIndex], uv).rgb;
+			vec3 normalSample = texture(textures[nonuniformEXT(material.normalTextureIndex)], uv).xyz;
+			float metalnessSample = texture(textures[nonuniformEXT(material.metalnessTextureIndex)], uv).b;
+			float roughnessSample = texture(textures[nonuniformEXT(material.roughnessTextureIndex)], uv).g;
+			float occlusionSample = texture(textures[nonuniformEXT(material.occlusionTextureIndex)], uv).r;
+			vec3 emissiveSample = texture(textures[nonuniformEXT(material.emissiveTextureIndex)], uv).rgb;
 
 			vec3 d = diffuseSample.rgb;
 			vec3 n = normalize(TBN * (normalSample * 2.0 - 1.0));
@@ -4589,7 +4589,7 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			outColor = vec4(1.0, 1.0, 1.0, texture(fonts[tI.fontID], uv).r) * tI.color;
+			outColor = vec4(1.0, 1.0, 1.0, texture(fonts[nonuniformEXT(tI.fontID)], uv).r) * tI.color;
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
@@ -5392,7 +5392,7 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			outColor = texture(uiTextures[uTI.uiTextureIndex], uv) * uTI.color;
+			outColor = texture(uiTextures[nonuniformEXT(uTI.uiTextureIndex)], uv) * uTI.color;
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
