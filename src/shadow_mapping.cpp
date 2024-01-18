@@ -1047,7 +1047,8 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 		layout(location = 1) in flat uint materialID;
 
 		void main() {
-			if (texture(textures[materials.info[materialID].diffuseTextureIndex], uv).a < materials.info[materialID].alphaCutoff) {
+			const MaterialInfo material = materials.info[materialID];
+			if (texture(textures[nonuniformEXT(material.diffuseTextureIndex)], uv).a < material.alphaCutoff) {
 				discard;
 			}
 		}
@@ -1338,7 +1339,8 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 		layout(location = 1) in flat uint materialID;
 
 		void main() {
-			if (texture(textures[materials.info[materialID].diffuseTextureIndex], uv).a < materials.info[materialID].alphaCutoff) {
+			const MaterialInfo material = materials.info[materialID];
+			if (texture(textures[nonuniformEXT(material.diffuseTextureIndex)], uv).a < material.alphaCutoff) {
 				discard;
 			}
 		}

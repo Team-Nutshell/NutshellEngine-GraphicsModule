@@ -2926,10 +2926,10 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 				return 1.0;
 			}
 
-			vec2 texelSize = 0.75 * (1.0 / textureSize(shadowMaps[lightIndex], 0).xy);
+			vec2 texelSize = 0.75 * (1.0 / textureSize(shadowMaps[nonuniformEXT(lightIndex)], 0).xy);
 			for (int x = -1; x <= 1; x++) {
 				for (int y = -1; y <= 1; y++) {
-					float depth = texture(shadowMaps[lightIndex], vec3(shadowCoord.xy + (vec2(x, y) * texelSize), cascadeIndex)).r;
+					float depth = texture(shadowMaps[nonuniformEXT(lightIndex)], vec3(shadowCoord.xy + (vec2(x, y) * texelSize), cascadeIndex)).r;
 					if (depth >= (shadowCoord.z - bias)) {
 						shadow += 1.0;
 					}
@@ -4089,7 +4089,6 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 
 	const std::string vertexShaderCode = R"GLSL(
 		#version 460
-		#extension GL_EXT_nonuniform_qualifier : enable
 
 		struct CharacterInfo {
 			vec2 positionTopLeft;
@@ -4165,7 +4164,7 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			outColor = vec4(1.0, 1.0, 1.0, texture(fonts[tI.fontID], uv).r) * tI.color;
+			outColor = vec4(1.0, 1.0, 1.0, texture(fonts[nonuniformEXT(tI.fontID)], uv).r) * tI.color;
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
@@ -4968,7 +4967,7 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			outColor = texture(uiTextures[uTI.uiTextureIndex], uv) * uTI.color;
+			outColor = texture(uiTextures[nonuniformEXT(uTI.uiTextureIndex)], uv) * uTI.color;
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);

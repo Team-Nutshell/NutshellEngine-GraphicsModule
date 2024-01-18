@@ -904,32 +904,33 @@ void GBuffer::createGraphicsPipeline() {
 		layout(location = 4) out vec4 outGBufferEmissive;
 
 		void main() {
-			const vec4 diffuseSample = texture(textures[materials.info[materialID].diffuseTextureIndex], uv);
-			if (diffuseSample.a < materials.info[materialID].alphaCutoff) {
+			const MaterialInfo material = materials.info[materialID];
+			const vec4 diffuseSample = texture(textures[nonuniformEXT(material.diffuseTextureIndex)], uv);
+			if (diffuseSample.a < material.alphaCutoff) {
 				discard;
 			}
 
 			outGBufferPosition = vec4(position, 0.0);
 
-			const vec3 normalSample = texture(textures[materials.info[materialID].normalTextureIndex], uv).xyz;
+			const vec3 normalSample = texture(textures[nonuniformEXT(material.normalTextureIndex)], uv).xyz;
 			const vec3 n = normalize(TBN * (normalSample * 2.0 - 1.0));
 			outGBufferNormal = vec4(n, 0.0);
 
 			outGBufferDiffuse = diffuseSample;
 			
-			if (materials.info[materialID].occlusionTextureIndex == materials.info[materialID].roughnessTextureIndex &&
-				materials.info[materialID].roughnessTextureIndex == materials.info[materialID].metalnessTextureIndex) {
-				const vec3 materialSample = texture(textures[materials.info[materialID].occlusionTextureIndex], uv).rgb;
-				outGBufferMaterial = vec4(materialSample, materials.info[materialID].alphaCutoff);
+			if (material.occlusionTextureIndex == material.roughnessTextureIndex &&
+				material.roughnessTextureIndex == material.metalnessTextureIndex) {
+				const vec3 materialSample = texture(textures[nonuniformEXT(material.occlusionTextureIndex)], uv).rgb;
+				outGBufferMaterial = vec4(materialSample, material.alphaCutoff);
 			}
 			else {
-				const float occlusionSample = texture(textures[materials.info[materialID].occlusionTextureIndex], uv).r;
-				const float roughnessSample = texture(textures[materials.info[materialID].roughnessTextureIndex], uv).g;
-				const float metalnessSample = texture(textures[materials.info[materialID].metalnessTextureIndex], uv).b;
-				outGBufferMaterial = vec4(occlusionSample, roughnessSample, metalnessSample, materials.info[materialID].alphaCutoff);
+				const float occlusionSample = texture(textures[nonuniformEXT(material.occlusionTextureIndex)], uv).r;
+				const float roughnessSample = texture(textures[nonuniformEXT(material.roughnessTextureIndex)], uv).g;
+				const float metalnessSample = texture(textures[nonuniformEXT(material.metalnessTextureIndex)], uv).b;
+				outGBufferMaterial = vec4(occlusionSample, roughnessSample, metalnessSample, material.alphaCutoff);
 			}
 
-			outGBufferEmissive = texture(textures[materials.info[materialID].emissiveTextureIndex], uv) * materials.info[materialID].emissiveFactor;
+			outGBufferEmissive = texture(textures[nonuniformEXT(material.emissiveTextureIndex)], uv) * material.emissiveFactor;
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
