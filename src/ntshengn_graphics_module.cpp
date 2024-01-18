@@ -4513,7 +4513,6 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 
 	const std::string vertexShaderCode = R"GLSL(
 		#version 460
-		#extension GL_EXT_nonuniform_qualifier : enable
 
 		struct CharacterInfo {
 			vec2 positionTopLeft;
