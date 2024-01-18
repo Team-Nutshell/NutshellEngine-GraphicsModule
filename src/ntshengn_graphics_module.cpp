@@ -3153,45 +3153,46 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			vec4 diffuseSample = texture(textures[materials.info[materialID].diffuseTextureIndex], uv);
-			if (diffuseSample.a < materials.info[materialID].alphaCutoff) {
+			const MaterialInfo material = materials.info[materialID];
+			const vec4 diffuseSample = texture(textures[nonuniformEXT(material.diffuseTextureIndex)], uv);
+			if (diffuseSample.a < material.alphaCutoff) {
 				discard;
 			}
-			vec3 normalSample = texture(textures[materials.info[materialID].normalTextureIndex], uv).xyz;
-			float metalnessSample = texture(textures[materials.info[materialID].metalnessTextureIndex], uv).b;
-			float roughnessSample = texture(textures[materials.info[materialID].roughnessTextureIndex], uv).g;
-			float occlusionSample = texture(textures[materials.info[materialID].occlusionTextureIndex], uv).r;
-			vec3 emissiveSample = texture(textures[materials.info[materialID].emissiveTextureIndex], uv).rgb;
+			const vec3 normalSample = texture(textures[nonuniformEXT(material.normalTextureIndex)], uv).xyz;
+			const float metalnessSample = texture(textures[nonuniformEXT(material.metalnessTextureIndex)], uv).b;
+			const float roughnessSample = texture(textures[nonuniformEXT(material.roughnessTextureIndex)], uv).g;
+			const float occlusionSample = texture(textures[nonuniformEXT(material.occlusionTextureIndex)], uv).r;
+			const vec3 emissiveSample = texture(textures[nonuniformEXT(material.emissiveTextureIndex)], uv).rgb;
 
-			vec3 d = vec3(diffuseSample);
-			vec3 n = normalize(TBN * (normalSample * 2.0 - 1.0));
-			vec3 v = normalize(cameraPosition - position);
+			const vec3 d = vec3(diffuseSample);
+			const vec3 n = normalize(TBN * (normalSample * 2.0 - 1.0));
+			const vec3 v = normalize(cameraPosition - position);
 
 			vec3 color = vec3(0.0);
 
 			uint lightIndex = 0;
 			// Directional Lights
 			for (uint i = 0; i < lights.count.x; i++) {
-				vec3 l = normalize(-lights.info[lightIndex].direction);
+				const vec3 l = normalize(-lights.info[lightIndex].direction);
 				color += shade(n, v, l, lights.info[lightIndex].color, d, metalnessSample, roughnessSample);
 
 				lightIndex++;
 			}
 			// Point Lights
 			for (uint i = 0; i < lights.count.y; i++) {
-				vec3 l = normalize(lights.info[lightIndex].position - position);
-				float distance = length(lights.info[lightIndex].position - position);
-				float attenuation = 1.0 / (distance * distance);
-				vec3 radiance = lights.info[lightIndex].color * attenuation;
+				const vec3 l = normalize(lights.info[lightIndex].position - position);
+				const float distance = length(lights.info[lightIndex].position - position);
+				const float attenuation = 1.0 / (distance * distance);
+				const vec3 radiance = lights.info[lightIndex].color * attenuation;
 				color += shade(n, v, l, radiance, d, metalnessSample, roughnessSample);
 
 				lightIndex++;
 			}
 			// Spot Lights
 			for (uint i = 0; i < lights.count.z; i++) {
-				vec3 l = normalize(lights.info[lightIndex].position - position);
-				float theta = dot(l, normalize(-lights.info[lightIndex].direction));
-				float epsilon = cos(lights.info[lightIndex].cutoff.y) - cos(lights.info[lightIndex].cutoff.x);
+				const vec3 l = normalize(lights.info[lightIndex].position - position);
+				const float theta = dot(l, normalize(-lights.info[lightIndex].direction));
+				const float epsilon = cos(lights.info[lightIndex].cutoff.y) - cos(lights.info[lightIndex].cutoff.x);
 				float intensity = clamp((theta - cos(lights.info[lightIndex].cutoff.x)) / epsilon, 0.0, 1.0);
 				intensity = 1.0 - intensity;
 				color += shade(n, v, l, lights.info[lightIndex].color * intensity, d * intensity, metalnessSample, roughnessSample);
@@ -3200,7 +3201,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 			}
 
 			color *= occlusionSample;
-			color += emissiveSample * materials.info[materialID].emissiveFactor;
+			color += emissiveSample * material.emissiveFactor;
 
 			outColor = vec4(color, 1.0);
 		}
@@ -4069,7 +4070,7 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			outColor = vec4(1.0, 1.0, 1.0, texture(fonts[tI.fontID], uv).r) * tI.color;
+			outColor = vec4(1.0, 1.0, 1.0, texture(fonts[nonuniformEXT(tI.fontID)], uv).r) * tI.color;
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
@@ -4872,7 +4873,7 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			outColor = texture(uiTextures[uTI.uiTextureIndex], uv) * uTI.color;
+			outColor = texture(uiTextures[nonuniformEXT(uTI.uiTextureIndex)], uv) * uTI.color;
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
