@@ -2926,10 +2926,10 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 				return 1.0;
 			}
 
-			vec2 texelSize = 0.75 * (1.0 / textureSize(shadowMaps[nonuniformEXT(lightIndex)], 0).xy);
+			const vec2 texelSize = 0.75 * (1.0 / textureSize(shadowMaps[nonuniformEXT(lightIndex)], 0).xy);
 			for (int x = -1; x <= 1; x++) {
 				for (int y = -1; y <= 1; y++) {
-					float depth = texture(shadowMaps[nonuniformEXT(lightIndex)], vec3(shadowCoord.xy + (vec2(x, y) * texelSize), cascadeIndex)).r;
+					const float depth = texture(shadowMaps[nonuniformEXT(lightIndex)], vec3(shadowCoord.xy + (vec2(x, y) * texelSize), cascadeIndex)).r;
 					if (depth >= (shadowCoord.z - bias)) {
 						shadow += 1.0;
 					}
