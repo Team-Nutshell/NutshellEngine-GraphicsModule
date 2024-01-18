@@ -2739,7 +2739,6 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 
 	const std::string vertexShaderCode = R"GLSL(
 		#version 460
-		#extension GL_EXT_nonuniform_qualifier : enable
 
 		struct CharacterInfo {
 			vec2 positionTopLeft;
@@ -2815,7 +2814,7 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			outColor = vec4(1.0, 1.0, 1.0, texture(fonts[tI.fontID], uv).r) * tI.color;
+			outColor = vec4(1.0, 1.0, 1.0, texture(fonts[nonuniformEXT(tI.fontID)], uv).r) * tI.color;
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
@@ -3617,7 +3616,7 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			outColor = texture(uiTextures[uTI.uiTextureIndex], uv) * uTI.color;
+			outColor = texture(uiTextures[nonuniformEXT(uTI.uiTextureIndex)], uv) * uTI.color;
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
