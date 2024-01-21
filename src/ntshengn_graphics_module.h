@@ -211,8 +211,8 @@ namespace NtshEngn {
 		void retrieveObjectIndex(uint32_t objectIndex);
 
 		// Create meshes for colliders
-		MeshID createBox(const Math::vec3& center, const Math::vec3& halfExtent, const Math::vec3& rotation);
-		MeshID createSphere(const Math::vec3& center, float radius);
+		MeshID createBox();
+		MeshID createSphere();
 		MeshID createCapsule(const Math::vec3& base, const Math::vec3& tip, float radius);
 
 	private:
@@ -334,6 +334,9 @@ namespace NtshEngn {
 		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
 
 		Entity m_mainCamera = NTSHENGN_ENTITY_UNKNOWN;
+
+		MeshID m_boxMesh = NTSHENGN_MESH_UNKNOWN;
+		MeshID m_sphereMesh = NTSHENGN_MESH_UNKNOWN;
 
 		std::queue<UIElement> m_uiElements;
 

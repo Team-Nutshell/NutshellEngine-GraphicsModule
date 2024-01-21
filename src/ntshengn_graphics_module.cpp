@@ -463,6 +463,10 @@ void NtshEngn::GraphicsModule::init() {
 		NTSHENGN_VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_renderFinishedSemaphores[i]));
 	}
 
+	// Create collider meshes
+	m_boxMesh = createBox();
+	m_sphereMesh = createSphere();
+
 	// Set current frame-in-flight to 0
 	m_currentFrameInFlight = 0;
 }
@@ -522,23 +526,44 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight], &data));
 	for (auto& it : m_objects) {
 		const Transform& objectTransform = ecs->getComponent<Transform>(it.first);
-		Math::mat4 objectRotation = Math::rotate(objectTransform.rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
-			Math::rotate(objectTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
-			Math::rotate(objectTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f));
-		Math::vec3 objectScale = objectTransform.scale;
+		Math::vec3 objectPosition = Math::vec3(0.0f, 0.0f, 0.0f);
+		Math::mat4 objectRotation = Math::mat4();
+		Math::vec3 objectScale = Math::vec3(1.0f, 1.0f, 1.0f);
 
-		if (it.second.capsuleMeshIndex != NTSHENGN_MESH_UNKNOWN) {
-			Collidable collidable = ecs->getComponent<Collidable>(it.first);
-			ColliderCapsule* colliderCapsule = static_cast<ColliderCapsule*>(collidable.collider.get());
+		if (it.second.boxMeshIndex != NTSHENGN_MESH_UNKNOWN) {
+			const Collidable& collidable = ecs->getComponent<Collidable>(it.first);
+			const ColliderBox* colliderBox = static_cast<const ColliderBox*>(collidable.collider.get());
 
-			objectRotation = Math::translate(colliderCapsule->base) * objectRotation * Math::translate(colliderCapsule->base * -1.0f);
+			objectPosition = colliderBox->center + objectTransform.position;
+			const Math::quat quatRotation = Math::to_quat(colliderBox->rotation) * Math::to_quat(objectTransform.rotation);
+			objectRotation = Math::to_mat4(quatRotation);
+			objectScale = Math::vec3(colliderBox->halfExtent.x * std::abs(objectTransform.scale.x), colliderBox->halfExtent.y * std::abs(objectTransform.scale.y), colliderBox->halfExtent.z * std::abs(objectTransform.scale.z));
 		}
 
 		if (it.second.sphereMeshIndex != NTSHENGN_MESH_UNKNOWN) {
-			objectScale = Math::vec3(std::max(objectTransform.scale[0], std::max(objectTransform.scale[1], objectTransform.scale[2])));
+			const Collidable& collidable = ecs->getComponent<Collidable>(it.first);
+			const ColliderSphere* colliderSphere = static_cast<const ColliderSphere*>(collidable.collider.get());
+
+			objectPosition = objectTransform.position;
+			objectRotation = Math::rotate(objectTransform.rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
+				Math::rotate(objectTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
+				Math::rotate(objectTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f));
+			objectScale = colliderSphere->radius * std::max(std::abs(objectTransform.scale.x), std::max(std::abs(objectTransform.scale.y), std::abs(objectTransform.scale.z)));
 		}
 
-		Math::mat4 objectModel = Math::translate(objectTransform.position) *
+		if (it.second.capsuleMeshIndex != NTSHENGN_MESH_UNKNOWN) {
+			const Collidable& collidable = ecs->getComponent<Collidable>(it.first);
+			const ColliderCapsule* colliderCapsule = static_cast<const ColliderCapsule*>(collidable.collider.get());
+
+			objectPosition = objectTransform.position;
+			const Math::mat4 baseRotation = Math::rotate(objectTransform.rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
+				Math::rotate(objectTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
+				Math::rotate(objectTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f));
+			objectRotation = Math::translate(colliderCapsule->base) * baseRotation * Math::translate(colliderCapsule->base * -1.0f);
+			objectScale = Math::vec3(std::max(std::abs(objectTransform.scale.x), std::max(std::abs(objectTransform.scale.y), std::abs(objectTransform.scale.z))));
+		}
+
+		Math::mat4 objectModel = Math::translate(objectPosition) *
 			objectRotation *
 			Math::scale(objectScale);
 
@@ -1730,22 +1755,18 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 	}
 
 	if (componentID == ecs->getComponentID<Collidable>()) {
-		Collidable collidable = ecs->getComponent<Collidable>(entity);
+		const Collidable& collidable = ecs->getComponent<Collidable>(entity);
 
 		if (collidable.collider->getType() == ColliderShapeType::Box) {
-			ColliderBox* colliderBox = static_cast<ColliderBox*>(collidable.collider.get());
-
 			InternalObject& object = m_objects[entity];
-			object.boxMeshIndex = createBox(colliderBox->center, colliderBox->halfExtent, colliderBox->rotation);
+			object.boxMeshIndex = m_boxMesh;
 		}
 		else if (collidable.collider->getType() == ColliderShapeType::Sphere) {
-			ColliderSphere* colliderSphere = static_cast<ColliderSphere*>(collidable.collider.get());
-
 			InternalObject& object = m_objects[entity];
-			object.sphereMeshIndex = createSphere(colliderSphere->center, colliderSphere->radius);
+			object.sphereMeshIndex = m_sphereMesh;
 		}
 		else if (collidable.collider->getType() == ColliderShapeType::Capsule) {
-			ColliderCapsule* colliderCapsule = static_cast<ColliderCapsule*>(collidable.collider.get());
+			const ColliderCapsule* colliderCapsule = static_cast<const ColliderCapsule*>(collidable.collider.get());
 
 			InternalObject& object = m_objects[entity];
 			object.capsuleMeshIndex = createCapsule(colliderCapsule->base, colliderCapsule->tip, colliderCapsule->radius);
@@ -3888,36 +3909,27 @@ void NtshEngn::GraphicsModule::retrieveObjectIndex(uint32_t objectIndex) {
 	m_freeObjectsIndices.insert(m_freeObjectsIndices.begin(), objectIndex);
 }
 
-NtshEngn::MeshID NtshEngn::GraphicsModule::createBox(const Math::vec3& center, const Math::vec3& halfExtent, const Math::vec3& rotation) {
-	const Math::vec3 min = { -1.0f, -1.0f, -1.0f };
-	const Math::vec3 max = { 1.0f, 1.0f, 1.0f };
-
-	const Math::mat4 transformMatrix = Math::translate(center) *
-		Math::rotate(rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
-		Math::rotate(rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
-		Math::rotate(rotation.z, Math::vec3(0.0f, 0.0f, 1.0f)) *
-		Math::scale(halfExtent);
-
+NtshEngn::MeshID NtshEngn::GraphicsModule::createBox() {
 	Model* cubeModel = assetManager->createModel();
 	cubeModel->primitives.resize(1);
 	Mesh& cubeMesh = cubeModel->primitives[0].mesh;
 	cubeMesh.vertices.resize(8);
-	cubeMesh.vertices[0].position = Math::vec3(transformMatrix * Math::vec4(min.x, min.y, min.z, 1.0f));
-	cubeMesh.vertices[0].color = { 1.0f, 1.0f, 0.0f };
-	cubeMesh.vertices[1].position = Math::vec3(transformMatrix * Math::vec4(max.x, min.y, min.z, 1.0f));
-	cubeMesh.vertices[1].color = { 1.0f, 1.0f, 0.0f };
-	cubeMesh.vertices[2].position = Math::vec3(transformMatrix * Math::vec4(max.x, min.y, max.z, 1.0f));
-	cubeMesh.vertices[2].color = { 1.0f, 1.0f, 0.0f };
-	cubeMesh.vertices[3].position = Math::vec3(transformMatrix * Math::vec4(min.x, min.y, max.z, 1.0f));
-	cubeMesh.vertices[3].color = { 1.0f, 1.0f, 0.0f };
-	cubeMesh.vertices[4].position = Math::vec3(transformMatrix * Math::vec4(min.x, max.y, min.z, 1.0f));
-	cubeMesh.vertices[4].color = { 1.0f, 1.0f, 0.0f };
-	cubeMesh.vertices[5].position = Math::vec3(transformMatrix * Math::vec4(max.x, max.y, min.z, 1.0f));
-	cubeMesh.vertices[5].color = { 1.0f, 1.0f, 0.0f };
-	cubeMesh.vertices[6].position = Math::vec3(transformMatrix * Math::vec4(max.x, max.y, max.z, 1.0f));
-	cubeMesh.vertices[6].color = { 1.0f, 1.0f, 0.0f };
-	cubeMesh.vertices[7].position = Math::vec3(transformMatrix * Math::vec4(min.x, max.y, max.z, 1.0f));
-	cubeMesh.vertices[7].color = { 1.0f, 1.0f, 0.0f };
+	cubeMesh.vertices[0].position = Math::vec3(-1.0f, -1.0f, -1.0f);
+	cubeMesh.vertices[0].color = { 1.0f, 0.0f, 0.0f };
+	cubeMesh.vertices[1].position = Math::vec3(1.0f, -1.0f, -1.0f);
+	cubeMesh.vertices[1].color = { 1.0f, 0.0f, 0.0f };
+	cubeMesh.vertices[2].position = Math::vec3(1.0f, -1.0f, 1.0f);
+	cubeMesh.vertices[2].color = { 1.0f, 0.0f, 0.0f };
+	cubeMesh.vertices[3].position = Math::vec3(-1.0f, -1.0f, 1.0f);
+	cubeMesh.vertices[3].color = { 1.0f, 0.0f, 0.0f };
+	cubeMesh.vertices[4].position = Math::vec3(-1.0f, 1.0f, -1.0f);
+	cubeMesh.vertices[4].color = { 1.0f, 0.0f, 0.0f };
+	cubeMesh.vertices[5].position = Math::vec3(1.0f, 1.0f, -1.0f);
+	cubeMesh.vertices[5].color = { 1.0f, 0.0f, 0.0f };
+	cubeMesh.vertices[6].position = Math::vec3(1.0f, 1.0f, 1.0f);
+	cubeMesh.vertices[6].color = { 1.0f, 0.0f, 0.0f };
+	cubeMesh.vertices[7].position = Math::vec3(-1.0f, 1.0f, 1.0f);
+	cubeMesh.vertices[7].color = { 1.0f, 0.0f, 0.0f };
 
 	cubeMesh.indices = {
 		0, 1,
@@ -3937,7 +3949,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createBox(const Math::vec3& center, c
 	return load(cubeMesh);
 }
 
-NtshEngn::MeshID NtshEngn::GraphicsModule::createSphere(const Math::vec3& center, float radius) {
+NtshEngn::MeshID NtshEngn::GraphicsModule::createSphere() {
 	Model* sphereModel = assetManager->createModel();
 	sphereModel->primitives.resize(1);
 	Mesh& sphereMesh = sphereModel->primitives[0].mesh;
@@ -3949,18 +3961,14 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createSphere(const Math::vec3& center
 		for (float phi = 0.0f; phi < Math::PI; phi += phiStep) {
 			if ((phi + phiStep) >= Math::PI) {
 				Vertex vertex;
-				vertex.position = { center.x,
-					-radius + center.y,
-					center.z };
-				vertex.color = { 0.0f, 1.0f, 0.0f };
+				vertex.position = Math::vec3(0.0f, -1.0f, 0.0f);
+				vertex.color = Math::vec3(0.0f, 1.0f, 0.0f);
 				sphereMesh.vertices.push_back(vertex);
 			}
 			else {
 				Vertex vertex;
-				vertex.position = { (radius * std::cos(theta) * std::sin(phi)) + center.x,
-					(radius * std::cos(phi)) + center.y,
-					(radius * std::sin(theta) * std::sin(phi)) + center.z };
-				vertex.color = { 0.0f, 1.0f, 0.0f };
+				vertex.position = Math::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi));
+				vertex.color = Math::vec3(0.0f, 1.0f, 0.0f);
 				sphereMesh.vertices.push_back(vertex);
 			}
 		}
