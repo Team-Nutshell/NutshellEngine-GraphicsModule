@@ -535,8 +535,10 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			const ColliderBox* colliderBox = static_cast<const ColliderBox*>(collidable.collider.get());
 
 			objectPosition = colliderBox->center + objectTransform.position;
-			const Math::quat quatRotation = Math::to_quat(colliderBox->rotation) * Math::to_quat(objectTransform.rotation);
-			objectRotation = Math::to_mat4(quatRotation);
+			const Math::vec3 boxRotation = Math::to_vec3(Math::to_quat(colliderBox->rotation) * Math::to_quat(objectTransform.rotation));
+			objectRotation = Math::rotate(boxRotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
+				Math::rotate(boxRotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
+				Math::rotate(boxRotation.z, Math::vec3(0.0f, 0.0f, 1.0f));
 			objectScale = Math::vec3(colliderBox->halfExtent.x * std::abs(objectTransform.scale.x), colliderBox->halfExtent.y * std::abs(objectTransform.scale.y), colliderBox->halfExtent.z * std::abs(objectTransform.scale.z));
 		}
 
