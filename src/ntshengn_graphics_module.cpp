@@ -1749,26 +1749,24 @@ const NtshEngn::ComponentMask NtshEngn::GraphicsModule::getComponentMask() const
 }
 
 void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component componentID) {
-	if (m_objects.find(entity) == m_objects.end()) {
-		m_objects[entity] = InternalObject();
-		m_objects[entity].index = attributeObjectIndex();
-	}
-
 	if (componentID == ecs->getComponentID<Collidable>()) {
+		m_objects[entity] = InternalObject();
+
+		InternalObject& object = m_objects[entity];
+
+		m_objects[entity].index = attributeObjectIndex();
+
 		const Collidable& collidable = ecs->getComponent<Collidable>(entity);
 
 		if (collidable.collider->getType() == ColliderShapeType::Box) {
-			InternalObject& object = m_objects[entity];
 			object.boxMeshIndex = m_boxMesh;
 		}
 		else if (collidable.collider->getType() == ColliderShapeType::Sphere) {
-			InternalObject& object = m_objects[entity];
 			object.sphereMeshIndex = m_sphereMesh;
 		}
 		else if (collidable.collider->getType() == ColliderShapeType::Capsule) {
 			const ColliderCapsule* colliderCapsule = static_cast<const ColliderCapsule*>(collidable.collider.get());
 
-			InternalObject& object = m_objects[entity];
 			object.capsuleMeshIndex = createCapsule(colliderCapsule->base, colliderCapsule->tip, colliderCapsule->radius);
 		}
 	}
@@ -1782,27 +1780,10 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component componentID) {
 	if (componentID == ecs->getComponentID<Collidable>()) {
 		InternalObject& object = m_objects[entity];
-		if (object.boxMeshIndex != NTSHENGN_MESH_UNKNOWN) {
-			object.boxMeshIndex = NTSHENGN_MESH_UNKNOWN;
-			
-			retrieveObjectIndex(object.index);
 
-			m_objects.erase(entity);
-		}
-		if (object.sphereMeshIndex != NTSHENGN_MESH_UNKNOWN) {
-			object.sphereMeshIndex = NTSHENGN_MESH_UNKNOWN;
+		retrieveObjectIndex(object.index);
 
-			retrieveObjectIndex(object.index);
-
-			m_objects.erase(entity);
-		}
-		else if (object.capsuleMeshIndex != NTSHENGN_MESH_UNKNOWN) {
-			object.capsuleMeshIndex = NTSHENGN_MESH_UNKNOWN;
-
-			retrieveObjectIndex(object.index);
-
-			m_objects.erase(entity);
-		}
+		m_objects.erase(entity);
 	}
 	else if (componentID == ecs->getComponentID<Camera>()) {
 		if (m_mainCamera == entity) {
