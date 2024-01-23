@@ -544,7 +544,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			const Collidable& collidable = ecs->getComponent<Collidable>(it.first);
 			const ColliderSphere* colliderSphere = static_cast<const ColliderSphere*>(collidable.collider.get());
 
-			objectPosition = objectTransform.position;
+			objectPosition = colliderSphere->center + objectTransform.position;
 			objectRotation = Math::rotate(objectTransform.rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
 				Math::rotate(objectTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
 				Math::rotate(objectTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f));
@@ -1781,26 +1781,22 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 
 void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component componentID) {
 	if (componentID == ecs->getComponentID<Collidable>()) {
-		Collidable collidable = ecs->getComponent<Collidable>(entity);
-
-		if (collidable.collider->getType() == ColliderShapeType::Box) {
-			InternalObject& object = m_objects[entity];
+		InternalObject& object = m_objects[entity];
+		if (object.boxMeshIndex != NTSHENGN_MESH_UNKNOWN) {
 			object.boxMeshIndex = NTSHENGN_MESH_UNKNOWN;
 			
 			retrieveObjectIndex(object.index);
 
 			m_objects.erase(entity);
 		}
-		if (collidable.collider->getType() == ColliderShapeType::Sphere) {
-			InternalObject& object = m_objects[entity];
+		if (object.sphereMeshIndex != NTSHENGN_MESH_UNKNOWN) {
 			object.sphereMeshIndex = NTSHENGN_MESH_UNKNOWN;
 
 			retrieveObjectIndex(object.index);
 
 			m_objects.erase(entity);
 		}
-		else if (collidable.collider->getType() == ColliderShapeType::Capsule) {
-			InternalObject& object = m_objects[entity];
+		else if (object.capsuleMeshIndex != NTSHENGN_MESH_UNKNOWN) {
 			object.capsuleMeshIndex = NTSHENGN_MESH_UNKNOWN;
 
 			retrieveObjectIndex(object.index);
