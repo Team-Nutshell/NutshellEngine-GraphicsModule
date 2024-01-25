@@ -582,8 +582,8 @@ void FrustumCulling::createComputePipeline() {
 
 			for (uint i = 0; i < 3; i++) {
 				for (uint j = 0; j < 3; j++) {
-					a = frustumCulling.objectInfo[objectIndex].rotation[j][i] * aabbMin[j] * abs(frustumCulling.objectInfo[objectIndex].scale[i]);
-					b = frustumCulling.objectInfo[objectIndex].rotation[j][i] * aabbMax[j] * abs(frustumCulling.objectInfo[objectIndex].scale[i]);
+					a = frustumCulling.objectInfo[objectIndex].rotation[j][i] * aabbMin[j] * abs(frustumCulling.objectInfo[objectIndex].scale[j]);
+					b = frustumCulling.objectInfo[objectIndex].rotation[j][i] * aabbMax[j] * abs(frustumCulling.objectInfo[objectIndex].scale[j]);
 
 					newAABBMin[i] += (a < b) ? a : b;
 					newAABBMax[i] += (a < b) ? b : a;
