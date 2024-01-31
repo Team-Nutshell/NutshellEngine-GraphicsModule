@@ -656,7 +656,7 @@ void FrustumCulling::createDescriptorSets() {
 
 	VkDescriptorPoolSize outDrawIndirectDescriptorPoolSize = {};
 	outDrawIndirectDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	outDrawIndirectDescriptorPoolSize.descriptorCount = 1;
+	outDrawIndirectDescriptorPoolSize.descriptorCount = m_framesInFlight;
 
 	VkDescriptorPoolSize inPerDrawDescriptorPoolSize = {};
 	inPerDrawDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -664,7 +664,7 @@ void FrustumCulling::createDescriptorSets() {
 
 	VkDescriptorPoolSize outPerDrawDescriptorPoolSize = {};
 	outPerDrawDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	outPerDrawDescriptorPoolSize.descriptorCount = 1;
+	outPerDrawDescriptorPoolSize.descriptorCount = m_framesInFlight;
 
 	std::array<VkDescriptorPoolSize, 5> descriptorPoolSizes = { frustumCullingDescriptorPoolSize, inDrawIndirectDescriptorPoolSize, outDrawIndirectDescriptorPoolSize, inPerDrawDescriptorPoolSize, outPerDrawDescriptorPoolSize };
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
