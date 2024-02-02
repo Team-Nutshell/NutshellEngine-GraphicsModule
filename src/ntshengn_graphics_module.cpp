@@ -605,6 +605,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		memcpy(reinterpret_cast<char*>(data) + offset, objectModel.data(), sizeof(Math::mat4));
 		const std::array<uint32_t, 3> objectIndices = { (it.second.meshID < m_meshes.size()) ? it.second.meshID : 0, it.second.jointTransformOffset, (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0 };
 		memcpy(reinterpret_cast<char*>(data) + offset + sizeof(Math::mat4), objectIndices.data(), 3 * sizeof(uint32_t));
+
+		loadRenderableForEntity(it.first);
 	}
 	vmaUnmapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight]);
 
@@ -612,8 +614,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_jointTransformBufferAllocations[m_currentFrameInFlight], &data));
 	for (auto& it : m_objects) {
 		const Renderable& objectRenderable = ecs->getComponent<Renderable>(it.first);
-		const ModelPrimitive& modelPrimitive = objectRenderable.model->primitives[objectRenderable.modelPrimitiveIndex];
-		const Skin& skin = modelPrimitive.mesh.skin;
+		const Skin& skin = objectRenderable.mesh->skin;
 
 		if (!skin.joints.empty()) {
 			std::vector<Math::mat4> jointTransformMatrices(skin.joints.size());
@@ -621,7 +622,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 			if (m_playingAnimations.find(&it.second) != m_playingAnimations.end()) {
 				PlayingAnimation& playingAnimation = m_playingAnimations[&it.second];
-				const Animation& animation = objectRenderable.model->animations[m_playingAnimations[&it.second].animationIndex];
+				const Animation& animation = objectRenderable.mesh->animations[m_playingAnimations[&it.second].animationIndex];
 
 				std::queue<std::pair<uint32_t, uint32_t>> jointsAndParents;
 				jointsAndParents.push({ skin.rootJoint, std::numeric_limits<uint32_t>::max() });
@@ -2052,8 +2053,8 @@ void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIn
 
 	const Renderable& renderable = ecs->getComponent<Renderable>(entity);
 
-	if (animationIndex >= renderable.model->animations.size()) {
-		NTSHENGN_MODULE_WARNING("Animation " + std::to_string(animationIndex) + " does not exist for Entity " + (ecs->entityHasName(entity) ? ("\"" + ecs->getEntityName(entity) + "\"") : std::to_string(entity)) + "\'s model.");
+	if (animationIndex >= renderable.mesh->animations.size()) {
+		NTSHENGN_MODULE_WARNING("Animation " + std::to_string(animationIndex) + " does not exist for Entity " + (ecs->entityHasName(entity) ? ("\"" + ecs->getEntityName(entity) + "\"") : std::to_string(entity)) + "\'s mesh.");
 		return;
 	}
 
@@ -2203,59 +2204,12 @@ const NtshEngn::ComponentMask NtshEngn::GraphicsModule::getComponentMask() const
 
 void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component componentID) {
 	if (componentID == ecs->getComponentID<Renderable>()) {
-		const Renderable& renderable = ecs->getComponent<Renderable>(entity);
-		const ModelPrimitive& modelPrimitive = renderable.model->primitives[renderable.modelPrimitiveIndex];
-
 		InternalObject object;
 		object.index = attributeObjectIndex();
-		if (modelPrimitive.mesh.vertices.size() != 0) {
-			object.meshID = load(modelPrimitive.mesh);
-			if (!modelPrimitive.mesh.skin.joints.empty()) {
-				object.jointTransformOffset = static_cast<uint32_t>(m_freeJointTransformOffsets.addBlock(static_cast<size_t>(m_meshes[object.meshID].jointCount)));
-			}
-		}
-		InternalMaterial material;
-		if (modelPrimitive.material.diffuseTexture.image) {
-			ImageID imageID = load(*modelPrimitive.material.diffuseTexture.image);
-			std::string samplerKey = createSampler(modelPrimitive.material.diffuseTexture.imageSampler);
-			uint32_t textureID = addToTextures({ imageID, samplerKey });
-			material.diffuseTextureIndex = textureID;
-		}
-		if (modelPrimitive.material.normalTexture.image) {
-			ImageID imageID = load(*modelPrimitive.material.normalTexture.image);
-			std::string samplerKey = createSampler(modelPrimitive.material.normalTexture.imageSampler);
-			uint32_t textureID = addToTextures({ imageID, samplerKey });
-			material.normalTextureIndex = textureID;
-		}
-		if (modelPrimitive.material.metalnessTexture.image) {
-			ImageID imageID = load(*modelPrimitive.material.metalnessTexture.image);
-			std::string samplerKey = createSampler(modelPrimitive.material.metalnessTexture.imageSampler);
-			uint32_t textureID = addToTextures({ imageID, samplerKey });
-			material.metalnessTextureIndex = textureID;
-		}
-		if (modelPrimitive.material.roughnessTexture.image) {
-			ImageID imageID = load(*modelPrimitive.material.roughnessTexture.image);
-			std::string samplerKey = createSampler(modelPrimitive.material.roughnessTexture.imageSampler);
-			uint32_t textureID = addToTextures({ imageID, samplerKey });
-			material.roughnessTextureIndex = textureID;
-		}
-		if (modelPrimitive.material.occlusionTexture.image) {
-			ImageID imageID = load(*modelPrimitive.material.occlusionTexture.image);
-			std::string samplerKey = createSampler(modelPrimitive.material.occlusionTexture.imageSampler);
-			uint32_t textureID = addToTextures({ imageID, samplerKey });
-			material.occlusionTextureIndex = textureID;
-		}
-		if (modelPrimitive.material.emissiveTexture.image) {
-			ImageID imageID = load(*modelPrimitive.material.emissiveTexture.image);
-			std::string samplerKey = createSampler(modelPrimitive.material.emissiveTexture.imageSampler);
-			uint32_t textureID = addToTextures({ imageID, samplerKey });
-			material.emissiveTextureIndex = textureID;
-		}
-		material.emissiveFactor = modelPrimitive.material.emissiveFactor;
-		material.alphaCutoff = modelPrimitive.material.alphaCutoff;
-		uint32_t materialID = addToMaterials(material);
-		object.materialIndex = materialID;
 		m_objects[entity] = object;
+
+		m_lastKnownMaterial[entity] = Material();
+		loadRenderableForEntity(entity);
 	}
 	else if (componentID == ecs->getComponentID<Camera>()) {
 		if (m_mainCamera == NTSHENGN_ENTITY_UNKNOWN) {
@@ -2294,6 +2248,8 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 		if (m_meshes[object.meshID].jointCount > 0) {
 			m_freeJointTransformOffsets.freeBlock(static_cast<size_t>(object.jointTransformOffset), static_cast<size_t>(m_meshes[object.meshID].jointCount));
 		}
+
+		m_lastKnownMaterial.erase(entity);
 
 		m_objects.erase(entity);
 	}
@@ -5196,6 +5152,8 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 
 	load(m_defaultEmissiveTexture);
 	m_textures.push_back({ 5, "defaultSampler" });
+
+	m_materials.push_back(InternalMaterial());
 }
 
 void NtshEngn::GraphicsModule::resize() {
@@ -5247,44 +5205,167 @@ void NtshEngn::GraphicsModule::resize() {
 	}
 }
 
-std::string NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler) {
-	const std::unordered_map<ImageSamplerFilter, VkFilter> filterMap{ { ImageSamplerFilter::Linear, VK_FILTER_LINEAR },
-		{ ImageSamplerFilter::Nearest, VK_FILTER_NEAREST },
-		{ ImageSamplerFilter::Unknown, VK_FILTER_LINEAR }
-	};
-	const std::unordered_map<ImageSamplerFilter, VkSamplerMipmapMode> mipmapFilterMap{ { ImageSamplerFilter::Linear, VK_SAMPLER_MIPMAP_MODE_LINEAR },
-		{ ImageSamplerFilter::Nearest, VK_SAMPLER_MIPMAP_MODE_NEAREST },
-		{ ImageSamplerFilter::Unknown, VK_SAMPLER_MIPMAP_MODE_LINEAR }
-	};
-	const std::unordered_map<ImageSamplerAddressMode, VkSamplerAddressMode> addressModeMap{ { ImageSamplerAddressMode::Repeat, VK_SAMPLER_ADDRESS_MODE_REPEAT },
-		{ ImageSamplerAddressMode::MirroredRepeat, VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT },
-		{ ImageSamplerAddressMode::ClampToEdge, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE },
-		{ ImageSamplerAddressMode::ClampToBorder, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER },
-		{ ImageSamplerAddressMode::Unknown, VK_SAMPLER_ADDRESS_MODE_REPEAT }
-	};
-	const std::unordered_map<ImageSamplerBorderColor, VkBorderColor> borderColorMap{ { ImageSamplerBorderColor::FloatTransparentBlack, VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK },
-		{ ImageSamplerBorderColor::IntTransparentBlack, VK_BORDER_COLOR_INT_TRANSPARENT_BLACK },
-		{ ImageSamplerBorderColor::FloatOpaqueBlack, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK },
-		{ ImageSamplerBorderColor::IntOpaqueBlack, VK_BORDER_COLOR_INT_OPAQUE_BLACK },
-		{ ImageSamplerBorderColor::FloatOpaqueWhite, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE },
-		{ ImageSamplerBorderColor::IntOpaqueWhite, VK_BORDER_COLOR_INT_OPAQUE_WHITE },
-		{ ImageSamplerBorderColor::Unknown, VK_BORDER_COLOR_INT_OPAQUE_BLACK }
-	};
+void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
+	const Renderable& renderable = ecs->getComponent<Renderable>(entity);
+	InternalObject& object = m_objects[entity];
 
-	const std::string samplerKey = "mag:" + std::to_string(filterMap.at(sampler.magFilter)) +
-		"/min:" + std::to_string(filterMap.at(sampler.minFilter)) +
-		"/mip:" + std::to_string(mipmapFilterMap.at(sampler.mipmapFilter)) +
-		"/aU:" + std::to_string(addressModeMap.at(sampler.addressModeU)) +
-		"/aV:" + std::to_string(addressModeMap.at(sampler.addressModeV)) +
-		"/aW:" + std::to_string(addressModeMap.at(sampler.addressModeW)) +
+	if (!renderable.mesh->vertices.empty()) {
+		const std::unordered_map<const Mesh*, MeshID>::const_iterator newMesh = m_meshAddresses.find(renderable.mesh);
+		if ((newMesh == m_meshAddresses.end()) || (newMesh->second != object.meshID)) {
+			object.meshID = load(*renderable.mesh);
+			if (!renderable.mesh->skin.joints.empty()) {
+				object.jointTransformOffset = static_cast<uint32_t>(m_freeJointTransformOffsets.addBlock(static_cast<size_t>(m_meshes[object.meshID].jointCount)));
+			}
+		}
+	}
+
+	if (renderable.material == m_lastKnownMaterial[entity]) {
+		return;
+	}
+
+	InternalMaterial material = m_materials[object.materialIndex];
+	if (renderable.material.diffuseTexture.image) {
+		const std::unordered_map<const Image*, ImageID>::const_iterator newImage = m_imageAddresses.find(renderable.material.diffuseTexture.image);
+		ImageID imageID = m_textures[material.diffuseTextureIndex].imageID;
+
+		bool textureChanged = false;
+		if ((newImage == m_imageAddresses.end()) || (newImage->second != imageID)) {
+			imageID = load(*renderable.material.diffuseTexture.image);
+			textureChanged = true;
+		}
+
+		const std::string samplerKey = createSampler(renderable.material.diffuseTexture.imageSampler);
+		if (samplerKey != m_textures[material.diffuseTextureIndex].samplerKey) {
+			textureChanged = true;
+		}
+
+		if (textureChanged) {
+			material.diffuseTextureIndex = addToTextures({ imageID, samplerKey });
+		}
+	}
+	if (renderable.material.normalTexture.image) {
+		const std::unordered_map<const Image*, ImageID>::const_iterator newImage = m_imageAddresses.find(renderable.material.normalTexture.image);
+		ImageID imageID = m_textures[material.normalTextureIndex].imageID;
+
+		bool textureChanged = false;
+		if ((newImage == m_imageAddresses.end()) || (newImage->second != imageID)) {
+			imageID = load(*renderable.material.normalTexture.image);
+			textureChanged = true;
+		}
+
+		const std::string samplerKey = createSampler(renderable.material.normalTexture.imageSampler);
+		if (samplerKey != m_textures[material.normalTextureIndex].samplerKey) {
+			textureChanged = true;
+		}
+
+		if (textureChanged) {
+			material.normalTextureIndex = addToTextures({ imageID, samplerKey });
+		}
+	}
+	if (renderable.material.metalnessTexture.image) {
+		const std::unordered_map<const Image*, ImageID>::const_iterator newImage = m_imageAddresses.find(renderable.material.metalnessTexture.image);
+		ImageID imageID = m_textures[material.metalnessTextureIndex].imageID;
+
+		bool textureChanged = false;
+		if ((newImage == m_imageAddresses.end()) || (newImage->second != imageID)) {
+			imageID = load(*renderable.material.metalnessTexture.image);
+			textureChanged = true;
+		}
+
+		const std::string samplerKey = createSampler(renderable.material.metalnessTexture.imageSampler);
+		if (samplerKey != m_textures[material.metalnessTextureIndex].samplerKey) {
+			textureChanged = true;
+		}
+
+		if (textureChanged) {
+			material.metalnessTextureIndex = addToTextures({ imageID, samplerKey });
+		}
+	}
+	if (renderable.material.roughnessTexture.image) {
+		const std::unordered_map<const Image*, ImageID>::const_iterator newImage = m_imageAddresses.find(renderable.material.roughnessTexture.image);
+		ImageID imageID = m_textures[material.roughnessTextureIndex].imageID;
+
+		bool textureChanged = false;
+		if ((newImage == m_imageAddresses.end()) || (newImage->second != imageID)) {
+			imageID = load(*renderable.material.roughnessTexture.image);
+			textureChanged = true;
+		}
+
+		const std::string samplerKey = createSampler(renderable.material.roughnessTexture.imageSampler);
+		if (samplerKey != m_textures[material.roughnessTextureIndex].samplerKey) {
+			textureChanged = true;
+		}
+
+		if (textureChanged) {
+			material.roughnessTextureIndex = addToTextures({ imageID, samplerKey });
+		}
+	}
+	if (renderable.material.occlusionTexture.image) {
+		const std::unordered_map<const Image*, ImageID>::const_iterator newImage = m_imageAddresses.find(renderable.material.occlusionTexture.image);
+		ImageID imageID = m_textures[material.occlusionTextureIndex].imageID;
+
+		bool textureChanged = false;
+		if ((newImage == m_imageAddresses.end()) || (newImage->second != imageID)) {
+			imageID = load(*renderable.material.occlusionTexture.image);
+			textureChanged = true;
+		}
+
+		const std::string samplerKey = createSampler(renderable.material.occlusionTexture.imageSampler);
+		if (samplerKey != m_textures[material.occlusionTextureIndex].samplerKey) {
+			textureChanged = true;
+		}
+
+		if (textureChanged) {
+			material.occlusionTextureIndex = addToTextures({ imageID, samplerKey });
+		}
+	}
+	if (renderable.material.emissiveTexture.image) {
+		const std::unordered_map<const Image*, ImageID>::const_iterator newImage = m_imageAddresses.find(renderable.material.emissiveTexture.image);
+		ImageID imageID = m_textures[material.emissiveTextureIndex].imageID;
+
+		bool textureChanged = false;
+		if ((newImage == m_imageAddresses.end()) || (newImage->second != imageID)) {
+			imageID = load(*renderable.material.emissiveTexture.image);
+			textureChanged = true;
+		}
+
+		const std::string samplerKey = createSampler(renderable.material.emissiveTexture.imageSampler);
+		if (samplerKey != m_textures[material.emissiveTextureIndex].samplerKey) {
+			textureChanged = true;
+		}
+
+		if (textureChanged) {
+			material.emissiveTextureIndex = addToTextures({ imageID, samplerKey });
+		}
+	}
+	if ((renderable.material.emissiveFactor != material.emissiveFactor) ||
+		(renderable.material.alphaCutoff != material.alphaCutoff)) {
+		material.emissiveFactor = renderable.material.emissiveFactor;
+		material.alphaCutoff = renderable.material.alphaCutoff;
+	}
+
+	uint32_t materialID = addToMaterials(material);
+	object.materialIndex = materialID;
+
+	m_lastKnownMaterial[entity] = renderable.material;
+}
+
+std::string NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler) {
+	const std::string samplerKey = "mag:" + std::to_string(m_filterMap.at(sampler.magFilter)) +
+		"/min:" + std::to_string(m_filterMap.at(sampler.minFilter)) +
+		"/mip:" + std::to_string(m_mipmapFilterMap.at(sampler.mipmapFilter)) +
+		"/aU:" + std::to_string(m_addressModeMap.at(sampler.addressModeU)) +
+		"/aV:" + std::to_string(m_addressModeMap.at(sampler.addressModeV)) +
+		"/aW:" + std::to_string(m_addressModeMap.at(sampler.addressModeW)) +
 		"/mlb:" + std::to_string(0.0f) +
 		"/aE:" + std::to_string(sampler.anisotropyLevel > 0.0f ? VK_TRUE : VK_FALSE) +
 		"/cE:" + std::to_string(VK_FALSE) +
 		"/cO:" + std::to_string(VK_COMPARE_OP_NEVER) +
 		"/mL:" + std::to_string(0.0f) +
 		"/ML:" + std::to_string(VK_LOD_CLAMP_NONE) +
-		"/bC:" + std::to_string(borderColorMap.at(sampler.borderColor)) +
+		"/bC:" + std::to_string(m_borderColorMap.at(sampler.borderColor)) +
 		"/unC:" + std::to_string(VK_FALSE);
+
 	if (m_textureSamplers.find(samplerKey) != m_textureSamplers.end()) {
 		return samplerKey;
 	}
@@ -5295,12 +5376,12 @@ std::string NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler)
 	samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 	samplerCreateInfo.pNext = nullptr;
 	samplerCreateInfo.flags = 0;
-	samplerCreateInfo.magFilter = filterMap.at(sampler.magFilter);
-	samplerCreateInfo.minFilter = filterMap.at(sampler.minFilter);
-	samplerCreateInfo.mipmapMode = mipmapFilterMap.at(sampler.mipmapFilter);
-	samplerCreateInfo.addressModeU = addressModeMap.at(sampler.addressModeU);
-	samplerCreateInfo.addressModeV = addressModeMap.at(sampler.addressModeV);
-	samplerCreateInfo.addressModeW = addressModeMap.at(sampler.addressModeW);
+	samplerCreateInfo.magFilter = m_filterMap.at(sampler.magFilter);
+	samplerCreateInfo.minFilter = m_filterMap.at(sampler.minFilter);
+	samplerCreateInfo.mipmapMode = m_mipmapFilterMap.at(sampler.mipmapFilter);
+	samplerCreateInfo.addressModeU = m_addressModeMap.at(sampler.addressModeU);
+	samplerCreateInfo.addressModeV = m_addressModeMap.at(sampler.addressModeV);
+	samplerCreateInfo.addressModeW = m_addressModeMap.at(sampler.addressModeW);
 	samplerCreateInfo.mipLodBias = 0.0f;
 	samplerCreateInfo.anisotropyEnable = sampler.anisotropyLevel > 0.0f ? VK_TRUE : VK_FALSE;
 	samplerCreateInfo.maxAnisotropy = sampler.anisotropyLevel;
@@ -5308,7 +5389,7 @@ std::string NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler)
 	samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
 	samplerCreateInfo.minLod = 0.0f;
 	samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
-	samplerCreateInfo.borderColor = borderColorMap.at(sampler.borderColor);
+	samplerCreateInfo.borderColor = m_borderColorMap.at(sampler.borderColor);
 	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
 	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &newSampler));
 
