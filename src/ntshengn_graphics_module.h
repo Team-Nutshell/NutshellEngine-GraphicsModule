@@ -47,6 +47,35 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBits
 	return VK_FALSE;
 }
 
+bool operator==(const NtshEngn::ImageSampler& lhs, const NtshEngn::ImageSampler& rhs) {
+	return (lhs.magFilter == rhs.magFilter) &&
+		(lhs.minFilter == rhs.minFilter) &&
+		(lhs.mipmapFilter == rhs.mipmapFilter) &&
+		(lhs.addressModeU == rhs.addressModeU) &&
+		(lhs.addressModeV == rhs.addressModeV) &&
+		(lhs.addressModeW == rhs.addressModeW) &&
+		(lhs.borderColor == rhs.borderColor) &&
+		(lhs.anisotropyLevel == rhs.anisotropyLevel);
+}
+
+bool operator==(const NtshEngn::Material& lhs, const NtshEngn::Material& rhs) {
+	return (lhs.diffuseTexture.image == rhs.diffuseTexture.image) &&
+		(lhs.diffuseTexture.imageSampler == rhs.diffuseTexture.imageSampler) &&
+		(lhs.normalTexture.image == rhs.normalTexture.image) &&
+		(lhs.normalTexture.imageSampler == rhs.normalTexture.imageSampler) &&
+		(lhs.metalnessTexture.image == rhs.metalnessTexture.image) &&
+		(lhs.metalnessTexture.imageSampler == rhs.metalnessTexture.imageSampler) &&
+		(lhs.roughnessTexture.image == rhs.roughnessTexture.image) &&
+		(lhs.roughnessTexture.imageSampler == rhs.roughnessTexture.imageSampler) &&
+		(lhs.occlusionTexture.image == rhs.occlusionTexture.image) &&
+		(lhs.occlusionTexture.imageSampler == rhs.occlusionTexture.imageSampler) &&
+		(lhs.emissiveTexture.image == rhs.emissiveTexture.image) &&
+		(lhs.emissiveTexture.imageSampler == rhs.emissiveTexture.imageSampler) &&
+		(lhs.emissiveFactor == rhs.emissiveFactor) &&
+		(lhs.alphaCutoff == rhs.alphaCutoff) &&
+		(lhs.indexOfRefraction == rhs.indexOfRefraction);
+}
+
 enum class ShaderType {
 	Vertex,
 	TesselationControl,
@@ -251,6 +280,9 @@ namespace NtshEngn {
 		// On window resize
 		void resize();
 
+		// Load Renderable for entity
+		void loadRenderableForEntity(Entity entity);
+
 		// Create sampler
 		std::string createSampler(const ImageSampler& sampler);
 
@@ -451,6 +483,7 @@ namespace NtshEngn {
 
 		std::unordered_map<Entity, InternalObject> m_objects;
 		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
+		std::unordered_map<Entity, Material> m_lastKnownMaterial;
 
 		Entity m_mainCamera = NTSHENGN_ENTITY_UNKNOWN;
 
@@ -466,6 +499,29 @@ namespace NtshEngn {
 		std::queue<InternalUIRectangle> m_uiRectangles;
 
 		std::queue<InternalUIImage> m_uiImages;
+
+		const std::unordered_map<ImageSamplerFilter, VkFilter> m_filterMap{ { ImageSamplerFilter::Linear, VK_FILTER_LINEAR },
+			{ ImageSamplerFilter::Nearest, VK_FILTER_NEAREST },
+			{ ImageSamplerFilter::Unknown, VK_FILTER_LINEAR }
+		};
+		const std::unordered_map<ImageSamplerFilter, VkSamplerMipmapMode> m_mipmapFilterMap{ { ImageSamplerFilter::Linear, VK_SAMPLER_MIPMAP_MODE_LINEAR },
+			{ ImageSamplerFilter::Nearest, VK_SAMPLER_MIPMAP_MODE_NEAREST },
+			{ ImageSamplerFilter::Unknown, VK_SAMPLER_MIPMAP_MODE_LINEAR }
+		};
+		const std::unordered_map<ImageSamplerAddressMode, VkSamplerAddressMode> m_addressModeMap{ { ImageSamplerAddressMode::Repeat, VK_SAMPLER_ADDRESS_MODE_REPEAT },
+			{ ImageSamplerAddressMode::MirroredRepeat, VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT },
+			{ ImageSamplerAddressMode::ClampToEdge, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE },
+			{ ImageSamplerAddressMode::ClampToBorder, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER },
+			{ ImageSamplerAddressMode::Unknown, VK_SAMPLER_ADDRESS_MODE_REPEAT }
+		};
+		const std::unordered_map<ImageSamplerBorderColor, VkBorderColor> m_borderColorMap{ { ImageSamplerBorderColor::FloatTransparentBlack, VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK },
+			{ ImageSamplerBorderColor::IntTransparentBlack, VK_BORDER_COLOR_INT_TRANSPARENT_BLACK },
+			{ ImageSamplerBorderColor::FloatOpaqueBlack, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK },
+			{ ImageSamplerBorderColor::IntOpaqueBlack, VK_BORDER_COLOR_INT_OPAQUE_BLACK },
+			{ ImageSamplerBorderColor::FloatOpaqueWhite, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE },
+			{ ImageSamplerBorderColor::IntOpaqueWhite, VK_BORDER_COLOR_INT_OPAQUE_WHITE },
+			{ ImageSamplerBorderColor::Unknown, VK_BORDER_COLOR_INT_OPAQUE_BLACK }
+		};
 	};
 
 }
