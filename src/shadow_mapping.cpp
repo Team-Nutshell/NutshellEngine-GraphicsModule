@@ -138,11 +138,19 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 		}
 
 		for (size_t directionalLightIndex = 0; directionalLightIndex < m_directionalLightEntities.size(); directionalLightIndex++) {
+			const NtshEngn::Light& lightLight = m_ecs->getComponent<NtshEngn::Light>(m_directionalLightEntities[directionalLightIndex]);
 			const NtshEngn::Transform& lightTransform = m_ecs->getComponent<NtshEngn::Transform>(m_directionalLightEntities[directionalLightIndex]);
 
-			const NtshEngn::Math::vec3 normalizedLightDirection = NtshEngn::Math::normalize(lightTransform.rotation);
-			const NtshEngn::Math::vec3 upVector = (std::abs(NtshEngn::Math::dot(normalizedLightDirection, NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f))) == 1.0f) ? NtshEngn::Math::vec3(1.0f, 0.0f, 0.0f) : NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f);
-			const NtshEngn::Math::mat4 lightView = NtshEngn::Math::lookAtRH(cascadeFrustumCenter - (normalizedLightDirection * radius), cascadeFrustumCenter, upVector);
+			const NtshEngn::Math::vec3 baseLightDirection = NtshEngn::Math::normalize(lightLight.direction);
+			const float baseDirectionYaw = std::atan2(baseLightDirection.z, baseLightDirection.x);
+			const float baseDirectionPitch = -std::asin(baseLightDirection.y);
+			const NtshEngn::Math::vec3 lightDirection = NtshEngn::Math::normalize(NtshEngn::Math::vec3(
+				std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::cos(baseDirectionYaw + lightTransform.rotation.y),
+				-std::sin(baseDirectionPitch + lightTransform.rotation.x),
+				std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::sin(baseDirectionYaw + lightTransform.rotation.y)
+			));
+			const NtshEngn::Math::vec3 upVector = (std::abs(NtshEngn::Math::dot(lightDirection, NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f))) == 1.0f) ? NtshEngn::Math::vec3(1.0f, 0.0f, 0.0f) : NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f);
+			const NtshEngn::Math::mat4 lightView = NtshEngn::Math::lookAtRH(cascadeFrustumCenter - (lightDirection * radius), cascadeFrustumCenter, upVector);
 			const NtshEngn::Math::mat4 lightProj = NtshEngn::Math::orthoRH(-radius, radius, -radius, radius, 0.0f, radius * 2.0f);
 
 			m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].viewProj = lightProj * lightView;
@@ -163,9 +171,16 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 		const NtshEngn::Transform& lightTransform = m_ecs->getComponent<NtshEngn::Transform>(m_spotLightEntities[spotLightIndex]);
 		const NtshEngn::Light& lightLight = m_ecs->getComponent<NtshEngn::Light>(m_spotLightEntities[spotLightIndex]);
 
-		const NtshEngn::Math::vec3 normalizedLightDirection = NtshEngn::Math::normalize(lightTransform.rotation);
-		const NtshEngn::Math::vec3 upVector = (std::abs(NtshEngn::Math::dot(normalizedLightDirection, NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f))) == 1.0f) ? NtshEngn::Math::vec3(1.0f, 0.0f, 0.0f) : NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f);
-		const NtshEngn::Math::mat4 lightView = NtshEngn::Math::lookAtRH(lightTransform.position, lightTransform.position + normalizedLightDirection, upVector);
+		const NtshEngn::Math::vec3 baseLightDirection = NtshEngn::Math::normalize(lightLight.direction);
+		const float baseDirectionYaw = std::atan2(baseLightDirection.z, baseLightDirection.x);
+		const float baseDirectionPitch = -std::asin(baseLightDirection.y);
+		const NtshEngn::Math::vec3 lightDirection = NtshEngn::Math::normalize(NtshEngn::Math::vec3(
+			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::cos(baseDirectionYaw + lightTransform.rotation.y),
+			-std::sin(baseDirectionPitch + lightTransform.rotation.x),
+			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::sin(baseDirectionYaw + lightTransform.rotation.y)
+		));
+		const NtshEngn::Math::vec3 upVector = (std::abs(NtshEngn::Math::dot(lightDirection, NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f))) == 1.0f) ? NtshEngn::Math::vec3(1.0f, 0.0f, 0.0f) : NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f);
+		const NtshEngn::Math::mat4 lightView = NtshEngn::Math::lookAtRH(lightTransform.position, lightTransform.position + lightDirection, upVector);
 		NtshEngn::Math::mat4 lightProj = NtshEngn::Math::perspectiveRH(lightLight.cutoff.y * 2.0f, 1.0f, 0.05f, 50.0f);
 		lightProj[1][1] *= -1.0f;
 		m_spotLightShadowMaps[spotLightIndex].viewProj = lightProj * lightView;
