@@ -651,9 +651,19 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	Math::vec4 cameraPosition = { 0.0f, 0.0f, 0.0f, 0.0f };
 	Math::vec4 cameraDirection = { 0.0f, 0.0f, -1.0f, 0.0f };
 	if (m_mainCamera != NTSHENGN_ENTITY_UNKNOWN) {
+		const Camera& camera = ecs->getComponent<Camera>(m_mainCamera);
 		const Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
+
+		const Math::vec3 baseCameraDirection = Math::normalize(camera.forward);
+		const float baseDirectionYaw = std::atan2(baseCameraDirection.z, baseCameraDirection.x);
+		const float baseDirectionPitch = -std::asin(baseCameraDirection.y);
+		const Math::vec3 cameraDirectionAsVec3 = Math::normalize(Math::vec3(
+			std::cos(baseDirectionPitch + cameraTransform.rotation.x) * std::cos(baseDirectionYaw + cameraTransform.rotation.y),
+			-std::sin(baseDirectionPitch + cameraTransform.rotation.x),
+			std::cos(baseDirectionPitch + cameraTransform.rotation.x) * std::sin(baseDirectionYaw + cameraTransform.rotation.y)
+		));
 		cameraPosition = Math::vec4(cameraTransform.position, 0.0f);
-		cameraDirection = Math::vec4(cameraTransform.rotation, 0.0f);
+		cameraDirection = Math::vec4(cameraDirectionAsVec3, 0.0f);
 	}
 
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_fences[m_currentFrameInFlight], VK_TRUE, std::numeric_limits<uint64_t>::max()));
@@ -720,8 +730,17 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		const Light& lightLight = ecs->getComponent<Light>(light);
 		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
+		const Math::vec3 baseLightDirection = Math::normalize(lightLight.direction);
+		const float baseDirectionYaw = std::atan2(baseLightDirection.z, baseLightDirection.x);
+		const float baseDirectionPitch = -std::asin(baseLightDirection.y);
+		const Math::vec3 lightDirection = Math::normalize(Math::vec3(
+			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::cos(baseDirectionYaw + lightTransform.rotation.y),
+			-std::sin(baseDirectionPitch + lightTransform.rotation.x),
+			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::sin(baseDirectionYaw + lightTransform.rotation.y)
+		));
+
 		InternalLight internalLight;
-		internalLight.direction = Math::vec4(lightTransform.rotation, 0.0f);
+		internalLight.direction = Math::vec4(lightDirection, 0.0f);
 		internalLight.color = Math::vec4(lightLight.color, 0.0f);
 
 		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
@@ -742,9 +761,18 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		const Light& lightLight = ecs->getComponent<Light>(light);
 		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
+		const Math::vec3 baseLightDirection = Math::normalize(lightLight.direction);
+		const float baseDirectionYaw = std::atan2(baseLightDirection.z, baseLightDirection.x);
+		const float baseDirectionPitch = -std::asin(baseLightDirection.y);
+		const Math::vec3 lightDirection = Math::normalize(Math::vec3(
+			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::cos(baseDirectionYaw + lightTransform.rotation.y),
+			-std::sin(baseDirectionPitch + lightTransform.rotation.x),
+			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::sin(baseDirectionYaw + lightTransform.rotation.y)
+		));
+
 		InternalLight internalLight;
 		internalLight.position = Math::vec4(lightTransform.position, 0.0f);
-		internalLight.direction = Math::vec4(lightTransform.rotation, 0.0f);
+		internalLight.direction = Math::vec4(lightDirection, 0.0f);
 		internalLight.color = Math::vec4(lightLight.color, 0.0f);
 		internalLight.cutoff = Math::vec4(lightLight.cutoff, 0.0f, 0.0f);
 
