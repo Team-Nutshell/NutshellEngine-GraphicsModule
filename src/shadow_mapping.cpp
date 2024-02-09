@@ -138,10 +138,10 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 		}
 
 		for (size_t directionalLightIndex = 0; directionalLightIndex < m_directionalLightEntities.size(); directionalLightIndex++) {
-			const NtshEngn::Light& lightLight = m_ecs->getComponent<NtshEngn::Light>(m_directionalLightEntities[directionalLightIndex]);
+			const NtshEngn::Light& light = m_ecs->getComponent<NtshEngn::Light>(m_directionalLightEntities[directionalLightIndex]);
 			const NtshEngn::Transform& lightTransform = m_ecs->getComponent<NtshEngn::Transform>(m_directionalLightEntities[directionalLightIndex]);
 
-			const NtshEngn::Math::vec3 baseLightDirection = NtshEngn::Math::normalize(lightLight.direction);
+			const NtshEngn::Math::vec3 baseLightDirection = NtshEngn::Math::normalize(light.direction);
 			const float baseDirectionYaw = std::atan2(baseLightDirection.z, baseLightDirection.x);
 			const float baseDirectionPitch = -std::asin(baseLightDirection.y);
 			const NtshEngn::Math::vec3 lightDirection = NtshEngn::Math::normalize(NtshEngn::Math::vec3(
@@ -168,10 +168,10 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 		}
 	}
 	for (size_t spotLightIndex = 0; spotLightIndex < m_spotLightEntities.size(); spotLightIndex++) {
+		const NtshEngn::Light& light = m_ecs->getComponent<NtshEngn::Light>(m_spotLightEntities[spotLightIndex]);
 		const NtshEngn::Transform& lightTransform = m_ecs->getComponent<NtshEngn::Transform>(m_spotLightEntities[spotLightIndex]);
-		const NtshEngn::Light& lightLight = m_ecs->getComponent<NtshEngn::Light>(m_spotLightEntities[spotLightIndex]);
 
-		const NtshEngn::Math::vec3 baseLightDirection = NtshEngn::Math::normalize(lightLight.direction);
+		const NtshEngn::Math::vec3 baseLightDirection = NtshEngn::Math::normalize(light.direction);
 		const float baseDirectionYaw = std::atan2(baseLightDirection.z, baseLightDirection.x);
 		const float baseDirectionPitch = -std::asin(baseLightDirection.y);
 		const NtshEngn::Math::vec3 lightDirection = NtshEngn::Math::normalize(NtshEngn::Math::vec3(
@@ -181,7 +181,7 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 		));
 		const NtshEngn::Math::vec3 upVector = (std::abs(NtshEngn::Math::dot(lightDirection, NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f))) == 1.0f) ? NtshEngn::Math::vec3(1.0f, 0.0f, 0.0f) : NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f);
 		const NtshEngn::Math::mat4 lightView = NtshEngn::Math::lookAtRH(lightTransform.position, lightTransform.position + lightDirection, upVector);
-		NtshEngn::Math::mat4 lightProj = NtshEngn::Math::perspectiveRH(lightLight.cutoff.y * 2.0f, 1.0f, 0.05f, 50.0f);
+		NtshEngn::Math::mat4 lightProj = NtshEngn::Math::perspectiveRH(light.cutoff.y * 2.0f, 1.0f, 0.05f, 50.0f);
 		lightProj[1][1] *= -1.0f;
 		m_spotLightShadowMaps[spotLightIndex].viewProj = lightProj * lightView;
 		memcpy(reinterpret_cast<char*>(data) + (((m_directionalLightShadowMaps.size() * SHADOW_MAPPING_CASCADE_COUNT) * sizeof(NtshEngn::Math::mat4)) + (spotLightIndex * sizeof(NtshEngn::Math::mat4))), & m_spotLightShadowMaps[spotLightIndex].viewProj, sizeof(NtshEngn::Math::mat4));
