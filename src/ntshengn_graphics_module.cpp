@@ -620,8 +620,11 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		const Camera& camera = ecs->getComponent<Camera>(m_mainCamera);
 		const Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
 
-		Math::mat4 cameraView = Math::lookAtRH(cameraTransform.position, cameraTransform.position + cameraTransform.rotation, Math::vec3(0.0f, 1.0f, 0.0));
-		Math::mat4 cameraProjection = Math::perspectiveRH(Math::toRad(camera.fov), m_viewport.width / m_viewport.height, camera.nearPlane, camera.farPlane);
+		const Math::mat4 cameraRotation = Math::rotate(cameraTransform.rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
+			Math::rotate(cameraTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
+			Math::rotate(cameraTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f));
+		Math::mat4 cameraView = cameraRotation * Math::lookAtRH(cameraTransform.position, cameraTransform.position + camera.forward, camera.up);
+		Math::mat4 cameraProjection = Math::perspectiveRH(camera.fov, m_viewport.width / m_viewport.height, camera.nearPlane, camera.farPlane);
 		cameraProjection[1][1] *= -1.0f;
 		std::array<Math::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
 		Math::vec4 cameraPositionAsVec4 = { cameraTransform.position, 0.0f };
@@ -634,6 +637,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		if (m_sampleBatch != 0) {
 			if ((cameraTransform.position != m_previousCamera.transform.position) ||
 				(cameraTransform.rotation != m_previousCamera.transform.rotation) ||
+				(camera.forward != m_previousCamera.camera.forward) ||
+				(camera.up != m_previousCamera.camera.up) ||
 				(camera.fov != m_previousCamera.camera.fov) ||
 				(camera.nearPlane != m_previousCamera.camera.nearPlane) ||
 				(camera.farPlane != m_previousCamera.camera.farPlane)) {
@@ -706,8 +711,17 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		const Light& lightLight = ecs->getComponent<Light>(light);
 		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
+		const Math::vec3 baseLightDirection = Math::normalize(lightLight.direction);
+		const float baseDirectionYaw = std::atan2(baseLightDirection.z, baseLightDirection.x);
+		const float baseDirectionPitch = -std::asin(baseLightDirection.y);
+		const Math::vec3 lightDirection = Math::normalize(Math::vec3(
+			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::cos(baseDirectionYaw + lightTransform.rotation.y),
+			-std::sin(baseDirectionPitch + lightTransform.rotation.x),
+			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::sin(baseDirectionYaw + lightTransform.rotation.y)
+		));
+
 		InternalLight internalLight;
-		internalLight.direction = Math::vec4(lightTransform.rotation, 0.0f);
+		internalLight.direction = Math::vec4(lightDirection, 0.0f);
 		internalLight.color = Math::vec4(lightLight.color, 0.0f);
 
 		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
@@ -716,7 +730,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		PreviousLight& previousLight = m_previousDirectionalLights[light];
 		if (m_sampleBatch != 0) {
 			if ((lightTransform.rotation != previousLight.transform.rotation) ||
-				(lightLight.color != previousLight.light.color)) {
+				(lightLight.color != previousLight.light.color) ||
+				(lightLight.direction != previousLight.light.direction)) {
 				m_sampleBatch = 0;
 			}
 		}
@@ -750,9 +765,18 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		const Light& lightLight = ecs->getComponent<Light>(light);
 		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
+		const Math::vec3 baseLightDirection = Math::normalize(lightLight.direction);
+		const float baseDirectionYaw = std::atan2(baseLightDirection.z, baseLightDirection.x);
+		const float baseDirectionPitch = -std::asin(baseLightDirection.y);
+		const Math::vec3 lightDirection = Math::normalize(Math::vec3(
+			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::cos(baseDirectionYaw + lightTransform.rotation.y),
+			-std::sin(baseDirectionPitch + lightTransform.rotation.x),
+			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::sin(baseDirectionYaw + lightTransform.rotation.y)
+		));
+
 		InternalLight internalLight;
 		internalLight.position = Math::vec4(lightTransform.position, 0.0f);
-		internalLight.direction = Math::vec4(lightTransform.rotation, 0.0f);
+		internalLight.direction = Math::vec4(lightDirection, 0.0f);
 		internalLight.color = Math::vec4(lightLight.color, 0.0f);
 		internalLight.cutoff = Math::vec4(lightLight.cutoff, 0.0f, 0.0f);
 
@@ -764,6 +788,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			if ((lightTransform.position != previousLight.transform.position) ||
 				(lightTransform.rotation != previousLight.transform.rotation) ||
 				(lightLight.color != previousLight.light.color) ||
+				(lightLight.direction != previousLight.light.direction) ||
 				(lightLight.cutoff != previousLight.light.cutoff)) {
 				m_sampleBatch = 0;
 			}
@@ -3683,7 +3708,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 				// Directional Light
 				if (lightIndex < lights.count.x) {
-					l = normalize(-lights.info[lightIndex].direction);
+					l = -lights.info[lightIndex].direction;
 					lc = lights.info[lightIndex].color;
 				}
 				// Point Light
@@ -3702,7 +3727,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 					l = normalize(lights.info[lightIndex].position - worldPosition);
 					lc = lights.info[lightIndex].color;
-					float theta = dot(l, normalize(-lights.info[lightIndex].direction));
+					float theta = dot(l, -lights.info[lightIndex].direction);
 					float epsilon = cos(lights.info[lightIndex].cutoff.y) - cos(lights.info[lightIndex].cutoff.x);
 					intensity = clamp((theta - cos(lights.info[lightIndex].cutoff.x)) / epsilon, 0.0, 1.0);
 					intensity = 1.0 - intensity;
