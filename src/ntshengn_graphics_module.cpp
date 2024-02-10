@@ -717,13 +717,10 @@ void NtshEngn::GraphicsModule::update(double dt) {
 					if (animation.jointChannels.find(jointIndex) != animation.jointChannels.end()) {
 						const std::vector<AnimationChannel>& channels = animation.jointChannels.at(jointIndex);
 
-						Math::vec3 translation = Math::vec3(skin.joints[jointIndex].localTransform.w);
-						Math::mat3 baseRotationMat = Math::mat3(Math::normalize(skin.joints[jointIndex].localTransform.x), Math::normalize(skin.joints[jointIndex].localTransform.y), Math::normalize(skin.joints[jointIndex].localTransform.z));
-						Math::quat rotation = Math::quat(std::sqrt(1.0f + baseRotationMat[0][0] + baseRotationMat[1][1] + baseRotationMat[2][2]) / 2.0f, 0.0f, 0.0f, 0.0f);
-						rotation.b = (baseRotationMat[2][1] - baseRotationMat[1][2]) / (4.0f * rotation.a);
-						rotation.c = (baseRotationMat[0][2] - baseRotationMat[2][0]) / (4.0f * rotation.a);
-						rotation.d = (baseRotationMat[1][0] - baseRotationMat[0][1]) / (4.0f * rotation.a);
-						Math::vec3 scale = Math::vec3(skin.joints[jointIndex].localTransform.x.length(), skin.joints[jointIndex].localTransform.y.length(), skin.joints[jointIndex].localTransform.z.length());
+						Math::vec3 translation;
+						Math::quat rotation;
+						Math::vec3 scale;
+						Math::decomposeTransform(skin.joints[jointIndex].localTransform, translation, rotation, scale);
 						for (const AnimationChannel& channel : channels) {
 							// Find previous keyframe
 							uint32_t keyframe = findPreviousAnimationKeyframe(playingAnimation.time, channel.keyframes);
