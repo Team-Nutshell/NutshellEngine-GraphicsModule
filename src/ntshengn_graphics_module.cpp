@@ -4,8 +4,8 @@
 #include "../external/glslang/glslang/Include/ShHandle.h"
 #include "../external/glslang/SPIRV/GlslangToSpv.h"
 #include "../external/glslang/StandAlone/DirStackFileIncluder.h"
-#include <limits>
 #include <array>
+#include <algorithm>
 #include <cmath>
 
 void NtshEngn::GraphicsModule::init() {
@@ -5451,38 +5451,12 @@ uint32_t NtshEngn::GraphicsModule::addToMaterials(const InternalMaterial& materi
 }
 
 uint32_t NtshEngn::GraphicsModule::findPreviousAnimationKeyframe(float time, const std::vector<AnimationChannelKeyframe>& keyframes) {
-	if (!keyframes.empty()) {
-		if (time < keyframes[0].timestamp) {
-			return std::numeric_limits<uint32_t>::max();
-		}
-		else {
-			// Dichotomy
-			uint32_t keyframeStart = 0;
-			uint32_t keyframeEnd = static_cast<uint32_t>(keyframes.size()) - 1;
+	const std::vector<AnimationChannelKeyframe>::const_iterator previousKeyframe = std::lower_bound(keyframes.begin(), keyframes.end(), time, [](const AnimationChannelKeyframe& keyframe, float time) {
+		return keyframe.timestamp < time;
+		});
 
-			while (true) {
-				if (keyframeStart == keyframeEnd) {
-					return keyframeStart;
-				}
-
-				const uint32_t half = (keyframeStart + keyframeEnd) / 2;
-				if (half == (static_cast<uint32_t>(keyframes.size()) - 1)) {
-					return half;
-				}
-
-				const float halfTimestamp = keyframes[half].timestamp;
-				if ((time >= halfTimestamp) && (time < keyframes[half + 1].timestamp)) {
-					return half;
-				}
-
-				if (time < halfTimestamp) {
-					keyframeEnd = half - 1;
-				}
-				else {
-					keyframeStart = half + 1;
-				}
-			}
-		}
+	if (previousKeyframe != keyframes.end()) {
+		return static_cast<uint32_t>(std::distance(keyframes.begin(), previousKeyframe));
 	}
 
 	return std::numeric_limits<uint32_t>::max();
