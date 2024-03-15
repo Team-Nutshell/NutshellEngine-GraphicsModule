@@ -512,8 +512,11 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		const Camera& camera = ecs->getComponent<Camera>(m_mainCamera);
 		const Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
 
-		Math::mat4 cameraView = Math::lookAtRH(cameraTransform.position, cameraTransform.position + cameraTransform.rotation, Math::vec3(0.0f, 1.0f, 0.0));
-		Math::mat4 cameraProjection = Math::perspectiveRH(Math::toRad(camera.fov), m_viewport.width / m_viewport.height, camera.nearPlane, camera.farPlane);
+		const Math::mat4 cameraRotation = Math::rotate(cameraTransform.rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
+			Math::rotate(cameraTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
+			Math::rotate(cameraTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f));
+		Math::mat4 cameraView = cameraRotation * Math::lookAtRH(cameraTransform.position, cameraTransform.position + camera.forward, camera.up);
+		Math::mat4 cameraProjection = Math::perspectiveRH(camera.fov, m_viewport.width / m_viewport.height, camera.nearPlane, camera.farPlane);
 		cameraProjection[1][1] *= -1.0f;
 		std::array<Math::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
 
