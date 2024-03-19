@@ -560,11 +560,13 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			const Collidable& collidable = ecs->getComponent<Collidable>(it.first);
 			const ColliderCapsule* colliderCapsule = static_cast<const ColliderCapsule*>(collidable.collider.get());
 
+			const Math::vec3 capsuleCenter = (colliderCapsule->base + colliderCapsule->tip) / 2.0f;
+
 			objectPosition = objectTransform.position;
 			const Math::mat4 baseRotation = Math::rotate(objectTransform.rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
 				Math::rotate(objectTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
 				Math::rotate(objectTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f));
-			objectRotation = Math::translate(colliderCapsule->base) * baseRotation * Math::translate(colliderCapsule->base * -1.0f);
+			objectRotation = Math::translate(capsuleCenter) * baseRotation * Math::translate(-capsuleCenter);
 			objectScale = Math::vec3(std::max(std::abs(objectTransform.scale.x), std::max(std::abs(objectTransform.scale.y), std::abs(objectTransform.scale.z))));
 		}
 
