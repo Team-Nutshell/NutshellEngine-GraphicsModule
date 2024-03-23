@@ -116,6 +116,10 @@ struct InternalUIImage {
 	NtshEngn::Math::vec2 v3 = { 0.0f, 0.0f };
 };
 
+class ColliderBox;
+class ColliderSphere;
+class ColliderCapsule;
+
 namespace NtshEngn {
 
 	class GraphicsModule : public GraphicsModuleInterface {
@@ -211,9 +215,9 @@ namespace NtshEngn {
 		void retrieveObjectIndex(uint32_t objectIndex);
 
 		// Create meshes for colliders
-		MeshID createBox();
-		MeshID createSphere();
-		MeshID createCapsule(const Math::vec3& base, const Math::vec3& tip, float radius);
+		MeshID createBox(const ColliderBox* box);
+		MeshID createSphere(const ColliderSphere* sphere);
+		MeshID createCapsule(const ColliderCapsule* capsule);
 
 	private:
 		VkInstance m_instance;
@@ -334,9 +338,6 @@ namespace NtshEngn {
 		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
 
 		Entity m_mainCamera = NTSHENGN_ENTITY_UNKNOWN;
-
-		MeshID m_boxMesh = NTSHENGN_MESH_UNKNOWN;
-		MeshID m_sphereMesh = NTSHENGN_MESH_UNKNOWN;
 
 		std::queue<UIElement> m_uiElements;
 

@@ -463,10 +463,6 @@ void NtshEngn::GraphicsModule::init() {
 		NTSHENGN_VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCreateInfo, nullptr, &m_renderFinishedSemaphores[i]));
 	}
 
-	// Create collider meshes
-	m_boxMesh = createBox();
-	m_sphereMesh = createSphere();
-
 	// Set current frame-in-flight to 0
 	m_currentFrameInFlight = 0;
 }
@@ -529,50 +525,12 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight], &data));
 	for (auto& it : m_objects) {
 		const Transform& objectTransform = ecs->getComponent<Transform>(it.first);
-		Math::vec3 objectPosition = Math::vec3(0.0f, 0.0f, 0.0f);
-		Math::mat4 objectRotation = Math::mat4();
-		Math::vec3 objectScale = Math::vec3(1.0f, 1.0f, 1.0f);
 
-		if (it.second.boxMeshIndex != NTSHENGN_MESH_UNKNOWN) {
-			const Collidable& collidable = ecs->getComponent<Collidable>(it.first);
-			const ColliderBox* colliderBox = static_cast<const ColliderBox*>(collidable.collider.get());
-
-			objectPosition = colliderBox->center + objectTransform.position;
-			const Math::vec3 boxRotation = Math::to_vec3(Math::to_quat(colliderBox->rotation) * Math::to_quat(objectTransform.rotation));
-			objectRotation = Math::rotate(boxRotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
-				Math::rotate(boxRotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
-				Math::rotate(boxRotation.z, Math::vec3(0.0f, 0.0f, 1.0f));
-			objectScale = Math::vec3(colliderBox->halfExtent.x * std::abs(objectTransform.scale.x), colliderBox->halfExtent.y * std::abs(objectTransform.scale.y), colliderBox->halfExtent.z * std::abs(objectTransform.scale.z));
-		}
-
-		if (it.second.sphereMeshIndex != NTSHENGN_MESH_UNKNOWN) {
-			const Collidable& collidable = ecs->getComponent<Collidable>(it.first);
-			const ColliderSphere* colliderSphere = static_cast<const ColliderSphere*>(collidable.collider.get());
-
-			objectPosition = colliderSphere->center + objectTransform.position;
-			objectRotation = Math::rotate(objectTransform.rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
-				Math::rotate(objectTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
-				Math::rotate(objectTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f));
-			objectScale = colliderSphere->radius * std::max(std::abs(objectTransform.scale.x), std::max(std::abs(objectTransform.scale.y), std::abs(objectTransform.scale.z)));
-		}
-
-		if (it.second.capsuleMeshIndex != NTSHENGN_MESH_UNKNOWN) {
-			const Collidable& collidable = ecs->getComponent<Collidable>(it.first);
-			const ColliderCapsule* colliderCapsule = static_cast<const ColliderCapsule*>(collidable.collider.get());
-
-			const Math::vec3 capsuleCenter = (colliderCapsule->base + colliderCapsule->tip) / 2.0f;
-
-			objectPosition = objectTransform.position;
-			const Math::mat4 baseRotation = Math::rotate(objectTransform.rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
-				Math::rotate(objectTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
-				Math::rotate(objectTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f));
-			objectRotation = Math::translate(capsuleCenter) * baseRotation * Math::translate(-capsuleCenter);
-			objectScale = Math::vec3(std::max(std::abs(objectTransform.scale.x), std::max(std::abs(objectTransform.scale.y), std::abs(objectTransform.scale.z))));
-		}
-
-		Math::mat4 objectModel = Math::translate(objectPosition) *
-			objectRotation *
-			Math::scale(objectScale);
+		Math::mat4 objectModel = Math::translate(objectTransform.position) *
+			Math::rotate(objectTransform.rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
+			Math::rotate(objectTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
+			Math::rotate(objectTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f)) *
+			Math::scale(objectTransform.scale);
 
 		size_t offset = (it.second.index * (sizeof(Math::mat4)));
 
@@ -1766,15 +1724,19 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		const Collidable& collidable = ecs->getComponent<Collidable>(entity);
 
 		if (collidable.collider->getType() == ColliderShapeType::Box) {
-			object.boxMeshIndex = m_boxMesh;
+			const ColliderBox* colliderBox = static_cast<const ColliderBox*>(collidable.collider.get());
+
+			object.boxMeshIndex = createBox(colliderBox);
 		}
 		else if (collidable.collider->getType() == ColliderShapeType::Sphere) {
-			object.sphereMeshIndex = m_sphereMesh;
+			const ColliderSphere* colliderSphere = static_cast<const ColliderSphere*>(collidable.collider.get());
+
+			object.sphereMeshIndex = createSphere(colliderSphere);
 		}
 		else if (collidable.collider->getType() == ColliderShapeType::Capsule) {
 			const ColliderCapsule* colliderCapsule = static_cast<const ColliderCapsule*>(collidable.collider.get());
 
-			object.capsuleMeshIndex = createCapsule(colliderCapsule->base, colliderCapsule->tip, colliderCapsule->radius);
+			object.capsuleMeshIndex = createCapsule(colliderCapsule);
 		}
 	}
 	else if (componentID == ecs->getComponentID<Camera>()) {
@@ -3893,26 +3855,30 @@ void NtshEngn::GraphicsModule::retrieveObjectIndex(uint32_t objectIndex) {
 	m_freeObjectsIndices.insert(m_freeObjectsIndices.begin(), objectIndex);
 }
 
-NtshEngn::MeshID NtshEngn::GraphicsModule::createBox() {
+NtshEngn::MeshID NtshEngn::GraphicsModule::createBox(const ColliderBox* box) {
+	const Math::mat4 boxRotation = Math::rotate(box->rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
+		Math::rotate(box->rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
+		Math::rotate(box->rotation.z, Math::vec3(0.0f, 0.0f, 1.0f));
+
 	Model* cubeModel = assetManager->createModel();
 	cubeModel->primitives.resize(1);
 	Mesh& cubeMesh = cubeModel->primitives[0].mesh;
 	cubeMesh.vertices.resize(8);
-	cubeMesh.vertices[0].position = Math::vec3(-1.0f, -1.0f, -1.0f);
+	cubeMesh.vertices[0].position = box->center + Math::vec3(boxRotation * Math::vec4(-box->halfExtent.x, -box->halfExtent.y, -box->halfExtent.z, 1.0f));
 	cubeMesh.vertices[0].color = { 1.0f, 0.0f, 0.0f };
-	cubeMesh.vertices[1].position = Math::vec3(1.0f, -1.0f, -1.0f);
+	cubeMesh.vertices[1].position = box->center + Math::vec3(boxRotation * Math::vec4(box->halfExtent.x, -box->halfExtent.y, -box->halfExtent.z, 1.0f));
 	cubeMesh.vertices[1].color = { 1.0f, 0.0f, 0.0f };
-	cubeMesh.vertices[2].position = Math::vec3(1.0f, -1.0f, 1.0f);
+	cubeMesh.vertices[2].position = box->center + Math::vec3(boxRotation * Math::vec4(box->halfExtent.x, -box->halfExtent.y, box->halfExtent.z, 1.0f));
 	cubeMesh.vertices[2].color = { 1.0f, 0.0f, 0.0f };
-	cubeMesh.vertices[3].position = Math::vec3(-1.0f, -1.0f, 1.0f);
+	cubeMesh.vertices[3].position = box->center + Math::vec3(boxRotation * Math::vec4(-box->halfExtent.x, -box->halfExtent.y, box->halfExtent.z, 1.0f));
 	cubeMesh.vertices[3].color = { 1.0f, 0.0f, 0.0f };
-	cubeMesh.vertices[4].position = Math::vec3(-1.0f, 1.0f, -1.0f);
+	cubeMesh.vertices[4].position = box->center + Math::vec3(boxRotation * Math::vec4(-box->halfExtent.x, box->halfExtent.y, -box->halfExtent.z, 1.0f));
 	cubeMesh.vertices[4].color = { 1.0f, 0.0f, 0.0f };
-	cubeMesh.vertices[5].position = Math::vec3(1.0f, 1.0f, -1.0f);
+	cubeMesh.vertices[5].position = box->center + Math::vec3(boxRotation * Math::vec4(box->halfExtent.x, box->halfExtent.y, -box->halfExtent.z, 1.0f));
 	cubeMesh.vertices[5].color = { 1.0f, 0.0f, 0.0f };
-	cubeMesh.vertices[6].position = Math::vec3(1.0f, 1.0f, 1.0f);
+	cubeMesh.vertices[6].position = box->center + Math::vec3(boxRotation * Math::vec4(box->halfExtent.x, box->halfExtent.y, box->halfExtent.z, 1.0f));
 	cubeMesh.vertices[6].color = { 1.0f, 0.0f, 0.0f };
-	cubeMesh.vertices[7].position = Math::vec3(-1.0f, 1.0f, 1.0f);
+	cubeMesh.vertices[7].position = box->center + Math::vec3(boxRotation * Math::vec4(-box->halfExtent.x, box->halfExtent.y, box->halfExtent.z, 1.0f));
 	cubeMesh.vertices[7].color = { 1.0f, 0.0f, 0.0f };
 
 	cubeMesh.indices = {
@@ -3933,7 +3899,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createBox() {
 	return load(cubeMesh);
 }
 
-NtshEngn::MeshID NtshEngn::GraphicsModule::createSphere() {
+NtshEngn::MeshID NtshEngn::GraphicsModule::createSphere(const ColliderSphere* sphere) {
 	Model* sphereModel = assetManager->createModel();
 	sphereModel->primitives.resize(1);
 	Mesh& sphereMesh = sphereModel->primitives[0].mesh;
@@ -3945,13 +3911,13 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createSphere() {
 		for (float phi = 0.0f; phi < Math::PI; phi += phiStep) {
 			if ((phi + phiStep) >= Math::PI) {
 				Vertex vertex;
-				vertex.position = Math::vec3(0.0f, -1.0f, 0.0f);
+				vertex.position = sphere->center + Math::vec3(0.0f, -sphere->radius, 0.0f);
 				vertex.color = Math::vec3(0.0f, 1.0f, 0.0f);
 				sphereMesh.vertices.push_back(vertex);
 			}
 			else {
 				Vertex vertex;
-				vertex.position = Math::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi));
+				vertex.position = sphere->center + (Math::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * sphere->radius);
 				vertex.color = Math::vec3(0.0f, 1.0f, 0.0f);
 				sphereMesh.vertices.push_back(vertex);
 			}
@@ -3968,7 +3934,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createSphere() {
 	return load(sphereMesh);
 }
 
-NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const Math::vec3& base, const Math::vec3& tip, float radius) {
+NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const ColliderCapsule* capsule) {
 	Model* capsuleModel = assetManager->createModel();
 	capsuleModel->primitives.resize(1);
 	Mesh& capsuleMesh = capsuleModel->primitives[0].mesh;
@@ -3976,11 +3942,14 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const Math::vec3& base,
 	const float thetaStep = Math::PI / static_cast<size_t>(nbLongLat);
 	const float phiStep = 2.0f * (Math::PI / static_cast<size_t>(nbLongLat));
 
-	const Math::vec3 baseTipDifference = tip - base;
+	const Math::vec3 baseTipDifference = capsule->tip - capsule->base;
 	const Math::vec3 facing = Math::vec3(0.0f, 1.0f, 0.0f);
 	const Math::vec3 toB = Math::normalize(baseTipDifference);
 	Math::mat4 rotation = Math::mat4(); // Identity
-	if (facing != toB) { // Cross product of parallel vectors is undefined
+	if (facing == -toB) { // Flip
+		rotation = Math::rotate(Math::toRad(180.0f), Math::vec3(1.0f, 0.0f, 0.0f));
+	}
+	else if (facing != toB) { // Cross product of parallel vectors is undefined
 		const Math::vec3 rotationAxis = Math::normalize(Math::cross(facing, toB));
 		const float rotationAngle = std::acos(Math::dot(facing, toB));
 
@@ -3994,21 +3963,21 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const Math::vec3& base,
 		for (float phi = Math::PI / 2.0f; phi < Math::PI; phi += phiStep) {
 			if ((phi + phiStep) >= Math::PI) {
 				Vertex vertex;
-				Math::vec3 position = Math::vec3(0.0f, -1.0f, 0.0f) * radius;
+				Math::vec3 position = Math::vec3(0.0f, -capsule->radius, 0.0f);
 				Math::vec3 transformedPosition = rotation * Math::vec4(position, 1.0f);
-				vertex.position = { transformedPosition.x + base.x,
-					transformedPosition.y + base.y,
-					transformedPosition.z + base.z };
+				vertex.position = { transformedPosition.x + capsule->base.x,
+					transformedPosition.y + capsule->base.y,
+					transformedPosition.z + capsule->base.z };
 				vertex.color = { 0.0f, 0.0f, 1.0f };
 				capsuleMesh.vertices.push_back(vertex);
 			}
 			else {
 				Vertex vertex;
-				Math::vec3 position = Math::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * radius;
+				Math::vec3 position = Math::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * capsule->radius;
 				Math::vec3 transformedPosition = rotation * Math::vec4(position, 1.0f);
-				vertex.position = { transformedPosition.x + base.x,
-					transformedPosition.y + base.y,
-					transformedPosition.z + base.z };
+				vertex.position = { transformedPosition.x + capsule->base.x,
+					transformedPosition.y + capsule->base.y,
+					transformedPosition.z + capsule->base.z };
 				vertex.color = { 0.0f, 0.0f, 1.0f };
 				capsuleMesh.vertices.push_back(vertex);
 			}
@@ -4029,11 +3998,11 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const Math::vec3& base,
 	for (float theta = 0.0f; theta < 2.0f * Math::PI; theta += thetaStep) {
 		for (float phi = 0.0f; phi < Math::PI / 2.0f; phi += phiStep) {
 			Vertex vertex;
-			Math::vec3 position = Math::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * radius;
+			Math::vec3 position = Math::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * capsule->radius;
 			Math::vec3 transformedPosition = rotation * Math::vec4(position, 1.0f);
-			vertex.position = { transformedPosition.x + tip.x,
-				transformedPosition.y + tip.y,
-				transformedPosition.z + tip.z };
+			vertex.position = { transformedPosition.x + capsule->tip.x,
+				transformedPosition.y + capsule->tip.y,
+				transformedPosition.z + capsule->tip.z };
 			vertex.color = { 0.0f, 0.0f, 1.0f };
 			capsuleMesh.vertices.push_back(vertex);
 		}
