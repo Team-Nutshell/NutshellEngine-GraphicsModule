@@ -2896,11 +2896,11 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 		// Shadows
 		float shadowValue(uint lightIndex, uint cascadeIndex, vec4 shadowCoord, float bias) {
 			float shadow = 0.0;
-			if (shadowCoord.z > 1.0) {
+			if ((shadowCoord.z < -1.0) || (shadowCoord.z > 1.0)) {
 				return 1.0;
 			}
 
-			const vec2 texelSize = 0.75 * (1.0 / textureSize(shadowMaps[nonuniformEXT(lightIndex)], 0).xy);
+			const vec2 texelSize = 0.75 * (1.0 / vec2(textureSize(shadowMaps[nonuniformEXT(lightIndex)], 0).xy));
 			for (int x = -1; x <= 1; x++) {
 				for (int y = -1; y <= 1; y++) {
 					const float depth = texture(shadowMaps[nonuniformEXT(lightIndex)], vec3(shadowCoord.xy + (vec2(x, y) * texelSize), cascadeIndex)).r;

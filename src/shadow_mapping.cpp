@@ -136,6 +136,7 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 			const float distanceToCenter = (cascadeFrustumCorners[i] - cascadeFrustumCenter).length();
 			radius = std::max(radius, distanceToCenter);
 		}
+		radius = std::ceil(radius * 16.0f) / 16.0f;
 
 		for (size_t directionalLightIndex = 0; directionalLightIndex < m_directionalLightEntities.size(); directionalLightIndex++) {
 			const NtshEngn::Light& light = m_ecs->getComponent<NtshEngn::Light>(m_directionalLightEntities[directionalLightIndex]);
