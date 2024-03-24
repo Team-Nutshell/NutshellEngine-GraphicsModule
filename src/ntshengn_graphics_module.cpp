@@ -646,14 +646,22 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		// Object index as push constant
 		vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_graphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &it.second.index);
 
+		Math::vec4 color = Math::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+
 		// Draw
 		if (it.second.boxMeshIndex != NTSHENGN_MESH_UNKNOWN) {
+			color.x = ecs->hasComponent<Rigidbody>(it.first) ? 1.0f : 0.1f;
+			vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_graphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec4), sizeof(Math::vec4), color.data());
 			vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_meshes[it.second.boxMeshIndex].indexCount, 1, m_meshes[it.second.boxMeshIndex].firstIndex, m_meshes[it.second.boxMeshIndex].vertexOffset, 0);
 		}
 		if (it.second.sphereMeshIndex != NTSHENGN_MESH_UNKNOWN) {
+			color.y = ecs->hasComponent<Rigidbody>(it.first) ? 1.0f : 0.1f;
+			vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_graphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec4), sizeof(Math::vec4), color.data());
 			vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_meshes[it.second.sphereMeshIndex].indexCount, 1, m_meshes[it.second.sphereMeshIndex].firstIndex, m_meshes[it.second.sphereMeshIndex].vertexOffset, 0);
 		}
 		if (it.second.capsuleMeshIndex != NTSHENGN_MESH_UNKNOWN) {
+			color.z = ecs->hasComponent<Rigidbody>(it.first) ? 1.0f : 0.1f;
+			vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_graphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec4), sizeof(Math::vec4), color.data());
 			vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_meshes[it.second.capsuleMeshIndex].indexCount, 1, m_meshes[it.second.capsuleMeshIndex].firstIndex, m_meshes[it.second.capsuleMeshIndex].vertexOffset, 0);
 		}
 	}
@@ -2296,15 +2304,8 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 		} oID;
 
 		layout(location = 0) in vec3 position;
-		layout(location = 1) in vec3 normal;
-		layout(location = 2) in vec2 uv;
-		layout(location = 3) in vec3 color;
-		layout(location = 4) in vec4 tangent;
-
-		layout(location = 0) out vec3 outColor;
 
 		void main() {
-			outColor = color;
 			gl_Position = camera.projection * camera.view * objects.info[oID.objectID].model * vec4(position, 1.0);
 		}
 	)GLSL";
@@ -2331,12 +2332,14 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 	const std::string fragmentShaderCode = R"GLSL(
 		#version 460
 
-		layout(location = 0) in vec3 inColor;
+		layout(push_constant) uniform ObjectColor {
+			layout(offset = 16) vec4 color;
+		} oC;
 
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			outColor = vec4(inColor, 1.0);
+			outColor = vec4(oC.color.xyz, 1.0);
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
@@ -2372,39 +2375,14 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 	vertexPositionInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
 	vertexPositionInputAttributeDescription.offset = 0;
 
-	VkVertexInputAttributeDescription vertexNormalInputAttributeDescription = {};
-	vertexNormalInputAttributeDescription.location = 1;
-	vertexNormalInputAttributeDescription.binding = 0;
-	vertexNormalInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
-	vertexNormalInputAttributeDescription.offset = offsetof(Vertex, normal);
-
-	VkVertexInputAttributeDescription vertexUVInputAttributeDescription = {};
-	vertexUVInputAttributeDescription.location = 2;
-	vertexUVInputAttributeDescription.binding = 0;
-	vertexUVInputAttributeDescription.format = VK_FORMAT_R32G32_SFLOAT;
-	vertexUVInputAttributeDescription.offset = offsetof(Vertex, uv);
-
-	VkVertexInputAttributeDescription vertexColorInputAttributeDescription = {};
-	vertexColorInputAttributeDescription.location = 3;
-	vertexColorInputAttributeDescription.binding = 0;
-	vertexColorInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
-	vertexColorInputAttributeDescription.offset = offsetof(Vertex, color);
-
-	VkVertexInputAttributeDescription vertexTangentInputAttributeDescription = {};
-	vertexTangentInputAttributeDescription.location = 4;
-	vertexTangentInputAttributeDescription.binding = 0;
-	vertexTangentInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-	vertexTangentInputAttributeDescription.offset = offsetof(Vertex, tangent);
-
-	std::array<VkVertexInputAttributeDescription, 5> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexNormalInputAttributeDescription, vertexUVInputAttributeDescription, vertexColorInputAttributeDescription, vertexTangentInputAttributeDescription };
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
 	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputStateCreateInfo.pNext = nullptr;
 	vertexInputStateCreateInfo.flags = 0;
 	vertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
 	vertexInputStateCreateInfo.pVertexBindingDescriptions = &vertexInputBindingDescription;
-	vertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributeDescriptions.size());
-	vertexInputStateCreateInfo.pVertexAttributeDescriptions = vertexInputAttributeDescriptions.data();
+	vertexInputStateCreateInfo.vertexAttributeDescriptionCount = 1;
+	vertexInputStateCreateInfo.pVertexAttributeDescriptions = &vertexPositionInputAttributeDescription;
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo = {};
 	inputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -2489,19 +2467,25 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 	dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
 
-	VkPushConstantRange pushConstantRange = {};
-	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	pushConstantRange.offset = 0;
-	pushConstantRange.size = sizeof(uint32_t);
+	VkPushConstantRange vertexPushConstantRange = {};
+	vertexPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	vertexPushConstantRange.offset = 0;
+	vertexPushConstantRange.size = sizeof(uint32_t);
 
+	VkPushConstantRange fragmentPushConstantRange = {};
+	fragmentPushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragmentPushConstantRange.offset = sizeof(Math::vec4);
+	fragmentPushConstantRange.size = sizeof(Math::vec4);
+
+	std::array<VkPushConstantRange, 2> pushConstantRanges = { vertexPushConstantRange, fragmentPushConstantRange };
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutCreateInfo.pNext = nullptr;
 	pipelineLayoutCreateInfo.flags = 0;
 	pipelineLayoutCreateInfo.setLayoutCount = 1;
 	pipelineLayoutCreateInfo.pSetLayouts = &m_descriptorSetLayout;
-	pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
-	pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
+	pipelineLayoutCreateInfo.pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size());
+	pipelineLayoutCreateInfo.pPushConstantRanges = pushConstantRanges.data();
 	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_graphicsPipelineLayout));
 
 	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};
@@ -3865,21 +3849,13 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createBox(const ColliderBox* box) {
 	Mesh& cubeMesh = cubeModel->primitives[0].mesh;
 	cubeMesh.vertices.resize(8);
 	cubeMesh.vertices[0].position = box->center + Math::vec3(boxRotation * Math::vec4(-box->halfExtent.x, -box->halfExtent.y, -box->halfExtent.z, 1.0f));
-	cubeMesh.vertices[0].color = { 1.0f, 0.0f, 0.0f };
 	cubeMesh.vertices[1].position = box->center + Math::vec3(boxRotation * Math::vec4(box->halfExtent.x, -box->halfExtent.y, -box->halfExtent.z, 1.0f));
-	cubeMesh.vertices[1].color = { 1.0f, 0.0f, 0.0f };
 	cubeMesh.vertices[2].position = box->center + Math::vec3(boxRotation * Math::vec4(box->halfExtent.x, -box->halfExtent.y, box->halfExtent.z, 1.0f));
-	cubeMesh.vertices[2].color = { 1.0f, 0.0f, 0.0f };
 	cubeMesh.vertices[3].position = box->center + Math::vec3(boxRotation * Math::vec4(-box->halfExtent.x, -box->halfExtent.y, box->halfExtent.z, 1.0f));
-	cubeMesh.vertices[3].color = { 1.0f, 0.0f, 0.0f };
 	cubeMesh.vertices[4].position = box->center + Math::vec3(boxRotation * Math::vec4(-box->halfExtent.x, box->halfExtent.y, -box->halfExtent.z, 1.0f));
-	cubeMesh.vertices[4].color = { 1.0f, 0.0f, 0.0f };
 	cubeMesh.vertices[5].position = box->center + Math::vec3(boxRotation * Math::vec4(box->halfExtent.x, box->halfExtent.y, -box->halfExtent.z, 1.0f));
-	cubeMesh.vertices[5].color = { 1.0f, 0.0f, 0.0f };
 	cubeMesh.vertices[6].position = box->center + Math::vec3(boxRotation * Math::vec4(box->halfExtent.x, box->halfExtent.y, box->halfExtent.z, 1.0f));
-	cubeMesh.vertices[6].color = { 1.0f, 0.0f, 0.0f };
 	cubeMesh.vertices[7].position = box->center + Math::vec3(boxRotation * Math::vec4(-box->halfExtent.x, box->halfExtent.y, box->halfExtent.z, 1.0f));
-	cubeMesh.vertices[7].color = { 1.0f, 0.0f, 0.0f };
 
 	cubeMesh.indices = {
 		0, 1,
@@ -3912,13 +3888,11 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createSphere(const ColliderSphere* sp
 			if ((phi + phiStep) >= Math::PI) {
 				Vertex vertex;
 				vertex.position = sphere->center + Math::vec3(0.0f, -sphere->radius, 0.0f);
-				vertex.color = Math::vec3(0.0f, 1.0f, 0.0f);
 				sphereMesh.vertices.push_back(vertex);
 			}
 			else {
 				Vertex vertex;
 				vertex.position = sphere->center + (Math::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * sphere->radius);
-				vertex.color = Math::vec3(0.0f, 1.0f, 0.0f);
 				sphereMesh.vertices.push_back(vertex);
 			}
 		}
@@ -3968,7 +3942,6 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const ColliderCapsule* 
 				vertex.position = { transformedPosition.x + capsule->base.x,
 					transformedPosition.y + capsule->base.y,
 					transformedPosition.z + capsule->base.z };
-				vertex.color = { 0.0f, 0.0f, 1.0f };
 				capsuleMesh.vertices.push_back(vertex);
 			}
 			else {
@@ -3978,7 +3951,6 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const ColliderCapsule* 
 				vertex.position = { transformedPosition.x + capsule->base.x,
 					transformedPosition.y + capsule->base.y,
 					transformedPosition.z + capsule->base.z };
-				vertex.color = { 0.0f, 0.0f, 1.0f };
 				capsuleMesh.vertices.push_back(vertex);
 			}
 		}
@@ -4003,7 +3975,6 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const ColliderCapsule* 
 			vertex.position = { transformedPosition.x + capsule->tip.x,
 				transformedPosition.y + capsule->tip.y,
 				transformedPosition.z + capsule->tip.z };
-			vertex.color = { 0.0f, 0.0f, 1.0f };
 			capsuleMesh.vertices.push_back(vertex);
 		}
 		tipFinal.push_back(static_cast<uint32_t>(capsuleMesh.vertices.size() - 1));
