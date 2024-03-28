@@ -789,7 +789,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 						}
 
 						const Math::mat4 jointTransformMatrix = Math::translate(translation) *
-							Math::to_mat4(rotation) *
+							Math::quatToRotationMatrix(rotation) *
 							Math::scale(scale);
 
 						jointTransformMatrices[jointIndex] = parentJointTransformMatrix * jointTransformMatrix;
