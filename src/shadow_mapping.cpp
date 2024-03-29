@@ -1042,6 +1042,13 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 		#version 460
 		#extension GL_EXT_nonuniform_qualifier : enable
 
+		const mat4 ditheringThreshold = mat4(
+			1.0 / 17.0, 13.0 / 17.0, 4.0 / 17.0, 16.0 / 17.0,
+			9.0 / 17.0, 5.0 / 17.0, 12.0 / 17.0, 8.0 / 17.0,
+			3.0 / 17.0, 15.0 / 17.0, 2.0 / 17.0, 14.0 / 17.0,
+			11.0 / 17.0, 7.0 / 17.0, 10.0 / 17.0, 6.0 / 17.0
+		);
+
 		struct MaterialInfo {
 			uint diffuseTextureIndex;
 			uint normalTextureIndex;
@@ -1064,7 +1071,8 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 
 		void main() {
 			const MaterialInfo material = materials.info[materialID];
-			if (texture(textures[nonuniformEXT(material.diffuseTextureIndex)], uv).a < material.alphaCutoff) {
+			const float diffuseAlpha = texture(textures[nonuniformEXT(material.diffuseTextureIndex)], uv).a;
+			if ((diffuseAlpha < material.alphaCutoff) || (diffuseAlpha < ditheringThreshold[int(mod(gl_FragCoord.x, 4.0))][int(mod(gl_FragCoord.y, 4.0))])) {
 				discard;
 			}
 		}
@@ -1334,6 +1342,13 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 		#version 460
 		#extension GL_EXT_nonuniform_qualifier : enable
 
+		const mat4 ditheringThreshold = mat4(
+			1.0 / 17.0, 13.0 / 17.0, 4.0 / 17.0, 16.0 / 17.0,
+			9.0 / 17.0, 5.0 / 17.0, 12.0 / 17.0, 8.0 / 17.0,
+			3.0 / 17.0, 15.0 / 17.0, 2.0 / 17.0, 14.0 / 17.0,
+			11.0 / 17.0, 7.0 / 17.0, 10.0 / 17.0, 6.0 / 17.0
+		);
+
 		struct MaterialInfo {
 			uint diffuseTextureIndex;
 			uint normalTextureIndex;
@@ -1356,7 +1371,8 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 
 		void main() {
 			const MaterialInfo material = materials.info[materialID];
-			if (texture(textures[nonuniformEXT(material.diffuseTextureIndex)], uv).a < material.alphaCutoff) {
+			const float diffuseAlpha = texture(textures[nonuniformEXT(material.diffuseTextureIndex)], uv).a;
+			if ((diffuseAlpha < material.alphaCutoff) || (diffuseAlpha < ditheringThreshold[int(mod(gl_FragCoord.x, 4.0))][int(mod(gl_FragCoord.y, 4.0))])) {
 				discard;
 			}
 		}
