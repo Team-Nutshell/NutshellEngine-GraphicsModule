@@ -66,7 +66,6 @@ void NtshEngn::GraphicsModule::init() {
 	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		instanceExtensions.push_back("VK_KHR_surface");
 		instanceExtensions.push_back("VK_KHR_get_surface_capabilities2");
-		instanceExtensions.push_back("VK_KHR_get_physical_device_properties2");
 #if defined(NTSHENGN_OS_WINDOWS)
 		instanceExtensions.push_back("VK_KHR_win32_surface");
 #elif defined(NTSHENGN_OS_LINUX)
@@ -246,7 +245,6 @@ void NtshEngn::GraphicsModule::init() {
 		"VK_KHR_create_renderpass2",
 		"VK_KHR_depth_stencil_resolve",
 		"VK_KHR_dynamic_rendering",
-		"VK_KHR_maintenance3",
 		"VK_EXT_descriptor_indexing" };
 	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		deviceExtensions.push_back("VK_KHR_swapchain");
