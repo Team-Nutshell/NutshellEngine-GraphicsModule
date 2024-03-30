@@ -922,6 +922,9 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	// Bind ray tracing pipeline
 	vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rayTracingPipeline);
 
+	// Background color as push constant
+	vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_rayTracingPipelineLayout, VK_SHADER_STAGE_MISS_BIT_KHR, 0, sizeof(Math::vec4), m_backgroundColor.data());
+
 	// Trace rays
 	m_vkCmdTraceRaysKHR(m_renderingCommandBuffers[m_currentFrameInFlight], &m_rayGenRegion, &m_rayMissRegion, &m_rayHitRegion, &m_rayCallRegion, static_cast<uint32_t>(m_viewport.width), static_cast<uint32_t>(m_viewport.height), 1);
 
@@ -2106,6 +2109,10 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	return static_cast<FontID>(m_fonts.size() - 1);
 }
 
+void NtshEngn::GraphicsModule::setBackgroundColor(const Math::vec4& backgroundColor) {
+	m_backgroundColor = backgroundColor;
+}
+
 void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex) {
 	NTSHENGN_UNUSED(entity);
 	NTSHENGN_UNUSED(animationIndex);
@@ -3108,8 +3115,12 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 		layout(location = 0) rayPayloadInEXT HitPayload payload;
 
+		layout(push_constant) uniform BackgroundColor {
+			vec4 color;
+		} bg;
+
 		void main() {
-			payload.hitValue = vec4(0.0, 0.0, 0.0, 0.0);
+			payload.hitValue = bg.color;
 			payload.materialMetalness = 1.0;
 			payload.hitBackground = true;
 			payload.dontAccumulate = false;
@@ -3501,8 +3512,10 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 	rayClosestHitShaderGroupCreateInfo.intersectionShader = VK_SHADER_UNUSED_KHR;
 	rayClosestHitShaderGroupCreateInfo.pShaderGroupCaptureReplayHandle = nullptr;
 
-	std::array<VkPipelineShaderStageCreateInfo, 4> shaderStageCreateInfos = { rayGenShaderStageCreateInfo, rayMissShaderStageCreateInfo, rayShadowMissShaderStageCreateInfo, rayClosestHitShaderStageCreateInfo };
-	std::array<VkRayTracingShaderGroupCreateInfoKHR, 4> shaderGroupCreateInfos = { rayGenShaderGroupCreateInfo, rayMissShaderGroupCreateInfo, rayShadowMissShaderGroupCreateInfo, rayClosestHitShaderGroupCreateInfo };
+	VkPushConstantRange pushConstantRange = {};
+	pushConstantRange.stageFlags = VK_SHADER_STAGE_MISS_BIT_KHR;
+	pushConstantRange.offset = 0;
+	pushConstantRange.size = sizeof(Math::vec4);
 
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -3510,9 +3523,12 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 	pipelineLayoutCreateInfo.flags = 0;
 	pipelineLayoutCreateInfo.setLayoutCount = 1;
 	pipelineLayoutCreateInfo.pSetLayouts = &m_descriptorSetLayout;
-	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
-	pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
+	pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+	pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
 	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_rayTracingPipelineLayout));
+
+	std::array<VkPipelineShaderStageCreateInfo, 4> shaderStageCreateInfos = { rayGenShaderStageCreateInfo, rayMissShaderStageCreateInfo, rayShadowMissShaderStageCreateInfo, rayClosestHitShaderStageCreateInfo };
+	std::array<VkRayTracingShaderGroupCreateInfoKHR, 4> shaderGroupCreateInfos = { rayGenShaderGroupCreateInfo, rayMissShaderGroupCreateInfo, rayShadowMissShaderGroupCreateInfo, rayClosestHitShaderGroupCreateInfo };
 
 	VkRayTracingPipelineCreateInfoKHR rayTracingPipelineCreateInfo = {};
 	rayTracingPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
