@@ -278,7 +278,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	CD3DX12_CPU_DESCRIPTOR_HANDLE descriptorHandle(m_descriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_descriptorHeapSize);
 	m_commandList->OMSetRenderTargets(1, &descriptorHandle, FALSE, nullptr);
 
-	m_commandList->ClearRenderTargetView(descriptorHandle, m_clearColor, 0, nullptr);
+	m_commandList->ClearRenderTargetView(descriptorHandle, m_backgroundColor.data(), 0, nullptr);
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	m_commandList->DrawInstanced(3, 1, 0, 0);
 
@@ -345,6 +345,10 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 
 	return NTSHENGN_FONT_UNKNOWN;
+}
+
+void NtshEngn::GraphicsModule::setBackgroundColor(const Math::vec4& backgroundColor) {
+	m_backgroundColor = backgroundColor;
 }
 
 void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex) {
