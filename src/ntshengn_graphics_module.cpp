@@ -958,7 +958,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	renderingColorAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	renderingColorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	renderingColorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	renderingColorAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
+	renderingColorAttachmentInfo.clearValue.color = { m_backgroundColor.x, m_backgroundColor.y, m_backgroundColor.z, m_backgroundColor.w };
 
 	VkRenderingAttachmentInfo renderingDepthAttachmentInfo = {};
 	renderingDepthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -2059,6 +2059,10 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	}
 
 	return static_cast<FontID>(m_fonts.size() - 1);
+}
+
+void NtshEngn::GraphicsModule::setBackgroundColor(const Math::vec4& backgroundColor) {
+	m_backgroundColor = backgroundColor;
 }
 
 void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex) {
