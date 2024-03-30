@@ -334,18 +334,18 @@ namespace NtshEngn {
 		BlockSuballocator m_freeJointTransformOffsets{ 4096 };
 		std::unordered_map<Entity, Material> m_lastKnownMaterial;
 
+		std::unordered_map<InternalObject*, PlayingAnimation> m_playingAnimations;
+
+		Entity m_mainCamera = NTSHENGN_ENTITY_UNKNOWN;
+
+		InternalLights m_lights;
+
 		Math::vec4 m_backgroundColor = Math::vec4(0.0f, 0.0f, 0.0f, 0.0f);
 
 		std::vector<InternalFont> m_fonts;
 		std::unordered_map<const Font*, FontID> m_fontAddresses;
 
 		std::vector<std::pair<ImageID, ImageSamplerFilter>> m_uiTextures;
-
-		std::unordered_map<InternalObject*, PlayingAnimation> m_playingAnimations;
-
-		Entity m_mainCamera = NTSHENGN_ENTITY_UNKNOWN;
-
-		InternalLights m_lights;
 
 		std::queue<UIElement> m_uiElements;
 
