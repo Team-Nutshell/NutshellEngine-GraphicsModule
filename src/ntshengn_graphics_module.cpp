@@ -1064,7 +1064,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	compositingAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	compositingAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	compositingAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	compositingAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
+	compositingAttachmentInfo.clearValue.color = { m_backgroundColor.x, m_backgroundColor.y, m_backgroundColor.z, m_backgroundColor.w };
 
 	VkRenderingInfo compositingRenderingInfo = {};
 	compositingRenderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -2198,6 +2198,10 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	return static_cast<FontID>(m_fonts.size() - 1);
 }
 
+void NtshEngn::GraphicsModule::setBackgroundColor(const Math::vec4& backgroundColor) {
+	m_backgroundColor = backgroundColor;
+}
+
 void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex) {
 	if (!ecs->hasComponent<Renderable>(entity)) {
 		NTSHENGN_MODULE_WARNING("Entity " + (ecs->entityHasName(entity) ? ("\"" + ecs->getEntityName(entity) + "\"") : std::to_string(entity)) + " does not have a Renderable component, when trying to play animation " + std::to_string(animationIndex) + ".");
@@ -2913,6 +2917,9 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 
 		void main() {
 			const vec4 diffuseSample = texture(gBufferDiffuseSampler, uv);
+			if (diffuseSample.a == 0.0f) {
+				discard;
+			}
 			const vec3 positionSample = texture(gBufferPositionSampler, uv).xyz;
 			const vec3 normalSample = texture(gBufferNormalSampler, uv).xyz;
 			const vec3 materialSample = texture(gBufferMaterialSampler, uv).xyz;
