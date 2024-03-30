@@ -64,6 +64,9 @@ namespace NtshEngn {
 		// Loads the font described in the font parameter in the internal format and returns a unique identifier
 		FontID load(const Font& font);
 
+		// Sets the background color
+		void setBackgroundColor(const Math::vec4& backgroundColor);
+
 		// Plays an animation for an entity, indexed in the entity's model animation list
 		void playAnimation(Entity entity, uint32_t animationIndex);
 		// Pauses an animation played by an entity
@@ -106,6 +109,8 @@ namespace NtshEngn {
 		uint32_t m_swapChainHeight;
 
 		WGPURenderPipeline m_renderPipeline;
+
+		Math::vec4 m_backgroundColor = Math::vec4(0.0f, 0.0f, 0.0f, 0.0f);
 	};
 
 }

@@ -282,10 +282,10 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	swapChainRenderPassColorAttachment.resolveTarget = nullptr;
 	swapChainRenderPassColorAttachment.loadOp = WGPULoadOp_Clear;
 	swapChainRenderPassColorAttachment.storeOp = WGPUStoreOp_Store;
-	swapChainRenderPassColorAttachment.clearValue.r = 0.0f;
-	swapChainRenderPassColorAttachment.clearValue.g = 0.0f;
-	swapChainRenderPassColorAttachment.clearValue.b = 0.0f;
-	swapChainRenderPassColorAttachment.clearValue.a = 0.0f;
+	swapChainRenderPassColorAttachment.clearValue.r = m_backgroundColor.x;
+	swapChainRenderPassColorAttachment.clearValue.g = m_backgroundColor.y;
+	swapChainRenderPassColorAttachment.clearValue.b = m_backgroundColor.z;
+	swapChainRenderPassColorAttachment.clearValue.a = m_backgroundColor.w;
 
 	WGPURenderPassDescriptor renderPassDescriptor = {};
 	renderPassDescriptor.nextInChain = nullptr;
@@ -355,6 +355,10 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 
 	return NTSHENGN_FONT_UNKNOWN;
+}
+
+void NtshEngn::GraphicsModule::setBackgroundColor(const Math::vec4& backgroundColor) {
+	m_backgroundColor = backgroundColor;
 }
 
 void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex) {
