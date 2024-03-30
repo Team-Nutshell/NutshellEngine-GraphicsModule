@@ -215,6 +215,9 @@ namespace NtshEngn {
 		// Loads the font described in the font parameter in the internal format and returns a unique identifier
 		FontID load(const Font& font);
 
+		// Sets the background color
+		void setBackgroundColor(const Math::vec4& backgroundColor);
+
 		// Plays an animation for an entity, indexed in the entity's model animation list
 		void playAnimation(Entity entity, uint32_t animationIndex);
 		// Pauses an animation played by an entity
@@ -492,11 +495,6 @@ namespace NtshEngn {
 
 		std::vector<InternalMaterial> m_materials;
 
-		std::vector<InternalFont> m_fonts;
-		std::unordered_map<const Font*, FontID> m_fontAddresses;
-
-		std::vector<std::pair<ImageID, ImageSamplerFilter>> m_uiTextures;
-
 		std::unordered_map<Entity, InternalObject> m_objects;
 		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
 		std::unordered_map<Entity, Material> m_lastKnownMaterial;
@@ -504,6 +502,13 @@ namespace NtshEngn {
 		Entity m_mainCamera = NTSHENGN_ENTITY_UNKNOWN;
 
 		InternalLights m_lights;
+
+		Math::vec4 m_backgroundColor = Math::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+
+		std::vector<InternalFont> m_fonts;
+		std::unordered_map<const Font*, FontID> m_fontAddresses;
+
+		std::vector<std::pair<ImageID, ImageSamplerFilter>> m_uiTextures;
 
 		std::queue<UIElement> m_uiElements;
 
