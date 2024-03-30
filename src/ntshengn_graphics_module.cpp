@@ -38,6 +38,11 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	return NTSHENGN_FONT_UNKNOWN;
 }
 
+void NtshEngn::GraphicsModule::setBackgroundColor(const Math::vec4& backgroundColor) {
+	NTSHENGN_UNUSED(backgroundColor);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
+}
+
 void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex) {
 	NTSHENGN_UNUSED(entity);
 	NTSHENGN_UNUSED(animationIndex);
