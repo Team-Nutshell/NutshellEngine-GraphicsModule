@@ -716,11 +716,13 @@ void SSAO::createSSAOGraphicsPipeline() {
 				offset.xyz /= offset.w;
 				offset.xyz = offset.xyz * 0.5 + 0.5;
 				
-				vec3 depthPosition = texture(positionSampler, offset.xy).xyz;
-				float depth = (camera.view * vec4(depthPosition, 1.0)).z;
+				vec4 depthPosition = texture(positionSampler, offset.xy);
+				if (depthPosition.w == 1.0) {
+					float depth = (camera.view * depthPosition).z;
 
-				float rangeCheck = smoothstep(0.0, 1.0, radius / abs(position.z - depth));
-				occlusion += ((depth >= (samplePos.z + bias)) ? 1.0 : 0.0) * rangeCheck;
+					float rangeCheck = smoothstep(0.0, 1.0, radius / abs(position.z - depth));
+					occlusion += ((depth >= (samplePos.z + bias)) ? 1.0 : 0.0) * rangeCheck;
+				}
 			}
 			occlusion = 1.0 - (occlusion / float(SSAO_SAMPLE_COUNT));
 

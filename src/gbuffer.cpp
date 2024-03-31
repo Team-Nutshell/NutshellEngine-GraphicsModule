@@ -917,7 +917,7 @@ void GBuffer::createGraphicsPipeline() {
 				discard;
 			}
 
-			outGBufferPosition = vec4(position, 0.0);
+			outGBufferPosition = vec4(position, 1.0);
 
 			const vec3 normalSample = texture(textures[nonuniformEXT(material.normalTextureIndex)], uv).xyz;
 			const vec3 n = normalize(TBN * (normalSample * 2.0 - 1.0));
