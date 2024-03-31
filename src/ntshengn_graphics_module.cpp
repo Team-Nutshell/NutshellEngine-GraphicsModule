@@ -2184,6 +2184,7 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 
 void NtshEngn::GraphicsModule::setBackgroundColor(const Math::vec4& backgroundColor) {
 	m_backgroundColor = backgroundColor;
+	m_sampleBatch = 0;
 }
 
 void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex) {
