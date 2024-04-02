@@ -207,7 +207,8 @@ void FXAA::createGraphicsPipeline(VkFormat drawImageFormat) {
 			vec2 texSize = vec2(textureSize(imageSampler, 0));
 			vec2 texelSize = 1.0 / texSize;
 
-			vec3 m = texture(imageSampler, uv).rgb;
+			vec4 middleTexel = texture(imageSampler, uv);
+			vec3 m = middleTexel.rgb;
 			vec3 n = texture(imageSampler, uv + (vec2(0.0, -1.0) * texelSize)).rgb;
 			vec3 s = texture(imageSampler, uv + (vec2(0.0, 1.0) * texelSize)).rgb;
 			vec3 e = texture(imageSampler, uv + (vec2(1.0, 0.0) * texelSize)).rgb;
@@ -225,7 +226,7 @@ void FXAA::createGraphicsPipeline(VkFormat drawImageFormat) {
 			float contrast = maxBrightness - minBrightness;
 			float threshold = max(FXAA_THRESHOLD, FXAA_RELATIVE_THRESHOLD * maxBrightness);
 			if (contrast < threshold) {
-				outColor = vec4(m, 1.0);
+				outColor = vec4(middleTexel);
 			}
 			else {
 				vec3 nw = texture(imageSampler, uv + (vec2(-1.0, -1.0) * texelSize)).rgb;
