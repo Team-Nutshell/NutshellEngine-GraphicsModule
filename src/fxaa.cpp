@@ -189,6 +189,7 @@ void FXAA::createGraphicsPipeline(VkFormat drawImageFormat) {
 	vertexShaderStageCreateInfo.pName = "main";
 	vertexShaderStageCreateInfo.pSpecializationInfo = nullptr;
 
+#if FXAA_ENABLE == 1
 	const std::string fragmentShaderCode = R"GLSL(
 		#version 460
 
@@ -272,6 +273,21 @@ void FXAA::createGraphicsPipeline(VkFormat drawImageFormat) {
 			}
 		}
 	)GLSL";
+#else
+	const std::string fragmentShaderCode = R"GLSL(
+		#version 460
+		
+		layout(set = 0, binding = 0) uniform sampler2D imageSampler;
+
+		layout(location = 0) in vec2 uv;
+
+		layout(location = 0) out vec4 outColor;
+
+		void main() {
+			outColor = texture(imageSampler, uv);
+		}
+	)GLSL";
+#endif
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
 
 	VkShaderModule fragmentShaderModule;

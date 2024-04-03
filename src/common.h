@@ -34,6 +34,8 @@
 
 #define SSAO_SAMPLE_COUNT 64
 
+#define FXAA_ENABLE 1
+
 #define NTSHENGN_VK_CHECK(f) \
 	do { \
 		int64_t check = f; \
