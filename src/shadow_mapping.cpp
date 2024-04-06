@@ -93,7 +93,7 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 		const float p = (cascadeIndex + 1) / static_cast<float>(SHADOW_MAPPING_CASCADE_COUNT);
 		const float log = cameraNearPlane * std::pow(clipRatio, p);
 		const float uniform = cameraNearPlane + (clipRange * p);
-		const float d = 0.95f * (log - uniform) + uniform;
+		const float d = SHADOW_MAPPING_CASCADE_SPLIT_LAMBDA * (log - uniform) + uniform;
 		cascadeSplits[cascadeIndex] = (d - cameraNearPlane) / clipRange;
 	}
 
