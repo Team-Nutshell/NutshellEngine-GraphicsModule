@@ -641,8 +641,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	// Update camera buffer
 	float cameraNearPlane = 0.0f;
 	float cameraFarPlane = 0.0f;
-	Math::mat4 cameraView;
-	Math::mat4 cameraProjection;
+	Math::mat4 cameraView = Math::mat4::identity();
+	Math::mat4 cameraProjection = Math::mat4::identity();
 	if (m_mainCamera != NTSHENGN_ENTITY_UNKNOWN) {
 		const Camera& camera = ecs->getComponent<Camera>(m_mainCamera);
 		const Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
@@ -704,7 +704,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 				jointsAndParents.push({ skin.rootJoint, std::numeric_limits<uint32_t>::max() });
 				while (!jointsAndParents.empty()) {
 					uint32_t jointIndex = jointsAndParents.front().first;
-					Math::mat4 parentJointTransformMatrix = Math::mat4();
+					Math::mat4 parentJointTransformMatrix = Math::mat4::identity();
 					if (jointsAndParents.front().second != std::numeric_limits<uint32_t>::max()) {
 						parentJointTransformMatrix = parentJointTransformMatrices[jointsAndParents.front().second];
 					}
@@ -823,7 +823,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 				jointsAndParents.push({ skin.rootJoint, std::numeric_limits<uint32_t>::max() });
 				while (!jointsAndParents.empty()) {
 					uint32_t jointIndex = jointsAndParents.front().first;
-					Math::mat4 parentJointTransformMatrix = Math::mat4();
+					Math::mat4 parentJointTransformMatrix = Math::mat4::identity();
 					if (jointsAndParents.front().second != std::numeric_limits<uint32_t>::max()) {
 						parentJointTransformMatrix = parentJointTransformMatrices[jointsAndParents.front().second];
 					}
