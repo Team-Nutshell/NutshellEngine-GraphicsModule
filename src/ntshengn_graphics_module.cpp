@@ -3921,7 +3921,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const ColliderCapsule* 
 	const Math::vec3 baseTipDifference = capsule->tip - capsule->base;
 	const Math::vec3 facing = Math::vec3(0.0f, 1.0f, 0.0f);
 	const Math::vec3 toB = Math::normalize(baseTipDifference);
-	Math::mat4 rotation = Math::mat4(); // Identity
+	Math::mat4 rotation = Math::mat4::identity();
 	if (facing == -toB) { // Flip
 		rotation = Math::rotate(Math::toRad(180.0f), Math::vec3(1.0f, 0.0f, 0.0f));
 	}
