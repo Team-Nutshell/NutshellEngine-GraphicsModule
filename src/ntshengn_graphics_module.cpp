@@ -704,7 +704,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 				jointsAndParents.push({ skin.rootJoint, std::numeric_limits<uint32_t>::max() });
 				while (!jointsAndParents.empty()) {
 					uint32_t jointIndex = jointsAndParents.front().first;
-					Math::mat4 parentJointTransformMatrix = Math::mat4::identity();
+					Math::mat4 parentJointTransformMatrix;
 					if (jointsAndParents.front().second != std::numeric_limits<uint32_t>::max()) {
 						parentJointTransformMatrix = parentJointTransformMatrices[jointsAndParents.front().second];
 					}
@@ -823,7 +823,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 				jointsAndParents.push({ skin.rootJoint, std::numeric_limits<uint32_t>::max() });
 				while (!jointsAndParents.empty()) {
 					uint32_t jointIndex = jointsAndParents.front().first;
-					Math::mat4 parentJointTransformMatrix = Math::mat4::identity();
+					Math::mat4 parentJointTransformMatrix;
 					if (jointsAndParents.front().second != std::numeric_limits<uint32_t>::max()) {
 						parentJointTransformMatrix = parentJointTransformMatrices[jointsAndParents.front().second];
 					}
