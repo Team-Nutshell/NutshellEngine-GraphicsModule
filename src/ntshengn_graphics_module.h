@@ -365,8 +365,7 @@ namespace NtshEngn {
 		VkSampler m_uiNearestSampler;
 		VkSampler m_uiLinearSampler;
 
-		std::vector<VkBuffer> m_uiTextBuffers;
-		std::vector<VmaAllocation> m_uiTextBufferAllocations;
+		std::vector<HostVisibleBuffer> m_uiTextBuffers;
 		VkDescriptorSetLayout m_uiTextDescriptorSetLayout;
 		VkDescriptorPool m_uiTextDescriptorPool;
 		std::vector<VkDescriptorSet> m_uiTextDescriptorSets;
