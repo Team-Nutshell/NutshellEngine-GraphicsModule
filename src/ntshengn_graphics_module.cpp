@@ -379,7 +379,6 @@ void NtshEngn::GraphicsModule::init() {
 
 	// Create camera uniform buffer
 	m_cameraBuffers.resize(m_framesInFlight);
-	m_cameraBufferAllocations.resize(m_framesInFlight);
 	VkBufferCreateInfo cameraBufferCreateInfo = {};
 	cameraBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	cameraBufferCreateInfo.pNext = nullptr;
@@ -391,16 +390,17 @@ void NtshEngn::GraphicsModule::init() {
 	cameraBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
 	VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
-	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
 	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &cameraBufferCreateInfo, &bufferAllocationCreateInfo, &m_cameraBuffers[i], &m_cameraBufferAllocations[i], nullptr));
+		VmaAllocationInfo bufferAllocationInfo;
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &cameraBufferCreateInfo, &bufferAllocationCreateInfo, &m_cameraBuffers[i].handle, &m_cameraBuffers[i].allocation, &bufferAllocationInfo));
+		m_cameraBuffers[i].address = bufferAllocationInfo.pMappedData;
 	}
 
 	// Create object storage buffers
 	m_objectBuffers.resize(m_framesInFlight);
-	m_objectBufferAllocations.resize(m_framesInFlight);
 	VkBufferCreateInfo objectBufferCreateInfo = {};
 	objectBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	objectBufferCreateInfo.pNext = nullptr;
@@ -412,7 +412,9 @@ void NtshEngn::GraphicsModule::init() {
 	objectBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &objectBufferCreateInfo, &bufferAllocationCreateInfo, &m_objectBuffers[i], &m_objectBufferAllocations[i], nullptr));
+		VmaAllocationInfo bufferAllocationInfo;
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &objectBufferCreateInfo, &bufferAllocationCreateInfo, &m_objectBuffers[i].handle, &m_objectBuffers[i].allocation, &bufferAllocationInfo));
+		m_objectBuffers[i].address = bufferAllocationInfo.pMappedData;
 	}
 
 	// Create mesh storage buffer
@@ -434,7 +436,6 @@ void NtshEngn::GraphicsModule::init() {
 
 	// Create joint transform storage buffers
 	m_jointTransformBuffers.resize(m_framesInFlight);
-	m_jointTransformBufferAllocations.resize(m_framesInFlight);
 	VkBufferCreateInfo jointTransformBufferCreateInfo = {};
 	jointTransformBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	jointTransformBufferCreateInfo.pNext = nullptr;
@@ -446,12 +447,13 @@ void NtshEngn::GraphicsModule::init() {
 	jointTransformBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &jointTransformBufferCreateInfo, &bufferAllocationCreateInfo, &m_jointTransformBuffers[i], &m_jointTransformBufferAllocations[i], nullptr));
+		VmaAllocationInfo bufferAllocationInfo;
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &jointTransformBufferCreateInfo, &bufferAllocationCreateInfo, &m_jointTransformBuffers[i].handle, &m_jointTransformBuffers[i].allocation, &bufferAllocationInfo));
+		m_jointTransformBuffers[i].address = bufferAllocationInfo.pMappedData;
 	}
 
 	// Create material storage buffers
 	m_materialBuffers.resize(m_framesInFlight);
-	m_materialBufferAllocations.resize(m_framesInFlight);
 	VkBufferCreateInfo materialBufferCreateInfo = {};
 	materialBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	materialBufferCreateInfo.pNext = nullptr;
@@ -463,12 +465,13 @@ void NtshEngn::GraphicsModule::init() {
 	materialBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &materialBufferCreateInfo, &bufferAllocationCreateInfo, &m_materialBuffers[i], &m_materialBufferAllocations[i], nullptr));
+		VmaAllocationInfo bufferAllocationInfo;
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &materialBufferCreateInfo, &bufferAllocationCreateInfo, &m_materialBuffers[i].handle, &m_materialBuffers[i].allocation, &bufferAllocationInfo));
+		m_materialBuffers[i].address = bufferAllocationInfo.pMappedData;
 	}
 
 	// Create light storage buffers
 	m_lightBuffers.resize(m_framesInFlight);
-	m_lightBufferAllocations.resize(m_framesInFlight);
 	VkBufferCreateInfo lightBufferCreateInfo = {};
 	lightBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	lightBufferCreateInfo.pNext = nullptr;
@@ -480,7 +483,9 @@ void NtshEngn::GraphicsModule::init() {
 	lightBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &lightBufferCreateInfo, &bufferAllocationCreateInfo, &m_lightBuffers[i], &m_lightBufferAllocations[i], nullptr));
+		VmaAllocationInfo bufferAllocationInfo;
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &lightBufferCreateInfo, &bufferAllocationCreateInfo, &m_lightBuffers[i].handle, &m_lightBuffers[i].allocation, &bufferAllocationInfo));
+		m_lightBuffers[i].address = bufferAllocationInfo.pMappedData;
 	}
 
 	createDescriptorSets();
@@ -568,8 +573,6 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptySignalSubmitInfo, VK_NULL_HANDLE));
 	}
 
-	void* data;
-
 	// Update camera buffer
 	if (m_mainCamera != NTSHENGN_ENTITY_UNKNOWN) {
 		const Camera& camera = ecs->getComponent<Camera>(m_mainCamera);
@@ -584,14 +587,11 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		std::array<Math::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
 		Math::vec4 cameraPositionAsVec4 = { cameraTransform.position, 0.0f };
 
-		NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight], &data));
-		memcpy(data, cameraMatrices.data(), sizeof(Math::mat4) * 2);
-		memcpy(reinterpret_cast<char*>(data) + sizeof(Math::mat4) * 2, cameraPositionAsVec4.data(), sizeof(Math::vec4));
-		vmaUnmapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight]);
+		memcpy(m_cameraBuffers[m_currentFrameInFlight].address, cameraMatrices.data(), sizeof(Math::mat4) * 2);
+		memcpy(reinterpret_cast<char*>(m_cameraBuffers[m_currentFrameInFlight].address) + sizeof(Math::mat4) * 2, cameraPositionAsVec4.data(), sizeof(Math::vec4));
 	}
 
 	// Update object buffer
-	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight], &data));
 	for (auto& it : m_objects) {
 		const Transform& objectTransform = ecs->getComponent<Transform>(it.first);
 
@@ -603,16 +603,14 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 		size_t offset = (it.second.index * (sizeof(Math::mat4) + sizeof(Math::vec4))); // vec4 is used here for padding
 
-		memcpy(reinterpret_cast<char*>(data) + offset, objectModel.data(), sizeof(Math::mat4));
+		memcpy(reinterpret_cast<char*>(m_objectBuffers[m_currentFrameInFlight].address) + offset, objectModel.data(), sizeof(Math::mat4));
 		const std::array<uint32_t, 3> objectIndices = { (it.second.meshID < m_meshes.size()) ? it.second.meshID : 0, it.second.jointTransformOffset, (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0 };
-		memcpy(reinterpret_cast<char*>(data) + offset + sizeof(Math::mat4), objectIndices.data(), 3 * sizeof(uint32_t));
+		memcpy(reinterpret_cast<char*>(m_objectBuffers[m_currentFrameInFlight].address) + offset + sizeof(Math::mat4), objectIndices.data(), 3 * sizeof(uint32_t));
 
 		loadRenderableForEntity(it.first);
 	}
-	vmaUnmapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight]);
 
 	// Update joint transform buffer
-	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_jointTransformBufferAllocations[m_currentFrameInFlight], &data));
 	for (auto& it : m_objects) {
 		const Renderable& objectRenderable = ecs->getComponent<Renderable>(it.first);
 		const Skin& skin = objectRenderable.mesh->skin;
@@ -769,24 +767,20 @@ void NtshEngn::GraphicsModule::update(double dt) {
 				}
 			}
 
-			memcpy(reinterpret_cast<char*>(data) + (sizeof(Math::mat4) * it.second.jointTransformOffset), jointTransformMatrices.data(), sizeof(Math::mat4) * m_meshes[it.second.meshID].jointCount);
+			memcpy(reinterpret_cast<char*>(m_jointTransformBuffers[m_currentFrameInFlight].address) + (sizeof(Math::mat4) * it.second.jointTransformOffset), jointTransformMatrices.data(), sizeof(Math::mat4) * m_meshes[it.second.meshID].jointCount);
 		}
 	}
-	vmaUnmapMemory(m_allocator, m_jointTransformBufferAllocations[m_currentFrameInFlight]);
 
 	// Update material buffer
-	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_materialBufferAllocations[m_currentFrameInFlight], &data));
 	for (size_t i = 0; i < m_materials.size(); i++) {
 		size_t offset = i * sizeof(InternalMaterial);
 
-		memcpy(reinterpret_cast<char*>(data) + offset, &m_materials[i], sizeof(InternalMaterial));
+		memcpy(reinterpret_cast<char*>(m_materialBuffers[m_currentFrameInFlight].address) + offset, &m_materials[i], sizeof(InternalMaterial));
 	}
-	vmaUnmapMemory(m_allocator, m_materialBufferAllocations[m_currentFrameInFlight]);
 
 	// Update light buffer
-	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_lightBufferAllocations[m_currentFrameInFlight], &data));
 	std::array<uint32_t, 4> lightsCount = { static_cast<uint32_t>(m_lights.directionalLights.size()), static_cast<uint32_t>(m_lights.pointLights.size()), static_cast<uint32_t>(m_lights.spotLights.size()), 0 };
-	memcpy(data, lightsCount.data(), 4 * sizeof(uint32_t));
+	memcpy(m_lightBuffers[m_currentFrameInFlight].address, lightsCount.data(), 4 * sizeof(uint32_t));
 
 	size_t offset = sizeof(Math::vec4);
 	for (Entity light : m_lights.directionalLights) {
@@ -806,7 +800,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		internalLight.direction = Math::vec4(lightDirection, 0.0f);
 		internalLight.color = Math::vec4(lightLight.color, 0.0f);
 
-		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
+		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
 	}
 	for (Entity light : m_lights.pointLights) {
@@ -817,7 +811,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		internalLight.position = Math::vec4(lightTransform.position, 0.0f);
 		internalLight.color = Math::vec4(lightLight.color, 0.0f);
 
-		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
+		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
 	}
 	for (Entity light : m_lights.spotLights) {
@@ -839,10 +833,9 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		internalLight.color = Math::vec4(lightLight.color, 0.0f);
 		internalLight.cutoff = Math::vec4(lightLight.cutoff, 0.0f, 0.0f);
 
-		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
+		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
 	}
-	vmaUnmapMemory(m_allocator, m_lightBufferAllocations[m_currentFrameInFlight]);
 
 	// Update descriptor sets if needed
 	if (m_descriptorSetsNeedUpdate[m_currentFrameInFlight]) {
@@ -1277,17 +1270,17 @@ void NtshEngn::GraphicsModule::destroy() {
 
 	// Destroy light buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		vmaDestroyBuffer(m_allocator, m_lightBuffers[i], m_lightBufferAllocations[i]);
+		vmaDestroyBuffer(m_allocator, m_lightBuffers[i].handle, m_lightBuffers[i].allocation);
 	}
 
 	// Destroy material buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		vmaDestroyBuffer(m_allocator, m_materialBuffers[i], m_materialBufferAllocations[i]);
+		vmaDestroyBuffer(m_allocator, m_materialBuffers[i].handle, m_materialBuffers[i].allocation);
 	}
 
 	// Destroy joint transform buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		vmaDestroyBuffer(m_allocator, m_jointTransformBuffers[i], m_jointTransformBufferAllocations[i]);
+		vmaDestroyBuffer(m_allocator, m_jointTransformBuffers[i].handle, m_jointTransformBuffers[i].allocation);
 	}
 
 	// Destroy mesh buffer
@@ -1295,12 +1288,12 @@ void NtshEngn::GraphicsModule::destroy() {
 
 	// Destroy object buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		vmaDestroyBuffer(m_allocator, m_objectBuffers[i], m_objectBufferAllocations[i]);
+		vmaDestroyBuffer(m_allocator, m_objectBuffers[i].handle, m_objectBuffers[i].allocation);
 	}
 
 	// Destroy camera buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		vmaDestroyBuffer(m_allocator, m_cameraBuffers[i], m_cameraBufferAllocations[i]);
+		vmaDestroyBuffer(m_allocator, m_cameraBuffers[i].handle, m_cameraBuffers[i].allocation);
 	}
 
 	// Destroy UI resources
@@ -3442,7 +3435,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
 
 		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
-		cameraDescriptorBufferInfo.buffer = m_cameraBuffers[i];
+		cameraDescriptorBufferInfo.buffer = m_cameraBuffers[i].handle;
 		cameraDescriptorBufferInfo.offset = 0;
 		cameraDescriptorBufferInfo.range = sizeof(Math::mat4) * 2 + sizeof(Math::vec4);
 
@@ -3460,7 +3453,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		writeDescriptorSets.push_back(cameraDescriptorWriteDescriptorSet);
 
 		VkDescriptorBufferInfo objectsDescriptorBufferInfo;
-		objectsDescriptorBufferInfo.buffer = m_objectBuffers[i];
+		objectsDescriptorBufferInfo.buffer = m_objectBuffers[i].handle;
 		objectsDescriptorBufferInfo.offset = 0;
 		objectsDescriptorBufferInfo.range = 32768;
 
@@ -3496,7 +3489,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		writeDescriptorSets.push_back(meshesDescriptorWriteDescriptorSet);
 
 		VkDescriptorBufferInfo jointTransformsDescriptorBufferInfo;
-		jointTransformsDescriptorBufferInfo.buffer = m_jointTransformBuffers[i];
+		jointTransformsDescriptorBufferInfo.buffer = m_jointTransformBuffers[i].handle;
 		jointTransformsDescriptorBufferInfo.offset = 0;
 		jointTransformsDescriptorBufferInfo.range = 4096 * sizeof(Math::mat4);
 
@@ -3514,7 +3507,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		writeDescriptorSets.push_back(jointTransformsDescriptorWriteDescriptorSet);
 
 		VkDescriptorBufferInfo materialsDescriptorBufferInfo;
-		materialsDescriptorBufferInfo.buffer = m_materialBuffers[i];
+		materialsDescriptorBufferInfo.buffer = m_materialBuffers[i].handle;
 		materialsDescriptorBufferInfo.offset = 0;
 		materialsDescriptorBufferInfo.range = 32768;
 
@@ -3532,7 +3525,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		writeDescriptorSets.push_back(materialsDescriptorWriteDescriptorSet);
 
 		VkDescriptorBufferInfo lightsDescriptorBufferInfo;
-		lightsDescriptorBufferInfo.buffer = m_lightBuffers[i];
+		lightsDescriptorBufferInfo.buffer = m_lightBuffers[i].handle;
 		lightsDescriptorBufferInfo.offset = 0;
 		lightsDescriptorBufferInfo.range = 32768;
 

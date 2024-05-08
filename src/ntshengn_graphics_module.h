@@ -77,6 +77,12 @@ bool operator==(const NtshEngn::Material& lhs, const NtshEngn::Material& rhs) {
 		(lhs.indexOfRefraction == rhs.indexOfRefraction);
 }
 
+struct HostVisibleBuffer {
+	VkBuffer handle;
+	void* address;
+	VmaAllocation allocation;
+};
+
 enum class ShaderType {
 	Vertex,
 	TesselationControl,
@@ -401,23 +407,18 @@ namespace NtshEngn {
 		uint32_t m_framesInFlight;
 		uint32_t m_currentFrameInFlight;
 
-		std::vector<VkBuffer> m_cameraBuffers;
-		std::vector<VmaAllocation> m_cameraBufferAllocations;
+		std::vector<HostVisibleBuffer> m_cameraBuffers;
 
-		std::vector<VkBuffer> m_objectBuffers;
-		std::vector<VmaAllocation> m_objectBufferAllocations;
+		std::vector<HostVisibleBuffer> m_objectBuffers;
 
 		VkBuffer m_meshBuffer;
 		VmaAllocation m_meshBufferAllocation;
 
-		std::vector<VkBuffer> m_jointTransformBuffers;
-		std::vector<VmaAllocation> m_jointTransformBufferAllocations;
+		std::vector<HostVisibleBuffer> m_jointTransformBuffers;
 
-		std::vector<VkBuffer> m_materialBuffers;
-		std::vector<VmaAllocation> m_materialBufferAllocations;
+		std::vector<HostVisibleBuffer> m_materialBuffers;
 
-		std::vector<VkBuffer> m_lightBuffers;
-		std::vector<VmaAllocation> m_lightBufferAllocations;
+		std::vector<HostVisibleBuffer> m_lightBuffers;
 
 		Mesh m_defaultMesh;
 		Image m_defaultDiffuseTexture;
