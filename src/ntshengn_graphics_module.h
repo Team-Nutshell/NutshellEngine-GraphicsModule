@@ -43,6 +43,12 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBits
 	return VK_FALSE;
 }
 
+struct HostVisibleBuffer {
+	VkBuffer handle;
+	void* address;
+	VmaAllocation allocation;
+};
+
 enum class ShaderType {
 	Vertex,
 	TesselationControl,
@@ -271,8 +277,7 @@ namespace NtshEngn {
 		VkSampler m_uiNearestSampler;
 		VkSampler m_uiLinearSampler;
 
-		std::vector<VkBuffer> m_uiTextBuffers;
-		std::vector<VmaAllocation> m_uiTextBufferAllocations;
+		std::vector<HostVisibleBuffer> m_uiTextBuffers;
 		VkDescriptorSetLayout m_uiTextDescriptorSetLayout;
 		VkDescriptorPool m_uiTextDescriptorPool;
 		std::vector<VkDescriptorSet> m_uiTextDescriptorSets;
@@ -313,11 +318,9 @@ namespace NtshEngn {
 		uint32_t m_framesInFlight;
 		uint32_t m_currentFrameInFlight;
 
-		std::vector<VkBuffer> m_cameraBuffers;
-		std::vector<VmaAllocation> m_cameraBufferAllocations;
+		std::vector<HostVisibleBuffer> m_cameraBuffers;
 
-		std::vector<VkBuffer> m_objectBuffers;
-		std::vector<VmaAllocation> m_objectBufferAllocations;
+		std::vector<HostVisibleBuffer> m_objectBuffers;
 
 		Mesh m_defaultMesh;
 

@@ -376,7 +376,6 @@ void NtshEngn::GraphicsModule::init() {
 
 	// Create camera uniform buffer
 	m_cameraBuffers.resize(m_framesInFlight);
-	m_cameraBufferAllocations.resize(m_framesInFlight);
 	VkBufferCreateInfo cameraBufferCreateInfo = {};
 	cameraBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	cameraBufferCreateInfo.pNext = nullptr;
@@ -387,17 +386,19 @@ void NtshEngn::GraphicsModule::init() {
 	cameraBufferCreateInfo.queueFamilyIndexCount = 1;
 	cameraBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
+	VmaAllocationInfo bufferAllocationInfo;
+
 	VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
-	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
 	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &cameraBufferCreateInfo, &bufferAllocationCreateInfo, &m_cameraBuffers[i], &m_cameraBufferAllocations[i], nullptr));
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &cameraBufferCreateInfo, &bufferAllocationCreateInfo, &m_cameraBuffers[i].handle, &m_cameraBuffers[i].allocation, &bufferAllocationInfo));
+		m_cameraBuffers[i].address = bufferAllocationInfo.pMappedData;
 	}
 
 	// Create object storage buffer
 	m_objectBuffers.resize(m_framesInFlight);
-	m_objectBufferAllocations.resize(m_framesInFlight);
 	VkBufferCreateInfo objectBufferCreateInfo = {};
 	objectBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	objectBufferCreateInfo.pNext = nullptr;
@@ -409,7 +410,8 @@ void NtshEngn::GraphicsModule::init() {
 	objectBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &objectBufferCreateInfo, &bufferAllocationCreateInfo, &m_objectBuffers[i], &m_objectBufferAllocations[i], nullptr));
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &objectBufferCreateInfo, &bufferAllocationCreateInfo, &m_objectBuffers[i].handle, &m_objectBuffers[i].allocation, &bufferAllocationInfo));
+		m_objectBuffers[i].address = bufferAllocationInfo.pMappedData;
 	}
 
 	createDescriptorSets();
@@ -498,9 +500,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		emptySignalSubmitInfo.pSignalSemaphores = &m_imageAvailableSemaphores[m_currentFrameInFlight];
 		NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptySignalSubmitInfo, VK_NULL_HANDLE));
 	}
-
-	void* data;
-
+	
 	// Update camera buffer
 	if (m_mainCamera != NTSHENGN_ENTITY_UNKNOWN) {
 		const Camera& camera = ecs->getComponent<Camera>(m_mainCamera);
@@ -514,13 +514,10 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		cameraProjection[1][1] *= -1.0f;
 		std::array<Math::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
 
-		NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight], &data));
-		memcpy(data, cameraMatrices.data(), sizeof(Math::mat4) * 2);
-		vmaUnmapMemory(m_allocator, m_cameraBufferAllocations[m_currentFrameInFlight]);
+		memcpy(m_cameraBuffers[m_currentFrameInFlight].address, cameraMatrices.data(), sizeof(Math::mat4) * 2);
 	}
 
 	// Update objects buffer
-	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight], &data));
 	for (auto& it : m_objects) {
 		const Transform& objectTransform = ecs->getComponent<Transform>(it.first);
 
@@ -532,9 +529,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 		size_t offset = (it.second.index * (sizeof(Math::mat4)));
 
-		memcpy(reinterpret_cast<char*>(data) + offset, objectModel.data(), sizeof(Math::mat4));
+		memcpy(reinterpret_cast<char*>(m_objectBuffers[m_currentFrameInFlight].address) + offset, objectModel.data(), sizeof(Math::mat4));
 	}
-	vmaUnmapMemory(m_allocator, m_objectBufferAllocations[m_currentFrameInFlight]);
 
 	// Update descriptor sets if needed
 	if (m_uiTextDescriptorSetsNeedUpdate[m_currentFrameInFlight]) {
@@ -877,12 +873,12 @@ void NtshEngn::GraphicsModule::destroy() {
 
 	// Destroy objects buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		vmaDestroyBuffer(m_allocator, m_objectBuffers[i], m_objectBufferAllocations[i]);
+		vmaDestroyBuffer(m_allocator, m_objectBuffers[i].handle, m_objectBuffers[i].allocation);
 	}
 
 	// Destroy camera buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		vmaDestroyBuffer(m_allocator, m_cameraBuffers[i], m_cameraBufferAllocations[i]);
+		vmaDestroyBuffer(m_allocator, m_cameraBuffers[i].handle, m_cameraBuffers[i].allocation);
 	}
 
 	// Destroy UI resources
@@ -906,7 +902,7 @@ void NtshEngn::GraphicsModule::destroy() {
 	vkDestroyPipelineLayout(m_device, m_uiTextGraphicsPipelineLayout, nullptr);
 	vkDestroyDescriptorSetLayout(m_device, m_uiTextDescriptorSetLayout, nullptr);
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		vmaDestroyBuffer(m_allocator, m_uiTextBuffers[i], m_uiTextBufferAllocations[i]);
+		vmaDestroyBuffer(m_allocator, m_uiTextBuffers[i].handle, m_uiTextBuffers[i].allocation);
 	}
 
 	vkDestroySampler(m_device, m_uiLinearSampler, nullptr);
@@ -1634,11 +1630,8 @@ void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::string& text
 		positionAdvance += m_fonts[fontID].glyphs[c].positionAdvance;
 	}
 
-	void* data;
-	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_uiTextBufferAllocations[m_currentFrameInFlight], &data));
 	size_t offset = m_uiTextBufferOffset * sizeof(Math::vec2) * 4;
-	memcpy(reinterpret_cast<uint8_t*>(data) + offset, positionsAndUVs.data(), sizeof(Math::vec2) * 4 * text.size());
-	vmaUnmapMemory(m_allocator, m_uiTextBufferAllocations[m_currentFrameInFlight]);
+	memcpy(reinterpret_cast<uint8_t*>(m_uiTextBuffers[m_currentFrameInFlight].address) + offset, positionsAndUVs.data(), sizeof(Math::vec2) * 4 * text.size());
 
 	InternalUIText uiText;
 	uiText.fontID = fontID;
@@ -2554,7 +2547,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
 		VkDescriptorBufferInfo objectsDescriptorBufferInfo;
 
-		cameraDescriptorBufferInfo.buffer = m_cameraBuffers[i];
+		cameraDescriptorBufferInfo.buffer = m_cameraBuffers[i].handle;
 		cameraDescriptorBufferInfo.offset = 0;
 		cameraDescriptorBufferInfo.range = sizeof(Math::mat4) * 2;
 
@@ -2571,7 +2564,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		cameraDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(cameraDescriptorWriteDescriptorSet);
 
-		objectsDescriptorBufferInfo.buffer = m_objectBuffers[i];
+		objectsDescriptorBufferInfo.buffer = m_objectBuffers[i].handle;
 		objectsDescriptorBufferInfo.offset = 0;
 		objectsDescriptorBufferInfo.range = 32768;
 
@@ -2628,7 +2621,6 @@ void NtshEngn::GraphicsModule::createUIResources() {
 void NtshEngn::GraphicsModule::createUITextResources() {
 	// Create text buffers
 	m_uiTextBuffers.resize(m_framesInFlight);
-	m_uiTextBufferAllocations.resize(m_framesInFlight);
 	VkBufferCreateInfo uiTextBufferCreateInfo = {};
 	uiTextBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	uiTextBufferCreateInfo.pNext = nullptr;
@@ -2639,12 +2631,15 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 	uiTextBufferCreateInfo.queueFamilyIndexCount = 1;
 	uiTextBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
+	VmaAllocationInfo bufferAllocationInfo;
+
 	VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
-	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
 	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &uiTextBufferCreateInfo, &bufferAllocationCreateInfo, &m_uiTextBuffers[i], &m_uiTextBufferAllocations[i], nullptr));
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &uiTextBufferCreateInfo, &bufferAllocationCreateInfo, &m_uiTextBuffers[i].handle, &m_uiTextBuffers[i].allocation, &bufferAllocationInfo));
+		m_uiTextBuffers[i].address = bufferAllocationInfo.pMappedData;
 	}
 
 	// Create descriptor set layout
@@ -2964,7 +2959,7 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 	// Update descriptor sets
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		VkDescriptorBufferInfo textDescriptorBufferInfo;
-		textDescriptorBufferInfo.buffer = m_uiTextBuffers[i];
+		textDescriptorBufferInfo.buffer = m_uiTextBuffers[i].handle;
 		textDescriptorBufferInfo.offset = 0;
 		textDescriptorBufferInfo.range = 32768;
 
