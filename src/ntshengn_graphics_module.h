@@ -76,6 +76,12 @@ bool operator==(const NtshEngn::Material& lhs, const NtshEngn::Material& rhs) {
 		(lhs.indexOfRefraction == rhs.indexOfRefraction);
 }
 
+struct HostVisibleBuffer {
+	VkBuffer handle;
+	void* address;
+	VmaAllocation allocation;
+};
+
 enum class ShaderType {
 	Vertex,
 	TesselationControl,
@@ -349,8 +355,7 @@ namespace NtshEngn {
 		VkBuffer m_topLevelAccelerationStructureInstancesBuffer;
 		VmaAllocation m_topLevelAccelerationStructureInstancesBufferAllocation;
 		VkDeviceAddress m_topLevelAccelerationStructureInstancesBufferDeviceAddress;
-		std::vector<VkBuffer> m_topLevelAccelerationStructureInstancesStagingBuffers;
-		std::vector<VmaAllocation> m_topLevelAccelerationStructureInstancesStagingBufferAllocations;
+		std::vector<HostVisibleBuffer> m_topLevelAccelerationStructureInstancesStagingBuffers;
 
 		VkBuffer m_bottomLevelAccelerationStructureBuffer;
 		VmaAllocation m_bottomLevelAccelerationStructureBufferAllocation;
@@ -387,8 +392,7 @@ namespace NtshEngn {
 		VkSampler m_uiNearestSampler;
 		VkSampler m_uiLinearSampler;
 
-		std::vector<VkBuffer> m_uiTextBuffers;
-		std::vector<VmaAllocation> m_uiTextBufferAllocations;
+		std::vector<HostVisibleBuffer> m_uiTextBuffers;
 		VkDescriptorSetLayout m_uiTextDescriptorSetLayout;
 		VkDescriptorPool m_uiTextDescriptorPool;
 		std::vector<VkDescriptorSet> m_uiTextDescriptorSets;
@@ -438,20 +442,15 @@ namespace NtshEngn {
 		uint32_t m_framesInFlight;
 		uint32_t m_currentFrameInFlight;
 
-		std::vector<VkBuffer> m_cameraBuffers;
-		std::vector<VmaAllocation> m_cameraBufferAllocations;
+		std::vector<HostVisibleBuffer> m_cameraBuffers;
 
-		std::vector<VkBuffer> m_objectBuffers;
-		std::vector<VmaAllocation> m_objectBufferAllocations;
+		std::vector<HostVisibleBuffer> m_objectBuffers;
 
-		std::vector<VkBuffer> m_meshBuffers;
-		std::vector<VmaAllocation> m_meshBufferAllocations;
+		std::vector<HostVisibleBuffer> m_meshBuffers;
 
-		std::vector<VkBuffer> m_materialBuffers;
-		std::vector<VmaAllocation> m_materialBufferAllocations;
+		std::vector<HostVisibleBuffer> m_materialBuffers;
 
-		std::vector<VkBuffer> m_lightBuffers;
-		std::vector<VmaAllocation> m_lightBufferAllocations;
+		std::vector<HostVisibleBuffer> m_lightBuffers;
 
 		Mesh m_defaultMesh;
 		Image m_defaultDiffuseTexture;
