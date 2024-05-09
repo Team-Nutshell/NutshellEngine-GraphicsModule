@@ -15,7 +15,7 @@ public:
 		VkViewport viewport,
 		VkRect2D scissor,
 		uint32_t framesInFlight,
-		const std::vector<VulkanBuffer>& cameraBuffers,
+		const std::vector<HostVisibleVulkanBuffer>& cameraBuffers,
 		PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 		PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
 		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
@@ -43,8 +43,8 @@ private:
 	void createSSAOGraphicsPipeline();
 	void createSSAOBlurGraphicsPipeline();
 
-	void createDescriptorSets(const std::vector<VulkanBuffer>& cameraBuffers);
-	void createSSAODescriptorSets(const std::vector<VulkanBuffer>& cameraBuffers);
+	void createDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& cameraBuffers);
+	void createSSAODescriptorSets(const std::vector<HostVisibleVulkanBuffer>& cameraBuffers);
 	void createSSAOBlurDescriptorSet();
 
 	void updateDescriptorSets(VkImageView positionImageView, VkImageView normalImageView);

@@ -271,22 +271,15 @@ uint32_t FrustumCulling::culling(VkCommandBuffer commandBuffer,
 	}
 #endif
 
-	void* data;
-	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_drawIndirectBuffers[currentFrameInFlight].allocation, &data));
 	uint32_t drawIndirectCount = static_cast<uint32_t>(drawIndirectCommands.size());
-	memcpy(data, &drawIndirectCount, sizeof(uint32_t));
-	memcpy(reinterpret_cast<char*>(data) + sizeof(uint32_t), drawIndirectCommands.data(), sizeof(VkDrawIndexedIndirectCommand) * drawIndirectCommands.size());
-	vmaUnmapMemory(m_allocator, m_drawIndirectBuffers[currentFrameInFlight].allocation);
+	memcpy(m_drawIndirectBuffers[currentFrameInFlight].address, &drawIndirectCount, sizeof(uint32_t));
+	memcpy(reinterpret_cast<char*>(m_drawIndirectBuffers[currentFrameInFlight].address) + sizeof(uint32_t), drawIndirectCommands.data(), sizeof(VkDrawIndexedIndirectCommand) * drawIndirectCommands.size());
 
-	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_perDrawBuffers[currentFrameInFlight].allocation, &data));
-	memcpy(data, perDraw.data(), sizeof(uint32_t)* perDraw.size());
-	vmaUnmapMemory(m_allocator, m_perDrawBuffers[currentFrameInFlight].allocation);
+	memcpy(m_perDrawBuffers[currentFrameInFlight].address, perDraw.data(), sizeof(uint32_t)* perDraw.size());
 
 #if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
-	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_gpuFrustumCullingBuffers[currentFrameInFlight].allocation, &data));
-	memcpy(data, frustum.data(), sizeof(NtshEngn::Math::vec4) * 6);
-	memcpy(reinterpret_cast<char*>(data) + sizeof(NtshEngn::Math::vec4) * 6, frustumCullingObjects.data(), sizeof(FrustumCullingObject) * frustumCullingObjects.size());
-	vmaUnmapMemory(m_allocator, m_gpuFrustumCullingBuffers[currentFrameInFlight].allocation);
+	memcpy(m_gpuFrustumCullingBuffers[currentFrameInFlight].address, frustum.data(), sizeof(NtshEngn::Math::vec4) * 6);
+	memcpy(reinterpret_cast<char*>(m_gpuFrustumCullingBuffers[currentFrameInFlight].address) + sizeof(NtshEngn::Math::vec4) * 6, frustumCullingObjects.data(), sizeof(FrustumCullingObject) * frustumCullingObjects.size());
 
 	vkCmdFillBuffer(commandBuffer, m_gpuDrawIndirectBuffer.handle, 0, sizeof(uint32_t), 0);
 
@@ -373,13 +366,18 @@ VulkanBuffer& FrustumCulling::getDrawIndirectBuffer(uint32_t frameInFlight) {
 #endif
 }
 
-std::vector<VulkanBuffer> FrustumCulling::getPerDrawBuffers() {
+std::vector<VkBuffer> FrustumCulling::getPerDrawBuffers() {
 #if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
-	const std::vector<VulkanBuffer> gpuPerDrawBuffers(m_framesInFlight, m_gpuPerDrawBuffer);
+	const std::vector<VkBuffer> gpuPerDrawBuffers(m_framesInFlight, m_gpuPerDrawBuffer.handle);
 
 	return gpuPerDrawBuffers;
 #else
-	return m_perDrawBuffers;
+	std::vector<VkBuffer> perDrawBuffer;
+	for (size_t i = 0; i < m_perDrawBuffers.size(); i++) {
+		perDrawBuffer.push_back(m_perDrawBuffers[i].handle);
+	}
+
+	return perDrawBuffer;
 #endif
 }
 
@@ -392,8 +390,10 @@ void FrustumCulling::createBuffers() {
 	bufferCreateInfo.queueFamilyIndexCount = 1;
 	bufferCreateInfo.pQueueFamilyIndices = &m_computeQueueFamilyIndex;
 
+	VmaAllocationInfo allocationInfo;
+
 	VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
-	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
 	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 
 	// Create draw indirect buffers
@@ -402,7 +402,8 @@ void FrustumCulling::createBuffers() {
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_drawIndirectBuffers[i].handle, &m_drawIndirectBuffers[i].allocation, nullptr));
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_drawIndirectBuffers[i].handle, &m_drawIndirectBuffers[i].allocation, &allocationInfo));
+		m_drawIndirectBuffers[i].address = allocationInfo.pMappedData;
 	}
 
 	// Create per draw buffers
@@ -411,7 +412,8 @@ void FrustumCulling::createBuffers() {
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_perDrawBuffers[i].handle, &m_perDrawBuffers[i].allocation, nullptr));
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_perDrawBuffers[i].handle, &m_perDrawBuffers[i].allocation, &allocationInfo));
+		m_perDrawBuffers[i].address = allocationInfo.pMappedData;
 	}
 
 #if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
@@ -421,7 +423,8 @@ void FrustumCulling::createBuffers() {
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_gpuFrustumCullingBuffers[i].handle, &m_gpuFrustumCullingBuffers[i].allocation, nullptr));
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_gpuFrustumCullingBuffers[i].handle, &m_gpuFrustumCullingBuffers[i].allocation, &allocationInfo));
+		m_gpuFrustumCullingBuffers[i].address = allocationInfo.pMappedData;
 	}
 
 	// Create GPU draw indirect buffers

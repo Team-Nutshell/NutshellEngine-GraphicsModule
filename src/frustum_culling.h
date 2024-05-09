@@ -32,7 +32,7 @@ public:
 		const std::vector<InternalMesh>& meshes);
 
 	VulkanBuffer& getDrawIndirectBuffer(uint32_t frameInFlight);
-	std::vector<VulkanBuffer> getPerDrawBuffers();
+	std::vector<VkBuffer> getPerDrawBuffers();
 
 private:
 	void createBuffers();
@@ -46,11 +46,11 @@ private:
 #endif
 
 private:
-	std::vector<VulkanBuffer> m_drawIndirectBuffers;
-	std::vector<VulkanBuffer> m_perDrawBuffers;
+	std::vector<HostVisibleVulkanBuffer> m_drawIndirectBuffers;
+	std::vector<HostVisibleVulkanBuffer> m_perDrawBuffers;
 
 #if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
-	std::vector<VulkanBuffer> m_gpuFrustumCullingBuffers;
+	std::vector<HostVisibleVulkanBuffer> m_gpuFrustumCullingBuffers;
 	VulkanBuffer m_gpuDrawIndirectBuffer;
 	VulkanBuffer m_gpuPerDrawBuffer;
 

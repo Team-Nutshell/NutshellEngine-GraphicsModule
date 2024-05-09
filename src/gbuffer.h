@@ -13,12 +13,12 @@ public:
 		VkViewport viewport,
 		VkRect2D scissor,
 		uint32_t framesInFlight,
-		const std::vector<VulkanBuffer>& perDrawBuffers,
-		const std::vector<VulkanBuffer>& cameraBuffers,
-		const std::vector<VulkanBuffer>& objectBuffers,
+		const std::vector<VkBuffer>& perDrawBuffers,
+		const std::vector<HostVisibleVulkanBuffer>& cameraBuffers,
+		const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
 		VulkanBuffer meshBuffer,
-		const std::vector<VulkanBuffer>& jointTransformBuffers,
-		const std::vector<VulkanBuffer>& materialBuffers,
+		const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers,
+		const std::vector<HostVisibleVulkanBuffer>& materialBuffers,
 		PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 		PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
 		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
@@ -53,12 +53,12 @@ private:
 
 	void createGraphicsPipeline();
 
-	void createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffers,
-		const std::vector<VulkanBuffer>& cameraBuffers,
-		const std::vector<VulkanBuffer>& objectBuffers,
+	void createDescriptorSets(const std::vector<VkBuffer>& perDrawBuffers,
+		const std::vector<HostVisibleVulkanBuffer>& cameraBuffers,
+		const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
 		VulkanBuffer meshBuffer,
-		const std::vector<VulkanBuffer>& jointTransformBuffers,
-		const std::vector<VulkanBuffer>& materialBuffers);
+		const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers,
+		const std::vector<HostVisibleVulkanBuffer>& materialBuffers);
 
 private:
 	VulkanImage m_position;

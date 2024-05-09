@@ -13,7 +13,7 @@ void SSAO::init(VkDevice device,
 	VkViewport viewport,
 	VkRect2D scissor,
 	uint32_t framesInFlight,
-	const std::vector<VulkanBuffer>& cameraBuffers,
+	const std::vector<HostVisibleVulkanBuffer>& cameraBuffers,
 	PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 	PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
 	PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
@@ -1093,12 +1093,12 @@ void SSAO::createSSAOBlurGraphicsPipeline() {
 	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
 }
 
-void SSAO::createDescriptorSets(const std::vector<VulkanBuffer>& cameraBuffers) {
+void SSAO::createDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& cameraBuffers) {
 	createSSAODescriptorSets(cameraBuffers);
 	createSSAOBlurDescriptorSet();
 }
 
-void SSAO::createSSAODescriptorSets(const std::vector<VulkanBuffer>& cameraBuffers) {
+void SSAO::createSSAODescriptorSets(const std::vector<HostVisibleVulkanBuffer>& cameraBuffers) {
 	// Create descriptor pool
 	VkDescriptorPoolSize positionDescriptorPoolSize = {};
 	positionDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;

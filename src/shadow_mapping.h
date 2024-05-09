@@ -27,10 +27,10 @@ public:
 		VkCommandBuffer initializationCommandBuffer,
 		VkFence initializationFence,
 		uint32_t framesInFlight,
-		const std::vector<VulkanBuffer>& objectBuffers,
+		const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
 		VulkanBuffer meshBuffer,
-		const std::vector<VulkanBuffer>& jointTransformBuffers,
-		const std::vector<VulkanBuffer>& materialBuffers,
+		const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers,
+		const std::vector<HostVisibleVulkanBuffer>& materialBuffers,
 		PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 		PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
 		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR,
@@ -72,14 +72,14 @@ private:
 	void createDirectionalLightShadowGraphicsPipeline();
 	void createSpotLightShadowGraphicsPipeline();
 
-	void createDescriptorSets(const std::vector<VulkanBuffer>& objectBuffers,
+	void createDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
 		VulkanBuffer meshBuffer,
-		const std::vector<VulkanBuffer>& jointTransformBuffers,
-		const std::vector<VulkanBuffer>& materialBuffers);
+		const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers,
+		const std::vector<HostVisibleVulkanBuffer>& materialBuffers);
 
 private:
-	std::vector<VulkanBuffer> m_shadowBuffers;
-	std::vector<VulkanBuffer> m_cascadeSceneBuffers;
+	std::vector<HostVisibleVulkanBuffer> m_shadowBuffers;
+	std::vector<HostVisibleVulkanBuffer> m_cascadeSceneBuffers;
 
 	LayeredVulkanImage m_dummyShadowMap;
 	std::vector<NtshEngn::Entity> m_directionalLightEntities;

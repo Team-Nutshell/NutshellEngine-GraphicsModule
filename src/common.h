@@ -156,6 +156,10 @@ struct VulkanBuffer {
 	}
 };
 
+struct HostVisibleVulkanBuffer : public VulkanBuffer {
+	void* address;
+};
+
 inline std::vector<uint32_t> compileShader(const std::string& shaderCode, ShaderType type) {
 	std::vector<uint32_t> spvCode;
 

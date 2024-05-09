@@ -252,7 +252,7 @@ namespace NtshEngn {
 		VkSampler m_uiNearestSampler;
 		VkSampler m_uiLinearSampler;
 
-		std::vector<VulkanBuffer> m_uiTextBuffers;
+		std::vector<HostVisibleVulkanBuffer> m_uiTextBuffers;
 		VkDescriptorSetLayout m_uiTextDescriptorSetLayout;
 		VkDescriptorPool m_uiTextDescriptorPool;
 		std::vector<VkDescriptorSet> m_uiTextDescriptorSets;
@@ -293,17 +293,17 @@ namespace NtshEngn {
 		uint32_t m_framesInFlight;
 		uint32_t m_currentFrameInFlight;
 
-		std::vector<VulkanBuffer> m_cameraBuffers;
+		std::vector<HostVisibleVulkanBuffer> m_cameraBuffers;
 
-		std::vector<VulkanBuffer> m_objectBuffers;
+		std::vector<HostVisibleVulkanBuffer> m_objectBuffers;
 
 		VulkanBuffer m_meshBuffer;
 
-		std::vector<VulkanBuffer> m_jointTransformBuffers;
+		std::vector<HostVisibleVulkanBuffer> m_jointTransformBuffers;
 
-		std::vector<VulkanBuffer> m_materialBuffers;
+		std::vector<HostVisibleVulkanBuffer> m_materialBuffers;
 
-		std::vector<VulkanBuffer> m_lightBuffers;
+		std::vector<HostVisibleVulkanBuffer> m_lightBuffers;
 
 		Mesh m_defaultMesh;
 		Image m_defaultDiffuseTexture;

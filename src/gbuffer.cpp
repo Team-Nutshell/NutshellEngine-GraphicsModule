@@ -10,12 +10,12 @@ void GBuffer::init(VkDevice device,
 	VkViewport viewport,
 	VkRect2D scissor,
 	uint32_t framesInFlight,
-	const std::vector<VulkanBuffer>& perDrawBuffers,
-	const std::vector<VulkanBuffer>& cameraBuffers,
-	const std::vector<VulkanBuffer>& objectBuffers,
+	const std::vector<VkBuffer>& perDrawBuffers,
+	const std::vector<HostVisibleVulkanBuffer>& cameraBuffers,
+	const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
 	VulkanBuffer meshBuffer,
-	const std::vector<VulkanBuffer>& jointTransformBuffers,
-	const std::vector<VulkanBuffer>& materialBuffers,
+	const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers,
+	const std::vector<HostVisibleVulkanBuffer>& materialBuffers,
 	PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 	PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
 	PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
@@ -1139,12 +1139,12 @@ void GBuffer::createGraphicsPipeline() {
 	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
 }
 
-void GBuffer::createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffers,
-	const std::vector<VulkanBuffer>& cameraBuffers,
-	const std::vector<VulkanBuffer>& objectBuffers,
+void GBuffer::createDescriptorSets(const std::vector<VkBuffer>& perDrawBuffers,
+	const std::vector<HostVisibleVulkanBuffer>& cameraBuffers,
+	const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
 	VulkanBuffer meshBuffer,
-	const std::vector<VulkanBuffer>& jointTransformBuffers,
-	const std::vector<VulkanBuffer>& materialBuffers) {
+	const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers,
+	const std::vector<HostVisibleVulkanBuffer>& materialBuffers) {
 	// Create descriptor pool
   	VkDescriptorPoolSize perDrawDescriptorPoolSize = {};
 	perDrawDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -1201,7 +1201,7 @@ void GBuffer::createDescriptorSets(const std::vector<VulkanBuffer>& perDrawBuffe
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
 
 		VkDescriptorBufferInfo perDrawDescriptorBufferInfo;
-		perDrawDescriptorBufferInfo.buffer = perDrawBuffers[i].handle;
+		perDrawDescriptorBufferInfo.buffer = perDrawBuffers[i];
 		perDrawDescriptorBufferInfo.offset = 0;
 		perDrawDescriptorBufferInfo.range = 32768;
 

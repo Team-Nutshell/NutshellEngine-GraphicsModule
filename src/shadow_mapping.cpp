@@ -10,10 +10,10 @@ void ShadowMapping::init(VkDevice device,
 	VkCommandBuffer initializationCommandBuffer,
 	VkFence initializationFence,
 	uint32_t framesInFlight,
-	const std::vector<VulkanBuffer>& objectBuffers,
+	const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
 	VulkanBuffer meshBuffer,
-	const std::vector<VulkanBuffer>& jointTransformBuffers,
-	const std::vector<VulkanBuffer>& materialBuffers,
+	const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers,
+	const std::vector<HostVisibleVulkanBuffer>& materialBuffers,
 	PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 	PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
 	PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR,
@@ -161,11 +161,9 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 		lastSplitDistance = splitDistance;
 	}
 
-	void* data;
-	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_shadowBuffers[currentFrameInFlight].allocation, &data));
 	for (size_t directionalLightIndex = 0; directionalLightIndex < m_directionalLightEntities.size(); directionalLightIndex++) {
 		for (uint32_t cascadeIndex = 0; cascadeIndex < SHADOW_MAPPING_CASCADE_COUNT; cascadeIndex++) {
-			memcpy(reinterpret_cast<char*>(data) + (((directionalLightIndex * SHADOW_MAPPING_CASCADE_COUNT) + cascadeIndex) * sizeof(NtshEngn::Math::mat4)), &m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].viewProj, sizeof(NtshEngn::Math::mat4));
+			memcpy(reinterpret_cast<char*>(m_shadowBuffers[currentFrameInFlight].address) + (((directionalLightIndex * SHADOW_MAPPING_CASCADE_COUNT) + cascadeIndex) * sizeof(NtshEngn::Math::mat4)), &m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].viewProj, sizeof(NtshEngn::Math::mat4));
 		}
 	}
 	for (size_t spotLightIndex = 0; spotLightIndex < m_spotLightEntities.size(); spotLightIndex++) {
@@ -185,21 +183,18 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 		NtshEngn::Math::mat4 lightProj = NtshEngn::Math::perspectiveRH(light.cutoff.y * 2.0f, 1.0f, 0.05f, 50.0f);
 		lightProj[1][1] *= -1.0f;
 		m_spotLightShadowMaps[spotLightIndex].viewProj = lightProj * lightView;
-		memcpy(reinterpret_cast<char*>(data) + (((m_directionalLightShadowMaps.size() * SHADOW_MAPPING_CASCADE_COUNT) * sizeof(NtshEngn::Math::mat4)) + (spotLightIndex * sizeof(NtshEngn::Math::mat4))), & m_spotLightShadowMaps[spotLightIndex].viewProj, sizeof(NtshEngn::Math::mat4));
+		memcpy(reinterpret_cast<char*>(m_shadowBuffers[currentFrameInFlight].address) + (((m_directionalLightShadowMaps.size() * SHADOW_MAPPING_CASCADE_COUNT) * sizeof(NtshEngn::Math::mat4)) + (spotLightIndex * sizeof(NtshEngn::Math::mat4))), & m_spotLightShadowMaps[spotLightIndex].viewProj, sizeof(NtshEngn::Math::mat4));
 	}
-	vmaUnmapMemory(m_allocator, m_shadowBuffers[currentFrameInFlight].allocation);
 
-	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_cascadeSceneBuffers[currentFrameInFlight].allocation, &data));
 	for (size_t directionalLightIndex = 0; directionalLightIndex < m_directionalLightEntities.size(); directionalLightIndex++) {
 		for (uint32_t cascadeIndex = 0; cascadeIndex < SHADOW_MAPPING_CASCADE_COUNT; cascadeIndex++) {
-			memcpy(reinterpret_cast<char*>(data) + (((directionalLightIndex * SHADOW_MAPPING_CASCADE_COUNT) + cascadeIndex) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))), &m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].viewProj, sizeof(NtshEngn::Math::mat4));
-			memcpy(reinterpret_cast<char*>(data) + (((directionalLightIndex * SHADOW_MAPPING_CASCADE_COUNT) + cascadeIndex) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + sizeof(NtshEngn::Math::mat4), &m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].splitDepth, sizeof(NtshEngn::Math::vec4));
+			memcpy(reinterpret_cast<char*>(m_cascadeSceneBuffers[currentFrameInFlight].address) + (((directionalLightIndex * SHADOW_MAPPING_CASCADE_COUNT) + cascadeIndex) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))), &m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].viewProj, sizeof(NtshEngn::Math::mat4));
+			memcpy(reinterpret_cast<char*>(m_cascadeSceneBuffers[currentFrameInFlight].address) + (((directionalLightIndex * SHADOW_MAPPING_CASCADE_COUNT) + cascadeIndex) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + sizeof(NtshEngn::Math::mat4), &m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].splitDepth, sizeof(NtshEngn::Math::vec4));
 		}
 	}
 	for (size_t spotLightIndex = 0; spotLightIndex < m_spotLightEntities.size(); spotLightIndex++) {
-		memcpy(reinterpret_cast<char*>(data) + (((m_directionalLightEntities.size() * SHADOW_MAPPING_CASCADE_COUNT) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + (spotLightIndex * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4)))), &m_spotLightShadowMaps[spotLightIndex].viewProj, sizeof(NtshEngn::Math::mat4));
+		memcpy(reinterpret_cast<char*>(m_cascadeSceneBuffers[currentFrameInFlight].address) + (((m_directionalLightEntities.size() * SHADOW_MAPPING_CASCADE_COUNT) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + (spotLightIndex * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4)))), &m_spotLightShadowMaps[spotLightIndex].viewProj, sizeof(NtshEngn::Math::mat4));
 	}
-	vmaUnmapMemory(m_allocator, m_cascadeSceneBuffers[currentFrameInFlight].allocation);
 
 	// Shadow mapping layout transition
 	std::vector<VkImageMemoryBarrier2> undefinedToDepthStencilAttachmentImageMemoryBarriers;
@@ -864,13 +859,18 @@ void ShadowMapping::createImageAndBuffers() {
 	bufferCreateInfo.queueFamilyIndexCount = 1;
 	bufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
+	VmaAllocationInfo bufferAllocationInfo;
+
 	VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
-	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
 	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_shadowBuffers[i].handle, &m_shadowBuffers[i].allocation, nullptr));
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_cascadeSceneBuffers[i].handle, &m_cascadeSceneBuffers[i].allocation, nullptr));
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_shadowBuffers[i].handle, &m_shadowBuffers[i].allocation, &bufferAllocationInfo));
+		m_shadowBuffers[i].address = bufferAllocationInfo.pMappedData;
+
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_cascadeSceneBuffers[i].handle, &m_cascadeSceneBuffers[i].allocation, &bufferAllocationInfo));
+		m_cascadeSceneBuffers[i].address = bufferAllocationInfo.pMappedData;
 	}
 }
 
@@ -1544,10 +1544,10 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
 }
 
-void ShadowMapping::createDescriptorSets(const std::vector<VulkanBuffer>& objectBuffers,
+void ShadowMapping::createDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
 	VulkanBuffer meshBuffer,
-	const std::vector<VulkanBuffer>& jointTransformBuffers,
-	const std::vector<VulkanBuffer>& materialBuffers) {
+	const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers,
+	const std::vector<HostVisibleVulkanBuffer>& materialBuffers) {
 	// Create descriptor pool
 	VkDescriptorPoolSize cascadeDescriptorPoolSize = {};
 	cascadeDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
