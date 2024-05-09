@@ -633,7 +633,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		memcpy(reinterpret_cast<char*>(m_cameraBuffers[m_currentFrameInFlight].address) + sizeof(Math::mat4) * 2, cameraPositionAsVec4.data(), sizeof(Math::vec4));
 	}
 
-	// Update object buffer
+	// Update objects buffer
 	for (auto& it : m_objects) {
 		size_t offset = (it.second.index * sizeof(Math::vec2));
 
@@ -646,21 +646,21 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		loadRenderableForEntity(it.first);
 	}
 
-	// Update mesh buffer
+	// Update meshes buffer
 	for (size_t i = 0; i < m_meshes.size(); i++) {
 		size_t offset = i * 2 * sizeof(VkDeviceAddress);
 
 		memcpy(reinterpret_cast<char*>(m_meshBuffers[m_currentFrameInFlight].address) + offset, &m_meshes[i].vertexDeviceAddress, 2 * sizeof(VkDeviceAddress));
 	}
 
-	// Update material buffer
+	// Update materials buffer
 	for (size_t i = 0; i < m_materials.size(); i++) {
 		size_t offset = i * sizeof(InternalMaterial);
 
 		memcpy(reinterpret_cast<char*>(m_materialBuffers[m_currentFrameInFlight].address) + offset, &m_materials[i], sizeof(InternalMaterial));
 	}
 
-	// Update light buffer
+	// Update lights buffer
 	std::array<uint32_t, 4> lightsCount = { static_cast<uint32_t>(m_lights.directionalLights.size()), static_cast<uint32_t>(m_lights.pointLights.size()), static_cast<uint32_t>(m_lights.spotLights.size()), 0 };
 	memcpy(m_lightBuffers[m_currentFrameInFlight].address, lightsCount.data(), 4 * sizeof(uint32_t));
 
