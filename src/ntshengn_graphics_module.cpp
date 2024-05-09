@@ -607,7 +607,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		loadRenderableForEntity(it.first);
 	}
 
-	// Update joints transform buffer
+	// Update joint transforms buffer
 	for (auto& it : m_objects) {
 		const Renderable& objectRenderable = ecs->getComponent<Renderable>(it.first);
 		const Skin& skin = objectRenderable.mesh->skin;
