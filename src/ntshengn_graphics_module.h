@@ -45,6 +45,12 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBits
 	return VK_FALSE;
 }
 
+struct HostVisibleBuffer {
+	VkBuffer handle;
+	void* address;
+	VmaAllocation allocation;
+};
+
 struct PushConstants {
 	float time;
 	uint32_t width;
@@ -234,8 +240,7 @@ namespace NtshEngn {
 		uint32_t m_framesInFlight;
 		uint32_t m_currentFrameInFlight;
 
-		std::vector<VkBuffer> m_lightBuffers;
-		std::vector<VmaAllocation> m_lightBufferAllocations;
+		std::vector<HostVisibleBuffer> m_lightBuffers;
 
 		InternalLights m_lights;
 

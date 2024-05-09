@@ -520,7 +520,6 @@ void NtshEngn::GraphicsModule::init() {
 
 	// Create light storage buffer
 	m_lightBuffers.resize(m_framesInFlight);
-	m_lightBufferAllocations.resize(m_framesInFlight);
 	VkBufferCreateInfo lightBufferCreateInfo = {};
 	lightBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	lightBufferCreateInfo.pNext = nullptr;
@@ -531,12 +530,15 @@ void NtshEngn::GraphicsModule::init() {
 	lightBufferCreateInfo.queueFamilyIndexCount = 1;
 	lightBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
 
+	VmaAllocationInfo bufferAllocationInfo;
+
 	VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
 	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &lightBufferCreateInfo, &bufferAllocationCreateInfo, &m_lightBuffers[i], &m_lightBufferAllocations[i], nullptr));
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &lightBufferCreateInfo, &bufferAllocationCreateInfo, &m_lightBuffers[i].handle, &m_lightBuffers[i].allocation, &bufferAllocationInfo));
+		m_lightBuffers[i].address = bufferAllocationInfo.pMappedData;
 	}
 
 	// Create descriptor pool
@@ -571,7 +573,7 @@ void NtshEngn::GraphicsModule::init() {
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
 
 		VkDescriptorBufferInfo lightsDescriptorBufferInfo;
-		lightsDescriptorBufferInfo.buffer = m_lightBuffers[i];
+		lightsDescriptorBufferInfo.buffer = m_lightBuffers[i].handle;
 		lightsDescriptorBufferInfo.offset = 0;
 		lightsDescriptorBufferInfo.range = 32768;
 
@@ -720,10 +722,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	}
 
 	// Update lights buffer
-	void* data;
-	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_lightBufferAllocations[m_currentFrameInFlight], &data));
 	std::array<uint32_t, 4> lightsCount = { static_cast<uint32_t>(m_lights.directionalLights.size()), static_cast<uint32_t>(m_lights.pointLights.size()), static_cast<uint32_t>(m_lights.spotLights.size()), 0 };
-	memcpy(data, lightsCount.data(), 4 * sizeof(uint32_t));
+	memcpy(m_lightBuffers[m_currentFrameInFlight].address, lightsCount.data(), 4 * sizeof(uint32_t));
 
 	size_t offset = sizeof(Math::vec4);
 	for (Entity light : m_lights.directionalLights) {
@@ -743,7 +743,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		internalLight.direction = Math::vec4(lightDirection, 0.0f);
 		internalLight.color = Math::vec4(lightLight.color, 0.0f);
 
-		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
+		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
 	}
 	for (Entity light : m_lights.pointLights) {
@@ -754,7 +754,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		internalLight.position = Math::vec4(lightTransform.position, 0.0f);
 		internalLight.color = Math::vec4(lightLight.color, 0.0f);
 
-		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
+		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
 	}
 	for (Entity light : m_lights.spotLights) {
@@ -776,10 +776,9 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		internalLight.color = Math::vec4(lightLight.color, 0.0f);
 		internalLight.cutoff = Math::vec4(lightLight.cutoff, 0.0f, 0.0f);
 
-		memcpy(reinterpret_cast<char*>(data) + offset, &internalLight, sizeof(InternalLight));
+		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
 	}
-	vmaUnmapMemory(m_allocator, m_lightBufferAllocations[m_currentFrameInFlight]);
 
 	// Record rendering commands
 	NTSHENGN_VK_CHECK(vkResetCommandPool(m_device, m_renderingCommandPools[m_currentFrameInFlight], 0));
@@ -1059,7 +1058,7 @@ void NtshEngn::GraphicsModule::destroy() {
 
 	// Destroy lights buffers
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		vmaDestroyBuffer(m_allocator, m_lightBuffers[i], m_lightBufferAllocations[i]);
+		vmaDestroyBuffer(m_allocator, m_lightBuffers[i].handle, m_lightBuffers[i].allocation);
 	}
 
 	// Destroy tone mapping resources
