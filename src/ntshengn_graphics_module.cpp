@@ -686,7 +686,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	}
 	vmaUnmapMemory(m_allocator, m_objectBuffers[m_currentFrameInFlight].allocation);
 
-	// Update joint transform buffer
+	// Update joint transforms buffer
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_jointTransformBuffers[m_currentFrameInFlight].allocation, &data));
 	for (auto& it : m_objects) {
 		const Renderable& objectRenderable = ecs->getComponent<Renderable>(it.first);
@@ -849,7 +849,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	}
 	vmaUnmapMemory(m_allocator, m_jointTransformBuffers[m_currentFrameInFlight].allocation);
 
-	// Update material buffer
+	// Update materials buffer
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_materialBuffers[m_currentFrameInFlight].allocation, &data));
 	for (size_t i = 0; i < m_materials.size(); i++) {
 		size_t offset = i * sizeof(InternalMaterial);
