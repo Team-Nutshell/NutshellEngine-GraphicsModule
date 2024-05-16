@@ -1,5 +1,5 @@
 #include "ntshengn_graphics_module.h"
-#include "../Common/module_interfaces/ntshengn_window_module_interface.h"
+#include "../Common/modules/ntshengn_window_module_interface.h"
 #include "../Module/utils/ntshengn_module_defines.h"
 #include "../Module/utils/ntshengn_dynamic_library.h"
 
