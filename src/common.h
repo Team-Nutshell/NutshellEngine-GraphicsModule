@@ -2,7 +2,7 @@
 #include "../Common/resources/ntshengn_resources_graphics.h"
 #include "../Common/utils/ntshengn_defines.h"
 #include "../Common/utils/ntshengn_enums.h"
-#include "../Common/ecs/ntshengn_ecs.h"
+#include "../Common/ecs/ntshengn_ecs_interface.h"
 #include "../Common/utils/ntshengn_utils_math.h"
 #include "../Module/utils/ntshengn_module_defines.h"
 #if defined(NTSHENGN_OS_WINDOWS)

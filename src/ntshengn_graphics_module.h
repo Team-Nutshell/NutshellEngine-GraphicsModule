@@ -1,5 +1,5 @@
 #pragma once
-#include "../Common/module_interfaces/ntshengn_graphics_module_interface.h"
+#include "../Common/modules/ntshengn_graphics_module_interface.h"
 #include "../Common/utils/ntshengn_utils_block_suballocator.h"
 #include "common.h"
 #include "frustum_culling.h"

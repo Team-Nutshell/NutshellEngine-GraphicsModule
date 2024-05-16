@@ -8,8 +8,8 @@ void FrustumCulling::init(VkDevice device,
 	VmaAllocator allocator,
 	uint32_t framesInFlight,
 	PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR, 
-	NtshEngn::JobSystem* jobSystem,
-	NtshEngn::ECS* ecs) {
+	NtshEngn::JobSystemInterface* jobSystem,
+	NtshEngn::ECSInterface* ecs) {
 	m_device = device;
 	m_computeQueue = computeQueue;
 	m_computeQueueFamilyIndex = computeQueueFamilyIndex;

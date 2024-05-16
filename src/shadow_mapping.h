@@ -34,7 +34,7 @@ public:
 		PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 		PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
 		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR,
-		NtshEngn::ECS* ecs);
+		NtshEngn::ECSInterface* ecs);
 	void destroy();
 
 	void draw(VkCommandBuffer commandBuffer,
@@ -114,5 +114,5 @@ private:
 	PFN_vkCmdEndRenderingKHR m_vkCmdEndRenderingKHR;
 	PFN_vkCmdPipelineBarrier2KHR m_vkCmdPipelineBarrier2KHR;
 
-	NtshEngn::ECS* m_ecs;
+	NtshEngn::ECSInterface* m_ecs;
 };

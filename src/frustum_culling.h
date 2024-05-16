@@ -1,6 +1,6 @@
 #pragma once
 #include "common.h"
-#include "../Common/job_system/ntshengn_job_system.h"
+#include "../Common/job_system/ntshengn_job_system_interface.h"
 
 #if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
 struct FrustumCullingObject {
@@ -20,8 +20,8 @@ public:
 		VmaAllocator allocator,
 		uint32_t framesInFlight,
 		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR,
-		NtshEngn::JobSystem* jobSystem,
-		NtshEngn::ECS* ecs);
+		NtshEngn::JobSystemInterface* jobSystem,
+		NtshEngn::ECSInterface* ecs);
 	void destroy();
 
 	uint32_t culling(VkCommandBuffer commandBuffer,
@@ -71,6 +71,6 @@ private:
 
 	PFN_vkCmdPipelineBarrier2KHR m_vkCmdPipelineBarrier2KHR;
 
-	NtshEngn::JobSystem* m_jobSystem;
-	NtshEngn::ECS* m_ecs;
+	NtshEngn::JobSystemInterface* m_jobSystem;
+	NtshEngn::ECSInterface* m_ecs;
 };

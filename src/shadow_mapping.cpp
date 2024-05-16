@@ -17,7 +17,7 @@ void ShadowMapping::init(VkDevice device,
 	PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 	PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
 	PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR,
-	NtshEngn::ECS* ecs) {
+	NtshEngn::ECSInterface* ecs) {
 	m_device = device;
 	m_graphicsQueue = graphicsQueue;
 	m_graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
