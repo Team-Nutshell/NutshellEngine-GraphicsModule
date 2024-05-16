@@ -1,5 +1,5 @@
 #pragma once
-#include "../Common/module_interfaces/ntshengn_graphics_module_interface.h"
+#include "../Common/modules/ntshengn_graphics_module_interface.h"
 #include "../Common/resources/ntshengn_resources_graphics.h"
 #include "../Common/utils/ntshengn_defines.h"
 #include "../Common/utils/ntshengn_enums.h"
@@ -18,6 +18,7 @@
 #include <vector>
 #include <limits>
 #include <unordered_map>
+#include <queue>
 
 #define NTSHENGN_VK_CHECK(f) \
 	do { \
