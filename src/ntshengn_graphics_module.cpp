@@ -2378,6 +2378,8 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 
 		case LightType::Point:
 			m_lights.pointLights.insert(entity);
+			m_shadowMapping.createPointLightShadowMap(entity);
+			compositingShadowDescriptorSetsNeedUpdate = true;
 			break;
 
 		case LightType::Spot:
@@ -2433,6 +2435,8 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 
 		case LightType::Point:
 			m_lights.pointLights.erase(entity);
+			m_shadowMapping.destroyPointLightShadowMap(entity);
+			compositingShadowDescriptorSetsNeedUpdate = true;
 			break;
 
 		case LightType::Spot:
@@ -2882,13 +2886,14 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 		} shadows;
 
 		layout(set = 0, binding = 9) uniform sampler2DArray shadowMaps[];
+		layout(set = 0, binding = 9) uniform samplerCube shadowCubeMaps[];
 
 		layout(location = 0) in vec2 uv;
 
 		layout(location = 0) out vec4 outColor;
 
 		// Shadows
-		float shadowValue(uint lightIndex, uint cascadeIndex, vec4 shadowCoord, float bias) {
+		float shadowValue(uint lightIndex, uint layerIndex, vec4 shadowCoord, float bias) {
 			float shadow = 0.0;
 			if ((shadowCoord.z < -1.0) || (shadowCoord.z > 1.0)) {
 				return 1.0;
@@ -2897,7 +2902,7 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 			const vec2 texelSize = 0.75 * (1.0 / vec2(textureSize(shadowMaps[nonuniformEXT(lightIndex)], 0).xy));
 			for (int x = -1; x <= 1; x++) {
 				for (int y = -1; y <= 1; y++) {
-					const float depth = texture(shadowMaps[nonuniformEXT(lightIndex)], vec3(shadowCoord.xy + (vec2(x, y) * texelSize), cascadeIndex)).r;
+					const float depth = texture(shadowMaps[nonuniformEXT(lightIndex)], vec3(shadowCoord.xy + (vec2(x, y) * texelSize), layerIndex)).r;
 					if (depth >= (shadowCoord.z - bias)) {
 						shadow += 1.0;
 					}
@@ -2905,6 +2910,18 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 			}
 
 			return shadow / 9.0;
+		}
+
+		float shadowCubeValue(uint lightIndex, vec3 direction, float bias) {
+			float shadow = 0.0;
+
+			const float lengthDirection = length(direction);
+			const float depth = texture(shadowCubeMaps[nonuniformEXT(lightIndex)], direction).r;
+			if ((depth * 50.0) >= (lengthDirection - bias)) {
+				shadow = 1.0;
+			}
+
+			return shadow;
 		}
 
 		void main() {
@@ -2942,7 +2959,7 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 					}
 				}
 
-				const vec4 shadowCoord = (shadowOffset * shadows.info[i * SHADOW_MAPPING_CASCADE_COUNT + cascadeIndex].viewProj) * vec4(position, 1.0);
+				const vec4 shadowCoord = (shadowOffset * shadows.info[(i * SHADOW_MAPPING_CASCADE_COUNT) + cascadeIndex].viewProj) * vec4(position, 1.0);
 
 				color += shade(n, v, l, lights.info[lightIndex].color, d, metalnessSample, roughnessSample) * shadowValue(i, cascadeIndex, shadowCoord / shadowCoord.w, 0.005);
 
@@ -2951,10 +2968,12 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 			// Point Lights
 			for (uint i = 0; i < lights.count.y; i++) {
 				const vec3 l = normalize(lights.info[lightIndex].position - position);
+
 				const float distance = length(lights.info[lightIndex].position - position);
 				const float attenuation = 1.0 / (distance * distance);
 				const vec3 radiance = lights.info[lightIndex].color * attenuation;
-				color += shade(n, v, l, radiance, d, metalnessSample, roughnessSample);
+
+				color += shade(n, v, l, radiance, d, metalnessSample, roughnessSample) * shadowCubeValue(lightIndex, position - lights.info[lightIndex].position, 0.05);
 
 				lightIndex++;
 			}
@@ -2966,9 +2985,9 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 				float intensity = clamp((theta - cos(lights.info[lightIndex].cutoffs.x)) / epsilon, 0.0, 1.0);
 				intensity = 1.0 - intensity;
 
-				const vec4 shadowCoord = (shadowOffset * shadows.info[lights.count.x * SHADOW_MAPPING_CASCADE_COUNT + i].viewProj) * vec4(position, 1.0);
+				const vec4 shadowCoord = (shadowOffset * shadows.info[(lights.count.x * SHADOW_MAPPING_CASCADE_COUNT) + (lights.count.y * 6) + i].viewProj) * vec4(position, 1.0);
 
-				color += shade(n, v, l, lights.info[lightIndex].color * intensity, d * intensity, metalnessSample, roughnessSample) * shadowValue(lights.count.x + i, 0, shadowCoord / shadowCoord.w, 0.00005);
+				color += shade(n, v, l, lights.info[lightIndex].color * intensity, d * intensity, metalnessSample, roughnessSample) * shadowValue(lightIndex, 0, shadowCoord / shadowCoord.w, 0.00005);
 
 				lightIndex++;
 			}
@@ -3237,24 +3256,24 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 		lightsDescriptorWriteDescriptorSet.pBufferInfo = &lightsDescriptorBufferInfo;
 		lightsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
-		VkDescriptorBufferInfo cascadeSceneDescriptorBufferInfo;
-		cascadeSceneDescriptorBufferInfo.buffer = m_shadowMapping.getCascadeSceneBuffer(i).handle;
-		cascadeSceneDescriptorBufferInfo.offset = 0;
-		cascadeSceneDescriptorBufferInfo.range = 65536;
+		VkDescriptorBufferInfo shadowSceneDescriptorBufferInfo;
+		shadowSceneDescriptorBufferInfo.buffer = m_shadowMapping.getShadowSceneBuffer(i).handle;
+		shadowSceneDescriptorBufferInfo.offset = 0;
+		shadowSceneDescriptorBufferInfo.range = 65536;
 
-		VkWriteDescriptorSet cascadeSceneDescriptorWriteDescriptorSet = {};
-		cascadeSceneDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		cascadeSceneDescriptorWriteDescriptorSet.pNext = nullptr;
-		cascadeSceneDescriptorWriteDescriptorSet.dstSet = m_compositingDescriptorSets[i];
-		cascadeSceneDescriptorWriteDescriptorSet.dstBinding = 8;
-		cascadeSceneDescriptorWriteDescriptorSet.dstArrayElement = 0;
-		cascadeSceneDescriptorWriteDescriptorSet.descriptorCount = 1;
-		cascadeSceneDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		cascadeSceneDescriptorWriteDescriptorSet.pImageInfo = nullptr;
-		cascadeSceneDescriptorWriteDescriptorSet.pBufferInfo = &cascadeSceneDescriptorBufferInfo;
-		cascadeSceneDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		VkWriteDescriptorSet shadowSceneDescriptorWriteDescriptorSet = {};
+		shadowSceneDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		shadowSceneDescriptorWriteDescriptorSet.pNext = nullptr;
+		shadowSceneDescriptorWriteDescriptorSet.dstSet = m_compositingDescriptorSets[i];
+		shadowSceneDescriptorWriteDescriptorSet.dstBinding = 8;
+		shadowSceneDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		shadowSceneDescriptorWriteDescriptorSet.descriptorCount = 1;
+		shadowSceneDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		shadowSceneDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		shadowSceneDescriptorWriteDescriptorSet.pBufferInfo = &shadowSceneDescriptorBufferInfo;
+		shadowSceneDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
-		std::array<VkWriteDescriptorSet, 3> writeDescriptorSets = { cameraDescriptorWriteDescriptorSet, lightsDescriptorWriteDescriptorSet, cascadeSceneDescriptorWriteDescriptorSet };
+		std::array<VkWriteDescriptorSet, 3> writeDescriptorSets = { cameraDescriptorWriteDescriptorSet, lightsDescriptorWriteDescriptorSet, shadowSceneDescriptorWriteDescriptorSet };
 
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 	}

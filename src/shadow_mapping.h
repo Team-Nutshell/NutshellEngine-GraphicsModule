@@ -12,6 +12,11 @@ struct DirectionalLightShadowMap {
 	std::array<ShadowCascade, SHADOW_MAPPING_CASCADE_COUNT> cascades;
 };
 
+struct PointLightShadowMap {
+	LayeredVulkanImage shadowMap;
+	std::array<NtshEngn::Math::mat4, 6> viewProjs;
+};
+
 struct SpotLightShadowMap {
 	LayeredVulkanImage shadowMap;
 	NtshEngn::Math::mat4 viewProj;
@@ -57,10 +62,13 @@ public:
 	void createDirectionalLightShadowMap(NtshEngn::Entity entity);
 	void destroyDirectionalLightShadowMap(NtshEngn::Entity entity);
 
+	void createPointLightShadowMap(NtshEngn::Entity entity);
+	void destroyPointLightShadowMap(NtshEngn::Entity entity);
+
 	void createSpotLightShadowMap(NtshEngn::Entity entity);
 	void destroySpotLightShadowMap(NtshEngn::Entity entity);
 
-	VulkanBuffer& getCascadeSceneBuffer(uint32_t frameInFlight);
+	VulkanBuffer& getShadowSceneBuffer(uint32_t frameInFlight);
 	std::vector<LayeredVulkanImage> getShadowMapImages();
 
 private:
@@ -70,6 +78,7 @@ private:
 
 	void createGraphicsPipelines();
 	void createDirectionalLightShadowGraphicsPipeline();
+	void createPointLightShadowGraphicsPipeline();
 	void createSpotLightShadowGraphicsPipeline();
 
 	void createDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
@@ -79,11 +88,13 @@ private:
 
 private:
 	std::vector<HostVisibleVulkanBuffer> m_shadowBuffers;
-	std::vector<HostVisibleVulkanBuffer> m_cascadeSceneBuffers;
+	std::vector<HostVisibleVulkanBuffer> m_shadowSceneBuffers;
 
 	LayeredVulkanImage m_dummyShadowMap;
 	std::vector<NtshEngn::Entity> m_directionalLightEntities;
 	std::vector<DirectionalLightShadowMap> m_directionalLightShadowMaps;
+	std::vector<NtshEngn::Entity> m_pointLightEntities;
+	std::vector<PointLightShadowMap> m_pointLightShadowMaps;
 	std::vector<NtshEngn::Entity> m_spotLightEntities;
 	std::vector<SpotLightShadowMap> m_spotLightShadowMaps;
 
@@ -91,6 +102,8 @@ private:
 
 	VkPipeline m_directionalLightShadowGraphicsPipeline;
 	VkPipelineLayout m_directionalLightShadowGraphicsPipelineLayout;
+	VkPipeline m_pointLightShadowGraphicsPipeline;
+	VkPipelineLayout m_pointLightShadowGraphicsPipelineLayout;
 	VkPipeline m_spotLightShadowGraphicsPipeline;
 	VkPipelineLayout m_spotLightShadowGraphicsPipelineLayout;
 
