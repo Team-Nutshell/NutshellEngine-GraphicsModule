@@ -2913,15 +2913,13 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 		}
 
 		float shadowCubeValue(uint lightIndex, vec3 direction, float bias) {
-			float shadow = 0.0;
-
 			const float lengthDirection = length(direction);
 			const float depth = texture(shadowCubeMaps[nonuniformEXT(lightIndex)], direction).r;
 			if ((depth * 50.0) >= (lengthDirection - bias)) {
-				shadow = 1.0;
+				return 1.0;
 			}
 
-			return shadow;
+			return 0.0;
 		}
 
 		void main() {
