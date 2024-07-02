@@ -79,7 +79,7 @@ target_link_libraries(${PROJECT_NAME}
 		Vulkan::Vulkan
 		glslang
 		SPIRV
-		VulkanMemoryAllocator)
+		GPUOpen::VulkanMemoryAllocator)
 
 target_compile_options(${PROJECT_NAME}
 	PRIVATE
