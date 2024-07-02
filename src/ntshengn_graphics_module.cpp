@@ -1,19 +1,8 @@
 #include "ntshengn_graphics_module.h"
 #include "../Module/utils/ntshengn_dynamic_library.h"
 #include "../Common/modules/ntshengn_window_module_interface.h"
-#if defined(NTSHENGN_COMPILER_MSVC)
-#pragma warning(push)
-#pragma warning(disable : 4100)
-#pragma warning(disable : 4127)
-#pragma warning(disable : 4189)
-#pragma warning(disable : 4324)
-#pragma warning(disable : 4505)
-#endif
 #define VMA_IMPLEMENTATION
 #include "../external/VulkanMemoryAllocator/include/vk_mem_alloc.h"
-#if defined(NTSHENGN_COMPILER_MSVC)
-#pragma warning(pop)
-#endif
 #include <array>
 #include <algorithm>
 

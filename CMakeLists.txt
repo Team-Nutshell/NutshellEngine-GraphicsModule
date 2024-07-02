@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.25 FATAL_ERROR)
 set(NAME NutshellEngine-GraphicsModule)
 project(${NAME} VERSION 0.0.1 LANGUAGES C CXX)
 
@@ -50,7 +50,7 @@ else()
 endif()
 
 add_subdirectory(external/glslang)
-add_subdirectory(external/VulkanMemoryAllocator)
+add_subdirectory(external/VulkanMemoryAllocator SYSTEM)
 
 if(NOT CMAKE_VERSION VERSION_LESS 3.7.0)
 	find_package(Vulkan)
