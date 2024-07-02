@@ -4,6 +4,31 @@
 #include "../external/glslang/glslang/Include/ShHandle.h"
 #include "../external/glslang/SPIRV/GlslangToSpv.h"
 #include "../external/glslang/StandAlone/DirStackFileIncluder.h"
+#define VMA_IMPLEMENTATION
+#if defined(NTSHENGN_COMPILER_MSVC)
+#pragma warning(push)
+#pragma warning(disable : 4100)
+#pragma warning(disable : 4127)
+#pragma warning(disable : 4189)
+#pragma warning(disable : 4324)
+#pragma warning(disable : 4505)
+#elif defined(NTSHENGN_COMPILER_GCC)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#elif defined(NTSHENGN_COMPILER_CLANG)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-variable"
+#pragma clang diagnostic ignored "-Wunused-function"
+#endif
+#include "../external/VulkanMemoryAllocator/include/vk_mem_alloc.h"
+#if defined(NTSHENGN_COMPILER_MSVC)
+#pragma warning(pop)
+#elif defined(NTSHENGN_COMPILER_GCC)
+#pragma GCC diagnostic pop
+#elif defined(NTSHENGN_COMPILER_CLANG)
+#pragma clang diagnostic pop
+#endif
 #include <limits>
 #include <array>
 
