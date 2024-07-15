@@ -622,12 +622,14 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			Math::rotate(objectTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
 			Math::rotate(objectTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f)) *
 			Math::scale(objectTransform.scale);
+		Math::mat4 transposeInverseObjectModel = Math::transpose(Math::inverse(objectModel));
 
-		size_t offset = (it.second.index * (sizeof(Math::mat4) + sizeof(Math::vec4))); // vec4 is used here for padding
+		size_t offset = (it.second.index * ((sizeof(Math::mat4) * 2) + sizeof(Math::vec4))); // vec4 is used here for padding
 
 		memcpy(reinterpret_cast<char*>(m_objectBuffers[m_currentFrameInFlight].address) + offset, objectModel.data(), sizeof(Math::mat4));
+		memcpy(reinterpret_cast<char*>(m_objectBuffers[m_currentFrameInFlight].address) + offset + sizeof(Math::mat4), transposeInverseObjectModel.data(), sizeof(Math::mat4));
 		const std::array<uint32_t, 3> objectIndices = { (it.second.meshID < m_meshes.size()) ? it.second.meshID : 0, it.second.jointTransformOffset, (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0 };
-		memcpy(reinterpret_cast<char*>(m_objectBuffers[m_currentFrameInFlight].address) + offset + sizeof(Math::mat4), objectIndices.data(), 3 * sizeof(uint32_t));
+		memcpy(reinterpret_cast<char*>(m_objectBuffers[m_currentFrameInFlight].address) + offset + (sizeof(Math::mat4) * 2), objectIndices.data(), 3 * sizeof(uint32_t));
 
 		loadRenderableForEntity(it.first);
 	}
@@ -2939,6 +2941,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 
 		struct ObjectInfo {
 			mat4 model;
+			mat4 transposeInverseModel;
 			uint meshID;
 			uint jointTransformOffset;
 			uint materialID;
@@ -3003,9 +3006,9 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 			vec3 skinnedTangent = vec3(skinMatrix * vec4(tangent.xyz, 0.0));
 
 			vec3 bitangent = cross(skinnedNormal, skinnedTangent) * tangent.w;
-			vec3 T = vec3(objects.info[oID.objectID].model * vec4(skinnedTangent, 0.0));
-			vec3 B = vec3(objects.info[oID.objectID].model * vec4(bitangent, 0.0));
-			vec3 N = vec3(objects.info[oID.objectID].model * vec4(skinnedNormal, 0.0));
+			vec3 T = vec3(objects.info[oID.objectID].transposeInverseModel * vec4(skinnedTangent, 0.0));
+			vec3 B = vec3(objects.info[oID.objectID].transposeInverseModel * vec4(bitangent, 0.0));
+			vec3 N = vec3(objects.info[oID.objectID].transposeInverseModel * vec4(skinnedNormal, 0.0));
 			outTBN = mat3(T, B, N);
 
 			gl_Position = camera.projection * camera.view * vec4(outPosition, 1.0);
