@@ -702,12 +702,14 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			Math::rotate(objectTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
 			Math::rotate(objectTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f)) *
 			Math::scale(objectTransform.scale);
+		Math::mat4 transposeInverseObjectModel = Math::transpose(Math::inverse(objectModel));
 
-		size_t offset = (it.second.index * (sizeof(Math::mat4) + sizeof(Math::vec4))); // vec4 is used here for padding
+		size_t offset = (it.second.index * ((sizeof(Math::mat4) * 2) + sizeof(Math::vec4))); // vec4 is used here for padding
 
 		memcpy(reinterpret_cast<char*>(m_objectBuffers[m_currentFrameInFlight].address) + offset, objectModel.data(), sizeof(Math::mat4));
+		memcpy(reinterpret_cast<char*>(m_objectBuffers[m_currentFrameInFlight].address) + offset + sizeof(Math::mat4), transposeInverseObjectModel.data(), sizeof(Math::mat4));
 		const std::array<uint32_t, 3> objectIndices = { (it.second.meshID < m_meshes.size()) ? it.second.meshID : 0, it.second.jointTransformOffset, (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0 };
-		memcpy(reinterpret_cast<char*>(m_objectBuffers[m_currentFrameInFlight].address) + offset + sizeof(Math::mat4), objectIndices.data(), 3 * sizeof(uint32_t));
+		memcpy(reinterpret_cast<char*>(m_objectBuffers[m_currentFrameInFlight].address) + offset + (sizeof(Math::mat4) * 2), objectIndices.data(), 3 * sizeof(uint32_t));
 
 		loadRenderableForEntity(it.first);
 	}

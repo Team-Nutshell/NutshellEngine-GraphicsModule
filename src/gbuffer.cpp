@@ -780,6 +780,7 @@ void GBuffer::createGraphicsPipeline() {
 
 		struct ObjectInfo {
 			mat4 model;
+			mat4 transposeInverseModel;
 			uint meshID;
 			uint jointTransformOffset;
 			uint materialID;
@@ -843,9 +844,9 @@ void GBuffer::createGraphicsPipeline() {
 			vec3 skinnedNormal = vec3(transpose(inverse(skinMatrix)) * vec4(normal, 0.0));
 			vec3 skinnedTangent = vec3(skinMatrix * vec4(tangent.xyz, 0.0));
 			vec3 bitangent = cross(skinnedNormal, skinnedTangent) * tangent.w;
-			vec3 T = vec3(objects.info[objectID].model * vec4(skinnedTangent, 0.0));
-			vec3 B = vec3(objects.info[objectID].model * vec4(bitangent, 0.0));
-			vec3 N = vec3(objects.info[objectID].model * vec4(skinnedNormal, 0.0));
+			vec3 T = vec3(objects.info[objectID].transposeInverseModel * vec4(skinnedTangent, 0.0));
+			vec3 B = vec3(objects.info[objectID].transposeInverseModel * vec4(bitangent, 0.0));
+			vec3 N = vec3(objects.info[objectID].transposeInverseModel * vec4(skinnedNormal, 0.0));
 			outTBN = mat3(T, B, N);
 
 			gl_Position = camera.projection * camera.view * vec4(outPosition, 1.0);
