@@ -1183,6 +1183,7 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 
 		struct ObjectInfo {
 			mat4 model;
+			mat4 transposeInverseModel;
 			uint meshID;
 			uint jointTransformOffset;
 			uint materialID;
@@ -1479,6 +1480,7 @@ void ShadowMapping::createPointLightShadowGraphicsPipeline() {
 
 		struct ObjectInfo {
 			mat4 model;
+			mat4 transposeInverseModel;
 			uint meshID;
 			uint jointTransformOffset;
 			uint materialID;
@@ -1791,6 +1793,7 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 
 		struct ObjectInfo {
 			mat4 model;
+			mat4 transposeInverseModel;
 			uint meshID;
 			uint jointTransformOffset;
 			uint materialID;
