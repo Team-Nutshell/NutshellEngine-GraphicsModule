@@ -640,8 +640,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		const Skin& skin = objectRenderable.mesh->skin;
 
 		if (!skin.joints.empty()) {
-			std::vector<Math::mat4> jointTransformMatrices(skin.joints.size());
-			std::vector<Math::mat4> parentJointTransformMatrices(skin.joints.size());
+			std::vector<Math::mat4> jointTransformMatrices(skin.joints.size(), Math::mat4::identity());
+			std::vector<Math::mat4> parentJointTransformMatrices(skin.joints.size(), Math::mat4::identity());
 
 			if (m_playingAnimations.find(&it.second) != m_playingAnimations.end()) {
 				PlayingAnimation& playingAnimation = m_playingAnimations[&it.second];
