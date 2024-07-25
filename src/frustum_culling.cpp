@@ -281,6 +281,31 @@ uint32_t FrustumCulling::culling(VkCommandBuffer commandBuffer,
 	memcpy(m_gpuFrustumCullingBuffers[currentFrameInFlight].address, frustum.data(), sizeof(NtshEngn::Math::vec4) * 6);
 	memcpy(reinterpret_cast<char*>(m_gpuFrustumCullingBuffers[currentFrameInFlight].address) + sizeof(NtshEngn::Math::vec4) * 6, frustumCullingObjects.data(), sizeof(FrustumCullingObject) * frustumCullingObjects.size());
 
+	VkBufferMemoryBarrier2 beforeFillBufferMemoryBarrier = {};
+	beforeFillBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+	beforeFillBufferMemoryBarrier.pNext = nullptr;
+	beforeFillBufferMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT;
+	beforeFillBufferMemoryBarrier.srcAccessMask = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+	beforeFillBufferMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+	beforeFillBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+	beforeFillBufferMemoryBarrier.srcQueueFamilyIndex = m_computeQueueFamilyIndex;
+	beforeFillBufferMemoryBarrier.dstQueueFamilyIndex = m_computeQueueFamilyIndex;
+	beforeFillBufferMemoryBarrier.buffer = m_gpuDrawIndirectBuffer.handle;
+	beforeFillBufferMemoryBarrier.offset = 0;
+	beforeFillBufferMemoryBarrier.size = sizeof(uint32_t);
+
+	VkDependencyInfo beforeFillBufferDependencyInfo = {};
+	beforeFillBufferDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	beforeFillBufferDependencyInfo.pNext = nullptr;
+	beforeFillBufferDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	beforeFillBufferDependencyInfo.memoryBarrierCount = 0;
+	beforeFillBufferDependencyInfo.pMemoryBarriers = nullptr;
+	beforeFillBufferDependencyInfo.bufferMemoryBarrierCount = 1;
+	beforeFillBufferDependencyInfo.pBufferMemoryBarriers = &beforeFillBufferMemoryBarrier;
+	beforeFillBufferDependencyInfo.imageMemoryBarrierCount = 0;
+	beforeFillBufferDependencyInfo.pImageMemoryBarriers = nullptr;
+	m_vkCmdPipelineBarrier2KHR(commandBuffer, &beforeFillBufferDependencyInfo);
+
 	vkCmdFillBuffer(commandBuffer, m_gpuDrawIndirectBuffer.handle, 0, sizeof(uint32_t), 0);
 
 	VkBufferMemoryBarrier2 fillBufferMemoryBarrier = {};
