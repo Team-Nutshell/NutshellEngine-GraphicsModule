@@ -800,6 +800,31 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 	// Copy TLAS instances
 	if (tlasInstances.size() != 0) {
+		VkBufferMemoryBarrier2 beforeTlasInstancesCopyBufferMemoryBarrier = {};
+		beforeTlasInstancesCopyBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+		beforeTlasInstancesCopyBufferMemoryBarrier.pNext = nullptr;
+		beforeTlasInstancesCopyBufferMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR;
+		beforeTlasInstancesCopyBufferMemoryBarrier.srcAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR;
+		beforeTlasInstancesCopyBufferMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		beforeTlasInstancesCopyBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		beforeTlasInstancesCopyBufferMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+		beforeTlasInstancesCopyBufferMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+		beforeTlasInstancesCopyBufferMemoryBarrier.buffer = m_topLevelAccelerationStructureInstancesBuffer;
+		beforeTlasInstancesCopyBufferMemoryBarrier.offset = 0;
+		beforeTlasInstancesCopyBufferMemoryBarrier.size = tlasInstances.size() * sizeof(VkAccelerationStructureInstanceKHR);
+
+		VkDependencyInfo beforeTlasInstancesCopyBufferDependencyInfo = {};
+		beforeTlasInstancesCopyBufferDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		beforeTlasInstancesCopyBufferDependencyInfo.pNext = nullptr;
+		beforeTlasInstancesCopyBufferDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+		beforeTlasInstancesCopyBufferDependencyInfo.memoryBarrierCount = 0;
+		beforeTlasInstancesCopyBufferDependencyInfo.pMemoryBarriers = nullptr;
+		beforeTlasInstancesCopyBufferDependencyInfo.bufferMemoryBarrierCount = 1;
+		beforeTlasInstancesCopyBufferDependencyInfo.pBufferMemoryBarriers = &beforeTlasInstancesCopyBufferMemoryBarrier;
+		beforeTlasInstancesCopyBufferDependencyInfo.imageMemoryBarrierCount = 0;
+		beforeTlasInstancesCopyBufferDependencyInfo.pImageMemoryBarriers = nullptr;
+		m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &beforeTlasInstancesCopyBufferDependencyInfo);
+
 		VkBufferCopy tlasInstancesCopy = {};
 		tlasInstancesCopy.srcOffset = 0;
 		tlasInstancesCopy.dstOffset = 0;
@@ -811,7 +836,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	VkImageMemoryBarrier2 undefinedToColorAttachmentOptimalImageMemoryBarrier = {};
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.pNext = nullptr;
-	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.srcAccessMask = 0;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 	undefinedToColorAttachmentOptimalImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
@@ -864,8 +889,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 	undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo.memoryBarrierCount = 0;
 	undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo.pMemoryBarriers = nullptr;
-	undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo.bufferMemoryBarrierCount = tlasInstances.size() != 0 ? 1 : 0;
-	undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo.pBufferMemoryBarriers = tlasInstances.size() != 0 ? &tlasInstancesCopyBufferMemoryBarrier : nullptr;
+	undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo.bufferMemoryBarrierCount = (tlasInstances.size() != 0) ? 1 : 0;
+	undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo.pBufferMemoryBarriers = (tlasInstances.size() != 0) ? &tlasInstancesCopyBufferMemoryBarrier : nullptr;
 	undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(imageMemoryBarriers.size());
 	undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo.pImageMemoryBarriers = imageMemoryBarriers.data();
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &undefinedToColorAttachmentOptimalAndTLASInstancesCopyDependencyInfo);
@@ -1539,7 +1564,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	copyToBLASDependencyInfo.dependencyFlags = 0;
 	copyToBLASDependencyInfo.memoryBarrierCount = 0;
 	copyToBLASDependencyInfo.pMemoryBarriers = 0;
-	copyToBLASDependencyInfo.bufferMemoryBarrierCount = 2;
+	copyToBLASDependencyInfo.bufferMemoryBarrierCount = static_cast<uint32_t>(copyToBLASBufferMemoryBarriers.size());
 	copyToBLASDependencyInfo.pBufferMemoryBarriers = copyToBLASBufferMemoryBarriers.data();
 	copyToBLASDependencyInfo.imageMemoryBarrierCount = 0;
 	copyToBLASDependencyInfo.pImageMemoryBarriers = nullptr;
@@ -1811,35 +1836,35 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	textureCopyBeginInfo.pInheritanceInfo = nullptr;
 	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(m_initializationCommandBuffer, &textureCopyBeginInfo));
 
-	VkImageMemoryBarrier2 undefinedToTransferDstOptimalImageMemoryBarrier = {};
-	undefinedToTransferDstOptimalImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-	undefinedToTransferDstOptimalImageMemoryBarrier.pNext = nullptr;
-	undefinedToTransferDstOptimalImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
-	undefinedToTransferDstOptimalImageMemoryBarrier.srcAccessMask = 0;
-	undefinedToTransferDstOptimalImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
-	undefinedToTransferDstOptimalImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-	undefinedToTransferDstOptimalImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	undefinedToTransferDstOptimalImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	undefinedToTransferDstOptimalImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	undefinedToTransferDstOptimalImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	undefinedToTransferDstOptimalImageMemoryBarrier.image = textureImage;
-	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
-	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.levelCount = textureImageCreateInfo.mipLevels;
-	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-	undefinedToTransferDstOptimalImageMemoryBarrier.subresourceRange.layerCount = 1;
+	VkImageMemoryBarrier2 undefinedToTransferDstImageMemoryBarrier = {};
+	undefinedToTransferDstImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	undefinedToTransferDstImageMemoryBarrier.pNext = nullptr;
+	undefinedToTransferDstImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+	undefinedToTransferDstImageMemoryBarrier.srcAccessMask = 0;
+	undefinedToTransferDstImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT | VK_PIPELINE_STAGE_2_BLIT_BIT;
+	undefinedToTransferDstImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+	undefinedToTransferDstImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	undefinedToTransferDstImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	undefinedToTransferDstImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToTransferDstImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToTransferDstImageMemoryBarrier.image = textureImage;
+	undefinedToTransferDstImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	undefinedToTransferDstImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	undefinedToTransferDstImageMemoryBarrier.subresourceRange.levelCount = textureImageCreateInfo.mipLevels;
+	undefinedToTransferDstImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	undefinedToTransferDstImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	VkDependencyInfo undefinedToTransferDstOptimalDependencyInfo = {};
-	undefinedToTransferDstOptimalDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-	undefinedToTransferDstOptimalDependencyInfo.pNext = nullptr;
-	undefinedToTransferDstOptimalDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-	undefinedToTransferDstOptimalDependencyInfo.memoryBarrierCount = 0;
-	undefinedToTransferDstOptimalDependencyInfo.pMemoryBarriers = nullptr;
-	undefinedToTransferDstOptimalDependencyInfo.bufferMemoryBarrierCount = 0;
-	undefinedToTransferDstOptimalDependencyInfo.pBufferMemoryBarriers = nullptr;
-	undefinedToTransferDstOptimalDependencyInfo.imageMemoryBarrierCount = 1;
-	undefinedToTransferDstOptimalDependencyInfo.pImageMemoryBarriers = &undefinedToTransferDstOptimalImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &undefinedToTransferDstOptimalDependencyInfo);
+	VkDependencyInfo undefinedToTransferDstDependencyInfo = {};
+	undefinedToTransferDstDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	undefinedToTransferDstDependencyInfo.pNext = nullptr;
+	undefinedToTransferDstDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToTransferDstDependencyInfo.memoryBarrierCount = 0;
+	undefinedToTransferDstDependencyInfo.pMemoryBarriers = nullptr;
+	undefinedToTransferDstDependencyInfo.bufferMemoryBarrierCount = 0;
+	undefinedToTransferDstDependencyInfo.pBufferMemoryBarriers = nullptr;
+	undefinedToTransferDstDependencyInfo.imageMemoryBarrierCount = 1;
+	undefinedToTransferDstDependencyInfo.pImageMemoryBarriers = &undefinedToTransferDstImageMemoryBarrier;
+	m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &undefinedToTransferDstDependencyInfo);
 
 	VkBufferImageCopy textureBufferCopy = {};
 	textureBufferCopy.bufferOffset = 0;
@@ -1857,39 +1882,39 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	textureBufferCopy.imageExtent.depth = 1;
 	vkCmdCopyBufferToImage(m_initializationCommandBuffer, textureStagingBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &textureBufferCopy);
 
-	VkImageMemoryBarrier2 mipMapGenerationImageMemoryBarrier = {};
-	mipMapGenerationImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-	mipMapGenerationImageMemoryBarrier.pNext = nullptr;
-	mipMapGenerationImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	mipMapGenerationImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	mipMapGenerationImageMemoryBarrier.image = textureImage;
-	mipMapGenerationImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	mipMapGenerationImageMemoryBarrier.subresourceRange.levelCount = 1;
-	mipMapGenerationImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-	mipMapGenerationImageMemoryBarrier.subresourceRange.layerCount = 1;
+	VkImageMemoryBarrier2 mipmapGenerationImageMemoryBarrier = {};
+	mipmapGenerationImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	mipmapGenerationImageMemoryBarrier.pNext = nullptr;
+	mipmapGenerationImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	mipmapGenerationImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	mipmapGenerationImageMemoryBarrier.image = textureImage;
+	mipmapGenerationImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	mipmapGenerationImageMemoryBarrier.subresourceRange.levelCount = 1;
+	mipmapGenerationImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	mipmapGenerationImageMemoryBarrier.subresourceRange.layerCount = 1;
 
 	uint32_t mipWidth = image.width;
 	uint32_t mipHeight = image.height;
 	for (size_t i = 1; i < textureImageCreateInfo.mipLevels; i++) {
-		mipMapGenerationImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
-		mipMapGenerationImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-		mipMapGenerationImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
-		mipMapGenerationImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-		mipMapGenerationImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		mipMapGenerationImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		mipMapGenerationImageMemoryBarrier.subresourceRange.baseMipLevel = static_cast<uint32_t>(i) - 1;
+		mipmapGenerationImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT | VK_PIPELINE_STAGE_2_BLIT_BIT;
+		mipmapGenerationImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		mipmapGenerationImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_BLIT_BIT;
+		mipmapGenerationImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+		mipmapGenerationImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		mipmapGenerationImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		mipmapGenerationImageMemoryBarrier.subresourceRange.baseMipLevel = static_cast<uint32_t>(i) - 1;
 
-		VkDependencyInfo mipMapGenerationDependencyInfo = {};
-		mipMapGenerationDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-		mipMapGenerationDependencyInfo.pNext = nullptr;
-		mipMapGenerationDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-		mipMapGenerationDependencyInfo.memoryBarrierCount = 0;
-		mipMapGenerationDependencyInfo.pMemoryBarriers = nullptr;
-		mipMapGenerationDependencyInfo.bufferMemoryBarrierCount = 0;
-		mipMapGenerationDependencyInfo.pBufferMemoryBarriers = nullptr;
-		mipMapGenerationDependencyInfo.imageMemoryBarrierCount = 1;
-		mipMapGenerationDependencyInfo.pImageMemoryBarriers = &mipMapGenerationImageMemoryBarrier;
-		m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &mipMapGenerationDependencyInfo);
+		VkDependencyInfo mipmapGenerationDependencyInfo = {};
+		mipmapGenerationDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		mipmapGenerationDependencyInfo.pNext = nullptr;
+		mipmapGenerationDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+		mipmapGenerationDependencyInfo.memoryBarrierCount = 0;
+		mipmapGenerationDependencyInfo.pMemoryBarriers = nullptr;
+		mipmapGenerationDependencyInfo.bufferMemoryBarrierCount = 0;
+		mipmapGenerationDependencyInfo.pBufferMemoryBarriers = nullptr;
+		mipmapGenerationDependencyInfo.imageMemoryBarrierCount = 1;
+		mipmapGenerationDependencyInfo.pImageMemoryBarriers = &mipmapGenerationImageMemoryBarrier;
+		m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &mipmapGenerationDependencyInfo);
 
 		VkImageBlit imageBlit = {};
 		imageBlit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -1914,15 +1939,15 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 		imageBlit.dstOffsets[1].z = 1;
 		vkCmdBlitImage(m_initializationCommandBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageBlit, VK_FILTER_LINEAR);
 
-		mipMapGenerationImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
-		mipMapGenerationImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-		mipMapGenerationImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-		mipMapGenerationImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
-		mipMapGenerationImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		mipMapGenerationImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		mipmapGenerationImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_BLIT_BIT;
+		mipmapGenerationImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+		mipmapGenerationImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		mipmapGenerationImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+		mipmapGenerationImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		mipmapGenerationImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-		mipMapGenerationDependencyInfo.pImageMemoryBarriers = &mipMapGenerationImageMemoryBarrier;
-		m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &mipMapGenerationDependencyInfo);
+		mipmapGenerationDependencyInfo.pImageMemoryBarriers = &mipmapGenerationImageMemoryBarrier;
+		m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &mipmapGenerationDependencyInfo);
 
 		mipWidth = mipWidth > 1 ? mipWidth / 2 : 1;
 		mipHeight = mipHeight > 1 ? mipHeight / 2 : 1;
