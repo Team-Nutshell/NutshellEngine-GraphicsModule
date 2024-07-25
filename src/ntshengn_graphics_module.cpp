@@ -819,7 +819,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	VkImageMemoryBarrier2 swapchainOrDrawImageMemoryBarrier = {};
 	swapchainOrDrawImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	swapchainOrDrawImageMemoryBarrier.pNext = nullptr;
-	swapchainOrDrawImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+	swapchainOrDrawImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 	swapchainOrDrawImageMemoryBarrier.srcAccessMask = 0;
 	swapchainOrDrawImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 	swapchainOrDrawImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
