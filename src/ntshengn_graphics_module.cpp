@@ -580,7 +580,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
 		undefinedToColorAttachmentOptimalImageMemoryBarriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 		undefinedToColorAttachmentOptimalImageMemoryBarriers[i].pNext = nullptr;
-		undefinedToColorAttachmentOptimalImageMemoryBarriers[i].srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+		undefinedToColorAttachmentOptimalImageMemoryBarriers[i].srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 		undefinedToColorAttachmentOptimalImageMemoryBarriers[i].srcAccessMask = 0;
 		undefinedToColorAttachmentOptimalImageMemoryBarriers[i].dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 		undefinedToColorAttachmentOptimalImageMemoryBarriers[i].dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
