@@ -1304,7 +1304,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		colorAttachmentToPresentSrcImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 		colorAttachmentToPresentSrcImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 		colorAttachmentToPresentSrcImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_NONE;
-		colorAttachmentToPresentSrcImageMemoryBarrier.dstAccessMask = 0;
+		colorAttachmentToPresentSrcImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_NONE;
 		colorAttachmentToPresentSrcImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		colorAttachmentToPresentSrcImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 		colorAttachmentToPresentSrcImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
@@ -1894,7 +1894,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	undefinedToTransferDstImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	undefinedToTransferDstImageMemoryBarrier.pNext = nullptr;
 	undefinedToTransferDstImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
-	undefinedToTransferDstImageMemoryBarrier.srcAccessMask = 0;
+	undefinedToTransferDstImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_NONE;
 	undefinedToTransferDstImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT | VK_PIPELINE_STAGE_2_BLIT_BIT;
 	undefinedToTransferDstImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 	undefinedToTransferDstImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -2149,7 +2149,7 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	undefinedToTransferDstImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	undefinedToTransferDstImageMemoryBarrier.pNext = nullptr;
 	undefinedToTransferDstImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
-	undefinedToTransferDstImageMemoryBarrier.srcAccessMask = 0;
+	undefinedToTransferDstImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_NONE;
 	undefinedToTransferDstImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
 	undefinedToTransferDstImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 	undefinedToTransferDstImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -3398,7 +3398,7 @@ void NtshEngn::GraphicsModule::createCompositingImage() {
 	compositingImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	compositingImageMemoryBarrier.pNext = nullptr;
 	compositingImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
-	compositingImageMemoryBarrier.srcAccessMask = 0;
+	compositingImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_NONE;
 	compositingImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 	compositingImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 	compositingImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -3938,7 +3938,7 @@ void NtshEngn::GraphicsModule::createToneMappingImage() {
 	imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	imageMemoryBarrier.pNext = nullptr;
 	imageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
-	imageMemoryBarrier.srcAccessMask = 0;
+	imageMemoryBarrier.srcAccessMask = VK_ACCESS_2_NONE;
 	imageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 	imageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 	imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
