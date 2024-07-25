@@ -1936,39 +1936,39 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	textureBufferCopy.imageExtent.depth = 1;
 	vkCmdCopyBufferToImage(m_initializationCommandBuffer, textureStagingBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &textureBufferCopy);
 
-	VkImageMemoryBarrier2 mipMapGenerationImageMemoryBarrier = {};
-	mipMapGenerationImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-	mipMapGenerationImageMemoryBarrier.pNext = nullptr;
-	mipMapGenerationImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
-	mipMapGenerationImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
-	mipMapGenerationImageMemoryBarrier.image = textureImage;
-	mipMapGenerationImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	mipMapGenerationImageMemoryBarrier.subresourceRange.levelCount = 1;
-	mipMapGenerationImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-	mipMapGenerationImageMemoryBarrier.subresourceRange.layerCount = 1;
+	VkImageMemoryBarrier2 mipmapGenerationImageMemoryBarrier = {};
+	mipmapGenerationImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	mipmapGenerationImageMemoryBarrier.pNext = nullptr;
+	mipmapGenerationImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	mipmapGenerationImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	mipmapGenerationImageMemoryBarrier.image = textureImage;
+	mipmapGenerationImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	mipmapGenerationImageMemoryBarrier.subresourceRange.levelCount = 1;
+	mipmapGenerationImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	mipmapGenerationImageMemoryBarrier.subresourceRange.layerCount = 1;
 
 	uint32_t mipWidth = image.width;
 	uint32_t mipHeight = image.height;
 	for (size_t i = 1; i < textureImageCreateInfo.mipLevels; i++) {
-		mipMapGenerationImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT | VK_PIPELINE_STAGE_2_BLIT_BIT;
-		mipMapGenerationImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-		mipMapGenerationImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_BLIT_BIT;
-		mipMapGenerationImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-		mipMapGenerationImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		mipMapGenerationImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		mipMapGenerationImageMemoryBarrier.subresourceRange.baseMipLevel = static_cast<uint32_t>(i) - 1;
+		mipmapGenerationImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT | VK_PIPELINE_STAGE_2_BLIT_BIT;
+		mipmapGenerationImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		mipmapGenerationImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_BLIT_BIT;
+		mipmapGenerationImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+		mipmapGenerationImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		mipmapGenerationImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		mipmapGenerationImageMemoryBarrier.subresourceRange.baseMipLevel = static_cast<uint32_t>(i) - 1;
 
-		VkDependencyInfo mipMapGenerationDependencyInfo = {};
-		mipMapGenerationDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-		mipMapGenerationDependencyInfo.pNext = nullptr;
-		mipMapGenerationDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-		mipMapGenerationDependencyInfo.memoryBarrierCount = 0;
-		mipMapGenerationDependencyInfo.pMemoryBarriers = nullptr;
-		mipMapGenerationDependencyInfo.bufferMemoryBarrierCount = 0;
-		mipMapGenerationDependencyInfo.pBufferMemoryBarriers = nullptr;
-		mipMapGenerationDependencyInfo.imageMemoryBarrierCount = 1;
-		mipMapGenerationDependencyInfo.pImageMemoryBarriers = &mipMapGenerationImageMemoryBarrier;
-		m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &mipMapGenerationDependencyInfo);
+		VkDependencyInfo mipmapGenerationDependencyInfo = {};
+		mipmapGenerationDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		mipmapGenerationDependencyInfo.pNext = nullptr;
+		mipmapGenerationDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+		mipmapGenerationDependencyInfo.memoryBarrierCount = 0;
+		mipmapGenerationDependencyInfo.pMemoryBarriers = nullptr;
+		mipmapGenerationDependencyInfo.bufferMemoryBarrierCount = 0;
+		mipmapGenerationDependencyInfo.pBufferMemoryBarriers = nullptr;
+		mipmapGenerationDependencyInfo.imageMemoryBarrierCount = 1;
+		mipmapGenerationDependencyInfo.pImageMemoryBarriers = &mipmapGenerationImageMemoryBarrier;
+		m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &mipmapGenerationDependencyInfo);
 
 		VkImageBlit imageBlit = {};
 		imageBlit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -1993,15 +1993,15 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 		imageBlit.dstOffsets[1].z = 1;
 		vkCmdBlitImage(m_initializationCommandBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageBlit, VK_FILTER_LINEAR);
 
-		mipMapGenerationImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_BLIT_BIT;
-		mipMapGenerationImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-		mipMapGenerationImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-		mipMapGenerationImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
-		mipMapGenerationImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		mipMapGenerationImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		mipmapGenerationImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_BLIT_BIT;
+		mipmapGenerationImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+		mipmapGenerationImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		mipmapGenerationImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+		mipmapGenerationImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		mipmapGenerationImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-		mipMapGenerationDependencyInfo.pImageMemoryBarriers = &mipMapGenerationImageMemoryBarrier;
-		m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &mipMapGenerationDependencyInfo);
+		mipmapGenerationDependencyInfo.pImageMemoryBarriers = &mipmapGenerationImageMemoryBarrier;
+		m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &mipmapGenerationDependencyInfo);
 
 		mipWidth = mipWidth > 1 ? mipWidth / 2 : 1;
 		mipHeight = mipHeight > 1 ? mipHeight / 2 : 1;
