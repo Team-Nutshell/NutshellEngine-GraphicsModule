@@ -298,7 +298,7 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 			VkRenderingAttachmentInfo shadowMapCascadeAttachmentInfo = {};
 			shadowMapCascadeAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 			shadowMapCascadeAttachmentInfo.pNext = nullptr;
-			shadowMapCascadeAttachmentInfo.imageView = m_directionalLightShadowMaps[directionalLightIndex].shadowMap.views[cascadeIndex];
+			shadowMapCascadeAttachmentInfo.imageView = m_directionalLightShadowMaps[directionalLightIndex].shadowMap.layerMipViews[cascadeIndex];
 			shadowMapCascadeAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 			shadowMapCascadeAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
 			shadowMapCascadeAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
@@ -345,7 +345,7 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 			VkRenderingAttachmentInfo shadowMapCascadeAttachmentInfo = {};
 			shadowMapCascadeAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 			shadowMapCascadeAttachmentInfo.pNext = nullptr;
-			shadowMapCascadeAttachmentInfo.imageView = m_pointLightShadowMaps[pointLightIndex].shadowMap.views[faceIndex];
+			shadowMapCascadeAttachmentInfo.imageView = m_pointLightShadowMaps[pointLightIndex].shadowMap.layerMipViews[faceIndex];
 			shadowMapCascadeAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 			shadowMapCascadeAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
 			shadowMapCascadeAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
@@ -394,7 +394,7 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 		VkRenderingAttachmentInfo shadowMapCascadeAttachmentInfo = {};
 		shadowMapCascadeAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 		shadowMapCascadeAttachmentInfo.pNext = nullptr;
-		shadowMapCascadeAttachmentInfo.imageView = m_spotLightShadowMaps[spotLightIndex].shadowMap.views[0];
+		shadowMapCascadeAttachmentInfo.imageView = m_spotLightShadowMaps[spotLightIndex].shadowMap.view;
 		shadowMapCascadeAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		shadowMapCascadeAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
 		shadowMapCascadeAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
@@ -515,7 +515,7 @@ void ShadowMapping::createDirectionalLightShadowMap(NtshEngn::Entity entity) {
 		return;
 	}
 
-	LayeredVulkanImage shadowMap;
+	VulkanImage shadowMap;
 
 	VkExtent3D imageExtent;
 	imageExtent.width = SHADOW_MAPPING_RESOLUTION;
@@ -566,10 +566,8 @@ void ShadowMapping::createDirectionalLightShadowMap(NtshEngn::Entity entity) {
 		shadowMapViewCreateInfo.subresourceRange.layerCount = 1;
 		NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &shadowMapViewCreateInfo, nullptr, &shadowMapView));
 
-		shadowMap.views.push_back(shadowMapView);
+		shadowMap.layerMipViews.push_back(shadowMapView);
 	}
-
-	VkImageView shadowMapView;
 
 	VkImageViewCreateInfo shadowMapViewCreateInfo = {};
 	shadowMapViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -587,9 +585,7 @@ void ShadowMapping::createDirectionalLightShadowMap(NtshEngn::Entity entity) {
 	shadowMapViewCreateInfo.subresourceRange.levelCount = 1;
 	shadowMapViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 	shadowMapViewCreateInfo.subresourceRange.layerCount = SHADOW_MAPPING_CASCADE_COUNT;
-	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &shadowMapViewCreateInfo, nullptr, &shadowMapView));
-
-	shadowMap.views.push_back(shadowMapView);
+	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &shadowMapViewCreateInfo, nullptr, &shadowMap.view));
 
 	DirectionalLightShadowMap directionalLightShadowMap;
 	directionalLightShadowMap.shadowMap = shadowMap;
@@ -667,7 +663,7 @@ void ShadowMapping::createPointLightShadowMap(NtshEngn::Entity entity) {
 		return;
 	}
 
-	LayeredVulkanImage shadowMap;
+	VulkanImage shadowMap;
 
 	VkExtent3D imageExtent;
 	imageExtent.width = SHADOW_MAPPING_RESOLUTION;
@@ -718,10 +714,8 @@ void ShadowMapping::createPointLightShadowMap(NtshEngn::Entity entity) {
 		shadowMapViewCreateInfo.subresourceRange.layerCount = 1;
 		NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &shadowMapViewCreateInfo, nullptr, &shadowMapView));
 
-		shadowMap.views.push_back(shadowMapView);
+		shadowMap.layerMipViews.push_back(shadowMapView);
 	}
-
-	VkImageView shadowMapView;
 
 	VkImageViewCreateInfo shadowMapViewCreateInfo = {};
 	shadowMapViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -739,9 +733,7 @@ void ShadowMapping::createPointLightShadowMap(NtshEngn::Entity entity) {
 	shadowMapViewCreateInfo.subresourceRange.levelCount = 1;
 	shadowMapViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 	shadowMapViewCreateInfo.subresourceRange.layerCount = 6;
-	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &shadowMapViewCreateInfo, nullptr, &shadowMapView));
-
-	shadowMap.views.push_back(shadowMapView);
+	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &shadowMapViewCreateInfo, nullptr, &shadowMap.view));
 
 	PointLightShadowMap pointLightShadowMap;
 	pointLightShadowMap.shadowMap = shadowMap;
@@ -819,7 +811,7 @@ void ShadowMapping::createSpotLightShadowMap(NtshEngn::Entity entity) {
 		return;
 	}
 
-	LayeredVulkanImage shadowMap;
+	VulkanImage shadowMap;
 
 	VkExtent3D imageExtent;
 	imageExtent.width = SHADOW_MAPPING_RESOLUTION;
@@ -849,8 +841,6 @@ void ShadowMapping::createSpotLightShadowMap(NtshEngn::Entity entity) {
 
 	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &shadowMapCreateInfo, &shadowMapAllocationCreateInfo, &shadowMap.handle, &shadowMap.allocation, nullptr));
 
-	VkImageView shadowMapView;
-
 	VkImageViewCreateInfo shadowMapViewCreateInfo = {};
 	shadowMapViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 	shadowMapViewCreateInfo.pNext = nullptr;
@@ -867,9 +857,7 @@ void ShadowMapping::createSpotLightShadowMap(NtshEngn::Entity entity) {
 	shadowMapViewCreateInfo.subresourceRange.levelCount = 1;
 	shadowMapViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 	shadowMapViewCreateInfo.subresourceRange.layerCount = 1;
-	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &shadowMapViewCreateInfo, nullptr, &shadowMapView));
-
-	shadowMap.views.push_back(shadowMapView);
+	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &shadowMapViewCreateInfo, nullptr, &shadowMap.view));
 
 	SpotLightShadowMap spotLightShadowMap;
 	spotLightShadowMap.shadowMap = shadowMap;
@@ -945,8 +933,8 @@ VulkanBuffer& ShadowMapping::getShadowSceneBuffer(uint32_t frameInFlight) {
 	return m_shadowSceneBuffers[frameInFlight];
 }
 
-std::vector<LayeredVulkanImage> ShadowMapping::getShadowMapImages() {
-	std::vector<LayeredVulkanImage> shadowMapImages;
+std::vector<VulkanImage> ShadowMapping::getShadowMapImages() {
+	std::vector<VulkanImage> shadowMapImages;
 	if (m_directionalLightEntities.empty() && m_pointLightEntities.empty() && m_spotLightEntities.empty()) {
 		shadowMapImages.push_back(m_dummyShadowMap);
 	}
@@ -990,8 +978,6 @@ void ShadowMapping::createImageAndBuffers() {
 	dummyShadowMapImageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
 	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &dummyShadowMapImageCreateInfo, &dummyShadowMapImageAllocationCreateInfo, &m_dummyShadowMap.handle, &m_dummyShadowMap.allocation, nullptr));
-	
-	VkImageView dummyShadowMapView;
 
 	VkImageViewCreateInfo dummyShadowMapImageViewCreateInfo = {};
 	dummyShadowMapImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -1009,9 +995,7 @@ void ShadowMapping::createImageAndBuffers() {
 	dummyShadowMapImageViewCreateInfo.subresourceRange.levelCount = 1;
 	dummyShadowMapImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
 	dummyShadowMapImageViewCreateInfo.subresourceRange.layerCount = 1;
-	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &dummyShadowMapImageViewCreateInfo, nullptr, &dummyShadowMapView));
-
-	m_dummyShadowMap.views.push_back(dummyShadowMapView);
+	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &dummyShadowMapImageViewCreateInfo, nullptr, &m_dummyShadowMap.view));
 
 	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 	NTSHENGN_VK_CHECK(vkResetCommandPool(m_device, m_initializationCommandPool, 0));

@@ -8,17 +8,17 @@ struct ShadowCascade {
 };
 
 struct DirectionalLightShadowMap {
-	LayeredVulkanImage shadowMap;
+	VulkanImage shadowMap;
 	std::array<ShadowCascade, SHADOW_MAPPING_CASCADE_COUNT> cascades;
 };
 
 struct PointLightShadowMap {
-	LayeredVulkanImage shadowMap;
+	VulkanImage shadowMap;
 	std::array<NtshEngn::Math::mat4, 6> viewProjs;
 };
 
 struct SpotLightShadowMap {
-	LayeredVulkanImage shadowMap;
+	VulkanImage shadowMap;
 	NtshEngn::Math::mat4 viewProj;
 };
 
@@ -69,7 +69,7 @@ public:
 	void destroySpotLightShadowMap(NtshEngn::Entity entity);
 
 	VulkanBuffer& getShadowSceneBuffer(uint32_t frameInFlight);
-	std::vector<LayeredVulkanImage> getShadowMapImages();
+	std::vector<VulkanImage> getShadowMapImages();
 
 private:
 	void createImageAndBuffers();
@@ -90,7 +90,7 @@ private:
 	std::vector<HostVisibleVulkanBuffer> m_shadowBuffers;
 	std::vector<HostVisibleVulkanBuffer> m_shadowSceneBuffers;
 
-	LayeredVulkanImage m_dummyShadowMap;
+	VulkanImage m_dummyShadowMap;
 	std::vector<NtshEngn::Entity> m_directionalLightEntities;
 	std::vector<DirectionalLightShadowMap> m_directionalLightShadowMaps;
 	std::vector<NtshEngn::Entity> m_pointLightEntities;

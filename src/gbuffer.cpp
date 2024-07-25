@@ -654,7 +654,7 @@ void GBuffer::createImages(uint32_t width, uint32_t height) {
 	depthImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	depthImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	std::vector<VkImageMemoryBarrier2> imageMemoryBarriers = { gBufferPositionImageMemoryBarrier, gBufferNormalImageMemoryBarrier, gBufferDiffuseImageMemoryBarrier, gBufferMaterialImageMemoryBarrier, gBufferEmissiveImageMemoryBarrier, depthImageMemoryBarrier };
+	std::array<VkImageMemoryBarrier2, 6> imageMemoryBarriers = { gBufferPositionImageMemoryBarrier, gBufferNormalImageMemoryBarrier, gBufferDiffuseImageMemoryBarrier, gBufferMaterialImageMemoryBarrier, gBufferEmissiveImageMemoryBarrier, depthImageMemoryBarrier };
 	VkDependencyInfo dependencyInfo = {};
 	dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	dependencyInfo.pNext = nullptr;

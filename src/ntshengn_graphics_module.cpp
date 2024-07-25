@@ -1518,8 +1518,7 @@ void NtshEngn::GraphicsModule::destroy() {
 	}
 	// Or destroy the image
 	else {
-		vkDestroyImageView(m_device, m_drawImage.view, nullptr);
-		vmaDestroyImage(m_allocator, m_drawImage.handle, m_drawImage.allocation);
+		m_drawImage.destroy(m_device, m_allocator);
 	}
 
 	// Destroy VMA Allocator
@@ -2755,13 +2754,12 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_compositingDescriptorSetLayout));
 
 	// Create graphics pipeline
-	VkFormat compositingAttachmentFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
 	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
 	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
 	pipelineRenderingCreateInfo.pNext = nullptr;
 	pipelineRenderingCreateInfo.viewMask = 0;
 	pipelineRenderingCreateInfo.colorAttachmentCount = 1;
-	pipelineRenderingCreateInfo.pColorAttachmentFormats = &compositingAttachmentFormat;
+	pipelineRenderingCreateInfo.pColorAttachmentFormats = &m_compositingImageFormat;
 	pipelineRenderingCreateInfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
 	pipelineRenderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 
@@ -3324,12 +3322,14 @@ void NtshEngn::GraphicsModule::createCompositingImage() {
 	}
 	imageExtent.depth = 1;
 
+	m_compositingImageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+
 	VkImageCreateInfo compositingImageCreateInfo = {};
 	compositingImageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	compositingImageCreateInfo.pNext = nullptr;
 	compositingImageCreateInfo.flags = 0;
 	compositingImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-	compositingImageCreateInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	compositingImageCreateInfo.format = m_compositingImageFormat;
 	compositingImageCreateInfo.extent.width = imageExtent.width;
 	compositingImageCreateInfo.extent.height = imageExtent.height;
 	compositingImageCreateInfo.extent.depth = 1;
@@ -3355,7 +3355,7 @@ void NtshEngn::GraphicsModule::createCompositingImage() {
 	compositingImageViewCreateInfo.flags = 0;
 	compositingImageViewCreateInfo.image = m_compositingImage.handle;
 	compositingImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	compositingImageViewCreateInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	compositingImageViewCreateInfo.format = m_compositingImageFormat;
 	compositingImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
 	compositingImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
 	compositingImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
@@ -3553,12 +3553,12 @@ void NtshEngn::GraphicsModule::updateCompositingDescriptorSets() {
 }
 
 void NtshEngn::GraphicsModule::updateCompositingDescriptorSetsShadow(uint32_t frameInFlight) {
-	const std::vector<LayeredVulkanImage> shadowMaps = m_shadowMapping.getShadowMapImages();
+	const std::vector<VulkanImage> shadowMaps = m_shadowMapping.getShadowMapImages();
 
 	std::vector<VkDescriptorImageInfo> shadowMapImageDescriptorImageInfos(shadowMaps.size());
 	for (uint32_t i = 0; i < shadowMaps.size(); i++) {
 		shadowMapImageDescriptorImageInfos[i].sampler = m_compositingShadowSampler;
-		shadowMapImageDescriptorImageInfos[i].imageView = shadowMaps[i].views[shadowMaps[i].views.size() - 1];
+		shadowMapImageDescriptorImageInfos[i].imageView = shadowMaps[i].view;
 		shadowMapImageDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
 

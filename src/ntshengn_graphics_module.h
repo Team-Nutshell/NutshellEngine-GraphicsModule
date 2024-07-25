@@ -232,6 +232,7 @@ namespace NtshEngn {
 		FXAA m_fxaa;
 
 		VulkanImage m_compositingImage;
+		VkFormat m_compositingImageFormat;
 		VkSampler m_compositingSampler;
 		VkSampler m_compositingShadowSampler;
 		VkDescriptorSetLayout m_compositingDescriptorSetLayout;

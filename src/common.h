@@ -124,26 +124,21 @@ struct InternalLights {
 };
 
 struct VulkanImage {
-	VkImage handle;
+	VkImage handle = VK_NULL_HANDLE;
 	VmaAllocation allocation;
-	VkImageView view;
+	VkImageView view = VK_NULL_HANDLE;
+	std::vector<VkImageView> layerMipViews;
 
 	void destroy(VkDevice device, VmaAllocator allocator) {
-		vkDestroyImageView(device, view, nullptr);
-		vmaDestroyImage(allocator, handle, allocation);
-	}
-};
-
-struct LayeredVulkanImage {
-	VkImage handle;
-	VmaAllocation allocation;
-	std::vector<VkImageView> views;
-
-	void destroy(VkDevice device, VmaAllocator allocator) {
-		for (size_t i = 0; i < views.size(); i++) {
-			vkDestroyImageView(device, views[i], nullptr);
+		for (size_t i = 0; i < layerMipViews.size(); i++) {
+			vkDestroyImageView(device, layerMipViews[i], nullptr);
 		}
-		vmaDestroyImage(allocator, handle, allocation);
+		if (view != VK_NULL_HANDLE) {
+			vkDestroyImageView(device, view, nullptr);
+		}
+		if (handle != VK_NULL_HANDLE) {
+			vmaDestroyImage(allocator, handle, allocation);
+		}
 	}
 };
 
