@@ -947,7 +947,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	VkDependencyInfo undefinedToAttachmentDependencyInfo = {};
 	undefinedToAttachmentDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToAttachmentDependencyInfo.pNext = nullptr;
-	undefinedToAttachmentDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToAttachmentDependencyInfo.dependencyFlags = 0;
 	undefinedToAttachmentDependencyInfo.memoryBarrierCount = 0;
 	undefinedToAttachmentDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToAttachmentDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -1040,7 +1040,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	VkDependencyInfo colorAttachmentToShaderReadOnlyDependencyInfo = {};
 	colorAttachmentToShaderReadOnlyDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	colorAttachmentToShaderReadOnlyDependencyInfo.pNext = nullptr;
-	colorAttachmentToShaderReadOnlyDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	colorAttachmentToShaderReadOnlyDependencyInfo.dependencyFlags = 0;
 	colorAttachmentToShaderReadOnlyDependencyInfo.memoryBarrierCount = 0;
 	colorAttachmentToShaderReadOnlyDependencyInfo.pMemoryBarriers = nullptr;
 	colorAttachmentToShaderReadOnlyDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -1107,7 +1107,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		VkDependencyInfo tonemappingUIDependencyInfo = {};
 		tonemappingUIDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 		tonemappingUIDependencyInfo.pNext = nullptr;
-		tonemappingUIDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+		tonemappingUIDependencyInfo.dependencyFlags = 0;
 		tonemappingUIDependencyInfo.memoryBarrierCount = 0;
 		tonemappingUIDependencyInfo.pMemoryBarriers = nullptr;
 		tonemappingUIDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -1210,7 +1210,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		VkDependencyInfo colorAttachmentToPresentSrcDependencyInfo = {};
 		colorAttachmentToPresentSrcDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 		colorAttachmentToPresentSrcDependencyInfo.pNext = nullptr;
-		colorAttachmentToPresentSrcDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+		colorAttachmentToPresentSrcDependencyInfo.dependencyFlags = 0;
 		colorAttachmentToPresentSrcDependencyInfo.memoryBarrierCount = 0;
 		colorAttachmentToPresentSrcDependencyInfo.pMemoryBarriers = nullptr;
 		colorAttachmentToPresentSrcDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -1788,7 +1788,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	VkDependencyInfo undefinedToTransferDstDependencyInfo = {};
 	undefinedToTransferDstDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToTransferDstDependencyInfo.pNext = nullptr;
-	undefinedToTransferDstDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToTransferDstDependencyInfo.dependencyFlags = 0;
 	undefinedToTransferDstDependencyInfo.memoryBarrierCount = 0;
 	undefinedToTransferDstDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToTransferDstDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -1827,7 +1827,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	VkDependencyInfo mipmapGenerationDependencyInfo = {};
 	mipmapGenerationDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	mipmapGenerationDependencyInfo.pNext = nullptr;
-	mipmapGenerationDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	mipmapGenerationDependencyInfo.dependencyFlags = 0;
 	mipmapGenerationDependencyInfo.memoryBarrierCount = 0;
 	mipmapGenerationDependencyInfo.pMemoryBarriers = nullptr;
 	mipmapGenerationDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -2040,7 +2040,7 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	VkDependencyInfo undefinedToTransferDstDependencyInfo = {};
 	undefinedToTransferDstDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToTransferDstDependencyInfo.pNext = nullptr;
-	undefinedToTransferDstDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToTransferDstDependencyInfo.dependencyFlags = 0;
 	undefinedToTransferDstDependencyInfo.memoryBarrierCount = 0;
 	undefinedToTransferDstDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToTransferDstDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -2656,7 +2656,7 @@ void NtshEngn::GraphicsModule::createColorAndDepthImages() {
 	VkDependencyInfo undefinedToColorAttachmentAndUndefinedToDepthStencilAttachmentDependencyInfo = {};
 	undefinedToColorAttachmentAndUndefinedToDepthStencilAttachmentDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToColorAttachmentAndUndefinedToDepthStencilAttachmentDependencyInfo.pNext = nullptr;
-	undefinedToColorAttachmentAndUndefinedToDepthStencilAttachmentDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToColorAttachmentAndUndefinedToDepthStencilAttachmentDependencyInfo.dependencyFlags = 0;
 	undefinedToColorAttachmentAndUndefinedToDepthStencilAttachmentDependencyInfo.memoryBarrierCount = 0;
 	undefinedToColorAttachmentAndUndefinedToDepthStencilAttachmentDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToColorAttachmentAndUndefinedToDepthStencilAttachmentDependencyInfo.bufferMemoryBarrierCount = 0;
