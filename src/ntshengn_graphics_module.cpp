@@ -886,7 +886,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		VkDependencyInfo beforeTlasInstancesCopyBufferDependencyInfo = {};
 		beforeTlasInstancesCopyBufferDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 		beforeTlasInstancesCopyBufferDependencyInfo.pNext = nullptr;
-		beforeTlasInstancesCopyBufferDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+		beforeTlasInstancesCopyBufferDependencyInfo.dependencyFlags = 0;
 		beforeTlasInstancesCopyBufferDependencyInfo.memoryBarrierCount = 0;
 		beforeTlasInstancesCopyBufferDependencyInfo.pMemoryBarriers = nullptr;
 		beforeTlasInstancesCopyBufferDependencyInfo.bufferMemoryBarrierCount = 1;
@@ -956,7 +956,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	VkDependencyInfo undefinedToColorAttachmentAndTLASInstancesCopyDependencyInfo = {};
 	undefinedToColorAttachmentAndTLASInstancesCopyDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToColorAttachmentAndTLASInstancesCopyDependencyInfo.pNext = nullptr;
-	undefinedToColorAttachmentAndTLASInstancesCopyDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToColorAttachmentAndTLASInstancesCopyDependencyInfo.dependencyFlags = 0;
 	undefinedToColorAttachmentAndTLASInstancesCopyDependencyInfo.memoryBarrierCount = 0;
 	undefinedToColorAttachmentAndTLASInstancesCopyDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToColorAttachmentAndTLASInstancesCopyDependencyInfo.bufferMemoryBarrierCount = tlasInstances.size() != 0 ? 1 : 0;
@@ -1015,7 +1015,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	VkDependencyInfo tlasBuildDependencyInfo = {};
 	tlasBuildDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	tlasBuildDependencyInfo.pNext = nullptr;
-	tlasBuildDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	tlasBuildDependencyInfo.dependencyFlags = 0;
 	tlasBuildDependencyInfo.memoryBarrierCount = 0;
 	tlasBuildDependencyInfo.pMemoryBarriers = nullptr;
 	tlasBuildDependencyInfo.bufferMemoryBarrierCount = 1;
@@ -1059,7 +1059,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	VkDependencyInfo generalToShaderReadOnlyDependencyInfo = {};
 	generalToShaderReadOnlyDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	generalToShaderReadOnlyDependencyInfo.pNext = nullptr;
-	generalToShaderReadOnlyDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	generalToShaderReadOnlyDependencyInfo.dependencyFlags = 0;
 	generalToShaderReadOnlyDependencyInfo.memoryBarrierCount = 0;
 	generalToShaderReadOnlyDependencyInfo.pMemoryBarriers = nullptr;
 	generalToShaderReadOnlyDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -1126,7 +1126,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		VkDependencyInfo tonemappingUIDependencyInfo = {};
 		tonemappingUIDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 		tonemappingUIDependencyInfo.pNext = nullptr;
-		tonemappingUIDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+		tonemappingUIDependencyInfo.dependencyFlags = 0;
 		tonemappingUIDependencyInfo.memoryBarrierCount = 0;
 		tonemappingUIDependencyInfo.pMemoryBarriers = nullptr;
 		tonemappingUIDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -1234,7 +1234,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		VkDependencyInfo colorAttachmentToPresentSrcDependencyInfo = {};
 		colorAttachmentToPresentSrcDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 		colorAttachmentToPresentSrcDependencyInfo.pNext = nullptr;
-		colorAttachmentToPresentSrcDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+		colorAttachmentToPresentSrcDependencyInfo.dependencyFlags = 0;
 		colorAttachmentToPresentSrcDependencyInfo.memoryBarrierCount = 0;
 		colorAttachmentToPresentSrcDependencyInfo.pMemoryBarriers = nullptr;
 		colorAttachmentToPresentSrcDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -1930,7 +1930,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	VkDependencyInfo undefinedToTransferDstDependencyInfo = {};
 	undefinedToTransferDstDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToTransferDstDependencyInfo.pNext = nullptr;
-	undefinedToTransferDstDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToTransferDstDependencyInfo.dependencyFlags = 0;
 	undefinedToTransferDstDependencyInfo.memoryBarrierCount = 0;
 	undefinedToTransferDstDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToTransferDstDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -1969,7 +1969,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	VkDependencyInfo mipmapGenerationDependencyInfo = {};
 	mipmapGenerationDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	mipmapGenerationDependencyInfo.pNext = nullptr;
-	mipmapGenerationDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	mipmapGenerationDependencyInfo.dependencyFlags = 0;
 	mipmapGenerationDependencyInfo.memoryBarrierCount = 0;
 	mipmapGenerationDependencyInfo.pMemoryBarriers = nullptr;
 	mipmapGenerationDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -2182,7 +2182,7 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	VkDependencyInfo undefinedToTransferDstDependencyInfo = {};
 	undefinedToTransferDstDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToTransferDstDependencyInfo.pNext = nullptr;
-	undefinedToTransferDstDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToTransferDstDependencyInfo.dependencyFlags = 0;
 	undefinedToTransferDstDependencyInfo.memoryBarrierCount = 0;
 	undefinedToTransferDstDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToTransferDstDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -2849,7 +2849,7 @@ void NtshEngn::GraphicsModule::createColorImage() {
 	VkDependencyInfo undefinedToGeneralDependencyInfo = {};
 	undefinedToGeneralDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToGeneralDependencyInfo.pNext = nullptr;
-	undefinedToGeneralDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToGeneralDependencyInfo.dependencyFlags = 0;
 	undefinedToGeneralDependencyInfo.memoryBarrierCount = 0;
 	undefinedToGeneralDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToGeneralDependencyInfo.bufferMemoryBarrierCount = 0;
