@@ -601,7 +601,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	VkDependencyInfo undefinedToColorAttachmentDependencyInfo = {};
 	undefinedToColorAttachmentDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToColorAttachmentDependencyInfo.pNext = nullptr;
-	undefinedToColorAttachmentDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToColorAttachmentDependencyInfo.dependencyFlags = 0;
 	undefinedToColorAttachmentDependencyInfo.memoryBarrierCount = 0;
 	undefinedToColorAttachmentDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToColorAttachmentDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -711,7 +711,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		VkDependencyInfo sceneUIDependencyInfo = {};
 		sceneUIDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 		sceneUIDependencyInfo.pNext = nullptr;
-		sceneUIDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+		sceneUIDependencyInfo.dependencyFlags = 0;
 		sceneUIDependencyInfo.memoryBarrierCount = 0;
 		sceneUIDependencyInfo.pMemoryBarriers = nullptr;
 		sceneUIDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -814,7 +814,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		VkDependencyInfo colorAttachmentToPresentSrcDependencyInfo = {};
 		colorAttachmentToPresentSrcDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 		colorAttachmentToPresentSrcDependencyInfo.pNext = nullptr;
-		colorAttachmentToPresentSrcDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+		colorAttachmentToPresentSrcDependencyInfo.dependencyFlags = 0;
 		colorAttachmentToPresentSrcDependencyInfo.memoryBarrierCount = 0;
 		colorAttachmentToPresentSrcDependencyInfo.pMemoryBarriers = nullptr;
 		colorAttachmentToPresentSrcDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -1326,7 +1326,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image & image) {
 	VkDependencyInfo undefinedToTransferDstDependencyInfo = {};
 	undefinedToTransferDstDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToTransferDstDependencyInfo.pNext = nullptr;
-	undefinedToTransferDstDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToTransferDstDependencyInfo.dependencyFlags = 0;
 	undefinedToTransferDstDependencyInfo.memoryBarrierCount = 0;
 	undefinedToTransferDstDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToTransferDstDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -1376,7 +1376,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image & image) {
 		VkDependencyInfo mipMapGenerationDependencyInfo = {};
 		mipMapGenerationDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 		mipMapGenerationDependencyInfo.pNext = nullptr;
-		mipMapGenerationDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+		mipMapGenerationDependencyInfo.dependencyFlags = 0;
 		mipMapGenerationDependencyInfo.memoryBarrierCount = 0;
 		mipMapGenerationDependencyInfo.pMemoryBarriers = nullptr;
 		mipMapGenerationDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -1558,7 +1558,7 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	VkDependencyInfo undefinedToTransferDstDependencyInfo = {};
 	undefinedToTransferDstDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToTransferDstDependencyInfo.pNext = nullptr;
-	undefinedToTransferDstDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToTransferDstDependencyInfo.dependencyFlags = 0;
 	undefinedToTransferDstDependencyInfo.memoryBarrierCount = 0;
 	undefinedToTransferDstDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToTransferDstDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -2048,7 +2048,7 @@ void NtshEngn::GraphicsModule::createDepthImage() {
 	VkDependencyInfo undefinedToDepthStencilAttachmentDependencyInfo = {};
 	undefinedToDepthStencilAttachmentDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToDepthStencilAttachmentDependencyInfo.pNext = nullptr;
-	undefinedToDepthStencilAttachmentDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToDepthStencilAttachmentDependencyInfo.dependencyFlags = 0;
 	undefinedToDepthStencilAttachmentDependencyInfo.memoryBarrierCount = 0;
 	undefinedToDepthStencilAttachmentDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToDepthStencilAttachmentDependencyInfo.bufferMemoryBarrierCount = 0;
