@@ -599,7 +599,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	VkDependencyInfo undefinedToColorAttachmentDependencyInfo = {};
 	undefinedToColorAttachmentDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToColorAttachmentDependencyInfo.pNext = nullptr;
-	undefinedToColorAttachmentDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToColorAttachmentDependencyInfo.dependencyFlags = 0;
 	undefinedToColorAttachmentDependencyInfo.memoryBarrierCount = 0;
 	undefinedToColorAttachmentDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToColorAttachmentDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -671,7 +671,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	VkDependencyInfo colorAttachmentToPresentSrcDependencyInfo = {};
 	colorAttachmentToPresentSrcDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	colorAttachmentToPresentSrcDependencyInfo.pNext = nullptr;
-	colorAttachmentToPresentSrcDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	colorAttachmentToPresentSrcDependencyInfo.dependencyFlags = 0;
 	colorAttachmentToPresentSrcDependencyInfo.memoryBarrierCount = 0;
 	colorAttachmentToPresentSrcDependencyInfo.pMemoryBarriers = nullptr;
 	colorAttachmentToPresentSrcDependencyInfo.bufferMemoryBarrierCount = 0;
