@@ -170,7 +170,7 @@ void GBuffer::draw(VkCommandBuffer commandBuffer,
 	VkDependencyInfo beforeRenderDependencyInfo = {};
 	beforeRenderDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	beforeRenderDependencyInfo.pNext = nullptr;
-	beforeRenderDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	beforeRenderDependencyInfo.dependencyFlags = 0;
 	beforeRenderDependencyInfo.memoryBarrierCount = 0;
 	beforeRenderDependencyInfo.pMemoryBarriers = nullptr;
 	beforeRenderDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -379,7 +379,7 @@ void GBuffer::draw(VkCommandBuffer commandBuffer,
 	VkDependencyInfo afterRenderDependencyInfo = {};
 	afterRenderDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	afterRenderDependencyInfo.pNext = nullptr;
-	afterRenderDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	afterRenderDependencyInfo.dependencyFlags = 0;
 	afterRenderDependencyInfo.memoryBarrierCount = 0;
 	afterRenderDependencyInfo.pMemoryBarriers = nullptr;
 	afterRenderDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -658,7 +658,7 @@ void GBuffer::createImages(uint32_t width, uint32_t height) {
 	VkDependencyInfo dependencyInfo = {};
 	dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	dependencyInfo.pNext = nullptr;
-	dependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	dependencyInfo.dependencyFlags = 0;
 	dependencyInfo.memoryBarrierCount = 0;
 	dependencyInfo.pMemoryBarriers = nullptr;
 	dependencyInfo.bufferMemoryBarrierCount = 0;

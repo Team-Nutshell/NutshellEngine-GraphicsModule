@@ -311,7 +311,7 @@ uint32_t FrustumCulling::culling(VkCommandBuffer commandBuffer,
 	VkDependencyInfo beforeFillBufferDependencyInfo = {};
 	beforeFillBufferDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	beforeFillBufferDependencyInfo.pNext = nullptr;
-	beforeFillBufferDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	beforeFillBufferDependencyInfo.dependencyFlags = 0;
 	beforeFillBufferDependencyInfo.memoryBarrierCount = 0;
 	beforeFillBufferDependencyInfo.pMemoryBarriers = nullptr;
 	beforeFillBufferDependencyInfo.bufferMemoryBarrierCount = static_cast<uint32_t>(beforeFillBufferMemoryBarriers.size());
@@ -352,7 +352,7 @@ uint32_t FrustumCulling::culling(VkCommandBuffer commandBuffer,
 	VkDependencyInfo beforeDispatchDependencyInfo = {};
 	beforeDispatchDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	beforeDispatchDependencyInfo.pNext = nullptr;
-	beforeDispatchDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	beforeDispatchDependencyInfo.dependencyFlags = 0;
 	beforeDispatchDependencyInfo.memoryBarrierCount = 0;
 	beforeDispatchDependencyInfo.pMemoryBarriers = nullptr;
 	beforeDispatchDependencyInfo.bufferMemoryBarrierCount = static_cast<uint32_t>(beforeDispatchBufferMemoryBarriers.size());
@@ -396,7 +396,7 @@ uint32_t FrustumCulling::culling(VkCommandBuffer commandBuffer,
 	VkDependencyInfo indirectDrawDependencyInfo = {};
 	indirectDrawDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	indirectDrawDependencyInfo.pNext = nullptr;
-	indirectDrawDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	indirectDrawDependencyInfo.dependencyFlags = 0;
 	indirectDrawDependencyInfo.memoryBarrierCount = 0;
 	indirectDrawDependencyInfo.pMemoryBarriers = nullptr;
 	indirectDrawDependencyInfo.bufferMemoryBarrierCount = static_cast<uint32_t>(indirectDrawBufferMemoryBarriers.size());

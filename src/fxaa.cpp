@@ -111,7 +111,7 @@ void FXAA::draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView dr
 	VkDependencyInfo dependencyInfo = {};
 	dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	dependencyInfo.pNext = nullptr;
-	dependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	dependencyInfo.dependencyFlags = 0;
 	dependencyInfo.memoryBarrierCount = 0;
 	dependencyInfo.pMemoryBarriers = nullptr;
 	dependencyInfo.bufferMemoryBarrierCount = 0;

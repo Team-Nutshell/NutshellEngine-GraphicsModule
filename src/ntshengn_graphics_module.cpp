@@ -571,6 +571,23 @@ void NtshEngn::GraphicsModule::init() {
 
 	createCompositingResources();
 
+#if BLOOM_ENABLE == 1
+	m_bloom.init(m_device,
+		m_graphicsComputeQueue,
+		m_graphicsComputeQueueFamilyIndex,
+		m_allocator,
+		m_compositingImage.view,
+		m_compositingImageFormat,
+		m_initializationCommandPool,
+		m_initializationCommandBuffer,
+		m_initializationFence,
+		m_viewport,
+		m_scissor,
+		m_vkCmdBeginRenderingKHR,
+		m_vkCmdEndRenderingKHR,
+		m_vkCmdPipelineBarrier2KHR);
+#endif
+
 	createToneMappingResources();
 
 	m_fxaa.init(m_device,
@@ -1029,7 +1046,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	VkDependencyInfo startFrameDependencyInfo = {};
 	startFrameDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	startFrameDependencyInfo.pNext = nullptr;
-	startFrameDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	startFrameDependencyInfo.dependencyFlags = 0;
 	startFrameDependencyInfo.memoryBarrierCount = 0;
 	startFrameDependencyInfo.pMemoryBarriers = nullptr;
 	startFrameDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -1136,7 +1153,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	VkDependencyInfo compositingDependencyInfo = {};
 	compositingDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	compositingDependencyInfo.pNext = nullptr;
-	compositingDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	compositingDependencyInfo.dependencyFlags = 0;
 	compositingDependencyInfo.memoryBarrierCount = 0;
 	compositingDependencyInfo.pMemoryBarriers = nullptr;
 	compositingDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -1144,7 +1161,14 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	compositingDependencyInfo.imageMemoryBarrierCount = 1;
 	compositingDependencyInfo.pImageMemoryBarriers = &compositingColorAttachmentToFragmentImageMemoryBarrier;
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &compositingDependencyInfo);
-	
+
+#if BLOOM_ENABLE == 1
+	// Bloom
+	m_bloom.draw(m_renderingCommandBuffers[m_currentFrameInFlight], m_compositingImage.handle, m_compositingImage.view);
+
+	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &compositingDependencyInfo);
+#endif
+
 	// Tone mapping
 	VkRenderingAttachmentInfo toneMappingAttachmentInfo = {};
 	toneMappingAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -1202,7 +1226,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	VkDependencyInfo toneMappingDependencyInfo = {};
 	toneMappingDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	toneMappingDependencyInfo.pNext = nullptr;
-	toneMappingDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	toneMappingDependencyInfo.dependencyFlags = 0;
 	toneMappingDependencyInfo.memoryBarrierCount = 0;
 	toneMappingDependencyInfo.pMemoryBarriers = nullptr;
 	toneMappingDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -1319,7 +1343,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		VkDependencyInfo colorAttachmentToPresentSrcDependencyInfo = {};
 		colorAttachmentToPresentSrcDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 		colorAttachmentToPresentSrcDependencyInfo.pNext = nullptr;
-		colorAttachmentToPresentSrcDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+		colorAttachmentToPresentSrcDependencyInfo.dependencyFlags = 0;
 		colorAttachmentToPresentSrcDependencyInfo.memoryBarrierCount = 0;
 		colorAttachmentToPresentSrcDependencyInfo.pMemoryBarriers = nullptr;
 		colorAttachmentToPresentSrcDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -1466,6 +1490,11 @@ void NtshEngn::GraphicsModule::destroy() {
 	vkDestroyDescriptorSetLayout(m_device, m_toneMappingDescriptorSetLayout, nullptr);
 	vkDestroySampler(m_device, m_toneMappingSampler, nullptr);
 	m_toneMappingImage.destroy(m_device, m_allocator);
+
+#if BLOOM_ENABLE == 1
+	// Destroy bloom
+	m_bloom.destroy();
+#endif
 
 	// Destroy compositing resources
 	vkDestroyDescriptorPool(m_device, m_compositingDescriptorPool, nullptr);
@@ -1910,7 +1939,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	VkDependencyInfo undefinedToTransferDstDependencyInfo = {};
 	undefinedToTransferDstDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToTransferDstDependencyInfo.pNext = nullptr;
-	undefinedToTransferDstDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToTransferDstDependencyInfo.dependencyFlags = 0;
 	undefinedToTransferDstDependencyInfo.memoryBarrierCount = 0;
 	undefinedToTransferDstDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToTransferDstDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -1949,7 +1978,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	VkDependencyInfo mipmapGenerationDependencyInfo = {};
 	mipmapGenerationDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	mipmapGenerationDependencyInfo.pNext = nullptr;
-	mipmapGenerationDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	mipmapGenerationDependencyInfo.dependencyFlags = 0;
 	mipmapGenerationDependencyInfo.memoryBarrierCount = 0;
 	mipmapGenerationDependencyInfo.pMemoryBarriers = nullptr;
 	mipmapGenerationDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -2180,7 +2209,7 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	VkDependencyInfo undefinedToTransferDstDependencyInfo = {};
 	undefinedToTransferDstDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToTransferDstDependencyInfo.pNext = nullptr;
-	undefinedToTransferDstDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToTransferDstDependencyInfo.dependencyFlags = 0;
 	undefinedToTransferDstDependencyInfo.memoryBarrierCount = 0;
 	undefinedToTransferDstDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToTransferDstDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -3430,7 +3459,7 @@ void NtshEngn::GraphicsModule::createCompositingImage() {
 	VkDependencyInfo dependencyInfo = {};
 	dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	dependencyInfo.pNext = nullptr;
-	dependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	dependencyInfo.dependencyFlags = 0;
 	dependencyInfo.memoryBarrierCount = 0;
 	dependencyInfo.pMemoryBarriers = nullptr;
 	dependencyInfo.bufferMemoryBarrierCount = 0;
@@ -3970,7 +3999,7 @@ void NtshEngn::GraphicsModule::createToneMappingImage() {
 	VkDependencyInfo dependencyInfo = {};
 	dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	dependencyInfo.pNext = nullptr;
-	dependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	dependencyInfo.dependencyFlags = 0;
 	dependencyInfo.memoryBarrierCount = 0;
 	dependencyInfo.pMemoryBarriers = nullptr;
 	dependencyInfo.bufferMemoryBarrierCount = 0;
@@ -5357,6 +5386,11 @@ void NtshEngn::GraphicsModule::resize() {
 		// Resize SSAO
 		m_ssao.onResize(static_cast<uint32_t>(windowModule->getWindowWidth(windowModule->getMainWindowID())), static_cast<uint32_t>(windowModule->getWindowHeight(windowModule->getMainWindowID())), m_gBuffer.getPosition().view, m_gBuffer.getNormal().view);
 
+#if BLOOM_ENABLE == 1
+		// Resize bloom
+		m_bloom.onResize(static_cast<uint32_t>(windowModule->getWindowWidth(windowModule->getMainWindowID())), static_cast<uint32_t>(windowModule->getWindowHeight(windowModule->getMainWindowID())), m_compositingImage.view);
+#endif
+
 		// Resize FXAA
 		m_fxaa.onResize(static_cast<uint32_t>(windowModule->getWindowWidth(windowModule->getMainWindowID())), static_cast<uint32_t>(windowModule->getWindowHeight(windowModule->getMainWindowID())), m_toneMappingImage.view);
 
@@ -5619,10 +5653,10 @@ void NtshEngn::GraphicsModule::retrieveObjectIndex(uint32_t objectIndex) {
 	m_freeObjectsIndices.insert(m_freeObjectsIndices.begin(), objectIndex);
 }
 
-extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface* createModule() {
+extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface * createModule() {
 	return new NtshEngn::GraphicsModule;
 }
 
-extern "C" NTSHENGN_MODULE_API void destroyModule(NtshEngn::GraphicsModuleInterface* m) {
+extern "C" NTSHENGN_MODULE_API void destroyModule(NtshEngn::GraphicsModuleInterface * m) {
 	delete m;
 }

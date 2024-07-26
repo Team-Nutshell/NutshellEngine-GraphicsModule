@@ -100,7 +100,7 @@ void SSAO::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight) {
 	VkDependencyInfo beforeRenderDependencyInfo = {};
 	beforeRenderDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	beforeRenderDependencyInfo.pNext = nullptr;
-	beforeRenderDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	beforeRenderDependencyInfo.dependencyFlags = 0;
 	beforeRenderDependencyInfo.memoryBarrierCount = 0;
 	beforeRenderDependencyInfo.pMemoryBarriers = nullptr;
 	beforeRenderDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -165,7 +165,7 @@ void SSAO::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight) {
 	VkDependencyInfo ssaoColorAttachmentToFragmentDependencyInfo = {};
 	ssaoColorAttachmentToFragmentDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	ssaoColorAttachmentToFragmentDependencyInfo.pNext = nullptr;
-	ssaoColorAttachmentToFragmentDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	ssaoColorAttachmentToFragmentDependencyInfo.dependencyFlags = 0;
 	ssaoColorAttachmentToFragmentDependencyInfo.memoryBarrierCount = 0;
 	ssaoColorAttachmentToFragmentDependencyInfo.pMemoryBarriers = nullptr;
 	ssaoColorAttachmentToFragmentDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -230,7 +230,7 @@ void SSAO::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight) {
 	VkDependencyInfo ssaoBlurColorAttachmentToFragmentDependencyInfo = {};
 	ssaoBlurColorAttachmentToFragmentDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	ssaoBlurColorAttachmentToFragmentDependencyInfo.pNext = nullptr;
-	ssaoBlurColorAttachmentToFragmentDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	ssaoBlurColorAttachmentToFragmentDependencyInfo.dependencyFlags = 0;
 	ssaoBlurColorAttachmentToFragmentDependencyInfo.memoryBarrierCount = 0;
 	ssaoBlurColorAttachmentToFragmentDependencyInfo.pMemoryBarriers = nullptr;
 	ssaoBlurColorAttachmentToFragmentDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -370,7 +370,7 @@ void SSAO::createImagesAndBuffer(uint32_t width, uint32_t height) {
 	VkDependencyInfo undefinedToTransferDstDependencyInfo = {};
 	undefinedToTransferDstDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToTransferDstDependencyInfo.pNext = nullptr;
-	undefinedToTransferDstDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToTransferDstDependencyInfo.dependencyFlags = 0;
 	undefinedToTransferDstDependencyInfo.memoryBarrierCount = 0;
 	undefinedToTransferDstDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToTransferDstDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -416,7 +416,7 @@ void SSAO::createImagesAndBuffer(uint32_t width, uint32_t height) {
 	VkDependencyInfo transferDstToShaderReadOnlyDependencyInfo = {};
 	transferDstToShaderReadOnlyDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	transferDstToShaderReadOnlyDependencyInfo.pNext = nullptr;
-	transferDstToShaderReadOnlyDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	transferDstToShaderReadOnlyDependencyInfo.dependencyFlags = 0;
 	transferDstToShaderReadOnlyDependencyInfo.memoryBarrierCount = 0;
 	transferDstToShaderReadOnlyDependencyInfo.pMemoryBarriers = nullptr;
 	transferDstToShaderReadOnlyDependencyInfo.bufferMemoryBarrierCount = 0;

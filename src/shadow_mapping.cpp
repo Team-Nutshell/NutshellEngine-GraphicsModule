@@ -270,7 +270,7 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 	VkDependencyInfo undefinedToDepthStencilAttachmentDependencyInfo = {};
 	undefinedToDepthStencilAttachmentDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	undefinedToDepthStencilAttachmentDependencyInfo.pNext = nullptr;
-	undefinedToDepthStencilAttachmentDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	undefinedToDepthStencilAttachmentDependencyInfo.dependencyFlags = 0;
 	undefinedToDepthStencilAttachmentDependencyInfo.memoryBarrierCount = 0;
 	undefinedToDepthStencilAttachmentDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToDepthStencilAttachmentDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -466,7 +466,7 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 	VkDependencyInfo depthStencilAttachmentToShaderReadDependencyInfo = {};
 	depthStencilAttachmentToShaderReadDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	depthStencilAttachmentToShaderReadDependencyInfo.pNext = nullptr;
-	depthStencilAttachmentToShaderReadDependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	depthStencilAttachmentToShaderReadDependencyInfo.dependencyFlags = 0;
 	depthStencilAttachmentToShaderReadDependencyInfo.memoryBarrierCount = 0;
 	depthStencilAttachmentToShaderReadDependencyInfo.pMemoryBarriers = nullptr;
 	depthStencilAttachmentToShaderReadDependencyInfo.bufferMemoryBarrierCount = 0;
@@ -622,7 +622,7 @@ void ShadowMapping::createDirectionalLightShadowMap(NtshEngn::Entity entity) {
 	VkDependencyInfo dependencyInfo = {};
 	dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	dependencyInfo.pNext = nullptr;
-	dependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	dependencyInfo.dependencyFlags = 0;
 	dependencyInfo.memoryBarrierCount = 0;
 	dependencyInfo.pMemoryBarriers = nullptr;
 	dependencyInfo.bufferMemoryBarrierCount = 0;
@@ -770,7 +770,7 @@ void ShadowMapping::createPointLightShadowMap(NtshEngn::Entity entity) {
 	VkDependencyInfo dependencyInfo = {};
 	dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	dependencyInfo.pNext = nullptr;
-	dependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	dependencyInfo.dependencyFlags = 0;
 	dependencyInfo.memoryBarrierCount = 0;
 	dependencyInfo.pMemoryBarriers = nullptr;
 	dependencyInfo.bufferMemoryBarrierCount = 0;
@@ -894,7 +894,7 @@ void ShadowMapping::createSpotLightShadowMap(NtshEngn::Entity entity) {
 	VkDependencyInfo dependencyInfo = {};
 	dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	dependencyInfo.pNext = nullptr;
-	dependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	dependencyInfo.dependencyFlags = 0;
 	dependencyInfo.memoryBarrierCount = 0;
 	dependencyInfo.pMemoryBarriers = nullptr;
 	dependencyInfo.bufferMemoryBarrierCount = 0;
@@ -1028,7 +1028,7 @@ void ShadowMapping::createImageAndBuffers() {
 	VkDependencyInfo dependencyInfo = {};
 	dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	dependencyInfo.pNext = nullptr;
-	dependencyInfo.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	dependencyInfo.dependencyFlags = 0;
 	dependencyInfo.memoryBarrierCount = 0;
 	dependencyInfo.pMemoryBarriers = nullptr;
 	dependencyInfo.bufferMemoryBarrierCount = 0;

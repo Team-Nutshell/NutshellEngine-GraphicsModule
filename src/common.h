@@ -35,6 +35,9 @@
 
 #define SSAO_SAMPLE_COUNT 64
 
+#define BLOOM_ENABLE 1
+#define BLOOM_DOWNSCALE 4
+
 #define FXAA_ENABLE 1
 
 #define NTSHENGN_VK_CHECK(f) \

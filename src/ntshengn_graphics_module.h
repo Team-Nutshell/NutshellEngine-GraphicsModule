@@ -2,6 +2,7 @@
 #include "../Common/modules/ntshengn_graphics_module_interface.h"
 #include "../Common/utils/ntshengn_utils_block_suballocator.h"
 #include "common.h"
+#include "bloom.h"
 #include "frustum_culling.h"
 #include "fxaa.h"
 #include "gbuffer.h"
@@ -225,6 +226,7 @@ namespace NtshEngn {
 		VulkanBuffer m_vertexBuffer;
 		VulkanBuffer m_indexBuffer;
 
+		Bloom m_bloom;
 		FrustumCulling m_frustumCulling;
 		GBuffer m_gBuffer;
 		SSAO m_ssao;
