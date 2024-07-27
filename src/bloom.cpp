@@ -205,7 +205,7 @@ void Bloom::draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView d
 	m_vkCmdPipelineBarrier2KHR(commandBuffer, &resizeThresholdDependencyInfo);
 
 	// Blur
-	uint32_t pushConstant;
+	std::array<uint32_t, 2> pushConstants;
 	for (uint32_t mipLevel = 0; mipLevel < m_mipLevels; mipLevel++) {
 		VkViewport mipLevelViewport = m_viewport;
 		mipLevelViewport.width = static_cast<float>(m_mipSizes[mipLevel].first);
@@ -245,8 +245,15 @@ void Bloom::draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView d
 		vkCmdSetViewport(commandBuffer, 0, 1, &mipLevelViewport);
 		vkCmdSetScissor(commandBuffer, 0, 1, &mipLevelScissor);
 
-		pushConstant = 1;
-		vkCmdPushConstants(commandBuffer, m_blurGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(uint32_t), &pushConstant);
+		if (mipLevel == 0) {
+			pushConstants[1] = 0;
+		}
+		else {
+			pushConstants[1] = 1;
+		}
+
+		pushConstants[0] = 1;
+		vkCmdPushConstants(commandBuffer, m_blurGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(uint32_t) * 2, pushConstants.data());
 
 		vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
@@ -337,8 +344,8 @@ void Bloom::draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView d
 		vkCmdSetViewport(commandBuffer, 0, 1, &mipLevelViewport);
 		vkCmdSetScissor(commandBuffer, 0, 1, &mipLevelScissor);
 
-		pushConstant = 0;
-		vkCmdPushConstants(commandBuffer, m_blurGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(uint32_t), &pushConstant);
+		pushConstants[0] = 0;
+		vkCmdPushConstants(commandBuffer, m_blurGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(uint32_t) * 2, pushConstants.data());
 
 		vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
@@ -921,6 +928,7 @@ void Bloom::createBlurGraphicsPipeline(VkFormat drawImageFormat) {
 
 		layout(push_constant) uniform PushConstants {
 			uint horizontalBlur;
+			uint doubleTexelSize;
 		} pC;
 
 		layout(location = 0) in vec2 uv;
@@ -971,7 +979,12 @@ void Bloom::createBlurGraphicsPipeline(VkFormat drawImageFormat) {
 			for (int i = -16; i <= 16; i++) {
 				vec2 uvOffset;
 				if (pC.horizontalBlur == 1) {
-					uvOffset = vec2(texelSize.x * float(i), 0.0);
+					if (pC.doubleTexelSize == 1) {
+						uvOffset = vec2((texelSize.x * 2.0) * float(i), 0.0);
+					}
+					else {
+						uvOffset = vec2((texelSize.x) * float(i), 0.0);
+					}
 				}
 				else {
 					uvOffset = vec2(0.0, texelSize.y * float(i));
@@ -1099,7 +1112,7 @@ void Bloom::createBlurGraphicsPipeline(VkFormat drawImageFormat) {
 	VkPushConstantRange pushConstantRange = {};
 	pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	pushConstantRange.offset = 0;
-	pushConstantRange.size = sizeof(uint32_t);
+	pushConstantRange.size = sizeof(uint32_t) * 2;
 
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
