@@ -5104,18 +5104,7 @@ void NtshEngn::GraphicsModule::updateUIImageDescriptorSet(uint32_t frameInFlight
 
 void NtshEngn::GraphicsModule::createDefaultResources() {
 	// Default mesh
-	m_defaultMesh.vertices = {
-		{ {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, -1.0f, 1.0f}, {0, 0, 0, 0}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {0.5f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, -1.0f, 1.0f}, {0, 0, 0, 0}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-0.5f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, -1.0f, 1.0f}, {0, 0, 0, 0}, {0.0f, 0.0f, 0.0f, 0.0f} }
-	};
-	m_defaultMesh.indices = {
-		0,
-		1,
-		2
-	};
-
-	load(m_defaultMesh);
+	m_meshes.push_back({ 0, 0, 0, 0 });
 
 	// Create texture sampler
 	VkSampler defaultTextureSampler;
