@@ -675,11 +675,19 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 	// Update objects buffer
 	for (auto& it : m_objects) {
-		size_t offset = (it.second.index * sizeof(Math::vec2));
+		if (loadRenderableForEntity(it.first)) {
+			m_sampleBatch = 0;
+		}
 
 		const uint32_t meshID = (it.second.meshID < m_meshes.size()) ? it.second.meshID : 0;
 		const uint32_t materialID = (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0;
 		std::array<uint32_t, 2> meshAndTextureID = { meshID, materialID };
+
+		if (meshID == 0) {
+			continue;
+		}
+
+		size_t offset = (it.second.index * sizeof(Math::vec2));
 
 		memcpy(reinterpret_cast<char*>(m_objectBuffers[m_currentFrameInFlight].address) + offset, meshAndTextureID.data(), 2 * sizeof(uint32_t));
 
@@ -697,10 +705,6 @@ void NtshEngn::GraphicsModule::update(double dt) {
 				previousObject.meshID = meshID;
 				previousObject.materialIndex = materialID;
 			}
-		}
-
-		if (loadRenderableForEntity(it.first)) {
-			m_sampleBatch = 0;
 		}
 	}
 
@@ -817,6 +821,10 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	// Update TLAS
 	std::vector<VkAccelerationStructureInstanceKHR> tlasInstances;
 	for (auto& it : m_objects) {
+		if (it.second.meshID == 0) {
+			continue;
+		}
+
 		const Transform& objectTransform = ecs->getComponent<Transform>(it.first);
 
 		Math::mat4 objectModel = Math::transpose(Math::translate(objectTransform.position) *
@@ -5669,18 +5677,7 @@ void NtshEngn::GraphicsModule::updateUIImageDescriptorSet(uint32_t frameInFlight
 
 void NtshEngn::GraphicsModule::createDefaultResources() {
 	// Default mesh
-	m_defaultMesh.vertices = {
-		{ {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, -1.0f, 1.0f}, {0, 0, 0, 0}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {0.5f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, -1.0f, 1.0f}, {0, 0, 0, 0}, {0.0f, 0.0f, 0.0f, 0.0f} },
-		{ {-0.5f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, -1.0f, 1.0f}, {0, 0, 0, 0}, {0.0f, 0.0f, 0.0f, 0.0f} }
-	};
-	m_defaultMesh.indices = {
-		0,
-		1,
-		2
-	};
-
-	load(m_defaultMesh);
+	m_meshes.push_back({ 0, 0, 0, 0 });
 
 	// Create texture sampler
 	VkSampler defaultTextureSampler;
@@ -5849,10 +5846,17 @@ bool NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 
 	bool meshChanged = false;
 
-	if (!renderable.mesh->vertices.empty()) {
+	if (renderable.mesh && !renderable.mesh->vertices.empty()) {
 		const std::unordered_map<const Mesh*, MeshID>::const_iterator newMesh = m_meshAddresses.find(renderable.mesh);
 		if ((newMesh == m_meshAddresses.end()) || (newMesh->second != object.meshID)) {
 			object.meshID = load(*renderable.mesh);
+
+			meshChanged = true;
+		}
+	}
+	else {
+		if (object.meshID != 0) {
+			object.meshID = 0;
 
 			meshChanged = true;
 		}
