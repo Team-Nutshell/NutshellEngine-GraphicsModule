@@ -244,6 +244,10 @@ uint32_t FrustumCulling::culling(VkCommandBuffer commandBuffer,
 #endif
 	for (auto& it : objects) {
 		const InternalObject& object = it.second;
+		if (object.meshID == 0) {
+			continue;
+		}
+
 		const InternalMesh& mesh = meshes[object.meshID];
 
 		VkDrawIndexedIndirectCommand drawIndirectCommand;

@@ -712,6 +712,12 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 	// Update objects buffer
 	for (auto& it : m_objects) {
+		loadRenderableForEntity(it.first);
+
+		if (it.second.meshID == 0) {
+			continue;
+		}
+
 		const Transform& objectTransform = ecs->getComponent<Transform>(it.first);
 
 		Math::mat4 objectModel = Math::translate(objectTransform.position) *
@@ -727,8 +733,6 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		memcpy(reinterpret_cast<char*>(m_objectBuffers[m_currentFrameInFlight].address) + offset + sizeof(Math::mat4), transposeInverseObjectModel.data(), sizeof(Math::mat4));
 		const std::array<uint32_t, 3> objectIndices = { (it.second.meshID < m_meshes.size()) ? it.second.meshID : 0, it.second.jointTransformOffset, (it.second.materialIndex < m_materials.size()) ? it.second.materialIndex : 0 };
 		memcpy(reinterpret_cast<char*>(m_objectBuffers[m_currentFrameInFlight].address) + offset + (sizeof(Math::mat4) * 2), objectIndices.data(), 3 * sizeof(uint32_t));
-
-		loadRenderableForEntity(it.first);
 	}
 
 	// Update joint transforms buffer

@@ -321,6 +321,10 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 			m_vkCmdBeginRenderingKHR(commandBuffer, &shadowMapCascadeRenderingInfo);
 
 			for (const auto& object : objects) {
+				if (object.second.meshID == 0) {
+					continue;
+				}
+
 				std::array<uint32_t, 2> directionalIndices = { (static_cast<uint32_t>(directionalLightIndex) * SHADOW_MAPPING_CASCADE_COUNT) + cascadeIndex, object.second.index };
 				vkCmdPushConstants(commandBuffer, m_directionalLightShadowGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t) * 2, directionalIndices.data());
 
@@ -368,6 +372,10 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 			m_vkCmdBeginRenderingKHR(commandBuffer, &shadowMapCascadeRenderingInfo);
 
 			for (const auto& object : objects) {
+				if (object.second.meshID == 0) {
+					continue;
+				}
+
 				std::array<uint32_t, 2> pointIndices = { (static_cast<uint32_t>(m_directionalLightShadowMaps.size()) * SHADOW_MAPPING_CASCADE_COUNT) + (static_cast<uint32_t>(pointLightIndex) * 6) + faceIndex, object.second.index };
 				vkCmdPushConstants(commandBuffer, m_pointLightShadowGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t) * 2, pointIndices.data());
 
@@ -417,6 +425,10 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 		m_vkCmdBeginRenderingKHR(commandBuffer, &shadowMapCascadeRenderingInfo);
 
 		for (const auto& object : objects) {
+			if (object.second.meshID == 0) {
+				continue;
+			}
+
 			std::array<uint32_t, 2> spotIndices = { (static_cast<uint32_t>(m_directionalLightShadowMaps.size()) * SHADOW_MAPPING_CASCADE_COUNT) + (static_cast<uint32_t>(m_pointLightShadowMaps.size()) * 6) + static_cast<uint32_t>(spotLightIndex), object.second.index };
 			vkCmdPushConstants(commandBuffer, m_spotLightShadowGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t) * 2, spotIndices.data());
 
