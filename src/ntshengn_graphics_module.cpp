@@ -533,7 +533,7 @@ void NtshEngn::GraphicsModule::init() {
 void NtshEngn::GraphicsModule::update(double dt) {
 	NTSHENGN_UNUSED(dt);
 
-	if (!windowModule->isWindowOpen(windowModule->getMainWindowID())) {
+	if (windowModule && !windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		// Do not update if the main window got closed
 		return;
 	}
@@ -547,8 +547,22 @@ void NtshEngn::GraphicsModule::update(double dt) {
 			it = destroyWindowResources(it);
 		}
 		else {
+			if ((windowModule->getWindowWidth(it->windowID) == 0) || (windowModule->getWindowHeight(it->windowID) == 0)) {
+				it->sizeNonZero = false;
+			}
+			else {
+				it->sizeNonZero = true;
+			}
 			it++;
 		}
+	}
+
+	bool anyWindowSizeNonZero = false;
+	for (size_t i = 0; i < m_perWindowResources.size(); i++) {
+		anyWindowSizeNonZero |= m_perWindowResources[i].sizeNonZero;
+	}
+	if (!anyWindowSizeNonZero) {
+		return;
 	}
 
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_fences[m_currentFrameInFlight], VK_TRUE, std::numeric_limits<uint64_t>::max()));
@@ -565,6 +579,11 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 	std::vector<uint32_t> imageIndices;
 	for (size_t i = 0; i < m_perWindowResources.size(); i++) {
+		if (!m_perWindowResources[i].sizeNonZero) {
+			imageIndices.push_back(0xFFFFFFFF);
+			continue;
+		}
+
 		imageIndices.push_back(m_perWindowResources[i].swapchainImageCount - 1);
 		VkResult acquireNextImageResult = vkAcquireNextImageKHR(m_device, m_perWindowResources[i].swapchain, std::numeric_limits<uint64_t>::max(), m_perWindowResources[i].imageAvailableSemaphores[m_currentFrameInFlight], VK_NULL_HANDLE, &imageIndices[i]);
 		if (acquireNextImageResult == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -575,25 +594,31 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		}
 	}
 
-	std::vector<VkImageMemoryBarrier2> undefinedToColorAttachmentImageMemoryBarriers(m_perWindowResources.size());
+	std::vector<VkImageMemoryBarrier2> undefinedToColorAttachmentImageMemoryBarriers;
 	for (size_t i = 0; i < m_perWindowResources.size(); i++) {
+		if (!m_perWindowResources[i].sizeNonZero) {
+			continue;
+		}
+
 		// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-		undefinedToColorAttachmentImageMemoryBarriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-		undefinedToColorAttachmentImageMemoryBarriers[i].pNext = nullptr;
-		undefinedToColorAttachmentImageMemoryBarriers[i].srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-		undefinedToColorAttachmentImageMemoryBarriers[i].srcAccessMask = VK_ACCESS_2_NONE;
-		undefinedToColorAttachmentImageMemoryBarriers[i].dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-		undefinedToColorAttachmentImageMemoryBarriers[i].dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-		undefinedToColorAttachmentImageMemoryBarriers[i].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		undefinedToColorAttachmentImageMemoryBarriers[i].newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		undefinedToColorAttachmentImageMemoryBarriers[i].srcQueueFamilyIndex = m_graphicsQueueIndex;
-		undefinedToColorAttachmentImageMemoryBarriers[i].dstQueueFamilyIndex = m_graphicsQueueIndex;
-		undefinedToColorAttachmentImageMemoryBarriers[i].image = m_perWindowResources[i].swapchainImages[imageIndices[i]];
-		undefinedToColorAttachmentImageMemoryBarriers[i].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		undefinedToColorAttachmentImageMemoryBarriers[i].subresourceRange.baseMipLevel = 0;
-		undefinedToColorAttachmentImageMemoryBarriers[i].subresourceRange.levelCount = 1;
-		undefinedToColorAttachmentImageMemoryBarriers[i].subresourceRange.baseArrayLayer = 0;
-		undefinedToColorAttachmentImageMemoryBarriers[i].subresourceRange.layerCount = 1;
+		VkImageMemoryBarrier2 undefinedToColorAttachmentImageMemoryBarrier;
+		undefinedToColorAttachmentImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		undefinedToColorAttachmentImageMemoryBarrier.pNext = nullptr;
+		undefinedToColorAttachmentImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		undefinedToColorAttachmentImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_NONE;
+		undefinedToColorAttachmentImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		undefinedToColorAttachmentImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		undefinedToColorAttachmentImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		undefinedToColorAttachmentImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		undefinedToColorAttachmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueIndex;
+		undefinedToColorAttachmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueIndex;
+		undefinedToColorAttachmentImageMemoryBarrier.image = m_perWindowResources[i].swapchainImages[imageIndices[i]];
+		undefinedToColorAttachmentImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		undefinedToColorAttachmentImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+		undefinedToColorAttachmentImageMemoryBarrier.subresourceRange.levelCount = 1;
+		undefinedToColorAttachmentImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+		undefinedToColorAttachmentImageMemoryBarrier.subresourceRange.layerCount = 1;
+		undefinedToColorAttachmentImageMemoryBarriers.push_back(undefinedToColorAttachmentImageMemoryBarrier);
 	}
 
 	VkDependencyInfo undefinedToColorAttachmentDependencyInfo = {};
@@ -604,12 +629,16 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	undefinedToColorAttachmentDependencyInfo.pMemoryBarriers = nullptr;
 	undefinedToColorAttachmentDependencyInfo.bufferMemoryBarrierCount = 0;
 	undefinedToColorAttachmentDependencyInfo.pBufferMemoryBarriers = nullptr;
-	undefinedToColorAttachmentDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(m_perWindowResources.size());
+	undefinedToColorAttachmentDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(undefinedToColorAttachmentImageMemoryBarriers.size());
 	undefinedToColorAttachmentDependencyInfo.pImageMemoryBarriers = undefinedToColorAttachmentImageMemoryBarriers.data();
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &undefinedToColorAttachmentDependencyInfo);
 
 		// Begin rendering
 	for (size_t i = 0; i < m_perWindowResources.size(); i++) {
+		if (!m_perWindowResources[i].sizeNonZero) {
+			continue;
+		}
+
 		VkRenderingAttachmentInfo renderingAttachmentInfo = {};
 		renderingAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 		renderingAttachmentInfo.pNext = nullptr;
@@ -647,25 +676,31 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight]);
 	}
 
-	std::vector<VkImageMemoryBarrier2> colorAttachmentToPresentSrcImageMemoryBarriers(m_perWindowResources.size());
+	std::vector<VkImageMemoryBarrier2> colorAttachmentToPresentSrcImageMemoryBarriers;
 	for (size_t i = 0; i < m_perWindowResources.size(); i++) {
+		if (!m_perWindowResources[i].sizeNonZero) {
+			continue;
+		}
+
 		// Layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-		colorAttachmentToPresentSrcImageMemoryBarriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-		colorAttachmentToPresentSrcImageMemoryBarriers[i].pNext = nullptr;
-		colorAttachmentToPresentSrcImageMemoryBarriers[i].srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-		colorAttachmentToPresentSrcImageMemoryBarriers[i].srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-		colorAttachmentToPresentSrcImageMemoryBarriers[i].dstStageMask = VK_PIPELINE_STAGE_2_NONE;
-		colorAttachmentToPresentSrcImageMemoryBarriers[i].dstAccessMask = VK_ACCESS_2_NONE;
-		colorAttachmentToPresentSrcImageMemoryBarriers[i].oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		colorAttachmentToPresentSrcImageMemoryBarriers[i].newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		colorAttachmentToPresentSrcImageMemoryBarriers[i].srcQueueFamilyIndex = m_graphicsQueueIndex;
-		colorAttachmentToPresentSrcImageMemoryBarriers[i].dstQueueFamilyIndex = m_graphicsQueueIndex;
-		colorAttachmentToPresentSrcImageMemoryBarriers[i].image = m_perWindowResources[i].swapchainImages[imageIndices[i]];
-		colorAttachmentToPresentSrcImageMemoryBarriers[i].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		colorAttachmentToPresentSrcImageMemoryBarriers[i].subresourceRange.baseMipLevel = 0;
-		colorAttachmentToPresentSrcImageMemoryBarriers[i].subresourceRange.levelCount = 1;
-		colorAttachmentToPresentSrcImageMemoryBarriers[i].subresourceRange.baseArrayLayer = 0;
-		colorAttachmentToPresentSrcImageMemoryBarriers[i].subresourceRange.layerCount = 1;
+		VkImageMemoryBarrier2 colorAttachmentToPresentSrcImageMemoryBarrier;
+		colorAttachmentToPresentSrcImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		colorAttachmentToPresentSrcImageMemoryBarrier.pNext = nullptr;
+		colorAttachmentToPresentSrcImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		colorAttachmentToPresentSrcImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		colorAttachmentToPresentSrcImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_NONE;
+		colorAttachmentToPresentSrcImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_NONE;
+		colorAttachmentToPresentSrcImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		colorAttachmentToPresentSrcImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		colorAttachmentToPresentSrcImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueIndex;
+		colorAttachmentToPresentSrcImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueIndex;
+		colorAttachmentToPresentSrcImageMemoryBarrier.image = m_perWindowResources[i].swapchainImages[imageIndices[i]];
+		colorAttachmentToPresentSrcImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		colorAttachmentToPresentSrcImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+		colorAttachmentToPresentSrcImageMemoryBarrier.subresourceRange.levelCount = 1;
+		colorAttachmentToPresentSrcImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+		colorAttachmentToPresentSrcImageMemoryBarrier.subresourceRange.layerCount = 1;
+		colorAttachmentToPresentSrcImageMemoryBarriers.push_back(colorAttachmentToPresentSrcImageMemoryBarrier);
 	}
 
 	VkDependencyInfo colorAttachmentToPresentSrcDependencyInfo = {};
@@ -676,7 +711,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	colorAttachmentToPresentSrcDependencyInfo.pMemoryBarriers = nullptr;
 	colorAttachmentToPresentSrcDependencyInfo.bufferMemoryBarrierCount = 0;
 	colorAttachmentToPresentSrcDependencyInfo.pBufferMemoryBarriers = nullptr;
-	colorAttachmentToPresentSrcDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(m_perWindowResources.size());
+	colorAttachmentToPresentSrcDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(colorAttachmentToPresentSrcImageMemoryBarriers.size());
 	colorAttachmentToPresentSrcDependencyInfo.pImageMemoryBarriers = colorAttachmentToPresentSrcImageMemoryBarriers.data();
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &colorAttachmentToPresentSrcDependencyInfo);
 
@@ -689,22 +724,28 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	std::vector<VkSemaphore> imageAvailableSemaphores;
 	std::vector<VkSemaphore> renderFinishedSemaphores;
 	std::vector<VkSwapchainKHR> swapchains;
+	std::vector<uint32_t> validImageIndices;
 	for (size_t i = 0; i < m_perWindowResources.size(); i++) {
+		if (!m_perWindowResources[i].sizeNonZero) {
+			continue;
+		}
+
 		waitDstStageMasks.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 		imageAvailableSemaphores.push_back(m_perWindowResources[i].imageAvailableSemaphores[m_currentFrameInFlight]);
 		renderFinishedSemaphores.push_back(m_perWindowResources[i].renderFinishedSemaphores[imageIndices[i]]);
 		swapchains.push_back(m_perWindowResources[i].swapchain);
+		validImageIndices.push_back(imageIndices[i]);
 	};
 
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.pNext = nullptr;
-	submitInfo.waitSemaphoreCount = static_cast<uint32_t>(m_perWindowResources.size());
+	submitInfo.waitSemaphoreCount = static_cast<uint32_t>(imageAvailableSemaphores.size());
 	submitInfo.pWaitSemaphores = imageAvailableSemaphores.data();
 	submitInfo.pWaitDstStageMask = waitDstStageMasks.data();
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &m_renderingCommandBuffers[m_currentFrameInFlight];
-	submitInfo.signalSemaphoreCount = static_cast<uint32_t>(m_perWindowResources.size());
+	submitInfo.signalSemaphoreCount = static_cast<uint32_t>(renderFinishedSemaphores.size());
 	submitInfo.pSignalSemaphores = renderFinishedSemaphores.data();
 	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fences[m_currentFrameInFlight]));
 
@@ -713,14 +754,18 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	VkPresentInfoKHR presentInfo = {};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.pNext = nullptr;
-	presentInfo.waitSemaphoreCount = static_cast<uint32_t>(m_perWindowResources.size());
+	presentInfo.waitSemaphoreCount = static_cast<uint32_t>(renderFinishedSemaphores.size());
 	presentInfo.pWaitSemaphores = renderFinishedSemaphores.data();
-	presentInfo.swapchainCount = static_cast<uint32_t>(m_perWindowResources.size());
+	presentInfo.swapchainCount = static_cast<uint32_t>(swapchains.size());
 	presentInfo.pSwapchains = swapchains.data();
-	presentInfo.pImageIndices = imageIndices.data();
+	presentInfo.pImageIndices = validImageIndices.data();
 	presentInfo.pResults = presentResults.data();
 	vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
 	for (size_t i = 0; i < m_perWindowResources.size(); i++) {
+		if (!m_perWindowResources[i].sizeNonZero) {
+			continue;
+		}
+
 		if (presentResults[i] == VK_ERROR_OUT_OF_DATE_KHR || presentResults[i] == VK_SUBOPTIMAL_KHR) {
 			resize(i);
 		}
@@ -1072,10 +1117,6 @@ std::vector<PerWindowResources>::iterator NtshEngn::GraphicsModule::destroyWindo
 }
 
 void NtshEngn::GraphicsModule::resize(size_t index) {
-	while ((windowModule->getWindowWidth(m_perWindowResources[index].windowID) == 0) || (windowModule->getWindowHeight(m_perWindowResources[index].windowID) == 0)) {
-		windowModule->pollEvents();
-	}
-
 	NTSHENGN_VK_CHECK(vkQueueWaitIdle(m_graphicsQueue));
 
 	// Destroy swapchain image views

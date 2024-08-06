@@ -51,6 +51,7 @@ struct PerWindowResources {
 	std::vector<VkSemaphore> imageAvailableSemaphores;
 	VkViewport viewport;
 	VkRect2D scissor;
+	bool sizeNonZero = true;
 };
 
 namespace NtshEngn {
