@@ -654,7 +654,7 @@ void NtshEngn::GraphicsModule::init() {
 }
 
 void NtshEngn::GraphicsModule::update(double dt) {
-	if (windowModule && !windowModule->isWindowOpen(windowModule->getMainWindowID())) {
+	if (windowModule && !windowModule->isWindowOpen(windowModule->getMainWindowID()) || ((windowModule->getWindowWidth(windowModule->getMainWindowID()) == 0) || (windowModule->getWindowHeight(windowModule->getMainWindowID()) == 0))) {
 		// Do not update if the main window got closed
 		return;
 	}
@@ -5354,10 +5354,6 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 
 void NtshEngn::GraphicsModule::resize() {
 	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
-		while ((windowModule->getWindowWidth(windowModule->getMainWindowID()) == 0) || (windowModule->getWindowHeight(windowModule->getMainWindowID()) == 0)) {
-			windowModule->pollEvents();
-		}
-
 		NTSHENGN_VK_CHECK(vkQueueWaitIdle(m_graphicsComputeQueue));
 
 		// Destroy swapchain image views
