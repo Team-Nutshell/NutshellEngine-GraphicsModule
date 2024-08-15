@@ -723,7 +723,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	}
 
 	// Update lights buffer
-	std::array<uint32_t, 4> lightsCount = { static_cast<uint32_t>(m_lights.directionalLights.size()), static_cast<uint32_t>(m_lights.pointLights.size()), static_cast<uint32_t>(m_lights.spotLights.size()), 0 };
+	std::array<uint32_t, 4> lightsCount = { static_cast<uint32_t>(m_lights.directionalLights.size()), static_cast<uint32_t>(m_lights.pointLights.size()), static_cast<uint32_t>(m_lights.spotLights.size()), static_cast<uint32_t>(m_lights.ambientLights.size()) };
 	memcpy(m_lightBuffers[m_currentFrameInFlight].address, lightsCount.data(), 4 * sizeof(uint32_t));
 
 	size_t offset = sizeof(Math::vec4);
@@ -816,6 +816,15 @@ void NtshEngn::GraphicsModule::update(double dt) {
 				previousLight.light = lightLight;
 			}
 		}
+	}
+	for (Entity light : m_lights.ambientLights) {
+		const Light& lightLight = ecs->getComponent<Light>(light);
+
+		InternalLight internalLight;
+		internalLight.color = Math::vec4(lightLight.color, 0.0f);
+
+		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
+		offset += sizeof(InternalLight);
 	}
 
 	// Update TLAS
@@ -2429,6 +2438,11 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 			m_previousSpotLights[entity] = previousLight;
 			break;
 
+		case LightType::Ambient:
+			m_lights.ambientLights.insert(entity);
+			m_previousAmbientLights[entity] = previousLight;
+			break;
+
 		default: // Arbitrarily consider it a directional light
 			m_lights.directionalLights.insert(entity);
 			m_previousDirectionalLights[entity] = previousLight;
@@ -2477,6 +2491,11 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 		case LightType::Spot:
 			m_lights.spotLights.erase(entity);
 			m_previousSpotLights.erase(entity);
+			break;
+
+		case LightType::Ambient:
+			m_lights.ambientLights.erase(entity);
+			m_previousAmbientLights.erase(entity);
 			break;
 
 		default: // Arbitrarily consider it a directional light
@@ -3468,7 +3487,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		} materials;
 
 		layout(set = 0, binding = 6) restrict readonly buffer Lights {
-			uvec3 count;
+			uvec4 count;
 			LightInfo info[];
 		} lights;
 
@@ -3808,6 +3827,14 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 				directLighting = (shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample) / float(lightCount)) * shadows(l, distance);
 				directLighting *= occlusionSample;
 			}
+
+			// Ambient Lights
+			uint lightIndex = lightCount;
+            for (uint i = 0; i < lights.count.w; i++) {
+                directLighting += lights.info[lightIndex].color * d;
+
+                lightIndex++;
+            }
 
 			vec4 brdf = sampleBRDF(n, v, d, metalnessSample, roughnessSample, payload.rngState, payload.rayDirection);
 

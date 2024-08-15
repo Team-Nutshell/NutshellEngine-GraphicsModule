@@ -166,6 +166,7 @@ struct InternalLights {
 	std::set<NtshEngn::Entity> directionalLights;
 	std::set<NtshEngn::Entity> pointLights;
 	std::set<NtshEngn::Entity> spotLights;
+	std::set<NtshEngn::Entity> ambientLights;
 };
 
 enum class UIElement {
@@ -527,6 +528,7 @@ namespace NtshEngn {
 		std::unordered_map<Entity, PreviousLight> m_previousDirectionalLights;
 		std::unordered_map<Entity, PreviousLight> m_previousPointLights;
 		std::unordered_map<Entity, PreviousLight> m_previousSpotLights;
+		std::unordered_map<Entity, PreviousLight> m_previousAmbientLights;
 
 		const std::unordered_map<ImageSamplerFilter, VkFilter> m_filterMap{ { ImageSamplerFilter::Linear, VK_FILTER_LINEAR },
 			{ ImageSamplerFilter::Nearest, VK_FILTER_NEAREST },
