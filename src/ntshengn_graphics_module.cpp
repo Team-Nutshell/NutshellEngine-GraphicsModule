@@ -810,7 +810,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	}
 
 	// Update lights buffer
-	std::array<uint32_t, 4> lightsCount = { static_cast<uint32_t>(m_lights.directionalLights.size()), static_cast<uint32_t>(m_lights.pointLights.size()), static_cast<uint32_t>(m_lights.spotLights.size()), 0 };
+	std::array<uint32_t, 4> lightsCount = { static_cast<uint32_t>(m_lights.directionalLights.size()), static_cast<uint32_t>(m_lights.pointLights.size()), static_cast<uint32_t>(m_lights.spotLights.size()), static_cast<uint32_t>(m_lights.ambientLights.size()) };
 	memcpy(m_lightBuffers[m_currentFrameInFlight].address, lightsCount.data(), 4 * sizeof(uint32_t));
 
 	size_t offset = sizeof(Math::vec4);
@@ -863,6 +863,15 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		internalLight.direction = Math::vec4(lightDirection, 0.0f);
 		internalLight.color = Math::vec4(lightLight.color, 0.0f);
 		internalLight.cutoff = Math::vec4(lightLight.cutoff, 0.0f, 0.0f);
+
+		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
+		offset += sizeof(InternalLight);
+	}
+	for (Entity light : m_lights.ambientLights) {
+		const Light& lightLight = ecs->getComponent<Light>(light);
+
+		InternalLight internalLight;
+		internalLight.color = Math::vec4(lightLight.color, 0.0f);
 
 		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
@@ -2288,6 +2297,10 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 			m_lights.spotLights.insert(entity);
 			break;
 
+		case LightType::Ambient:
+			m_lights.ambientLights.insert(entity);
+			break;
+
 		default: // Arbitrarily consider it a directional light
 			m_lights.directionalLights.insert(entity);
 			break;
@@ -2328,6 +2341,10 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 
 		case LightType::Spot:
 			m_lights.spotLights.erase(entity);
+			break;
+
+		case LightType::Ambient:
+			m_lights.ambientLights.erase(entity);
 			break;
 
 		default: // Arbitrarily consider it a directional light
@@ -3151,7 +3168,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 		} materials;
 
 		layout(set = 0, binding = 5) restrict readonly buffer Lights {
-			uvec3 count;
+			uvec4 count;
 			LightInfo info[];
 		} lights;
 
@@ -3212,6 +3229,12 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 
 				lightIndex++;
 			}
+            // Ambient Lights
+            for (uint i = 0; i < lights.count.w; i++) {
+                color += lights.info[lightIndex].color * d;
+
+                lightIndex++;
+            }
 
 			color *= occlusionSample;
 			color += emissiveSample * material.emissiveFactor;
