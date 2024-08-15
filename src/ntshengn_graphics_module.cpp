@@ -2535,6 +2535,10 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 			compositingShadowDescriptorSetsNeedUpdate = true;
 			break;
 
+		case LightType::Ambient:
+			m_lights.ambientLights.erase(entity);
+			break;
+
 		default: // Arbitrarily consider it a directional light
 			m_lights.directionalLights.erase(entity);
 			m_shadowMapping.destroyDirectionalLightShadowMap(entity);
