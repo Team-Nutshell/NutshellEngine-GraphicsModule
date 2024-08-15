@@ -124,6 +124,7 @@ struct InternalLights {
 	std::set<NtshEngn::Entity> directionalLights;
 	std::set<NtshEngn::Entity> pointLights;
 	std::set<NtshEngn::Entity> spotLights;
+	std::set<NtshEngn::Entity> ambientLights;
 };
 
 struct VulkanImage {
