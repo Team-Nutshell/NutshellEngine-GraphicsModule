@@ -706,9 +706,13 @@ void SSAO::createSSAOGraphicsPipeline() {
 			vec3 bitangent = cross(normal, tangent);
 			mat3 TBN = mat3(tangent, bitangent, normal);
 
+			float samplesUsed = 0.0;
 			float occlusion = 0.0;
 			for (uint i = 0; i < SSAO_SAMPLE_COUNT; i++) {
 				vec3 samplePos = TBN * kernel.samples[i];
+				if (dot(samplePos, normal) < 0.15) {
+					continue;
+				}
 				samplePos = position + (samplePos * radius);
 
 				vec4 offset = vec4(samplePos, 1.0);
@@ -723,8 +727,10 @@ void SSAO::createSSAOGraphicsPipeline() {
 					float rangeCheck = smoothstep(0.0, 1.0, radius / abs(position.z - depth));
 					occlusion += ((depth >= (samplePos.z + bias)) ? 1.0 : 0.0) * rangeCheck;
 				}
+
+				samplesUsed++;
 			}
-			occlusion = 1.0 - (occlusion / float(SSAO_SAMPLE_COUNT));
+			occlusion = 1.0 - (occlusion / samplesUsed);
 
 			outColor = occlusion;
 		}
