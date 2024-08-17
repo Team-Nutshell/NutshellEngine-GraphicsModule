@@ -466,7 +466,7 @@ void GBuffer::createImages(uint32_t width, uint32_t height) {
 	gBufferCreateInfo.pNext = nullptr;
 	gBufferCreateInfo.flags = 0;
 	gBufferCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-	gBufferCreateInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+	gBufferCreateInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
 	gBufferCreateInfo.extent = imageExtent;
 	gBufferCreateInfo.mipLevels = 1;
 	gBufferCreateInfo.arrayLayers = 1;
@@ -504,7 +504,7 @@ void GBuffer::createImages(uint32_t width, uint32_t height) {
 	gBufferViewCreateInfo.flags = 0;
 	gBufferViewCreateInfo.image = m_position.handle;
 	gBufferViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	gBufferViewCreateInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+	gBufferViewCreateInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
 	gBufferViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
 	gBufferViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
 	gBufferViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
@@ -761,7 +761,7 @@ void GBuffer::createDescriptorSetLayout() {
 }
 
 void GBuffer::createGraphicsPipeline() {
-	std::vector<VkFormat> pipelineRenderingColorFormats = { VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R16G16B16A16_SFLOAT };
+	std::vector<VkFormat> pipelineRenderingColorFormats = { VK_FORMAT_R32G32B32A32_SFLOAT, VK_FORMAT_R32G32B32A32_SFLOAT, VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R16G16B16A16_SFLOAT };
 	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
 	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
 	pipelineRenderingCreateInfo.pNext = nullptr;
