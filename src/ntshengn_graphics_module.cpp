@@ -2081,6 +2081,36 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	textureBufferCopy.imageExtent.depth = 1;
 	vkCmdCopyBufferToImage(m_initializationCommandBuffer, textureStagingBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &textureBufferCopy);
 
+	VkImageMemoryBarrier2 transferDstToShaderReadOnlyImageMemoryBarrier = {};
+	transferDstToShaderReadOnlyImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	transferDstToShaderReadOnlyImageMemoryBarrier.pNext = nullptr;
+	transferDstToShaderReadOnlyImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+	transferDstToShaderReadOnlyImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+	transferDstToShaderReadOnlyImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	transferDstToShaderReadOnlyImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+	transferDstToShaderReadOnlyImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	transferDstToShaderReadOnlyImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	transferDstToShaderReadOnlyImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	transferDstToShaderReadOnlyImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	transferDstToShaderReadOnlyImageMemoryBarrier.image = textureImage;
+	transferDstToShaderReadOnlyImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	transferDstToShaderReadOnlyImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	transferDstToShaderReadOnlyImageMemoryBarrier.subresourceRange.levelCount = textureImageCreateInfo.mipLevels;
+	transferDstToShaderReadOnlyImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	transferDstToShaderReadOnlyImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	VkDependencyInfo transferDstToShaderReadOnlyDependencyInfo = {};
+	transferDstToShaderReadOnlyDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	transferDstToShaderReadOnlyDependencyInfo.pNext = nullptr;
+	transferDstToShaderReadOnlyDependencyInfo.dependencyFlags = 0;
+	transferDstToShaderReadOnlyDependencyInfo.memoryBarrierCount = 0;
+	transferDstToShaderReadOnlyDependencyInfo.pMemoryBarriers = nullptr;
+	transferDstToShaderReadOnlyDependencyInfo.bufferMemoryBarrierCount = 0;
+	transferDstToShaderReadOnlyDependencyInfo.pBufferMemoryBarriers = nullptr;
+	transferDstToShaderReadOnlyDependencyInfo.imageMemoryBarrierCount = 1;
+	transferDstToShaderReadOnlyDependencyInfo.pImageMemoryBarriers = &transferDstToShaderReadOnlyImageMemoryBarrier;
+	m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &transferDstToShaderReadOnlyDependencyInfo);
+
 	NTSHENGN_VK_CHECK(vkEndCommandBuffer(m_initializationCommandBuffer));
 
 	VkSubmitInfo buffersCopySubmitInfo = {};
