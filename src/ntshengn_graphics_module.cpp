@@ -2178,31 +2178,14 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	vmaUnmapMemory(m_allocator, textureStagingBufferAllocation);
 
 	// Copy staging buffer
-	VkCommandPool commandPool;
-
-	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
-	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	commandPoolCreateInfo.pNext = nullptr;
-	commandPoolCreateInfo.flags = 0;
-	commandPoolCreateInfo.queueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
-	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCreateInfo, nullptr, &commandPool));
-
-	VkCommandBuffer commandBuffer;
-
-	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	commandBufferAllocateInfo.pNext = nullptr;
-	commandBufferAllocateInfo.commandPool = commandPool;
-	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	commandBufferAllocateInfo.commandBufferCount = 1;
-	NTSHENGN_VK_CHECK(vkAllocateCommandBuffers(m_device, &commandBufferAllocateInfo, &commandBuffer));
+	NTSHENGN_VK_CHECK(vkResetCommandPool(m_device, m_initializationCommandPool, 0));
 
 	VkCommandBufferBeginInfo textureCopyBeginInfo = {};
 	textureCopyBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	textureCopyBeginInfo.pNext = nullptr;
 	textureCopyBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	textureCopyBeginInfo.pInheritanceInfo = nullptr;
-	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(commandBuffer, &textureCopyBeginInfo));
+	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(m_initializationCommandBuffer, &textureCopyBeginInfo));
 
 	VkImageMemoryBarrier2 undefinedToTransferDstImageMemoryBarrier = {};
 	undefinedToTransferDstImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -2232,7 +2215,7 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	undefinedToTransferDstDependencyInfo.pBufferMemoryBarriers = nullptr;
 	undefinedToTransferDstDependencyInfo.imageMemoryBarrierCount = 1;
 	undefinedToTransferDstDependencyInfo.pImageMemoryBarriers = &undefinedToTransferDstImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(commandBuffer, &undefinedToTransferDstDependencyInfo);
+	m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &undefinedToTransferDstDependencyInfo);
 
 	VkBufferImageCopy textureBufferCopy = {};
 	textureBufferCopy.bufferOffset = 0;
@@ -2248,7 +2231,7 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	textureBufferCopy.imageExtent.width = font.image->width;
 	textureBufferCopy.imageExtent.height = font.image->height;
 	textureBufferCopy.imageExtent.depth = 1;
-	vkCmdCopyBufferToImage(commandBuffer, textureStagingBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &textureBufferCopy);
+	vkCmdCopyBufferToImage(m_initializationCommandBuffer, textureStagingBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &textureBufferCopy);
 
 	VkImageMemoryBarrier2 transferDstToShaderReadOnlyImageMemoryBarrier = {};
 	transferDstToShaderReadOnlyImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -2278,9 +2261,9 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	utransferDstToShaderReadOnlyDependencyInfo.pBufferMemoryBarriers = nullptr;
 	utransferDstToShaderReadOnlyDependencyInfo.imageMemoryBarrierCount = 1;
 	utransferDstToShaderReadOnlyDependencyInfo.pImageMemoryBarriers = &transferDstToShaderReadOnlyImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(commandBuffer, &utransferDstToShaderReadOnlyDependencyInfo);
+	m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &utransferDstToShaderReadOnlyDependencyInfo);
 
-	NTSHENGN_VK_CHECK(vkEndCommandBuffer(commandBuffer));
+	NTSHENGN_VK_CHECK(vkEndCommandBuffer(m_initializationCommandBuffer));
 
 	VkSubmitInfo buffersCopySubmitInfo = {};
 	buffersCopySubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -2289,14 +2272,13 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	buffersCopySubmitInfo.pWaitSemaphores = nullptr;
 	buffersCopySubmitInfo.pWaitDstStageMask = nullptr;
 	buffersCopySubmitInfo.commandBufferCount = 1;
-	buffersCopySubmitInfo.pCommandBuffers = &commandBuffer;
+	buffersCopySubmitInfo.pCommandBuffers = &m_initializationCommandBuffer;
 	buffersCopySubmitInfo.signalSemaphoreCount = 0;
 	buffersCopySubmitInfo.pSignalSemaphores = nullptr;
 	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &buffersCopySubmitInfo, m_initializationFence));
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 
-	vkDestroyCommandPool(m_device, commandPool, nullptr);
 	vmaDestroyBuffer(m_allocator, textureStagingBuffer, textureStagingBufferAllocation);
 
 	m_fonts.push_back({ textureImage, textureImageAllocation, textureImageView, font.imageSamplerFilter, font.glyphs });
