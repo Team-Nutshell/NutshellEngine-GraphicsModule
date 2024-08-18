@@ -2242,17 +2242,17 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	transferDstToShaderReadOnlyImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	transferDstToShaderReadOnlyImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	VkDependencyInfo utransferDstToShaderReadOnlyDependencyInfo = {};
-	utransferDstToShaderReadOnlyDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-	utransferDstToShaderReadOnlyDependencyInfo.pNext = nullptr;
-	utransferDstToShaderReadOnlyDependencyInfo.dependencyFlags = 0;
-	utransferDstToShaderReadOnlyDependencyInfo.memoryBarrierCount = 0;
-	utransferDstToShaderReadOnlyDependencyInfo.pMemoryBarriers = nullptr;
-	utransferDstToShaderReadOnlyDependencyInfo.bufferMemoryBarrierCount = 0;
-	utransferDstToShaderReadOnlyDependencyInfo.pBufferMemoryBarriers = nullptr;
-	utransferDstToShaderReadOnlyDependencyInfo.imageMemoryBarrierCount = 1;
-	utransferDstToShaderReadOnlyDependencyInfo.pImageMemoryBarriers = &transferDstToShaderReadOnlyImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &utransferDstToShaderReadOnlyDependencyInfo);
+	VkDependencyInfo transferDstToShaderReadOnlyDependencyInfo = {};
+	transferDstToShaderReadOnlyDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	transferDstToShaderReadOnlyDependencyInfo.pNext = nullptr;
+	transferDstToShaderReadOnlyDependencyInfo.dependencyFlags = 0;
+	transferDstToShaderReadOnlyDependencyInfo.memoryBarrierCount = 0;
+	transferDstToShaderReadOnlyDependencyInfo.pMemoryBarriers = nullptr;
+	transferDstToShaderReadOnlyDependencyInfo.bufferMemoryBarrierCount = 0;
+	transferDstToShaderReadOnlyDependencyInfo.pBufferMemoryBarriers = nullptr;
+	transferDstToShaderReadOnlyDependencyInfo.imageMemoryBarrierCount = 1;
+	transferDstToShaderReadOnlyDependencyInfo.pImageMemoryBarriers = &transferDstToShaderReadOnlyImageMemoryBarrier;
+	m_vkCmdPipelineBarrier2KHR(m_initializationCommandBuffer, &transferDstToShaderReadOnlyDependencyInfo);
 
 	NTSHENGN_VK_CHECK(vkEndCommandBuffer(m_initializationCommandBuffer));
 
