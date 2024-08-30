@@ -926,7 +926,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 		InternalLight internalLight;
 		internalLight.direction = Math::vec4(lightDirection, 0.0f);
-		internalLight.color = Math::vec4(lightLight.color, 0.0f);
+		internalLight.color = Math::vec4(lightLight.color, lightLight.intensity);
 
 		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
@@ -937,7 +937,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 		InternalLight internalLight;
 		internalLight.position = Math::vec4(lightTransform.position, 0.0f);
-		internalLight.color = Math::vec4(lightLight.color, 0.0f);
+		internalLight.color = Math::vec4(lightLight.color, lightLight.intensity);
 
 		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
@@ -958,7 +958,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		InternalLight internalLight;
 		internalLight.position = Math::vec4(lightTransform.position, 0.0f);
 		internalLight.direction = Math::vec4(lightDirection, 0.0f);
-		internalLight.color = Math::vec4(lightLight.color, 0.0f);
+		internalLight.color = Math::vec4(lightLight.color, lightLight.intensity);
 		internalLight.cutoff = Math::vec4(lightLight.cutoff, 0.0f, 0.0f);
 
 		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
@@ -968,7 +968,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		const Light& lightLight = ecs->getComponent<Light>(light);
 
 		InternalLight internalLight;
-		internalLight.color = Math::vec4(lightLight.color, 0.0f);
+		internalLight.color = Math::vec4(lightLight.color, lightLight.intensity);
 
 		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
@@ -2959,6 +2959,7 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 			vec3 position;
 			vec3 direction;
 			vec3 color;
+			float intensity;
 			vec2 cutoffs;
 		};
 
@@ -3064,7 +3065,7 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 
 				const vec4 shadowCoord = (shadowOffset * shadows.info[(i * SHADOW_MAPPING_CASCADE_COUNT) + cascadeIndex].viewProj) * vec4(position, 1.0);
 
-				color += shade(n, v, l, lights.info[lightIndex].color, d, metalnessSample, roughnessSample) * shadowValue(i, cascadeIndex, shadowCoord / shadowCoord.w, 0.005);
+				color += shade(n, v, l, lights.info[lightIndex].color * lights.info[lightIndex].intensity, d, metalnessSample, roughnessSample) * shadowValue(i, cascadeIndex, shadowCoord / shadowCoord.w, 0.005);
 
 				lightIndex++;
 			}
@@ -3074,7 +3075,7 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 
 				const float distance = length(lights.info[lightIndex].position - position);
 				const float attenuation = 1.0 / (distance * distance);
-				const vec3 radiance = lights.info[lightIndex].color * attenuation;
+				const vec3 radiance = (lights.info[lightIndex].color * lights.info[lightIndex].intensity) * attenuation;
 
 				color += shade(n, v, l, radiance, d, metalnessSample, roughnessSample) * shadowCubeValue(lightIndex, position - lights.info[lightIndex].position, 0.05);
 
@@ -3090,13 +3091,13 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 
 				const vec4 shadowCoord = (shadowOffset * shadows.info[(lights.count.x * SHADOW_MAPPING_CASCADE_COUNT) + (lights.count.y * 6) + i].viewProj) * vec4(position, 1.0);
 
-				color += shade(n, v, l, lights.info[lightIndex].color * intensity, d * intensity, metalnessSample, roughnessSample) * shadowValue(lightIndex, 0, shadowCoord / shadowCoord.w, 0.00005);
+				color += shade(n, v, l, (lights.info[lightIndex].color * lights.info[lightIndex].intensity) * intensity, d * intensity, metalnessSample, roughnessSample) * shadowValue(lightIndex, 0, shadowCoord / shadowCoord.w, 0.00005);
 
 				lightIndex++;
 			}
 			// Ambient Lights
 			for (uint i = 0; i < lights.count.w; i++) {
-				color += lights.info[lightIndex].color * d;
+				color += (lights.info[lightIndex].color * lights.info[lightIndex].intensity) * d;
 
 				lightIndex++;
 			}
