@@ -766,7 +766,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 		InternalLight internalLight;
 		internalLight.direction = Math::vec4(lightDirection, 0.0f);
-		internalLight.color = Math::vec4(lightLight.color, 0.0f);
+		internalLight.color = Math::vec4(lightLight.color, lightLight.intensity);
 
 		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
@@ -777,7 +777,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 		InternalLight internalLight;
 		internalLight.position = Math::vec4(lightTransform.position, 0.0f);
-		internalLight.color = Math::vec4(lightLight.color, 0.0f);
+		internalLight.color = Math::vec4(lightLight.color, lightLight.intensity);
 
 		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
@@ -798,7 +798,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		InternalLight internalLight;
 		internalLight.position = Math::vec4(lightTransform.position, 0.0f);
 		internalLight.direction = Math::vec4(lightDirection, 0.0f);
-		internalLight.color = Math::vec4(lightLight.color, 0.0f);
+		internalLight.color = Math::vec4(lightLight.color, lightLight.intensity);
 		internalLight.cutoff = Math::vec4(lightLight.cutoff, 0.0f, 0.0f);
 
 		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
@@ -808,7 +808,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		const Light& lightLight = ecs->getComponent<Light>(light);
 
 		InternalLight internalLight;
-		internalLight.color = Math::vec4(lightLight.color, 0.0f);
+		internalLight.color = Math::vec4(lightLight.color, lightLight.intensity);
 
 		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
