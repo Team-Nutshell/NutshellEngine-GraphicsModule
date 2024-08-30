@@ -742,7 +742,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 		InternalLight internalLight;
 		internalLight.direction = Math::vec4(lightDirection, 0.0f);
-		internalLight.color = Math::vec4(lightLight.color, 0.0f);
+		internalLight.color = Math::vec4(lightLight.color, lightLight.intensity);
 
 		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
@@ -765,7 +765,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 		InternalLight internalLight;
 		internalLight.position = Math::vec4(lightTransform.position, 0.0f);
-		internalLight.color = Math::vec4(lightLight.color, 0.0f);
+		internalLight.color = Math::vec4(lightLight.color, lightLight.intensity);
 
 		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
@@ -797,7 +797,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		InternalLight internalLight;
 		internalLight.position = Math::vec4(lightTransform.position, 0.0f);
 		internalLight.direction = Math::vec4(lightDirection, 0.0f);
-		internalLight.color = Math::vec4(lightLight.color, 0.0f);
+		internalLight.color = Math::vec4(lightLight.color, lightLight.intensity);
 		internalLight.cutoff = Math::vec4(lightLight.cutoff, 0.0f, 0.0f);
 
 		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
@@ -821,7 +821,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		const Light& lightLight = ecs->getComponent<Light>(light);
 
 		InternalLight internalLight;
-		internalLight.color = Math::vec4(lightLight.color, 0.0f);
+		internalLight.color = Math::vec4(lightLight.color, lightLight.intensity);
 
 		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
@@ -3489,6 +3489,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 position;
 			vec3 direction;
 			vec3 color;
+			float intensity;
 			vec2 cutoff;
 		};
 
@@ -3829,14 +3830,14 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 				// Directional Light
 				if (lightIndex < lights.count.x) {
 					l = -lights.info[lightIndex].direction;
-					lc = lights.info[lightIndex].color;
+					lc = lights.info[lightIndex].color * lights.info[lightIndex].intensity;
 				}
 				// Point Light
 				else if (lightIndex < (lights.count.x + lights.count.y)) {
 					l = normalize(lights.info[lightIndex].position - worldPosition);
 					distance = length(lights.info[lightIndex].position - worldPosition);
 					float attenuation = 1.0 / (distance * distance);
-					lc = lights.info[lightIndex].color * attenuation;
+					lc = (lights.info[lightIndex].color * lights.info[lightIndex].intensity) * attenuation;
 				}
 				// Spot Light
 				else {
@@ -3846,7 +3847,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 					}
 
 					l = normalize(lights.info[lightIndex].position - worldPosition);
-					lc = lights.info[lightIndex].color;
+					lc = lights.info[lightIndex].color * lights.info[lightIndex].intensity;
 					float theta = dot(l, -lights.info[lightIndex].direction);
 					float epsilon = cos(lights.info[lightIndex].cutoff.y) - cos(lights.info[lightIndex].cutoff.x);
 					intensity = clamp((theta - cos(lights.info[lightIndex].cutoff.x)) / epsilon, 0.0, 1.0);
@@ -3861,7 +3862,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			// Ambient Lights
 			uint lightIndex = lightCount;
             for (uint i = 0; i < lights.count.w; i++) {
-                directLighting += lights.info[lightIndex].color * d;
+                directLighting += (lights.info[lightIndex].color * lights.info[lightIndex].intensity) * d;
 
                 lightIndex++;
             }
