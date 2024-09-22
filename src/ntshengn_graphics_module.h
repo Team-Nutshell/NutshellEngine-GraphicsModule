@@ -5,11 +5,11 @@
 #include "../Module/utils/ntshengn_module_defines.h"
 #if defined(NTSHENGN_OS_WINDOWS)
 #define VK_USE_PLATFORM_WIN32_KHR
-#elif defined(NTSHENGN_OS_LINUX)
+#elif defined(NTSHENGN_OS_LINUX) || defined(NTSHENGN_OS_FREEBSD)
 #define VK_USE_PLATFORM_XLIB_KHR
 #endif
 #include "vulkan/vulkan.h"
-#if defined(NTSHENGN_OS_LINUX)
+#if defined(NTSHENGN_OS_LINUX) || defined(NTSHENGN_OS_FREEBSD)
 #undef None
 #undef Success
 #endif
