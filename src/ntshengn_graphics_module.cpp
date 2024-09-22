@@ -62,7 +62,7 @@ void NtshEngn::GraphicsModule::init() {
 	instanceExtensions.push_back("VK_KHR_get_surface_capabilities2");
 #if defined(NTSHENGN_OS_WINDOWS)
 	instanceExtensions.push_back("VK_KHR_win32_surface");
-#elif defined(NTSHENGN_OS_LINUX)
+#elif defined(NTSHENGN_OS_LINUX) || defined(NTSHENGN_OS_FREEBSD)
 	instanceExtensions.push_back("VK_KHR_xlib_surface");
 #endif
 	instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(instanceExtensions.size());
@@ -103,7 +103,7 @@ void NtshEngn::GraphicsModule::init() {
 	surfaceCreateInfo.hwnd = windowHandle;
 	auto createWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateWin32SurfaceKHR");
 	NTSHENGN_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_perWindowResources[0].surface));
-#elif defined(NTSHENGN_OS_LINUX)
+#elif defined(NTSHENGN_OS_LINUX) || defined(NTSHENGN_OS_FREEBSD)
 	Window windowHandle = reinterpret_cast<Window>(windowModule->getWindowNativeHandle(m_perWindowResources[0].windowID));
 	VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
 	surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
@@ -1063,7 +1063,7 @@ void NtshEngn::GraphicsModule::createWindowResources(WindowID windowID) {
 		surfaceCreateInfo.hwnd = windowHandle;
 		auto createWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateWin32SurfaceKHR");
 		NTSHENGN_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_perWindowResources[index].surface));
-#elif defined(NTSHENGN_OS_LINUX)
+#elif defined(NTSHENGN_OS_LINUX) || defined(NTSHENGN_OS_FREEBSD)
 		for (size_t i = 0; i < m_windowIDs.size(); i++) {
 			Window windowHandle = reinterpret_cast<Window>(windowModule->getWindowNativeHandle(m_perWindowResources[index].windowID));
 			VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
