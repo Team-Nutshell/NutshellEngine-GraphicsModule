@@ -21,14 +21,14 @@ void NtshEngn::GraphicsModule::init() {
 	surfaceDescriptorWindows.hwnd = windowModule->getWindowNativeHandle(windowModule->getMainWindowID());
 
 	surfaceDescriptor.nextInChain = &surfaceDescriptorWindows.chain;
-#elif defined(NTSHENGN_OS_LINUX)
-	WGPUSurfaceDescriptorFromXlibWindow surfaceDescriptorLinux = {};
-	surfaceDescriptorLinux.chain.sType = WGPUSType_SurfaceDescriptorFromXlibWindow;
-	surfaceDescriptorLinux.chain.next = nullptr;
-	surfaceDescriptorLinux.display = windowModule->getWindowNativeAdditionalInformation(windowModule->getMainWindowID());
-	surfaceDescriptorLinux.window = reinterpret_cast<uint32_t>(windowModule->getWindowNativeHandle(windowModule->getMainWindowID()));
+#elif defined(NTSHENGN_OS_LINUX) || defined(NTSHENGN_OS_FREEBSD)
+	WGPUSurfaceDescriptorFromXlibWindow surfaceDescriptorXlib = {};
+	surfaceDescriptorXlib.chain.sType = WGPUSType_SurfaceDescriptorFromXlibWindow;
+	surfaceDescriptorXlib.chain.next = nullptr;
+	surfaceDescriptorXlib.display = windowModule->getWindowNativeAdditionalInformation(windowModule->getMainWindowID());
+	surfaceDescriptorXlib.window = reinterpret_cast<uint32_t>(windowModule->getWindowNativeHandle(windowModule->getMainWindowID()));
 
-	surfaceDescriptor.nextInChain = &surfaceDescriptorLinux.chain;
+	surfaceDescriptor.nextInChain = &surfaceDescriptorXlib.chain;
 #endif
 	NTSHENGN_WEBGPU_ASSIGN_CHECK(m_surface, wgpuInstanceCreateSurface(m_instance, &surfaceDescriptor));
 
