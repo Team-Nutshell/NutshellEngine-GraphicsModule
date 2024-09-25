@@ -553,7 +553,7 @@ void FrustumCulling::createDescriptorSetLayout() {
 
 void FrustumCulling::createComputePipeline() {
 	const std::string computeShaderCode = R"GLSL(
-        #version 460
+		#version 460
 
 		layout(local_size_x = 64) in;
 
