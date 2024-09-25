@@ -180,16 +180,16 @@ void NtshEngn::GraphicsModule::init() {
 	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyPropertyCount, nullptr);
 	std::vector<VkQueueFamilyProperties> queueFamilyProperties(queueFamilyPropertyCount);
 	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyPropertyCount, queueFamilyProperties.data());
-	m_graphicsQueueIndex = 0;
+	m_graphicsQueueFamilyIndex = 0;
 	for (const VkQueueFamilyProperties& queueFamilyProperty : queueFamilyProperties) {
 		if ((queueFamilyProperty.queueCount > 0) && (queueFamilyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
 			VkBool32 presentSupport;
-			vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsQueueIndex, m_perWindowResources[0].surface, &presentSupport);
+			vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsQueueFamilyIndex, m_perWindowResources[0].surface, &presentSupport);
 			if (presentSupport) {
 				break;
 			}
 		}
-		m_graphicsQueueIndex++;
+		m_graphicsQueueFamilyIndex++;
 	}
 
 	// Create a queue supporting graphics
@@ -198,7 +198,7 @@ void NtshEngn::GraphicsModule::init() {
 	deviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 	deviceQueueCreateInfo.pNext = nullptr;
 	deviceQueueCreateInfo.flags = 0;
-	deviceQueueCreateInfo.queueFamilyIndex = m_graphicsQueueIndex;
+	deviceQueueCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
 	deviceQueueCreateInfo.queueCount = 1;
 	deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
 
@@ -237,7 +237,7 @@ void NtshEngn::GraphicsModule::init() {
 	deviceCreateInfo.pEnabledFeatures = nullptr;
 	NTSHENGN_VK_CHECK(vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device));
 
-	vkGetDeviceQueue(m_device, m_graphicsQueueIndex, 0, &m_graphicsQueue);
+	vkGetDeviceQueue(m_device, m_graphicsQueueFamilyIndex, 0, &m_graphicsQueue);
 
 	// Get functions
 	m_vkCmdPipelineBarrier2KHR = (PFN_vkCmdPipelineBarrier2KHR)vkGetDeviceProcAddr(m_device, "vkCmdPipelineBarrier2KHR");
@@ -498,7 +498,7 @@ void NtshEngn::GraphicsModule::init() {
 	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	commandPoolCreateInfo.pNext = nullptr;
 	commandPoolCreateInfo.flags = 0;
-	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueIndex;
+	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
 
 	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
 	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -610,8 +610,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		undefinedToColorAttachmentImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 		undefinedToColorAttachmentImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		undefinedToColorAttachmentImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		undefinedToColorAttachmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueIndex;
-		undefinedToColorAttachmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueIndex;
+		undefinedToColorAttachmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+		undefinedToColorAttachmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 		undefinedToColorAttachmentImageMemoryBarrier.image = m_perWindowResources[i].swapchainImages[imageIndices[i]];
 		undefinedToColorAttachmentImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		undefinedToColorAttachmentImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -692,8 +692,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		colorAttachmentToPresentSrcImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_NONE;
 		colorAttachmentToPresentSrcImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		colorAttachmentToPresentSrcImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		colorAttachmentToPresentSrcImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueIndex;
-		colorAttachmentToPresentSrcImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueIndex;
+		colorAttachmentToPresentSrcImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+		colorAttachmentToPresentSrcImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 		colorAttachmentToPresentSrcImageMemoryBarrier.image = m_perWindowResources[i].swapchainImages[imageIndices[i]];
 		colorAttachmentToPresentSrcImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		colorAttachmentToPresentSrcImageMemoryBarrier.subresourceRange.baseMipLevel = 0;

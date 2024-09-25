@@ -114,7 +114,7 @@ namespace NtshEngn {
 #endif
 
 		VkPhysicalDevice m_physicalDevice;
-		uint32_t m_graphicsQueueIndex;
+		uint32_t m_graphicsQueueFamilyIndex;
 		VkQueue m_graphicsQueue;
 		VkDevice m_device;
 
