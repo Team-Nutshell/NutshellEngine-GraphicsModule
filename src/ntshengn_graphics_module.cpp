@@ -1074,7 +1074,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	// Frustum culling
 	uint32_t drawCount = 0;
 	if (m_mainCamera != NTSHENGN_ENTITY_UNKNOWN) {
-		drawCount = m_frustumCulling.culling(m_renderingCommandBuffers[m_currentFrameInFlight],
+		drawCount = m_frustumCulling.cull(m_renderingCommandBuffers[m_currentFrameInFlight],
 			m_currentFrameInFlight,
 			cameraView,
 			cameraProjection,

@@ -24,7 +24,7 @@ public:
 		NtshEngn::ECSInterface* ecs);
 	void destroy();
 
-	uint32_t culling(VkCommandBuffer commandBuffer,
+	uint32_t cull(VkCommandBuffer commandBuffer,
 		uint32_t currentFrameInFlight,
 		const NtshEngn::Math::mat4& cameraView,
 		const NtshEngn::Math::mat4& cameraProjection,

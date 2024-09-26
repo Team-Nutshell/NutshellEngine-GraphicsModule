@@ -53,7 +53,7 @@ void FrustumCulling::destroy() {
 	}
 }
 
-uint32_t FrustumCulling::culling(VkCommandBuffer commandBuffer,
+uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 	uint32_t currentFrameInFlight,
 	const NtshEngn::Math::mat4& cameraView,
 	const NtshEngn::Math::mat4& cameraProjection,
@@ -304,7 +304,7 @@ uint32_t FrustumCulling::culling(VkCommandBuffer commandBuffer,
 	beforeFillBufferDrawIndirectMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT;
 	beforeFillBufferDrawIndirectMemoryBarrier.srcAccessMask = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
 	beforeFillBufferDrawIndirectMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
-	beforeFillBufferDrawIndirectMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+	beforeFillBufferDrawIndirectMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
 	beforeFillBufferDrawIndirectMemoryBarrier.srcQueueFamilyIndex = m_computeQueueFamilyIndex;
 	beforeFillBufferDrawIndirectMemoryBarrier.dstQueueFamilyIndex = m_computeQueueFamilyIndex;
 	beforeFillBufferDrawIndirectMemoryBarrier.buffer = m_gpuDrawIndirectBuffer.handle;
@@ -332,7 +332,7 @@ uint32_t FrustumCulling::culling(VkCommandBuffer commandBuffer,
 	beforeDispatchDrawIndirectBufferMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
 	beforeDispatchDrawIndirectBufferMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 	beforeDispatchDrawIndirectBufferMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
-	beforeDispatchDrawIndirectBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+	beforeDispatchDrawIndirectBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
 	beforeDispatchDrawIndirectBufferMemoryBarrier.srcQueueFamilyIndex = m_computeQueueFamilyIndex;
 	beforeDispatchDrawIndirectBufferMemoryBarrier.dstQueueFamilyIndex = m_computeQueueFamilyIndex;
 	beforeDispatchDrawIndirectBufferMemoryBarrier.buffer = m_gpuDrawIndirectBuffer.handle;
@@ -484,7 +484,7 @@ void FrustumCulling::createBuffers() {
 		m_gpuFrustumCullingBuffers[i].address = allocationInfo.pMappedData;
 	}
 
-	// Create GPU draw indirect buffers
+	// Create GPU draw indirect buffer
 	bufferCreateInfo.size = 65536;
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
@@ -493,7 +493,7 @@ void FrustumCulling::createBuffers() {
 
 	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_gpuDrawIndirectBuffer.handle, &m_gpuDrawIndirectBuffer.allocation, nullptr));
 
-	// Create GPU per draw buffers
+	// Create GPU per draw buffer
 	bufferCreateInfo.size = 32768;
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
