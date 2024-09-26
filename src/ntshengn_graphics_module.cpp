@@ -3260,12 +3260,12 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 
 				lightIndex++;
 			}
-            // Ambient Lights
-            for (uint i = 0; i < lights.count.w; i++) {
-                color += (lights.info[lightIndex].color * lights.info[lightIndex].intensity) * d;
+			// Ambient Lights
+			for (uint i = 0; i < lights.count.w; i++) {
+				color += (lights.info[lightIndex].color * lights.info[lightIndex].intensity) * d;
 
-                lightIndex++;
-            }
+				lightIndex++;
+			}
 
 			color *= occlusionSample;
 			color += emissiveSample * material.emissiveFactor;
