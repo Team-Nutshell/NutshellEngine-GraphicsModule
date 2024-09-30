@@ -31,6 +31,7 @@
 #endif
 #include <array>
 #include <algorithm>
+#include <random>
 #include <cmath>
 
 void NtshEngn::GraphicsModule::init() {
@@ -209,12 +210,12 @@ void NtshEngn::GraphicsModule::init() {
 	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyPropertyCount, nullptr);
 	std::vector<VkQueueFamilyProperties> queueFamilyProperties(queueFamilyPropertyCount);
 	vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyPropertyCount, queueFamilyProperties.data());
-	m_graphicsQueueFamilyIndex = 0;
+	m_graphicsComputeQueueFamilyIndex = 0;
 	for (const VkQueueFamilyProperties& queueFamilyProperty : queueFamilyProperties) {
-		if ((queueFamilyProperty.queueCount > 0) && (queueFamilyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
+		if ((queueFamilyProperty.queueCount > 0) && (queueFamilyProperty.queueFlags & VK_QUEUE_GRAPHICS_BIT) && (queueFamilyProperty.queueFlags & VK_QUEUE_COMPUTE_BIT)) {
 			if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 				VkBool32 presentSupport;
-				vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsQueueFamilyIndex, m_surface, &presentSupport);
+				vkGetPhysicalDeviceSurfaceSupportKHR(m_physicalDevice, m_graphicsComputeQueueFamilyIndex, m_surface, &presentSupport);
 				if (presentSupport) {
 					break;
 				}
@@ -223,7 +224,7 @@ void NtshEngn::GraphicsModule::init() {
 				break;
 			}
 		}
-		m_graphicsQueueFamilyIndex++;
+		m_graphicsComputeQueueFamilyIndex++;
 	}
 
 	// Create a queue supporting graphics
@@ -232,7 +233,7 @@ void NtshEngn::GraphicsModule::init() {
 	deviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 	deviceQueueCreateInfo.pNext = nullptr;
 	deviceQueueCreateInfo.flags = 0;
-	deviceQueueCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
+	deviceQueueCreateInfo.queueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	deviceQueueCreateInfo.queueCount = 1;
 	deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
 
@@ -279,7 +280,7 @@ void NtshEngn::GraphicsModule::init() {
 	deviceCreateInfo.pEnabledFeatures = &physicalDeviceFeatures;
 	NTSHENGN_VK_CHECK(vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device));
 
-	vkGetDeviceQueue(m_device, m_graphicsQueueFamilyIndex, 0, &m_graphicsQueue);
+	vkGetDeviceQueue(m_device, m_graphicsComputeQueueFamilyIndex, 0, &m_graphicsComputeQueue);
 
 	// Get functions
 	m_vkCmdPipelineBarrier2KHR = (PFN_vkCmdPipelineBarrier2KHR)vkGetDeviceProcAddr(m_device, "vkCmdPipelineBarrier2KHR");
@@ -371,7 +372,7 @@ void NtshEngn::GraphicsModule::init() {
 	initializationCommandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	initializationCommandPoolCreateInfo.pNext = nullptr;
 	initializationCommandPoolCreateInfo.flags = 0;
-	initializationCommandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
+	initializationCommandPoolCreateInfo.queueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	NTSHENGN_VK_CHECK(vkCreateCommandPool(m_device, &initializationCommandPoolCreateInfo, nullptr, &m_initializationCommandPool));
 
 	// Allocate initialization command pool
@@ -412,7 +413,7 @@ void NtshEngn::GraphicsModule::init() {
 	cameraBufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 	cameraBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	cameraBufferCreateInfo.queueFamilyIndexCount = 1;
-	cameraBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	cameraBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	VmaAllocationInfo bufferAllocationInfo;
 
@@ -435,7 +436,7 @@ void NtshEngn::GraphicsModule::init() {
 	objectBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	objectBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	objectBufferCreateInfo.queueFamilyIndexCount = 1;
-	objectBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	objectBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &objectBufferCreateInfo, &bufferAllocationCreateInfo, &m_objectBuffers[i].handle, &m_objectBuffers[i].allocation, &bufferAllocationInfo));
@@ -451,7 +452,7 @@ void NtshEngn::GraphicsModule::init() {
 	meshBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 	meshBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	meshBufferCreateInfo.queueFamilyIndexCount = 1;
-	meshBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	meshBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	VmaAllocationCreateInfo meshBufferAllocationCreateInfo = {};
 	meshBufferAllocationCreateInfo.flags = 0;
@@ -469,7 +470,7 @@ void NtshEngn::GraphicsModule::init() {
 	jointTransformBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	jointTransformBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	jointTransformBufferCreateInfo.queueFamilyIndexCount = 1;
-	jointTransformBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	jointTransformBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &jointTransformBufferCreateInfo, &bufferAllocationCreateInfo, &m_jointTransformBuffers[i].handle, &m_jointTransformBuffers[i].allocation, &bufferAllocationInfo));
@@ -486,7 +487,7 @@ void NtshEngn::GraphicsModule::init() {
 	materialBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	materialBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	materialBufferCreateInfo.queueFamilyIndexCount = 1;
-	materialBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	materialBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &materialBufferCreateInfo, &bufferAllocationCreateInfo, &m_materialBuffers[i].handle, &m_materialBuffers[i].allocation, &bufferAllocationInfo));
@@ -503,7 +504,7 @@ void NtshEngn::GraphicsModule::init() {
 	lightBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	lightBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	lightBufferCreateInfo.queueFamilyIndexCount = 1;
-	lightBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	lightBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &lightBufferCreateInfo, &bufferAllocationCreateInfo, &m_lightBuffers[i].handle, &m_lightBuffers[i].allocation, &bufferAllocationInfo));
@@ -513,6 +514,8 @@ void NtshEngn::GraphicsModule::init() {
 	createDescriptorSets();
 
 	createDefaultResources();
+
+	createParticleResources();
 
 	// Resize buffers according to number of frames in flight and swapchain size
 	m_renderingCommandPools.resize(m_framesInFlight);
@@ -526,7 +529,7 @@ void NtshEngn::GraphicsModule::init() {
 	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	commandPoolCreateInfo.pNext = nullptr;
 	commandPoolCreateInfo.flags = 0;
-	commandPoolCreateInfo.queueFamilyIndex = m_graphicsQueueFamilyIndex;
+	commandPoolCreateInfo.queueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 
 	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
 	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -592,7 +595,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		emptySignalSubmitInfo.pCommandBuffers = nullptr;
 		emptySignalSubmitInfo.signalSemaphoreCount = 1;
 		emptySignalSubmitInfo.pSignalSemaphores = &m_imageAvailableSemaphores[m_currentFrameInFlight];
-		NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptySignalSubmitInfo, VK_NULL_HANDLE));
+		NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &emptySignalSubmitInfo, VK_NULL_HANDLE));
 	}
 
 	// Update camera buffer
@@ -914,8 +917,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	swapchainOrDrawImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 	swapchainOrDrawImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	swapchainOrDrawImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	swapchainOrDrawImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	swapchainOrDrawImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	swapchainOrDrawImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	swapchainOrDrawImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	swapchainOrDrawImageMemoryBarrier.image = (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage;
 	swapchainOrDrawImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	swapchainOrDrawImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -932,8 +935,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	undefinedToColorAttachmentImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 	undefinedToColorAttachmentImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	undefinedToColorAttachmentImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	undefinedToColorAttachmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	undefinedToColorAttachmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToColorAttachmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	undefinedToColorAttachmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	undefinedToColorAttachmentImageMemoryBarrier.image = m_colorImage;
 	undefinedToColorAttachmentImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	undefinedToColorAttachmentImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -950,8 +953,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	undefinedToDepthStencilAttachmentImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 	undefinedToDepthStencilAttachmentImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	undefinedToDepthStencilAttachmentImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	undefinedToDepthStencilAttachmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	undefinedToDepthStencilAttachmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToDepthStencilAttachmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	undefinedToDepthStencilAttachmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	undefinedToDepthStencilAttachmentImageMemoryBarrier.image = m_depthImage;
 	undefinedToDepthStencilAttachmentImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 	undefinedToDepthStencilAttachmentImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -971,6 +974,227 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	undefinedToAttachmentDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(imageMemoryBarriers.size());
 	undefinedToAttachmentDependencyInfo.pImageMemoryBarriers = imageMemoryBarriers.data();
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &undefinedToAttachmentDependencyInfo);
+
+	// Update particle buffer
+	bool particleBufferUpdated = false;
+	if (m_particleBuffersNeedUpdate[m_currentFrameInFlight]) {
+		VkBufferMemoryBarrier2 beforeParticleUpdateBufferMemoryBarrier = {};
+		beforeParticleUpdateBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+		beforeParticleUpdateBufferMemoryBarrier.pNext = nullptr;
+		beforeParticleUpdateBufferMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT;
+		beforeParticleUpdateBufferMemoryBarrier.srcAccessMask = VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT;
+		beforeParticleUpdateBufferMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		beforeParticleUpdateBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		beforeParticleUpdateBufferMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+		beforeParticleUpdateBufferMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+		beforeParticleUpdateBufferMemoryBarrier.buffer = m_particleBuffers[m_inParticleBufferCurrentIndex].handle;
+		beforeParticleUpdateBufferMemoryBarrier.offset = 0;
+		beforeParticleUpdateBufferMemoryBarrier.size = m_maxParticlesNumber * sizeof(Particle);
+
+		VkDependencyInfo beforeParticleUpdateBufferBufferDependencyInfo = {};
+		beforeParticleUpdateBufferBufferDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		beforeParticleUpdateBufferBufferDependencyInfo.pNext = nullptr;
+		beforeParticleUpdateBufferBufferDependencyInfo.dependencyFlags = 0;
+		beforeParticleUpdateBufferBufferDependencyInfo.memoryBarrierCount = 0;
+		beforeParticleUpdateBufferBufferDependencyInfo.pMemoryBarriers = nullptr;
+		beforeParticleUpdateBufferBufferDependencyInfo.bufferMemoryBarrierCount = 1;
+		beforeParticleUpdateBufferBufferDependencyInfo.pBufferMemoryBarriers = &beforeParticleUpdateBufferMemoryBarrier;
+		beforeParticleUpdateBufferBufferDependencyInfo.imageMemoryBarrierCount = 0;
+		beforeParticleUpdateBufferBufferDependencyInfo.pImageMemoryBarriers = nullptr;
+		m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &beforeParticleUpdateBufferBufferDependencyInfo);
+
+		// Copy particles staging buffer
+		VkBufferCopy particleStagingBufferCopy = {};
+		particleStagingBufferCopy.srcOffset = 0;
+		particleStagingBufferCopy.dstOffset = (m_maxParticlesNumber * sizeof(Particle)) - m_currentParticleHostSize;
+		particleStagingBufferCopy.size = m_currentParticleHostSize;
+		vkCmdCopyBuffer(m_renderingCommandBuffers[m_currentFrameInFlight], m_particleStagingBuffers[m_currentFrameInFlight].handle, m_particleBuffers[m_inParticleBufferCurrentIndex].handle, 1, &particleStagingBufferCopy);
+
+		m_currentParticleHostSize = 0;
+
+		m_particleBuffersNeedUpdate[m_currentFrameInFlight] = false;
+		particleBufferUpdated = true;
+	}
+
+	// Synchronize before fill particle draw indirect buffer
+	VkBufferMemoryBarrier2 beforeFillParticleDrawIndirectBufferMemoryBarrier = {};
+	beforeFillParticleDrawIndirectBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+	beforeFillParticleDrawIndirectBufferMemoryBarrier.pNext = nullptr;
+	beforeFillParticleDrawIndirectBufferMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT;
+	beforeFillParticleDrawIndirectBufferMemoryBarrier.srcAccessMask = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+	beforeFillParticleDrawIndirectBufferMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+	beforeFillParticleDrawIndirectBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+	beforeFillParticleDrawIndirectBufferMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	beforeFillParticleDrawIndirectBufferMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	beforeFillParticleDrawIndirectBufferMemoryBarrier.buffer = m_particleDrawIndirectBuffer.handle;
+	beforeFillParticleDrawIndirectBufferMemoryBarrier.offset = 0;
+	beforeFillParticleDrawIndirectBufferMemoryBarrier.size = sizeof(uint32_t);
+
+	VkDependencyInfo beforeFillParticleDrawIndirectBufferDependencyInfo = {};
+	beforeFillParticleDrawIndirectBufferDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	beforeFillParticleDrawIndirectBufferDependencyInfo.pNext = nullptr;
+	beforeFillParticleDrawIndirectBufferDependencyInfo.dependencyFlags = 0;
+	beforeFillParticleDrawIndirectBufferDependencyInfo.memoryBarrierCount = 0;
+	beforeFillParticleDrawIndirectBufferDependencyInfo.pMemoryBarriers = nullptr;
+	beforeFillParticleDrawIndirectBufferDependencyInfo.bufferMemoryBarrierCount = 1;
+	beforeFillParticleDrawIndirectBufferDependencyInfo.pBufferMemoryBarriers = &beforeFillParticleDrawIndirectBufferMemoryBarrier;
+	beforeFillParticleDrawIndirectBufferDependencyInfo.imageMemoryBarrierCount = 0;
+	beforeFillParticleDrawIndirectBufferDependencyInfo.pImageMemoryBarriers = nullptr;
+	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &beforeFillParticleDrawIndirectBufferDependencyInfo);
+
+	// Fill draw indirect particle buffer
+	vkCmdFillBuffer(m_renderingCommandBuffers[m_currentFrameInFlight], m_particleDrawIndirectBuffer.handle, 0, sizeof(uint32_t), 0);
+
+	// Synchronize before particle compute
+	VkBufferMemoryBarrier2 beforeDispatchParticleDrawIndirectBufferMemoryBarrier = {};
+	beforeDispatchParticleDrawIndirectBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+	beforeDispatchParticleDrawIndirectBufferMemoryBarrier.pNext = nullptr;
+	beforeDispatchParticleDrawIndirectBufferMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+	beforeDispatchParticleDrawIndirectBufferMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+	beforeDispatchParticleDrawIndirectBufferMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+	beforeDispatchParticleDrawIndirectBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+	beforeDispatchParticleDrawIndirectBufferMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	beforeDispatchParticleDrawIndirectBufferMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	beforeDispatchParticleDrawIndirectBufferMemoryBarrier.buffer = m_particleDrawIndirectBuffer.handle;
+	beforeDispatchParticleDrawIndirectBufferMemoryBarrier.offset = 0;
+	beforeDispatchParticleDrawIndirectBufferMemoryBarrier.size = sizeof(uint32_t);
+
+	VkBufferMemoryBarrier2 drawToParticleComputeBufferMemoryBarrier = {};
+	drawToParticleComputeBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+	drawToParticleComputeBufferMemoryBarrier.pNext = nullptr;
+	if (particleBufferUpdated) {
+		drawToParticleComputeBufferMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+		drawToParticleComputeBufferMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+	}
+	else {
+		drawToParticleComputeBufferMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT;
+		drawToParticleComputeBufferMemoryBarrier.srcAccessMask = VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT;
+	}
+	drawToParticleComputeBufferMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+	drawToParticleComputeBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
+	drawToParticleComputeBufferMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	drawToParticleComputeBufferMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	drawToParticleComputeBufferMemoryBarrier.buffer = m_particleBuffers[m_inParticleBufferCurrentIndex].handle; 
+	drawToParticleComputeBufferMemoryBarrier.offset = 0;
+	drawToParticleComputeBufferMemoryBarrier.size = m_maxParticlesNumber * sizeof(Particle);
+
+	VkBufferMemoryBarrier2 computeBufferToComputeBufferMemoryBarrier = {};
+	computeBufferToComputeBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+	computeBufferToComputeBufferMemoryBarrier.pNext = nullptr;
+	computeBufferToComputeBufferMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+	computeBufferToComputeBufferMemoryBarrier.srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
+	computeBufferToComputeBufferMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+	computeBufferToComputeBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+	computeBufferToComputeBufferMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	computeBufferToComputeBufferMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	computeBufferToComputeBufferMemoryBarrier.buffer = m_particleBuffers[(m_inParticleBufferCurrentIndex + 1) % 2].handle;
+	computeBufferToComputeBufferMemoryBarrier.offset = 0;
+	computeBufferToComputeBufferMemoryBarrier.size = m_maxParticlesNumber * sizeof(Particle);
+
+	std::array<VkBufferMemoryBarrier2, 3> drawToParticleComputeBufferMemoryBarriers = { beforeDispatchParticleDrawIndirectBufferMemoryBarrier, drawToParticleComputeBufferMemoryBarrier, computeBufferToComputeBufferMemoryBarrier };
+	VkDependencyInfo drawToParticleComputeBufferDependencyInfo = {};
+	drawToParticleComputeBufferDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	drawToParticleComputeBufferDependencyInfo.pNext = nullptr;
+	drawToParticleComputeBufferDependencyInfo.dependencyFlags = 0;
+	drawToParticleComputeBufferDependencyInfo.memoryBarrierCount = 0;
+	drawToParticleComputeBufferDependencyInfo.pMemoryBarriers = nullptr;
+	drawToParticleComputeBufferDependencyInfo.bufferMemoryBarrierCount = static_cast<uint32_t>(drawToParticleComputeBufferMemoryBarriers.size());
+	drawToParticleComputeBufferDependencyInfo.pBufferMemoryBarriers = drawToParticleComputeBufferMemoryBarriers.data();
+	drawToParticleComputeBufferDependencyInfo.imageMemoryBarrierCount = 0;
+	drawToParticleComputeBufferDependencyInfo.pImageMemoryBarriers = nullptr;
+	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &drawToParticleComputeBufferDependencyInfo);
+
+	// Dispatch particles
+	vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_COMPUTE, m_particleComputePipeline);
+
+	vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_COMPUTE, m_particleComputePipelineLayout, 0, 1, &m_particleComputeDescriptorSets[m_inParticleBufferCurrentIndex], 0, nullptr);
+
+	float deltaTimeFloat = static_cast<float>(dt / 1000.0);
+	vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_particleComputePipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float), &deltaTimeFloat);
+
+	vkCmdDispatch(m_renderingCommandBuffers[m_currentFrameInFlight], ((m_maxParticlesNumber + 64 - 1) / 64), 1, 1);
+
+	// Synchronize before fill in particle
+	VkBufferMemoryBarrier2 beforeFillInParticleBufferMemoryBarrier = {};
+	beforeFillInParticleBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+	beforeFillInParticleBufferMemoryBarrier.pNext = nullptr;
+	beforeFillInParticleBufferMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+	beforeFillInParticleBufferMemoryBarrier.srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
+	beforeFillInParticleBufferMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+	beforeFillInParticleBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+	beforeFillInParticleBufferMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	beforeFillInParticleBufferMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	beforeFillInParticleBufferMemoryBarrier.buffer = m_particleBuffers[m_inParticleBufferCurrentIndex].handle;
+	beforeFillInParticleBufferMemoryBarrier.offset = 0;
+	beforeFillInParticleBufferMemoryBarrier.size = m_maxParticlesNumber * sizeof(Particle);
+
+	VkDependencyInfo beforeFillInParticleBufferDependencyInfo = {};
+	beforeFillInParticleBufferDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	beforeFillInParticleBufferDependencyInfo.pNext = nullptr;
+	beforeFillInParticleBufferDependencyInfo.dependencyFlags = 0;
+	beforeFillInParticleBufferDependencyInfo.memoryBarrierCount = 0;
+	beforeFillInParticleBufferDependencyInfo.pMemoryBarriers = nullptr;
+	beforeFillInParticleBufferDependencyInfo.bufferMemoryBarrierCount = 1;
+	beforeFillInParticleBufferDependencyInfo.pBufferMemoryBarriers = &beforeFillInParticleBufferMemoryBarrier;
+	beforeFillInParticleBufferDependencyInfo.imageMemoryBarrierCount = 0;
+	beforeFillInParticleBufferDependencyInfo.pImageMemoryBarriers = nullptr;
+	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &beforeFillInParticleBufferDependencyInfo);
+
+	// Fill in particle with 0
+	vkCmdFillBuffer(m_renderingCommandBuffers[m_currentFrameInFlight], m_particleBuffers[m_inParticleBufferCurrentIndex].handle, 0, m_maxParticlesNumber * sizeof(Particle), 0);
+
+	// Synchronize before particle draw
+	VkBufferMemoryBarrier2 beforeDrawIndirectBufferMemoryBarrier = {};
+	beforeDrawIndirectBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+	beforeDrawIndirectBufferMemoryBarrier.pNext = nullptr;
+	beforeDrawIndirectBufferMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+	beforeDrawIndirectBufferMemoryBarrier.srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+	beforeDrawIndirectBufferMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT;
+	beforeDrawIndirectBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+	beforeDrawIndirectBufferMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	beforeDrawIndirectBufferMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	beforeDrawIndirectBufferMemoryBarrier.buffer = m_particleDrawIndirectBuffer.handle;
+	beforeDrawIndirectBufferMemoryBarrier.offset = 0;
+	beforeDrawIndirectBufferMemoryBarrier.size = sizeof(uint32_t);
+
+	VkBufferMemoryBarrier2 fillParticleBufferBeforeComputeBufferMemoryBarrier = {};
+	fillParticleBufferBeforeComputeBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+	fillParticleBufferBeforeComputeBufferMemoryBarrier.pNext = nullptr;
+	fillParticleBufferBeforeComputeBufferMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+	fillParticleBufferBeforeComputeBufferMemoryBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+	fillParticleBufferBeforeComputeBufferMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+	fillParticleBufferBeforeComputeBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
+	fillParticleBufferBeforeComputeBufferMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	fillParticleBufferBeforeComputeBufferMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	fillParticleBufferBeforeComputeBufferMemoryBarrier.buffer = m_particleBuffers[m_inParticleBufferCurrentIndex].handle;
+	fillParticleBufferBeforeComputeBufferMemoryBarrier.offset = 0;
+	fillParticleBufferBeforeComputeBufferMemoryBarrier.size = m_maxParticlesNumber * sizeof(Particle);
+
+	VkBufferMemoryBarrier2 particleComputeToDrawBufferMemoryBarrier = {};
+	particleComputeToDrawBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+	particleComputeToDrawBufferMemoryBarrier.pNext = nullptr;
+	particleComputeToDrawBufferMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+	particleComputeToDrawBufferMemoryBarrier.srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+	particleComputeToDrawBufferMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT;
+	particleComputeToDrawBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT;
+	particleComputeToDrawBufferMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	particleComputeToDrawBufferMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	particleComputeToDrawBufferMemoryBarrier.buffer = m_particleBuffers[(m_inParticleBufferCurrentIndex + 1) % 2].handle;
+	particleComputeToDrawBufferMemoryBarrier.offset = 0;
+	particleComputeToDrawBufferMemoryBarrier.size = m_maxParticlesNumber * sizeof(Particle);
+
+	std::array<VkBufferMemoryBarrier2, 3> particleComputeToDrawBufferMemoryBarriers = { beforeDrawIndirectBufferMemoryBarrier, fillParticleBufferBeforeComputeBufferMemoryBarrier, particleComputeToDrawBufferMemoryBarrier };
+	VkDependencyInfo particleComputeToDrawDependencyInfo = {};
+	particleComputeToDrawDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	particleComputeToDrawDependencyInfo.pNext = nullptr;
+	particleComputeToDrawDependencyInfo.dependencyFlags = 0;
+	particleComputeToDrawDependencyInfo.memoryBarrierCount = 0;
+	particleComputeToDrawDependencyInfo.pMemoryBarriers = nullptr;
+	particleComputeToDrawDependencyInfo.bufferMemoryBarrierCount = static_cast<uint32_t>(particleComputeToDrawBufferMemoryBarriers.size());
+	particleComputeToDrawDependencyInfo.pBufferMemoryBarriers = particleComputeToDrawBufferMemoryBarriers.data();
+	particleComputeToDrawDependencyInfo.imageMemoryBarrierCount = 0;
+	particleComputeToDrawDependencyInfo.pImageMemoryBarriers = nullptr;
+	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &particleComputeToDrawDependencyInfo);
 
 	// Bind vertex and index buffers
 	VkDeviceSize vertexBufferOffset = 0;
@@ -1034,6 +1258,106 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	// End rendering
 	m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight]);
 
+	// Synchronization before particles
+	VkImageMemoryBarrier2 colorAttachmentBeforeParticlesImageMemoryBarrier = {};
+	colorAttachmentBeforeParticlesImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	colorAttachmentBeforeParticlesImageMemoryBarrier.pNext = nullptr;
+	colorAttachmentBeforeParticlesImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	colorAttachmentBeforeParticlesImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	colorAttachmentBeforeParticlesImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	colorAttachmentBeforeParticlesImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	colorAttachmentBeforeParticlesImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	colorAttachmentBeforeParticlesImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	colorAttachmentBeforeParticlesImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	colorAttachmentBeforeParticlesImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	colorAttachmentBeforeParticlesImageMemoryBarrier.image = m_colorImage;
+	colorAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	colorAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	colorAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.levelCount = 1;
+	colorAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	colorAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	VkImageMemoryBarrier2 depthAttachmentBeforeParticlesImageMemoryBarrier = {};
+	depthAttachmentBeforeParticlesImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	depthAttachmentBeforeParticlesImageMemoryBarrier.pNext = nullptr;
+	depthAttachmentBeforeParticlesImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+	depthAttachmentBeforeParticlesImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	depthAttachmentBeforeParticlesImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+	depthAttachmentBeforeParticlesImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	depthAttachmentBeforeParticlesImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	depthAttachmentBeforeParticlesImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	depthAttachmentBeforeParticlesImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	depthAttachmentBeforeParticlesImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	depthAttachmentBeforeParticlesImageMemoryBarrier.image = m_depthImage;
+	depthAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	depthAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	depthAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.levelCount = 1;
+	depthAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	depthAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	std::array<VkImageMemoryBarrier2, 2> beforeParticlesImageMemoryBarriers = { colorAttachmentBeforeParticlesImageMemoryBarrier, depthAttachmentBeforeParticlesImageMemoryBarrier };
+	VkDependencyInfo beforeParticlesDependencyInfo = {};
+	beforeParticlesDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	beforeParticlesDependencyInfo.pNext = nullptr;
+	beforeParticlesDependencyInfo.dependencyFlags = 0;
+	beforeParticlesDependencyInfo.memoryBarrierCount = 0;
+	beforeParticlesDependencyInfo.pMemoryBarriers = nullptr;
+	beforeParticlesDependencyInfo.bufferMemoryBarrierCount = 0;
+	beforeParticlesDependencyInfo.pBufferMemoryBarriers = nullptr;
+	beforeParticlesDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(beforeParticlesImageMemoryBarriers.size());
+	beforeParticlesDependencyInfo.pImageMemoryBarriers = beforeParticlesImageMemoryBarriers.data();
+	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &beforeParticlesDependencyInfo);
+
+	// Draw particles
+	VkRenderingAttachmentInfo particleRenderingColorAttachmentInfo = {};
+	particleRenderingColorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	particleRenderingColorAttachmentInfo.pNext = nullptr;
+	particleRenderingColorAttachmentInfo.imageView = m_colorImageView;
+	particleRenderingColorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	particleRenderingColorAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+	particleRenderingColorAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
+	particleRenderingColorAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	particleRenderingColorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+	particleRenderingColorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	particleRenderingColorAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	VkRenderingAttachmentInfo particleRenderingDepthAttachmentInfo = {};
+	particleRenderingDepthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	particleRenderingDepthAttachmentInfo.pNext = nullptr;
+	particleRenderingDepthAttachmentInfo.imageView = m_depthImageView;
+	particleRenderingDepthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	particleRenderingDepthAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+	particleRenderingDepthAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
+	particleRenderingDepthAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	particleRenderingDepthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+	particleRenderingDepthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	particleRenderingDepthAttachmentInfo.clearValue.depthStencil = { 1.0f, 0 };
+
+	VkRenderingInfo particleRenderingInfo = {};
+	particleRenderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	particleRenderingInfo.pNext = nullptr;
+	particleRenderingInfo.flags = 0;
+	particleRenderingInfo.renderArea = m_scissor;
+	particleRenderingInfo.layerCount = 1;
+	particleRenderingInfo.viewMask = 0;
+	particleRenderingInfo.colorAttachmentCount = 1;
+	particleRenderingInfo.pColorAttachments = &particleRenderingColorAttachmentInfo;
+	particleRenderingInfo.pDepthAttachment = &particleRenderingDepthAttachmentInfo;
+	particleRenderingInfo.pStencilAttachment = nullptr;
+	m_vkCmdBeginRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight], &particleRenderingInfo);
+
+	vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_particleGraphicsPipeline);
+	vkCmdSetViewport(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_viewport);
+	vkCmdSetScissor(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_scissor);
+
+	vkCmdBindVertexBuffers(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_particleBuffers[(m_inParticleBufferCurrentIndex + 1) % 2].handle, &vertexBufferOffset);
+
+	vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_particleGraphicsPipelineLayout, 0, 1, &m_particleGraphicsDescriptorSets[m_currentFrameInFlight], 0, nullptr);
+
+	vkCmdDrawIndirect(m_renderingCommandBuffers[m_currentFrameInFlight], m_particleDrawIndirectBuffer.handle, 0, 1, 0);
+
+	m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight]);
+
 	// Layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 	VkImageMemoryBarrier2 colorAttachmentToShaderReadOnlyImageMemoryBarrier = {};
 	colorAttachmentToShaderReadOnlyImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -1044,8 +1368,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	colorAttachmentToShaderReadOnlyImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
 	colorAttachmentToShaderReadOnlyImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	colorAttachmentToShaderReadOnlyImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	colorAttachmentToShaderReadOnlyImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	colorAttachmentToShaderReadOnlyImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	colorAttachmentToShaderReadOnlyImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	colorAttachmentToShaderReadOnlyImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	colorAttachmentToShaderReadOnlyImageMemoryBarrier.image = m_colorImage;
 	colorAttachmentToShaderReadOnlyImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	colorAttachmentToShaderReadOnlyImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -1111,8 +1435,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		tonemappingUIImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 		tonemappingUIImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		tonemappingUIImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		tonemappingUIImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-		tonemappingUIImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+		tonemappingUIImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+		tonemappingUIImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 		tonemappingUIImageMemoryBarrier.image = (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage;
 		tonemappingUIImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		tonemappingUIImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -1214,8 +1538,8 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		colorAttachmentToPresentSrcImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_NONE;
 		colorAttachmentToPresentSrcImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		colorAttachmentToPresentSrcImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		colorAttachmentToPresentSrcImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-		colorAttachmentToPresentSrcImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+		colorAttachmentToPresentSrcImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+		colorAttachmentToPresentSrcImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 		colorAttachmentToPresentSrcImageMemoryBarrier.image = m_swapchainImages[imageIndex];
 		colorAttachmentToPresentSrcImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		colorAttachmentToPresentSrcImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -1252,7 +1576,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 	submitInfo.pCommandBuffers = &m_renderingCommandBuffers[m_currentFrameInFlight];
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = &m_renderFinishedSemaphores[imageIndex];
-	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fences[m_currentFrameInFlight]));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &submitInfo, m_fences[m_currentFrameInFlight]));
 
 	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		VkPresentInfoKHR presentInfo = {};
@@ -1264,7 +1588,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		presentInfo.pSwapchains = &m_swapchain;
 		presentInfo.pImageIndices = &imageIndex;
 		presentInfo.pResults = nullptr;
-		VkResult queuePresentResult = vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
+		VkResult queuePresentResult = vkQueuePresentKHR(m_graphicsComputeQueue, &presentInfo);
 		if (queuePresentResult == VK_ERROR_OUT_OF_DATE_KHR || queuePresentResult == VK_SUBOPTIMAL_KHR) {
 			resize();
 		}
@@ -1284,8 +1608,10 @@ void NtshEngn::GraphicsModule::update(double dt) {
 		emptyWaitSubmitInfo.pCommandBuffers = nullptr;
 		emptyWaitSubmitInfo.signalSemaphoreCount = 0;
 		emptyWaitSubmitInfo.pSignalSemaphores = nullptr;
-		NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &emptyWaitSubmitInfo, VK_NULL_HANDLE));
+		NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &emptyWaitSubmitInfo, VK_NULL_HANDLE));
 	}
+
+	m_inParticleBufferCurrentIndex = (m_inParticleBufferCurrentIndex + 1) % 2;
 
 	m_uiTextBufferOffset = 0;
 
@@ -1293,7 +1619,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 }
 
 void NtshEngn::GraphicsModule::destroy() {
-	NTSHENGN_VK_CHECK(vkQueueWaitIdle(m_graphicsQueue));
+	NTSHENGN_VK_CHECK(vkQueueWaitIdle(m_graphicsComputeQueue));
 
 	// Destroy sync objects
 	for (uint32_t i = 0; i < m_imageCount; i++) {
@@ -1369,6 +1695,23 @@ void NtshEngn::GraphicsModule::destroy() {
 	vkDestroyPipelineLayout(m_device, m_toneMappingGraphicsPipelineLayout, nullptr);
 	vkDestroyDescriptorSetLayout(m_device, m_toneMappingDescriptorSetLayout, nullptr);
 	vkDestroySampler(m_device, m_toneMappingSampler, nullptr);
+
+	// Destroy particle resources
+	vkDestroyDescriptorPool(m_device, m_particleGraphicsDescriptorPool, nullptr);
+	vkDestroyPipeline(m_device, m_particleGraphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(m_device, m_particleGraphicsPipelineLayout, nullptr);
+	vkDestroyDescriptorSetLayout(m_device, m_particleGraphicsDescriptorSetLayout, nullptr);
+	vkDestroyDescriptorPool(m_device, m_particleComputeDescriptorPool, nullptr);
+	vkDestroyPipeline(m_device, m_particleComputePipeline, nullptr);
+	vkDestroyPipelineLayout(m_device, m_particleComputePipelineLayout, nullptr);
+	vkDestroyDescriptorSetLayout(m_device, m_particleComputeDescriptorSetLayout, nullptr);
+	vmaDestroyBuffer(m_allocator, m_particleDrawIndirectBuffer.handle, m_particleDrawIndirectBuffer.allocation);
+	for (size_t i = 0; i < m_framesInFlight; i++) {
+		vmaDestroyBuffer(m_allocator, m_particleStagingBuffers[i].handle, m_particleStagingBuffers[i].allocation);
+	}
+	for (size_t i = 0; i < m_particleBuffers.size(); i++) {
+		vmaDestroyBuffer(m_allocator, m_particleBuffers[i].handle, m_particleBuffers[i].allocation);
+	}
 
 	// Destroy descriptor pool
 	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
@@ -1465,7 +1808,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	vertexAndIndexStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	vertexAndIndexStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	vertexAndIndexStagingBufferCreateInfo.queueFamilyIndexCount = 1;
-	vertexAndIndexStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	vertexAndIndexStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	VmaAllocationCreateInfo vertexAndIndexStagingBufferAllocationCreateInfo = {};
 	vertexAndIndexStagingBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
@@ -1491,7 +1834,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	meshStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	meshStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	meshStagingBufferCreateInfo.queueFamilyIndexCount = 1;
-	meshStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	meshStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	VmaAllocationCreateInfo meshStagingBufferAllocationCreateInfo = {};
 	meshStagingBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
@@ -1543,7 +1886,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::load(const Mesh& mesh) {
 	buffersCopySubmitInfo.pCommandBuffers = &m_initializationCommandBuffer;
 	buffersCopySubmitInfo.signalSemaphoreCount = 0;
 	buffersCopySubmitInfo.pSignalSemaphores = nullptr;
-	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, m_initializationFence));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &buffersCopySubmitInfo, m_initializationFence));
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 
@@ -1722,7 +2065,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	textureImageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	textureImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	textureImageCreateInfo.queueFamilyIndexCount = 1;
-	textureImageCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	textureImageCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 	textureImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 	VmaAllocationCreateInfo textureImageAllocationCreateInfo = {};
@@ -1761,7 +2104,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	textureStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	textureStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	textureStagingBufferCreateInfo.queueFamilyIndexCount = 1;
-	textureStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	textureStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	VmaAllocationCreateInfo textureStagingBufferAllocationCreateInfo = {};
 	textureStagingBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
@@ -1792,8 +2135,8 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	undefinedToTransferDstImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 	undefinedToTransferDstImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	undefinedToTransferDstImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	undefinedToTransferDstImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	undefinedToTransferDstImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToTransferDstImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	undefinedToTransferDstImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	undefinedToTransferDstImageMemoryBarrier.image = textureImage;
 	undefinedToTransferDstImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	undefinedToTransferDstImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -1832,8 +2175,8 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	VkImageMemoryBarrier2 mipmapGenerationImageMemoryBarrier = {};
 	mipmapGenerationImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	mipmapGenerationImageMemoryBarrier.pNext = nullptr;
-	mipmapGenerationImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	mipmapGenerationImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	mipmapGenerationImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	mipmapGenerationImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	mipmapGenerationImageMemoryBarrier.image = textureImage;
 	mipmapGenerationImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	mipmapGenerationImageMemoryBarrier.subresourceRange.levelCount = 1;
@@ -1927,7 +2270,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	buffersCopySubmitInfo.pCommandBuffers = &m_initializationCommandBuffer;
 	buffersCopySubmitInfo.signalSemaphoreCount = 0;
 	buffersCopySubmitInfo.pSignalSemaphores = nullptr;
-	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, m_initializationFence));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &buffersCopySubmitInfo, m_initializationFence));
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 
@@ -1974,7 +2317,7 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	textureImageCreateInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	textureImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	textureImageCreateInfo.queueFamilyIndexCount = 1;
-	textureImageCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	textureImageCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 	textureImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 	VmaAllocationCreateInfo textureImageAllocationCreateInfo = {};
@@ -2013,7 +2356,7 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	textureStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	textureStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	textureStagingBufferCreateInfo.queueFamilyIndexCount = 1;
-	textureStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	textureStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	VmaAllocationCreateInfo textureStagingBufferAllocationCreateInfo = {};
 	textureStagingBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
@@ -2044,8 +2387,8 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	undefinedToTransferDstImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 	undefinedToTransferDstImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	undefinedToTransferDstImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	undefinedToTransferDstImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	undefinedToTransferDstImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToTransferDstImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	undefinedToTransferDstImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	undefinedToTransferDstImageMemoryBarrier.image = textureImage;
 	undefinedToTransferDstImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	undefinedToTransferDstImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -2090,8 +2433,8 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	transferDstToShaderReadOnlyImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
 	transferDstToShaderReadOnlyImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 	transferDstToShaderReadOnlyImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	transferDstToShaderReadOnlyImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	transferDstToShaderReadOnlyImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	transferDstToShaderReadOnlyImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	transferDstToShaderReadOnlyImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	transferDstToShaderReadOnlyImageMemoryBarrier.image = textureImage;
 	transferDstToShaderReadOnlyImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	transferDstToShaderReadOnlyImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -2123,7 +2466,7 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	buffersCopySubmitInfo.pCommandBuffers = &m_initializationCommandBuffer;
 	buffersCopySubmitInfo.signalSemaphoreCount = 0;
 	buffersCopySubmitInfo.pSignalSemaphores = nullptr;
-	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &buffersCopySubmitInfo, m_initializationFence));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &buffersCopySubmitInfo, m_initializationFence));
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 
@@ -2190,6 +2533,48 @@ bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animat
 	}
 
 	return false;
+}
+
+void NtshEngn::GraphicsModule::emitParticles(const ParticleEmitter& particleEmitter) {
+	if (particleEmitter.number == 0) {
+		return;
+	}
+
+	std::random_device r;
+	std::default_random_engine randomEngine(r());
+	std::uniform_real_distribution<float> randomDistribution(0.0f, 1.0f);
+
+	std::vector<Particle> particles(particleEmitter.number);
+	for (Particle& particle : particles) {
+		particle.position = Math::vec3(Math::lerp(particleEmitter.positionRange[0].x, particleEmitter.positionRange[1].x, randomDistribution(randomEngine)),
+			Math::lerp(particleEmitter.positionRange[0].y, particleEmitter.positionRange[1].y, randomDistribution(randomEngine)),
+			Math::lerp(particleEmitter.positionRange[0].z, particleEmitter.positionRange[1].z, randomDistribution(randomEngine)));
+		particle.size = Math::lerp(particleEmitter.sizeRange[0], particleEmitter.sizeRange[1], randomDistribution(randomEngine));
+		particle.color = Math::vec4(Math::lerp(particleEmitter.colorRange[0].x, particleEmitter.colorRange[1].x, randomDistribution(randomEngine)),
+			Math::lerp(particleEmitter.colorRange[0].y, particleEmitter.colorRange[1].y, randomDistribution(randomEngine)),
+			Math::lerp(particleEmitter.colorRange[0].z, particleEmitter.colorRange[1].y, randomDistribution(randomEngine)),
+			Math::lerp(particleEmitter.colorRange[0].w, particleEmitter.colorRange[1].w, randomDistribution(randomEngine)));
+		Math::vec3 rotation = Math::vec3(Math::lerp(particleEmitter.rotationRange[0].x, particleEmitter.rotationRange[1].x, randomDistribution(randomEngine)),
+			Math::lerp(particleEmitter.rotationRange[0].y, particleEmitter.rotationRange[1].y, randomDistribution(randomEngine)),
+			Math::lerp(particleEmitter.rotationRange[0].z, particleEmitter.rotationRange[1].z, randomDistribution(randomEngine)));
+		const Math::vec3 baseDirection = Math::normalize(particleEmitter.baseDirection);
+		const float baseDirectionYaw = std::atan2(baseDirection.z, baseDirection.x);
+		const float baseDirectionPitch = -std::asin(baseDirection.y);
+		particle.direction = Math::normalize(Math::vec3(
+			std::cos(baseDirectionPitch + rotation.x) * std::cos(baseDirectionYaw + rotation.y),
+			-std::sin(baseDirectionPitch + rotation.x),
+			std::cos(baseDirectionPitch + rotation.x) * std::sin(baseDirectionYaw + rotation.y)
+		));
+		particle.speed = Math::lerp(particleEmitter.speedRange[0], particleEmitter.speedRange[1], randomDistribution(randomEngine));
+		particle.duration = Math::lerp(particleEmitter.durationRange[0], particleEmitter.durationRange[1], randomDistribution(randomEngine));
+	}
+
+	size_t size = particles.size() * sizeof(Particle);
+	memcpy(reinterpret_cast<uint8_t*>(m_particleStagingBuffers[m_currentFrameInFlight].address) + m_currentParticleHostSize, particles.data(), size);
+
+	m_currentParticleHostSize += size;
+
+	m_particleBuffersNeedUpdate[m_currentFrameInFlight] = true;
 }
 
 void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::string& text, const Math::vec2& position, const Math::vec4& color) {
@@ -2550,7 +2935,7 @@ void NtshEngn::GraphicsModule::createVertexAndIndexBuffers() {
 	vertexAndIndexBufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 	vertexAndIndexBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	vertexAndIndexBufferCreateInfo.queueFamilyIndexCount = 1;
-	vertexAndIndexBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	vertexAndIndexBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	VmaAllocationCreateInfo vertexAndIndexBufferAllocationCreateInfo = {};
 	vertexAndIndexBufferAllocationCreateInfo.flags = 0;
@@ -2584,7 +2969,7 @@ void NtshEngn::GraphicsModule::createColorAndDepthImages() {
 	colorImageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	colorImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	colorImageCreateInfo.queueFamilyIndexCount = 1;
-	colorImageCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	colorImageCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 	colorImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 	VmaAllocationCreateInfo colorImageAllocationCreateInfo = {};
@@ -2633,7 +3018,7 @@ void NtshEngn::GraphicsModule::createColorAndDepthImages() {
 	depthImageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 	depthImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	depthImageCreateInfo.queueFamilyIndexCount = 1;
-	depthImageCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	depthImageCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 	depthImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 	VmaAllocationCreateInfo depthImageAllocationCreateInfo = {};
@@ -2679,8 +3064,8 @@ void NtshEngn::GraphicsModule::createColorAndDepthImages() {
 	undefinedToColorAttachmentImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 	undefinedToColorAttachmentImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	undefinedToColorAttachmentImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	undefinedToColorAttachmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	undefinedToColorAttachmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToColorAttachmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	undefinedToColorAttachmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	undefinedToColorAttachmentImageMemoryBarrier.image = m_colorImage;
 	undefinedToColorAttachmentImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	undefinedToColorAttachmentImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -2697,8 +3082,8 @@ void NtshEngn::GraphicsModule::createColorAndDepthImages() {
 	undefinedToDepthStencilAttachmentImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 	undefinedToDepthStencilAttachmentImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	undefinedToDepthStencilAttachmentImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	undefinedToDepthStencilAttachmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	undefinedToDepthStencilAttachmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	undefinedToDepthStencilAttachmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	undefinedToDepthStencilAttachmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
 	undefinedToDepthStencilAttachmentImageMemoryBarrier.image = m_depthImage;
 	undefinedToDepthStencilAttachmentImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 	undefinedToDepthStencilAttachmentImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
@@ -2731,7 +3116,7 @@ void NtshEngn::GraphicsModule::createColorAndDepthImages() {
 	colorAndDepthImagesTransitionSubmitInfo.pCommandBuffers = &m_initializationCommandBuffer;
 	colorAndDepthImagesTransitionSubmitInfo.signalSemaphoreCount = 0;
 	colorAndDepthImagesTransitionSubmitInfo.pSignalSemaphores = nullptr;
-	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &colorAndDepthImagesTransitionSubmitInfo, m_initializationFence));
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &colorAndDepthImagesTransitionSubmitInfo, m_initializationFence));
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
 	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
 }
@@ -2833,6 +3218,10 @@ std::vector<uint32_t> NtshEngn::GraphicsModule::compileShader(const std::string&
 
 	case ShaderType::Fragment:
 		shaderType = EShLangFragment;
+		break;
+
+	case ShaderType::Compute:
+		shaderType = EShLangCompute;
 		break;
 	}
 
@@ -3672,6 +4061,651 @@ void NtshEngn::GraphicsModule::updateDescriptorSet(uint32_t frameInFlight) {
 	vkUpdateDescriptorSets(m_device, 1, &texturesDescriptorWriteDescriptorSet, 0, nullptr);
 }
 
+void NtshEngn::GraphicsModule::createParticleResources() {
+	// Create particle buffer
+	VkBufferCreateInfo particleBufferCreateInfo = {};
+	particleBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	particleBufferCreateInfo.pNext = nullptr;
+	particleBufferCreateInfo.flags = 0;
+	particleBufferCreateInfo.size = m_maxParticlesNumber * sizeof(Particle);
+	particleBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	particleBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	particleBufferCreateInfo.queueFamilyIndexCount = 1;
+	particleBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
+
+	VmaAllocationInfo particleBufferAllocationInfo;
+
+	VmaAllocationCreateInfo particleBufferAllocationCreateInfo = {};
+	particleBufferAllocationCreateInfo.flags = 0;
+	particleBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &particleBufferCreateInfo, &particleBufferAllocationCreateInfo, &m_particleBuffers[0].handle, &m_particleBuffers[0].allocation, &particleBufferAllocationInfo));
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &particleBufferCreateInfo, &particleBufferAllocationCreateInfo, &m_particleBuffers[1].handle, &m_particleBuffers[1].allocation, &particleBufferAllocationInfo));
+
+	// Create staging buffers
+	m_particleStagingBuffers.resize(m_framesInFlight);
+	VkBufferCreateInfo particleStagingBufferCreateInfo = {};
+	particleStagingBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	particleStagingBufferCreateInfo.pNext = nullptr;
+	particleStagingBufferCreateInfo.flags = 0;
+	particleStagingBufferCreateInfo.size = m_maxParticlesNumber * sizeof(Particle);
+	particleStagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	particleStagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	particleStagingBufferCreateInfo.queueFamilyIndexCount = 1;
+	particleStagingBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
+
+	VmaAllocationInfo particleStagingBufferAllocationInfo;
+
+	VmaAllocationCreateInfo particleStagingBufferAllocationCreateInfo = {};
+	particleStagingBufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+	particleStagingBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &particleStagingBufferCreateInfo, &particleStagingBufferAllocationCreateInfo, &m_particleStagingBuffers[i].handle, &m_particleStagingBuffers[i].allocation, &particleStagingBufferAllocationInfo));
+		m_particleStagingBuffers[i].address = particleStagingBufferAllocationInfo.pMappedData;
+	}
+
+	m_particleBuffersNeedUpdate.resize(m_framesInFlight);
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		m_particleBuffersNeedUpdate[i] = false;
+	}
+
+	// Create draw indirect buffer
+	VkBufferCreateInfo particleDrawIndirectBufferCreateInfo = {};
+	particleDrawIndirectBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	particleDrawIndirectBufferCreateInfo.pNext = nullptr;
+	particleDrawIndirectBufferCreateInfo.flags = 0;
+	particleDrawIndirectBufferCreateInfo.size = 4 * sizeof(uint32_t);
+	particleDrawIndirectBufferCreateInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	particleDrawIndirectBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	particleDrawIndirectBufferCreateInfo.queueFamilyIndexCount = 1;
+	particleDrawIndirectBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
+
+	VmaAllocationInfo particleDrawIndirectBufferAllocationInfo;
+
+	VmaAllocationCreateInfo particleDrawIndirectBufferAllocationCreateInfo = {};
+	particleDrawIndirectBufferAllocationCreateInfo.flags = 0;
+	particleDrawIndirectBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &particleDrawIndirectBufferCreateInfo, &particleDrawIndirectBufferAllocationCreateInfo, &m_particleDrawIndirectBuffer.handle, &m_particleDrawIndirectBuffer.allocation, &particleDrawIndirectBufferAllocationInfo));
+
+	// Fill draw indirect buffer
+	NTSHENGN_VK_CHECK(vkResetCommandPool(m_device, m_initializationCommandPool, 0));
+
+	VkCommandBufferBeginInfo fillDrawIndirectBufferBeginInfo = {};
+	fillDrawIndirectBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	fillDrawIndirectBufferBeginInfo.pNext = nullptr;
+	fillDrawIndirectBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	fillDrawIndirectBufferBeginInfo.pInheritanceInfo = nullptr;
+	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(m_initializationCommandBuffer, &fillDrawIndirectBufferBeginInfo));
+
+	std::vector<uint32_t> drawIndirectData = { 1, 0, 0 };
+	vkCmdUpdateBuffer(m_initializationCommandBuffer, m_particleDrawIndirectBuffer.handle, sizeof(uint32_t), 3 * sizeof(uint32_t), drawIndirectData.data());
+
+	NTSHENGN_VK_CHECK(vkEndCommandBuffer(m_initializationCommandBuffer));
+
+	VkSubmitInfo fillDrawIndirectBufferSubmitInfo = {};
+	fillDrawIndirectBufferSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	fillDrawIndirectBufferSubmitInfo.pNext = nullptr;
+	fillDrawIndirectBufferSubmitInfo.waitSemaphoreCount = 0;
+	fillDrawIndirectBufferSubmitInfo.pWaitSemaphores = nullptr;
+	fillDrawIndirectBufferSubmitInfo.pWaitDstStageMask = nullptr;
+	fillDrawIndirectBufferSubmitInfo.commandBufferCount = 1;
+	fillDrawIndirectBufferSubmitInfo.pCommandBuffers = &m_initializationCommandBuffer;
+	fillDrawIndirectBufferSubmitInfo.signalSemaphoreCount = 0;
+	fillDrawIndirectBufferSubmitInfo.pSignalSemaphores = nullptr;
+	NTSHENGN_VK_CHECK(vkQueueSubmit(m_graphicsComputeQueue, 1, &fillDrawIndirectBufferSubmitInfo, m_initializationFence));
+	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_initializationFence, VK_TRUE, std::numeric_limits<uint64_t>::max()));
+	NTSHENGN_VK_CHECK(vkResetFences(m_device, 1, &m_initializationFence));
+
+	// Create descriptor set layouts
+	VkDescriptorSetLayoutBinding inParticleBufferDescriptorSetLayoutBinding = {};
+	inParticleBufferDescriptorSetLayoutBinding.binding = 0;
+	inParticleBufferDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	inParticleBufferDescriptorSetLayoutBinding.descriptorCount = 1;
+	inParticleBufferDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+	inParticleBufferDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding outParticleBufferDescriptorSetLayoutBinding = {};
+	outParticleBufferDescriptorSetLayoutBinding.binding = 1;
+	outParticleBufferDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outParticleBufferDescriptorSetLayoutBinding.descriptorCount = 1;
+	outParticleBufferDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+	outParticleBufferDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding outDrawIndirectBufferDescriptorSetLayoutBinding = {};
+	outDrawIndirectBufferDescriptorSetLayoutBinding.binding = 2;
+	outDrawIndirectBufferDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outDrawIndirectBufferDescriptorSetLayoutBinding.descriptorCount = 1;
+	outDrawIndirectBufferDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+	outDrawIndirectBufferDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	std::array<VkDescriptorSetLayoutBinding, 3> computeDescriptorSetLayoutBindings = { inParticleBufferDescriptorSetLayoutBinding, outParticleBufferDescriptorSetLayoutBinding, outDrawIndirectBufferDescriptorSetLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo computeDescriptorSetLayoutCreateInfo = {};
+	computeDescriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	computeDescriptorSetLayoutCreateInfo.pNext = nullptr;
+	computeDescriptorSetLayoutCreateInfo.flags = 0;
+	computeDescriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(computeDescriptorSetLayoutBindings.size());
+	computeDescriptorSetLayoutCreateInfo.pBindings = computeDescriptorSetLayoutBindings.data();
+	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &computeDescriptorSetLayoutCreateInfo, nullptr, &m_particleComputeDescriptorSetLayout));
+
+	VkDescriptorSetLayoutBinding cameraDescriptorSetLayoutBinding = {};
+	cameraDescriptorSetLayoutBinding.binding = 0;
+	cameraDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	cameraDescriptorSetLayoutBinding.descriptorCount = 1;
+	cameraDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	cameraDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutCreateInfo graphicsDescriptorSetLayoutCreateInfo = {};
+	graphicsDescriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	graphicsDescriptorSetLayoutCreateInfo.pNext = nullptr;
+	graphicsDescriptorSetLayoutCreateInfo.flags = 0;
+	graphicsDescriptorSetLayoutCreateInfo.bindingCount = 1;
+	graphicsDescriptorSetLayoutCreateInfo.pBindings = &cameraDescriptorSetLayoutBinding;
+	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &graphicsDescriptorSetLayoutCreateInfo, nullptr, &m_particleGraphicsDescriptorSetLayout));
+
+	// Create compute pipeline
+	const std::string computeShaderCode = R"GLSL(
+		#version 460
+
+		layout(local_size_x = 64) in;
+
+		struct Particle {
+			vec3 position;
+			float size;
+			vec4 color;
+			vec3 direction;
+			float speed;
+			float duration;
+		};
+
+		layout(set = 0, binding = 0) restrict readonly buffer InParticles {
+			Particle particles[];
+		} inParticles;
+
+		layout(set = 0, binding = 1) restrict writeonly buffer OutParticles {
+			Particle particles[];
+		} outParticles;
+
+		layout(set = 0, binding = 2) buffer OutDrawIndirect {
+			uint vertexCount;
+		} outDrawIndirect;
+
+		layout(push_constant) uniform DeltaTime {
+			float deltaTime;
+		} dT;
+
+		void main() {
+			uint index = gl_GlobalInvocationID.x;
+
+			Particle inParticle = inParticles.particles[index];
+
+			float newDuration = inParticle.duration - dT.deltaTime;
+			if (newDuration >= 0.0) {
+				uint particleIndex = atomicAdd(outDrawIndirect.vertexCount, 1);
+
+				outParticles.particles[particleIndex].position = inParticle.position + (inParticle.direction * inParticle.speed * dT.deltaTime);
+				outParticles.particles[particleIndex].size = inParticle.size;
+				outParticles.particles[particleIndex].color = inParticle.color;
+				outParticles.particles[particleIndex].direction = inParticle.direction;
+				outParticles.particles[particleIndex].speed = inParticle.speed;
+				outParticles.particles[particleIndex].duration = newDuration;
+			}
+		}
+	)GLSL";
+	const std::vector<uint32_t> computeShaderSpv = compileShader(computeShaderCode, ShaderType::Compute);
+
+	VkShaderModule computeShaderModule;
+	VkShaderModuleCreateInfo computeShaderModuleCreateInfo = {};
+	computeShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	computeShaderModuleCreateInfo.pNext = nullptr;
+	computeShaderModuleCreateInfo.flags = 0;
+	computeShaderModuleCreateInfo.codeSize = computeShaderSpv.size() * sizeof(uint32_t);
+	computeShaderModuleCreateInfo.pCode = computeShaderSpv.data();
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &computeShaderModuleCreateInfo, nullptr, &computeShaderModule));
+
+	VkPipelineShaderStageCreateInfo computeShaderStageCreateInfo = {};
+	computeShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	computeShaderStageCreateInfo.pNext = nullptr;
+	computeShaderStageCreateInfo.flags = 0;
+	computeShaderStageCreateInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+	computeShaderStageCreateInfo.module = computeShaderModule;
+	computeShaderStageCreateInfo.pName = "main";
+	computeShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	VkPushConstantRange pushConstantRange = {};
+	pushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+	pushConstantRange.offset = 0;
+	pushConstantRange.size = sizeof(float);
+
+	VkPipelineLayoutCreateInfo computePipelineLayoutCreateInfo = {};
+	computePipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	computePipelineLayoutCreateInfo.pNext = nullptr;
+	computePipelineLayoutCreateInfo.flags = 0;
+	computePipelineLayoutCreateInfo.setLayoutCount = 1;
+	computePipelineLayoutCreateInfo.pSetLayouts = &m_particleComputeDescriptorSetLayout;
+	computePipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+	computePipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
+	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &computePipelineLayoutCreateInfo, nullptr, &m_particleComputePipelineLayout));
+
+	VkComputePipelineCreateInfo computePipelineCreateInfo = {};
+	computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	computePipelineCreateInfo.pNext = nullptr;
+	computePipelineCreateInfo.flags = 0;
+	computePipelineCreateInfo.stage = computeShaderStageCreateInfo;
+	computePipelineCreateInfo.layout = m_particleComputePipelineLayout;
+	computePipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+	computePipelineCreateInfo.basePipelineIndex = 0;
+	NTSHENGN_VK_CHECK(vkCreateComputePipelines(m_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &m_particleComputePipeline));
+
+	vkDestroyShaderModule(m_device, computeShaderModule, nullptr);
+
+	// Create graphics pipeline
+	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
+	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+	pipelineRenderingCreateInfo.pNext = nullptr;
+	pipelineRenderingCreateInfo.viewMask = 0;
+	pipelineRenderingCreateInfo.colorAttachmentCount = 1;
+	pipelineRenderingCreateInfo.pColorAttachmentFormats = &pipelineRenderingColorFormat;
+	pipelineRenderingCreateInfo.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
+	pipelineRenderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+
+	const std::string vertexShaderCode = R"GLSL(
+		#version 460
+
+		layout(set = 0, binding = 0) uniform Camera {
+			mat4 view;
+			mat4 projection;
+		} camera;
+
+		layout(location = 0) in vec3 position;
+		layout(location = 1) in float size;
+		layout(location = 2) in vec4 color;
+
+		layout(location = 0) out vec4 fragColor;
+
+		void main() {
+			gl_PointSize = size;
+			gl_Position = camera.projection * camera.view * vec4(position, 1.0);
+			fragColor = color;
+		}
+	)GLSL";
+	const std::vector<uint32_t> vertexShaderSpv = compileShader(vertexShaderCode, ShaderType::Vertex);
+
+	VkShaderModule vertexShaderModule;
+	VkShaderModuleCreateInfo vertexShaderModuleCreateInfo = {};
+	vertexShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	vertexShaderModuleCreateInfo.pNext = nullptr;
+	vertexShaderModuleCreateInfo.flags = 0;
+	vertexShaderModuleCreateInfo.codeSize = vertexShaderSpv.size() * sizeof(uint32_t);
+	vertexShaderModuleCreateInfo.pCode = vertexShaderSpv.data();
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &vertexShaderModuleCreateInfo, nullptr, &vertexShaderModule));
+
+	VkPipelineShaderStageCreateInfo vertexShaderStageCreateInfo = {};
+	vertexShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vertexShaderStageCreateInfo.pNext = nullptr;
+	vertexShaderStageCreateInfo.flags = 0;
+	vertexShaderStageCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	vertexShaderStageCreateInfo.module = vertexShaderModule;
+	vertexShaderStageCreateInfo.pName = "main";
+	vertexShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	const std::string fragmentShaderCode = R"GLSL(
+		#version 460
+
+		layout(location = 0) in vec4 fragColor;
+
+		layout(location = 0) out vec4 outColor;
+
+		void main() {
+			outColor = fragColor;
+		}
+	)GLSL";
+	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
+
+	VkShaderModule fragmentShaderModule;
+	VkShaderModuleCreateInfo fragmentShaderModuleCreateInfo = {};
+	fragmentShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	fragmentShaderModuleCreateInfo.pNext = nullptr;
+	fragmentShaderModuleCreateInfo.flags = 0;
+	fragmentShaderModuleCreateInfo.codeSize = fragmentShaderSpv.size() * sizeof(uint32_t);
+	fragmentShaderModuleCreateInfo.pCode = fragmentShaderSpv.data();
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &fragmentShaderModuleCreateInfo, nullptr, &fragmentShaderModule));
+
+	VkPipelineShaderStageCreateInfo fragmentShaderStageCreateInfo = {};
+	fragmentShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fragmentShaderStageCreateInfo.pNext = nullptr;
+	fragmentShaderStageCreateInfo.flags = 0;
+	fragmentShaderStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragmentShaderStageCreateInfo.module = fragmentShaderModule;
+	fragmentShaderStageCreateInfo.pName = "main";
+	fragmentShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStageCreateInfos = { vertexShaderStageCreateInfo, fragmentShaderStageCreateInfo };
+
+	VkVertexInputBindingDescription vertexInputBindingDescription = {};
+	vertexInputBindingDescription.binding = 0;
+	vertexInputBindingDescription.stride = sizeof(Particle);
+	vertexInputBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+	VkVertexInputAttributeDescription particlePositionInputAttributeDescription = {};
+	particlePositionInputAttributeDescription.location = 0;
+	particlePositionInputAttributeDescription.binding = 0;
+	particlePositionInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
+	particlePositionInputAttributeDescription.offset = 0;
+
+	VkVertexInputAttributeDescription particleSizeInputAttributeDescription = {};
+	particleSizeInputAttributeDescription.location = 1;
+	particleSizeInputAttributeDescription.binding = 0;
+	particleSizeInputAttributeDescription.format = VK_FORMAT_R32_SFLOAT;
+	particleSizeInputAttributeDescription.offset = offsetof(Particle, size);
+
+	VkVertexInputAttributeDescription particleColorInputAttributeDescription = {};
+	particleColorInputAttributeDescription.location = 2;
+	particleColorInputAttributeDescription.binding = 0;
+	particleColorInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	particleColorInputAttributeDescription.offset = offsetof(Particle, color);
+
+	std::array<VkVertexInputAttributeDescription, 3> vertexInputAttributeDescriptions = { particlePositionInputAttributeDescription, particleSizeInputAttributeDescription, particleColorInputAttributeDescription };
+	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
+	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInputStateCreateInfo.pNext = nullptr;
+	vertexInputStateCreateInfo.flags = 0;
+	vertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
+	vertexInputStateCreateInfo.pVertexBindingDescriptions = &vertexInputBindingDescription;
+	vertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributeDescriptions.size());
+	vertexInputStateCreateInfo.pVertexAttributeDescriptions = vertexInputAttributeDescriptions.data();
+
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo = {};
+	inputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	inputAssemblyStateCreateInfo.pNext = nullptr;
+	inputAssemblyStateCreateInfo.flags = 0;
+	inputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+	inputAssemblyStateCreateInfo.primitiveRestartEnable = VK_FALSE;
+
+	VkPipelineViewportStateCreateInfo viewportStateCreateInfo = {};
+	viewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewportStateCreateInfo.pNext = nullptr;
+	viewportStateCreateInfo.flags = 0;
+	viewportStateCreateInfo.viewportCount = 1;
+	viewportStateCreateInfo.pViewports = &m_viewport;
+	viewportStateCreateInfo.scissorCount = 1;
+	viewportStateCreateInfo.pScissors = &m_scissor;
+
+	VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo = {};
+	rasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizationStateCreateInfo.pNext = nullptr;
+	rasterizationStateCreateInfo.flags = 0;
+	rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
+	rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
+	rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
+	rasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
+	rasterizationStateCreateInfo.depthBiasClamp = 0.0f;
+	rasterizationStateCreateInfo.depthBiasSlopeFactor = 0.0f;
+	rasterizationStateCreateInfo.lineWidth = 1.0f;
+
+	VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo = {};
+	multisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampleStateCreateInfo.pNext = nullptr;
+	multisampleStateCreateInfo.flags = 0;
+	multisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	multisampleStateCreateInfo.sampleShadingEnable = VK_FALSE;
+	multisampleStateCreateInfo.minSampleShading = 0.0f;
+	multisampleStateCreateInfo.pSampleMask = nullptr;
+	multisampleStateCreateInfo.alphaToCoverageEnable = VK_FALSE;
+	multisampleStateCreateInfo.alphaToOneEnable = VK_FALSE;
+
+	VkPipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo = {};
+	depthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencilStateCreateInfo.pNext = nullptr;
+	depthStencilStateCreateInfo.flags = 0;
+	depthStencilStateCreateInfo.depthTestEnable = VK_TRUE;
+	depthStencilStateCreateInfo.depthWriteEnable = VK_TRUE;
+	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS;
+	depthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.front = {};
+	depthStencilStateCreateInfo.back = {};
+	depthStencilStateCreateInfo.minDepthBounds = 0.0f;
+	depthStencilStateCreateInfo.maxDepthBounds = 1.0f;
+
+	VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
+	colorBlendAttachmentState.blendEnable = VK_TRUE;
+	colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+	VkPipelineColorBlendStateCreateInfo colorBlendStateCreateInfo = {};
+	colorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	colorBlendStateCreateInfo.pNext = nullptr;
+	colorBlendStateCreateInfo.flags = 0;
+	colorBlendStateCreateInfo.logicOpEnable = VK_FALSE;
+	colorBlendStateCreateInfo.logicOp = VK_LOGIC_OP_COPY;
+	colorBlendStateCreateInfo.attachmentCount = 1;
+	colorBlendStateCreateInfo.pAttachments = &colorBlendAttachmentState;
+
+	std::array<VkDynamicState, 2> dynamicStates = { VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_VIEWPORT };
+	VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = {};
+	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynamicStateCreateInfo.pNext = nullptr;
+	dynamicStateCreateInfo.flags = 0;
+	dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
+
+	VkPipelineLayoutCreateInfo graphicsPipelineLayoutCreateInfo = {};
+	graphicsPipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	graphicsPipelineLayoutCreateInfo.pNext = nullptr;
+	graphicsPipelineLayoutCreateInfo.flags = 0;
+	graphicsPipelineLayoutCreateInfo.setLayoutCount = 1;
+	graphicsPipelineLayoutCreateInfo.pSetLayouts = &m_particleGraphicsDescriptorSetLayout;
+	graphicsPipelineLayoutCreateInfo.pushConstantRangeCount = 0;
+	graphicsPipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
+	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &graphicsPipelineLayoutCreateInfo, nullptr, &m_particleGraphicsPipelineLayout));
+
+	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};
+	graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	graphicsPipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
+	graphicsPipelineCreateInfo.flags = 0;
+	graphicsPipelineCreateInfo.stageCount = 2;
+	graphicsPipelineCreateInfo.pStages = shaderStageCreateInfos.data();
+	graphicsPipelineCreateInfo.pVertexInputState = &vertexInputStateCreateInfo;
+	graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;
+	graphicsPipelineCreateInfo.pTessellationState = nullptr;
+	graphicsPipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
+	graphicsPipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
+	graphicsPipelineCreateInfo.pMultisampleState = &multisampleStateCreateInfo;
+	graphicsPipelineCreateInfo.pDepthStencilState = &depthStencilStateCreateInfo;
+	graphicsPipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
+	graphicsPipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
+	graphicsPipelineCreateInfo.layout = m_particleGraphicsPipelineLayout;
+	graphicsPipelineCreateInfo.renderPass = VK_NULL_HANDLE;
+	graphicsPipelineCreateInfo.subpass = 0;
+	graphicsPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+	graphicsPipelineCreateInfo.basePipelineIndex = 0;
+	NTSHENGN_VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_particleGraphicsPipeline));
+
+	vkDestroyShaderModule(m_device, vertexShaderModule, nullptr);
+	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
+
+	// Create descriptor pools
+	VkDescriptorPoolSize inParticleDescriptorPoolSize = {};
+	inParticleDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	inParticleDescriptorPoolSize.descriptorCount = 2;
+
+	VkDescriptorPoolSize outParticleDescriptorPoolSize = {};
+	outParticleDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outParticleDescriptorPoolSize.descriptorCount = 2;
+
+	VkDescriptorPoolSize outDrawIndirectDescriptorPoolSize = {};
+	outDrawIndirectDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outDrawIndirectDescriptorPoolSize.descriptorCount = 2;
+
+	std::array<VkDescriptorPoolSize, 3> computeDescriptorPoolSizes = { inParticleDescriptorPoolSize, outParticleDescriptorPoolSize, outDrawIndirectDescriptorPoolSize };
+	VkDescriptorPoolCreateInfo computeDescriptorPoolCreateInfo = {};
+	computeDescriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	computeDescriptorPoolCreateInfo.pNext = nullptr;
+	computeDescriptorPoolCreateInfo.flags = 0;
+	computeDescriptorPoolCreateInfo.maxSets = 2;
+	computeDescriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(computeDescriptorPoolSizes.size());
+	computeDescriptorPoolCreateInfo.pPoolSizes = computeDescriptorPoolSizes.data();
+	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &computeDescriptorPoolCreateInfo, nullptr, &m_particleComputeDescriptorPool));
+	
+	VkDescriptorPoolSize cameraDescriptorPoolSize = {};
+	cameraDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	cameraDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	VkDescriptorPoolCreateInfo graphicsDescriptorPoolCreateInfo = {};
+	graphicsDescriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	graphicsDescriptorPoolCreateInfo.pNext = nullptr;
+	graphicsDescriptorPoolCreateInfo.flags = 0;
+	graphicsDescriptorPoolCreateInfo.maxSets = m_framesInFlight;
+	graphicsDescriptorPoolCreateInfo.poolSizeCount = 1;
+	graphicsDescriptorPoolCreateInfo.pPoolSizes = &cameraDescriptorPoolSize;
+	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &graphicsDescriptorPoolCreateInfo, nullptr, &m_particleGraphicsDescriptorPool));
+
+	// Allocate descriptor sets
+	for (size_t i = 0; i < m_particleComputeDescriptorSets.size(); i++) {
+		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
+		descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		descriptorSetAllocateInfo.pNext = nullptr;
+		descriptorSetAllocateInfo.descriptorPool = m_particleComputeDescriptorPool;
+		descriptorSetAllocateInfo.descriptorSetCount = 1;
+		descriptorSetAllocateInfo.pSetLayouts = &m_particleComputeDescriptorSetLayout;
+		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_particleComputeDescriptorSets[i]));
+	}
+
+	m_particleGraphicsDescriptorSets.resize(m_framesInFlight);
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
+		descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		descriptorSetAllocateInfo.pNext = nullptr;
+		descriptorSetAllocateInfo.descriptorPool = m_particleGraphicsDescriptorPool;
+		descriptorSetAllocateInfo.descriptorSetCount = 1;
+		descriptorSetAllocateInfo.pSetLayouts = &m_particleGraphicsDescriptorSetLayout;
+		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_particleGraphicsDescriptorSets[i]));
+	}
+
+	// Update descriptor sets
+	VkDescriptorBufferInfo particle0DescriptorBufferInfo;
+	particle0DescriptorBufferInfo.buffer = m_particleBuffers[0].handle;
+	particle0DescriptorBufferInfo.offset = 0;
+	particle0DescriptorBufferInfo.range = m_maxParticlesNumber * sizeof(Particle);
+
+	VkWriteDescriptorSet inParticle0DescriptorWriteDescriptorSet = {};
+	inParticle0DescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	inParticle0DescriptorWriteDescriptorSet.pNext = nullptr;
+	inParticle0DescriptorWriteDescriptorSet.dstSet = m_particleComputeDescriptorSets[0];
+	inParticle0DescriptorWriteDescriptorSet.dstBinding = 0;
+	inParticle0DescriptorWriteDescriptorSet.dstArrayElement = 0;
+	inParticle0DescriptorWriteDescriptorSet.descriptorCount = 1;
+	inParticle0DescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	inParticle0DescriptorWriteDescriptorSet.pImageInfo = nullptr;
+	inParticle0DescriptorWriteDescriptorSet.pBufferInfo = &particle0DescriptorBufferInfo;
+	inParticle0DescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+
+	VkWriteDescriptorSet outParticle0DescriptorWriteDescriptorSet = {};
+	outParticle0DescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	outParticle0DescriptorWriteDescriptorSet.pNext = nullptr;
+	outParticle0DescriptorWriteDescriptorSet.dstSet = m_particleComputeDescriptorSets[1];
+	outParticle0DescriptorWriteDescriptorSet.dstBinding = 1;
+	outParticle0DescriptorWriteDescriptorSet.dstArrayElement = 0;
+	outParticle0DescriptorWriteDescriptorSet.descriptorCount = 1;
+	outParticle0DescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outParticle0DescriptorWriteDescriptorSet.pImageInfo = nullptr;
+	outParticle0DescriptorWriteDescriptorSet.pBufferInfo = &particle0DescriptorBufferInfo;
+	outParticle0DescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+
+	VkDescriptorBufferInfo particle1DescriptorBufferInfo;
+	particle1DescriptorBufferInfo.buffer = m_particleBuffers[1].handle;
+	particle1DescriptorBufferInfo.offset = 0;
+	particle1DescriptorBufferInfo.range = m_maxParticlesNumber * sizeof(Particle);
+
+	VkWriteDescriptorSet inParticle1DescriptorWriteDescriptorSet = {};
+	inParticle1DescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	inParticle1DescriptorWriteDescriptorSet.pNext = nullptr;
+	inParticle1DescriptorWriteDescriptorSet.dstSet = m_particleComputeDescriptorSets[1];
+	inParticle1DescriptorWriteDescriptorSet.dstBinding = 0;
+	inParticle1DescriptorWriteDescriptorSet.dstArrayElement = 0;
+	inParticle1DescriptorWriteDescriptorSet.descriptorCount = 1;
+	inParticle1DescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	inParticle1DescriptorWriteDescriptorSet.pImageInfo = nullptr;
+	inParticle1DescriptorWriteDescriptorSet.pBufferInfo = &particle1DescriptorBufferInfo;
+	inParticle1DescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+
+	VkWriteDescriptorSet outParticle1DescriptorWriteDescriptorSet = {};
+	outParticle1DescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	outParticle1DescriptorWriteDescriptorSet.pNext = nullptr;
+	outParticle1DescriptorWriteDescriptorSet.dstSet = m_particleComputeDescriptorSets[0];
+	outParticle1DescriptorWriteDescriptorSet.dstBinding = 1;
+	outParticle1DescriptorWriteDescriptorSet.dstArrayElement = 0;
+	outParticle1DescriptorWriteDescriptorSet.descriptorCount = 1;
+	outParticle1DescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outParticle1DescriptorWriteDescriptorSet.pImageInfo = nullptr;
+	outParticle1DescriptorWriteDescriptorSet.pBufferInfo = &particle1DescriptorBufferInfo;
+	outParticle1DescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+
+	VkDescriptorBufferInfo outDrawIndirectDescriptorBufferInfo;
+	outDrawIndirectDescriptorBufferInfo.buffer = m_particleDrawIndirectBuffer.handle;
+	outDrawIndirectDescriptorBufferInfo.offset = 0;
+	outDrawIndirectDescriptorBufferInfo.range = sizeof(uint32_t);
+
+	VkWriteDescriptorSet outDrawIndirect0DescriptorWriteDescriptorSet = {};
+	outDrawIndirect0DescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	outDrawIndirect0DescriptorWriteDescriptorSet.pNext = nullptr;
+	outDrawIndirect0DescriptorWriteDescriptorSet.dstSet = m_particleComputeDescriptorSets[0];
+	outDrawIndirect0DescriptorWriteDescriptorSet.dstBinding = 2;
+	outDrawIndirect0DescriptorWriteDescriptorSet.dstArrayElement = 0;
+	outDrawIndirect0DescriptorWriteDescriptorSet.descriptorCount = 1;
+	outDrawIndirect0DescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outDrawIndirect0DescriptorWriteDescriptorSet.pImageInfo = nullptr;
+	outDrawIndirect0DescriptorWriteDescriptorSet.pBufferInfo = &outDrawIndirectDescriptorBufferInfo;
+	outDrawIndirect0DescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+
+	VkWriteDescriptorSet outDrawIndirect1DescriptorWriteDescriptorSet = {};
+	outDrawIndirect1DescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	outDrawIndirect1DescriptorWriteDescriptorSet.pNext = nullptr;
+	outDrawIndirect1DescriptorWriteDescriptorSet.dstSet = m_particleComputeDescriptorSets[1];
+	outDrawIndirect1DescriptorWriteDescriptorSet.dstBinding = 2;
+	outDrawIndirect1DescriptorWriteDescriptorSet.dstArrayElement = 0;
+	outDrawIndirect1DescriptorWriteDescriptorSet.descriptorCount = 1;
+	outDrawIndirect1DescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outDrawIndirect1DescriptorWriteDescriptorSet.pImageInfo = nullptr;
+	outDrawIndirect1DescriptorWriteDescriptorSet.pBufferInfo = &outDrawIndirectDescriptorBufferInfo;
+	outDrawIndirect1DescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+
+	std::array<VkWriteDescriptorSet, 6> computeWriteDescriptorSets = { inParticle0DescriptorWriteDescriptorSet, outParticle0DescriptorWriteDescriptorSet, inParticle1DescriptorWriteDescriptorSet, outParticle1DescriptorWriteDescriptorSet, outDrawIndirect0DescriptorWriteDescriptorSet, outDrawIndirect1DescriptorWriteDescriptorSet };
+	vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(computeWriteDescriptorSets.size()), computeWriteDescriptorSets.data(), 0, nullptr);
+
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
+		cameraDescriptorBufferInfo.buffer = m_cameraBuffers[i].handle;
+		cameraDescriptorBufferInfo.offset = 0;
+		cameraDescriptorBufferInfo.range = sizeof(Math::mat4) * 2;
+
+		VkWriteDescriptorSet cameraDescriptorWriteDescriptorSet = {};
+		cameraDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		cameraDescriptorWriteDescriptorSet.pNext = nullptr;
+		cameraDescriptorWriteDescriptorSet.dstSet = m_particleGraphicsDescriptorSets[i];
+		cameraDescriptorWriteDescriptorSet.dstBinding = 0;
+		cameraDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		cameraDescriptorWriteDescriptorSet.descriptorCount = 1;
+		cameraDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		cameraDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		cameraDescriptorWriteDescriptorSet.pBufferInfo = &cameraDescriptorBufferInfo;
+		cameraDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+
+		vkUpdateDescriptorSets(m_device, 1, &cameraDescriptorWriteDescriptorSet, 0, nullptr);
+	}
+}
+
 void NtshEngn::GraphicsModule::createToneMappingResources() {
 	// Create descriptor set layout
 	VkDescriptorSetLayoutBinding colorImageDescriptorSetLayoutBinding = {};
@@ -4005,7 +5039,7 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 	uiTextBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	uiTextBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	uiTextBufferCreateInfo.queueFamilyIndexCount = 1;
-	uiTextBufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	uiTextBufferCreateInfo.pQueueFamilyIndices = &m_graphicsComputeQueueFamilyIndex;
 
 	VmaAllocationInfo bufferAllocationInfo;
 
@@ -5260,7 +6294,7 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 
 void NtshEngn::GraphicsModule::resize() {
 	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
-		NTSHENGN_VK_CHECK(vkQueueWaitIdle(m_graphicsQueue));
+		NTSHENGN_VK_CHECK(vkQueueWaitIdle(m_graphicsComputeQueue));
 
 		// Destroy swapchain image views
 		for (VkImageView& swapchainImageView : m_swapchainImageViews) {

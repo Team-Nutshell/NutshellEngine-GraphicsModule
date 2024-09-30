@@ -18,11 +18,13 @@
 #endif
 #include <string>
 #include <vector>
+#include <forward_list>
 #include <limits>
 #include <unordered_map>
 #include <set>
 #include <queue>
 #include <utility>
+#include <tuple>
 
 #define NTSHENGN_VK_CHECK(f) \
 	do { \
@@ -83,12 +85,18 @@ struct HostVisibleBuffer {
 	VmaAllocation allocation;
 };
 
+struct DeviceBuffer {
+	VkBuffer handle;
+	VmaAllocation allocation;
+};
+
 enum class ShaderType {
 	Vertex,
 	TesselationControl,
 	TesselationEvaluation,
 	Geometry,
-	Fragment
+	Fragment,
+	Compute
 };
 
 struct InternalMesh {
@@ -189,6 +197,16 @@ struct InternalUIImage {
 	NtshEngn::Math::vec2 reverseUV = { 0.0f, 0.0f };
 };
 
+struct Particle {
+	NtshEngn::Math::vec3 position = { 0.0f, 0.0f, 0.0f };
+	float size = 0.0f;
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
+	NtshEngn::Math::vec3 direction = { 0.0f, 0.0f, 0.0f };
+	float speed = 0.0f;
+	float duration = 0.0f;
+	NtshEngn::Math::vec3 padding = { 0.0f, 0.0f, 0.0f };
+};
+
 namespace NtshEngn {
 
 	class GraphicsModule : public GraphicsModuleInterface {
@@ -218,6 +236,9 @@ namespace NtshEngn {
 
 		// Returns true if the entity is currently playing the animation with index animationIndex, else, returns false
 		bool isAnimationPlaying(Entity entity, uint32_t animationIndex);
+
+		// Emits particles described by particleEmitter
+		void emitParticles(const ParticleEmitter& particleEmitter);
 
 		// Draws a text on the UI with the font in the fontID parameter using the position on screen and color
 		void drawUIText(FontID fontID, const std::string& text, const Math::vec2& position, const Math::vec4& color);
@@ -265,6 +286,9 @@ namespace NtshEngn {
 		// Descriptor sets creation
 		void createDescriptorSets();
 		void updateDescriptorSet(uint32_t frameInFlight);
+
+		// Particles resources
+		void createParticleResources();
 
 		// Tone mapping resources
 		void createToneMappingResources();
@@ -314,8 +338,8 @@ namespace NtshEngn {
 		VkSurfaceKHR m_surface = VK_NULL_HANDLE;
 
 		VkPhysicalDevice m_physicalDevice;
-		uint32_t m_graphicsQueueFamilyIndex;
-		VkQueue m_graphicsQueue;
+		uint32_t m_graphicsComputeQueueFamilyIndex;
+		VkQueue m_graphicsComputeQueue;
 		VkDevice m_device;
 
 		VkViewport m_viewport;
@@ -355,6 +379,24 @@ namespace NtshEngn {
 		VkDescriptorPool m_descriptorPool;
 		std::vector<VkDescriptorSet> m_descriptorSets;
 		std::vector<bool> m_descriptorSetsNeedUpdate;
+
+		std::array<DeviceBuffer, 2> m_particleBuffers;
+		std::vector<HostVisibleBuffer> m_particleStagingBuffers;
+		DeviceBuffer m_particleDrawIndirectBuffer;
+		std::vector<bool> m_particleBuffersNeedUpdate;
+		VkDescriptorSetLayout m_particleComputeDescriptorSetLayout;
+		VkDescriptorPool m_particleComputeDescriptorPool;
+		std::array<VkDescriptorSet, 2> m_particleComputeDescriptorSets;
+		VkPipeline m_particleComputePipeline;
+		VkPipelineLayout m_particleComputePipelineLayout;
+		VkDescriptorSetLayout m_particleGraphicsDescriptorSetLayout;
+		VkDescriptorPool m_particleGraphicsDescriptorPool;
+		std::vector<VkDescriptorSet> m_particleGraphicsDescriptorSets;
+		VkPipeline m_particleGraphicsPipeline;
+		VkPipelineLayout m_particleGraphicsPipelineLayout;
+		uint32_t m_inParticleBufferCurrentIndex = 0;
+		uint32_t m_maxParticlesNumber = 100000;
+		size_t m_currentParticleHostSize = 0;
 
 		VkSampler m_toneMappingSampler;
 		VkDescriptorSetLayout m_toneMappingDescriptorSetLayout;
