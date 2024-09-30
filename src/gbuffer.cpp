@@ -375,7 +375,25 @@ void GBuffer::draw(VkCommandBuffer commandBuffer,
 	emissiveColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	emissiveColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	std::array<VkImageMemoryBarrier2, 5> afterRenderImageMemoryBarriers = { positionColorAttachmentToFragmentImageMemoryBarrier, normalColorAttachmentToFragmentImageMemoryBarrier, diffuseColorAttachmentToFragmentImageMemoryBarrier, materialColorAttachmentToFragmentImageMemoryBarrier, emissiveColorAttachmentToFragmentImageMemoryBarrier };
+	VkImageMemoryBarrier2 depthBeforeParticleImageMemoryBarrier = {};
+	depthBeforeParticleImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	depthBeforeParticleImageMemoryBarrier.pNext = nullptr;
+	depthBeforeParticleImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+	depthBeforeParticleImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	depthBeforeParticleImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+	depthBeforeParticleImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	depthBeforeParticleImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	depthBeforeParticleImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	depthBeforeParticleImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	depthBeforeParticleImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	depthBeforeParticleImageMemoryBarrier.image = m_depth.handle;
+	depthBeforeParticleImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	depthBeforeParticleImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	depthBeforeParticleImageMemoryBarrier.subresourceRange.levelCount = 1;
+	depthBeforeParticleImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	depthBeforeParticleImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	std::array<VkImageMemoryBarrier2, 6> afterRenderImageMemoryBarriers = { positionColorAttachmentToFragmentImageMemoryBarrier, normalColorAttachmentToFragmentImageMemoryBarrier, diffuseColorAttachmentToFragmentImageMemoryBarrier, materialColorAttachmentToFragmentImageMemoryBarrier, emissiveColorAttachmentToFragmentImageMemoryBarrier, depthBeforeParticleImageMemoryBarrier };
 	VkDependencyInfo afterRenderDependencyInfo = {};
 	afterRenderDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	afterRenderDependencyInfo.pNext = nullptr;
@@ -453,6 +471,10 @@ VulkanImage& GBuffer::getMaterial() {
 
 VulkanImage& GBuffer::getEmissive() {
 	return m_emissive;
+}
+
+VulkanImage& GBuffer::getDepth() {
+	return m_depth;
 }
 
 void GBuffer::createImages(uint32_t width, uint32_t height) {

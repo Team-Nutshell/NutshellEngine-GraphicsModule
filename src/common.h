@@ -159,6 +159,16 @@ struct HostVisibleVulkanBuffer : public VulkanBuffer {
 	void* address;
 };
 
+struct Particle {
+	NtshEngn::Math::vec3 position = { 0.0f, 0.0f, 0.0f };
+	float size = 0.0f;
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
+	NtshEngn::Math::vec3 direction = { 0.0f, 0.0f, 0.0f };
+	float speed = 0.0f;
+	float duration = 0.0f;
+	NtshEngn::Math::vec3 padding = { 0.0f, 0.0f, 0.0f };
+};
+
 inline std::vector<uint32_t> compileShader(const std::string& shaderCode, ShaderType type) {
 	std::vector<uint32_t> spvCode;
 

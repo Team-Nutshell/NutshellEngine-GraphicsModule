@@ -44,6 +44,7 @@ public:
 	VulkanImage& getDiffuse();
 	VulkanImage& getMaterial();
 	VulkanImage& getEmissive();
+	VulkanImage& getDepth();
 
 private:
 	void createImages(uint32_t width, uint32_t height);

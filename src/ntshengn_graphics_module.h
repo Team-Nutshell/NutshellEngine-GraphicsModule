@@ -6,6 +6,7 @@
 #include "frustum_culling.h"
 #include "fxaa.h"
 #include "gbuffer.h"
+#include "particles.h"
 #include "shadow_mapping.h"
 #include "ssao.h"
 #include <vector>
@@ -119,6 +120,9 @@ namespace NtshEngn {
 		// Returns true if the entity is currently playing the animation with index animationIndex, else, returns false
 		bool isAnimationPlaying(Entity entity, uint32_t animationIndex);
 
+		// Emits particles described by particleEmitter
+		void emitParticles(const ParticleEmitter& particleEmitter);
+
 		// Draws a text on the UI with the font in the fontID parameter using the position on screen and color
 		void drawUIText(FontID fontID, const std::string& text, const Math::vec2& position, const Math::vec4& color);
 		// Draws a line on the UI according to its start and end points and its color
@@ -228,10 +232,11 @@ namespace NtshEngn {
 
 		Bloom m_bloom;
 		FrustumCulling m_frustumCulling;
+		FXAA m_fxaa;
 		GBuffer m_gBuffer;
+		Particles m_particles;
 		SSAO m_ssao;
 		ShadowMapping m_shadowMapping;
-		FXAA m_fxaa;
 
 		VulkanImage m_compositingImage;
 		VkFormat m_compositingImageFormat;

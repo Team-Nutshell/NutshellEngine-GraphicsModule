@@ -435,6 +435,37 @@ void Bloom::draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView d
 	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
 	m_vkCmdEndRenderingKHR(commandBuffer);
+
+	// Compositing layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+	VkImageMemoryBarrier2 compositingColorAttachmentToFragmentImageMemoryBarrier = {};
+	compositingColorAttachmentToFragmentImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	compositingColorAttachmentToFragmentImageMemoryBarrier.pNext = nullptr;
+	compositingColorAttachmentToFragmentImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	compositingColorAttachmentToFragmentImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	compositingColorAttachmentToFragmentImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	compositingColorAttachmentToFragmentImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+	compositingColorAttachmentToFragmentImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	compositingColorAttachmentToFragmentImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	compositingColorAttachmentToFragmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	compositingColorAttachmentToFragmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	compositingColorAttachmentToFragmentImageMemoryBarrier.image = drawImage;
+	compositingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	compositingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	compositingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.levelCount = 1;
+	compositingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	compositingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	VkDependencyInfo compositingDependencyInfo = {};
+	compositingDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	compositingDependencyInfo.pNext = nullptr;
+	compositingDependencyInfo.dependencyFlags = 0;
+	compositingDependencyInfo.memoryBarrierCount = 0;
+	compositingDependencyInfo.pMemoryBarriers = nullptr;
+	compositingDependencyInfo.bufferMemoryBarrierCount = 0;
+	compositingDependencyInfo.pBufferMemoryBarriers = nullptr;
+	compositingDependencyInfo.imageMemoryBarrierCount = 1;
+	compositingDependencyInfo.pImageMemoryBarriers = &compositingColorAttachmentToFragmentImageMemoryBarrier;
+	m_vkCmdPipelineBarrier2KHR(commandBuffer, &compositingDependencyInfo);
 }
 
 void Bloom::onResize(uint32_t width,
