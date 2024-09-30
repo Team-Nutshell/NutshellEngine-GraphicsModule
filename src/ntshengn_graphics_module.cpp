@@ -1669,6 +1669,11 @@ bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animat
 	return false;
 }
 
+void NtshEngn::GraphicsModule::emitParticles(const ParticleEmitter& particleEmitter) {
+	NTSHENGN_UNUSED(particleEmitter);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
+}
+
 void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::string& text, const Math::vec2& position, const Math::vec4& color) {
 	NTSHENGN_ASSERT(fontID < m_fonts.size());
 
