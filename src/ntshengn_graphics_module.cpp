@@ -566,7 +566,7 @@ void NtshEngn::GraphicsModule::init() {
 	m_currentFrameInFlight = 0;
 }
 
-void NtshEngn::GraphicsModule::update(double dt) {
+void NtshEngn::GraphicsModule::update(float dt) {
 	if (windowModule && (!windowModule->isWindowOpen(windowModule->getMainWindowID()) || ((windowModule->getWindowWidth(windowModule->getMainWindowID()) == 0) || (windowModule->getWindowHeight(windowModule->getMainWindowID()) == 0)))) {
 		// Do not update if the main window got closed or the window size is 0
 		return;
@@ -766,7 +766,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 					}
 
 					if (m_playingAnimations[&it.second].isPlaying) {
-						playingAnimation.time += static_cast<float>(dt) / 1000.0f;
+						playingAnimation.time += dt;
 					}
 
 					// End animation
@@ -1109,8 +1109,7 @@ void NtshEngn::GraphicsModule::update(double dt) {
 
 	vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_COMPUTE, m_particleComputePipelineLayout, 0, 1, &m_particleComputeDescriptorSets[m_inParticleBufferCurrentIndex], 0, nullptr);
 
-	float deltaTimeFloat = static_cast<float>(dt / 1000.0);
-	vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_particleComputePipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float), &deltaTimeFloat);
+	vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_particleComputePipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float), &dt);
 
 	vkCmdDispatch(m_renderingCommandBuffers[m_currentFrameInFlight], ((m_maxParticlesNumber + 64 - 1) / 64), 1, 1);
 
