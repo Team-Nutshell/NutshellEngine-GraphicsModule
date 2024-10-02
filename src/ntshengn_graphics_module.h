@@ -25,7 +25,7 @@ namespace NtshEngn {
 		GraphicsModule() : GraphicsModuleInterface("NutshellEngine Direct3D 12 Graphics Triangle") {}
 
 		void init();
-		void update(double dt);
+		void update(float dt);
 		void destroy();
 
 		// Loads the mesh described in the mesh parameter in the internal format and returns a unique identifier

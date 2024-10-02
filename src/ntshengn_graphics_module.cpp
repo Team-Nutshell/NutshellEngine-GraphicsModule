@@ -240,7 +240,7 @@ void NtshEngn::GraphicsModule::init() {
 	waitForGPUIDle();
 }
 
-void NtshEngn::GraphicsModule::update(double dt) {
+void NtshEngn::GraphicsModule::update(float dt) {
 	NTSHENGN_UNUSED(dt);
 
 	if (windowModule && !windowModule->isWindowOpen(windowModule->getMainWindowID())) {
