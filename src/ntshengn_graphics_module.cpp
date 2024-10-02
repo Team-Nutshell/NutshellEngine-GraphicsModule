@@ -256,7 +256,7 @@ void NtshEngn::GraphicsModule::init() {
 	wgpuShaderModuleDrop(fragmentShaderModule);
 }
 
-void NtshEngn::GraphicsModule::update(double dt) {
+void NtshEngn::GraphicsModule::update(float dt) {
 	NTSHENGN_UNUSED(dt);
 
 	if ((m_swapChainWidth != static_cast<uint32_t>(windowModule->getWindowWidth(windowModule->getMainWindowID()))) ||
