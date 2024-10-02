@@ -631,7 +631,7 @@ void NtshEngn::GraphicsModule::init() {
 	m_currentFrameInFlight = 0;
 }
 
-void NtshEngn::GraphicsModule::update(double dt) {
+void NtshEngn::GraphicsModule::update(float dt) {
 	NTSHENGN_UNUSED(dt);
 	
 	if (windowModule && (!windowModule->isWindowOpen(windowModule->getMainWindowID()) || ((windowModule->getWindowWidth(windowModule->getMainWindowID()) == 0) || (windowModule->getWindowHeight(windowModule->getMainWindowID()) == 0)))) {
