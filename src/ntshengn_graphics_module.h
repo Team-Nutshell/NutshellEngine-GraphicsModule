@@ -212,7 +212,7 @@ namespace NtshEngn {
 		GraphicsModule() : GraphicsModuleInterface("NutshellEngine Vulkan Path Tracing Graphics Module") {}
 
 		void init();
-		void update(double dt);
+		void update(float dt);
 		void destroy();
 
 		// Loads the mesh described in the mesh parameter in the internal format and returns a unique identifier
