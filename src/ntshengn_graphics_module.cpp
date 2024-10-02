@@ -8,7 +8,7 @@ void NtshEngn::GraphicsModule::init() {
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
-void NtshEngn::GraphicsModule::update(double dt) {
+void NtshEngn::GraphicsModule::update(float dt) {
 	NTSHENGN_UNUSED(dt);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
