@@ -1254,97 +1254,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_meshes[it.second.meshID].indexCount, 1, m_meshes[it.second.meshID].firstIndex, m_meshes[it.second.meshID].vertexOffset, 0);
 	}
 
-	// End rendering
-	m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight]);
-
-	// Synchronization before particles
-	VkImageMemoryBarrier2 colorAttachmentBeforeParticlesImageMemoryBarrier = {};
-	colorAttachmentBeforeParticlesImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-	colorAttachmentBeforeParticlesImageMemoryBarrier.pNext = nullptr;
-	colorAttachmentBeforeParticlesImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-	colorAttachmentBeforeParticlesImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-	colorAttachmentBeforeParticlesImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-	colorAttachmentBeforeParticlesImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-	colorAttachmentBeforeParticlesImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	colorAttachmentBeforeParticlesImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	colorAttachmentBeforeParticlesImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
-	colorAttachmentBeforeParticlesImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
-	colorAttachmentBeforeParticlesImageMemoryBarrier.image = m_colorImage;
-	colorAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	colorAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
-	colorAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.levelCount = 1;
-	colorAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-	colorAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.layerCount = 1;
-
-	VkImageMemoryBarrier2 depthAttachmentBeforeParticlesImageMemoryBarrier = {};
-	depthAttachmentBeforeParticlesImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-	depthAttachmentBeforeParticlesImageMemoryBarrier.pNext = nullptr;
-	depthAttachmentBeforeParticlesImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
-	depthAttachmentBeforeParticlesImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-	depthAttachmentBeforeParticlesImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
-	depthAttachmentBeforeParticlesImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-	depthAttachmentBeforeParticlesImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	depthAttachmentBeforeParticlesImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	depthAttachmentBeforeParticlesImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
-	depthAttachmentBeforeParticlesImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
-	depthAttachmentBeforeParticlesImageMemoryBarrier.image = m_depthImage;
-	depthAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-	depthAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
-	depthAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.levelCount = 1;
-	depthAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-	depthAttachmentBeforeParticlesImageMemoryBarrier.subresourceRange.layerCount = 1;
-
-	std::array<VkImageMemoryBarrier2, 2> beforeParticlesImageMemoryBarriers = { colorAttachmentBeforeParticlesImageMemoryBarrier, depthAttachmentBeforeParticlesImageMemoryBarrier };
-	VkDependencyInfo beforeParticlesDependencyInfo = {};
-	beforeParticlesDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-	beforeParticlesDependencyInfo.pNext = nullptr;
-	beforeParticlesDependencyInfo.dependencyFlags = 0;
-	beforeParticlesDependencyInfo.memoryBarrierCount = 0;
-	beforeParticlesDependencyInfo.pMemoryBarriers = nullptr;
-	beforeParticlesDependencyInfo.bufferMemoryBarrierCount = 0;
-	beforeParticlesDependencyInfo.pBufferMemoryBarriers = nullptr;
-	beforeParticlesDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(beforeParticlesImageMemoryBarriers.size());
-	beforeParticlesDependencyInfo.pImageMemoryBarriers = beforeParticlesImageMemoryBarriers.data();
-	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &beforeParticlesDependencyInfo);
-
 	// Draw particles
-	VkRenderingAttachmentInfo particleRenderingColorAttachmentInfo = {};
-	particleRenderingColorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	particleRenderingColorAttachmentInfo.pNext = nullptr;
-	particleRenderingColorAttachmentInfo.imageView = m_colorImageView;
-	particleRenderingColorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	particleRenderingColorAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
-	particleRenderingColorAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
-	particleRenderingColorAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	particleRenderingColorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-	particleRenderingColorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	particleRenderingColorAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
-
-	VkRenderingAttachmentInfo particleRenderingDepthAttachmentInfo = {};
-	particleRenderingDepthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	particleRenderingDepthAttachmentInfo.pNext = nullptr;
-	particleRenderingDepthAttachmentInfo.imageView = m_depthImageView;
-	particleRenderingDepthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	particleRenderingDepthAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
-	particleRenderingDepthAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
-	particleRenderingDepthAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	particleRenderingDepthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-	particleRenderingDepthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	particleRenderingDepthAttachmentInfo.clearValue.depthStencil = { 1.0f, 0 };
-
-	VkRenderingInfo particleRenderingInfo = {};
-	particleRenderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-	particleRenderingInfo.pNext = nullptr;
-	particleRenderingInfo.flags = 0;
-	particleRenderingInfo.renderArea = m_scissor;
-	particleRenderingInfo.layerCount = 1;
-	particleRenderingInfo.viewMask = 0;
-	particleRenderingInfo.colorAttachmentCount = 1;
-	particleRenderingInfo.pColorAttachments = &particleRenderingColorAttachmentInfo;
-	particleRenderingInfo.pDepthAttachment = &particleRenderingDepthAttachmentInfo;
-	particleRenderingInfo.pStencilAttachment = nullptr;
-	m_vkCmdBeginRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight], &particleRenderingInfo);
-
 	vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_particleGraphicsPipeline);
 	vkCmdSetViewport(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_viewport);
 	vkCmdSetScissor(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_scissor);
@@ -1355,6 +1265,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 
 	vkCmdDrawIndirect(m_renderingCommandBuffers[m_currentFrameInFlight], m_particleDrawIndirectBuffer.handle, 0, 1, 0);
 
+	// End rendering
 	m_vkCmdEndRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight]);
 
 	// Layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
