@@ -49,47 +49,7 @@ void ShadowMapping::init(VkDevice device,
 	createDescriptorSets(objectBuffers, meshBuffer, jointTransformBuffers, materialBuffers);
 }
 
-void ShadowMapping::destroy() {
-	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
-
-	vkDestroyPipeline(m_device, m_spotLightShadowGraphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(m_device, m_spotLightShadowGraphicsPipelineLayout, nullptr);
-
-	vkDestroyPipeline(m_device, m_pointLightShadowGraphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(m_device, m_pointLightShadowGraphicsPipelineLayout, nullptr);
-
-	vkDestroyPipeline(m_device, m_directionalLightShadowGraphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(m_device, m_directionalLightShadowGraphicsPipelineLayout, nullptr);
-
-	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
-
-	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		m_shadowSceneBuffers[i].destroy(m_allocator);
-		m_shadowBuffers[i].destroy(m_allocator);
-	}
-
-	for (auto& spotLightShadowMap : m_spotLightShadowMaps) {
-		spotLightShadowMap.shadowMap.destroy(m_device, m_allocator);
-	}
-	for (auto& pointLightShadowMap : m_pointLightShadowMaps) {
-		pointLightShadowMap.shadowMap.destroy(m_device, m_allocator);
-	}
-	for (auto& directionalLightShadowMap : m_directionalLightShadowMaps) {
-		directionalLightShadowMap.shadowMap.destroy(m_device, m_allocator);
-	}
-	m_dummyShadowMap.destroy(m_device, m_allocator);
-}
-
-void ShadowMapping::draw(VkCommandBuffer commandBuffer,
-	uint32_t currentFrameInFlight,
-	float cameraNearPlane,
-	float cameraFarPlane,
-	const NtshEngn::Math::mat4& cameraView,
-	const NtshEngn::Math::mat4& cameraProjection,
-	const std::unordered_map<NtshEngn::Entity, InternalObject>& objects,
-	const std::vector<InternalMesh>& meshes,
-	VulkanBuffer& vertexBuffer,
-	VulkanBuffer& indexBuffer) {
+void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane, float cameraFarPlane, const NtshEngn::Math::mat4& cameraView, const NtshEngn::Math::mat4& cameraProjection) {
 	std::array<float, SHADOW_MAPPING_CASCADE_COUNT> cascadeSplits;
 
 	const float clipRange = cameraFarPlane - cameraNearPlane;
@@ -215,7 +175,7 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 		NtshEngn::Math::mat4 lightProj = NtshEngn::Math::perspectiveRH(light.cutoff.y * 2.0f, 1.0f, 0.05f, 50.0f);
 		lightProj[1][1] *= -1.0f;
 		m_spotLightShadowMaps[spotLightIndex].viewProj = lightProj * lightView;
-		memcpy(reinterpret_cast<char*>(m_shadowBuffers[currentFrameInFlight].address) + (((m_directionalLightShadowMaps.size() * SHADOW_MAPPING_CASCADE_COUNT) * sizeof(NtshEngn::Math::mat4)) + ((m_pointLightShadowMaps.size() * 6) * sizeof(NtshEngn::Math::mat4)) + (spotLightIndex * sizeof(NtshEngn::Math::mat4))), & m_spotLightShadowMaps[spotLightIndex].viewProj, sizeof(NtshEngn::Math::mat4));
+		memcpy(reinterpret_cast<char*>(m_shadowBuffers[currentFrameInFlight].address) + (((m_directionalLightShadowMaps.size() * SHADOW_MAPPING_CASCADE_COUNT) * sizeof(NtshEngn::Math::mat4)) + ((m_pointLightShadowMaps.size() * 6) * sizeof(NtshEngn::Math::mat4)) + (spotLightIndex * sizeof(NtshEngn::Math::mat4))), &m_spotLightShadowMaps[spotLightIndex].viewProj, sizeof(NtshEngn::Math::mat4));
 	}
 
 	for (size_t directionalLightIndex = 0; directionalLightIndex < m_directionalLightEntities.size(); directionalLightIndex++) {
@@ -232,7 +192,45 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 	for (size_t spotLightIndex = 0; spotLightIndex < m_spotLightEntities.size(); spotLightIndex++) {
 		memcpy(reinterpret_cast<char*>(m_shadowSceneBuffers[currentFrameInFlight].address) + (((m_directionalLightEntities.size() * SHADOW_MAPPING_CASCADE_COUNT) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + ((m_pointLightEntities.size() * 6) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + (spotLightIndex * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4)))), &m_spotLightShadowMaps[spotLightIndex].viewProj, sizeof(NtshEngn::Math::mat4));
 	}
+}
 
+void ShadowMapping::destroy() {
+	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
+
+	vkDestroyPipeline(m_device, m_spotLightShadowGraphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(m_device, m_spotLightShadowGraphicsPipelineLayout, nullptr);
+
+	vkDestroyPipeline(m_device, m_pointLightShadowGraphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(m_device, m_pointLightShadowGraphicsPipelineLayout, nullptr);
+
+	vkDestroyPipeline(m_device, m_directionalLightShadowGraphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(m_device, m_directionalLightShadowGraphicsPipelineLayout, nullptr);
+
+	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
+
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		m_shadowSceneBuffers[i].destroy(m_allocator);
+		m_shadowBuffers[i].destroy(m_allocator);
+	}
+
+	for (auto& spotLightShadowMap : m_spotLightShadowMaps) {
+		spotLightShadowMap.shadowMap.destroy(m_device, m_allocator);
+	}
+	for (auto& pointLightShadowMap : m_pointLightShadowMaps) {
+		pointLightShadowMap.shadowMap.destroy(m_device, m_allocator);
+	}
+	for (auto& directionalLightShadowMap : m_directionalLightShadowMaps) {
+		directionalLightShadowMap.shadowMap.destroy(m_device, m_allocator);
+	}
+	m_dummyShadowMap.destroy(m_device, m_allocator);
+}
+
+void ShadowMapping::draw(VkCommandBuffer commandBuffer,
+	uint32_t currentFrameInFlight,
+	const std::unordered_map<NtshEngn::Entity, InternalObject>& objects,
+	const std::vector<InternalMesh>& meshes,
+	VulkanBuffer& vertexBuffer,
+	VulkanBuffer& indexBuffer) {
 	// Shadow mapping layout transition
 	VkImageMemoryBarrier2 undefinedToDepthStencilAttachmentImageMemoryBarrier = {};
 	undefinedToDepthStencilAttachmentImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;

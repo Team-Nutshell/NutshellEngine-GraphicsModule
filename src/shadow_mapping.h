@@ -40,14 +40,15 @@ public:
 		PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
 		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR,
 		NtshEngn::ECSInterface* ecs);
+	void update(uint32_t currentFrameInFlight,
+		float cameraNearPlane,
+		float cameraFarPlane,
+		const NtshEngn::Math::mat4& cameraView,
+		const NtshEngn::Math::mat4& cameraProjection);
 	void destroy();
 
 	void draw(VkCommandBuffer commandBuffer,
 		uint32_t currentFrameInFlight,
-		float cameraNearPlane,
-		float cameraFarPlane,
-		const NtshEngn::Math::mat4& cameraView,
-		const NtshEngn::Math::mat4& cameraProjection,
 		const std::unordered_map<NtshEngn::Entity, InternalObject>& objects,
 		const std::vector<InternalMesh>& meshes,
 		VulkanBuffer& vertexBuffer,

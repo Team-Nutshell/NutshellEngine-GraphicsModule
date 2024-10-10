@@ -525,7 +525,7 @@ void NtshEngn::GraphicsModule::init() {
 		m_viewport,
 		m_scissor,
 		m_framesInFlight,
-		m_frustumCulling.getPerDrawBuffers(),
+		m_frustumCulling.getCameraPerDrawBuffers(),
 		m_cameraBuffers,
 		m_objectBuffers,
 		m_meshBuffer,
@@ -923,6 +923,8 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	}
 
 	// Update lights buffer
+	std::vector<Math::mat4> lightViewProjs;
+
 	std::array<uint32_t, 4> lightsCount = { static_cast<uint32_t>(m_lights.directionalLights.size()), static_cast<uint32_t>(m_lights.pointLights.size()), static_cast<uint32_t>(m_lights.spotLights.size()), static_cast<uint32_t>(m_lights.ambientLights.size()) };
 	memcpy(m_lightBuffers[m_currentFrameInFlight].address, lightsCount.data(), 4 * sizeof(uint32_t));
 
@@ -1009,6 +1011,13 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		m_uiImageDescriptorSetsNeedUpdate[m_currentFrameInFlight] = false;
 	}
 
+	// Update shadow mapping
+	m_shadowMapping.update(m_currentFrameInFlight,
+		cameraNearPlane,
+		cameraFarPlane,
+		cameraView,
+		cameraProjection);
+
 	// Record rendering commands
 	NTSHENGN_VK_CHECK(vkResetCommandPool(m_device, m_renderingCommandPools[m_currentFrameInFlight], 0));
 
@@ -1092,8 +1101,8 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	if (m_mainCamera != NTSHENGN_ENTITY_UNKNOWN) {
 		drawCount = m_frustumCulling.cull(m_renderingCommandBuffers[m_currentFrameInFlight],
 			m_currentFrameInFlight,
-			cameraView,
-			cameraProjection,
+			cameraProjection * cameraView,
+			lightViewProjs,
 			m_objects,
 			m_meshes
 		);
@@ -1102,7 +1111,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	// Draw G-Buffer
 	m_gBuffer.draw(m_renderingCommandBuffers[m_currentFrameInFlight],
 		m_currentFrameInFlight,
-		m_frustumCulling.getDrawIndirectBuffer(m_currentFrameInFlight),
+		m_frustumCulling.getCameraDrawIndirectBuffer(m_currentFrameInFlight),
 		drawCount,
 		m_vertexBuffer,
 		m_indexBuffer
@@ -1114,10 +1123,6 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	// Draw shadow mapping
 	m_shadowMapping.draw(m_renderingCommandBuffers[m_currentFrameInFlight],
 		m_currentFrameInFlight,
-		cameraNearPlane,
-		cameraFarPlane,
-		cameraView,
-		cameraProjection,
 		m_objects,
 		m_meshes,
 		m_vertexBuffer,

@@ -36,8 +36,8 @@ void FrustumCulling::destroy() {
 
 	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
 
-	m_gpuPerDrawBuffer.destroy(m_allocator);
-	m_gpuDrawIndirectBuffer.destroy(m_allocator);
+	m_gpuCameraPerDrawBuffer.destroy(m_allocator);
+	m_gpuCameraDrawIndirectBuffer.destroy(m_allocator);
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		m_gpuFrustumCullingBuffers[i].destroy(m_allocator);
@@ -45,20 +45,21 @@ void FrustumCulling::destroy() {
 #endif
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		m_perDrawBuffers[i].destroy(m_allocator);
+		m_cameraPerDrawBuffers[i].destroy(m_allocator);
 	}
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		m_drawIndirectBuffers[i].destroy(m_allocator);
+		m_cameraDrawIndirectBuffers[i].destroy(m_allocator);
 	}
 }
 
 uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 	uint32_t currentFrameInFlight,
-	const NtshEngn::Math::mat4& cameraView,
-	const NtshEngn::Math::mat4& cameraProjection,
+	const NtshEngn::Math::mat4& cameraViewProj,
+	const std::vector<NtshEngn::Math::mat4>& lightViewProjs,
 	const std::unordered_map<NtshEngn::Entity, InternalObject>& objects,
 	const std::vector<InternalMesh>& meshes) {
+	NTSHENGN_UNUSED(lightViewProjs);
 #if FRUSTUM_CULLING_TYPE != FRUSTUM_CULLING_GPU
 	NTSHENGN_UNUSED(commandBuffer);
 #endif
@@ -67,13 +68,13 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 	std::vector<uint32_t> perDraw;
 
 #if FRUSTUM_CULLING_TYPE != FRUSTUM_CULLING_DISABLED
-	std::array<NtshEngn::Math::vec4, 6> cameraFrustum = calculateFrustumPlanes(cameraProjection * cameraView);
+	std::array<NtshEngn::Math::vec4, 6> cameraFrustum = calculateFrustumPlanes(cameraViewProj);
 #endif
 
 #if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_CPU_MULTITHREADED
 	std::mutex mutex;
 
-	m_jobSystem->dispatch(static_cast<uint32_t>(objects.size()), (static_cast<uint32_t>(objects.size()) + m_jobSystem->getNumThreads() - 1) / m_jobSystem->getNumThreads(), [this, &drawIndirectCommands, &perDraw, &mutex, &frustum, &objects, &meshes](NtshEngn::JobDispatchArguments args) {
+	m_jobSystem->dispatch(static_cast<uint32_t>(objects.size()), (static_cast<uint32_t>(objects.size()) + m_jobSystem->getNumThreads() - 1) / m_jobSystem->getNumThreads(), [this, &drawIndirectCommands, &perDraw, &mutex, &cameraFrustum, &objects, &meshes](NtshEngn::JobDispatchArguments args) {
 		auto it = objects.begin();
 		std::advance(it, args.jobIndex);
 
@@ -108,17 +109,8 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 		aabbMin = newAABBMin;
 		aabbMax = newAABBMax;
 
-		for (uint8_t i = 0; i < 6; i++) {
-			if (((frustum[i].x * aabbMin.x + frustum[i].y * aabbMin.y + frustum[i].z * aabbMin.z + frustum[i].w) <= 0.0f)
-				&& ((frustum[i].x * aabbMax.x + frustum[i].y * aabbMin.y + frustum[i].z * aabbMin.z + frustum[i].w) <= 0.0f)
-				&& ((frustum[i].x * aabbMin.x + frustum[i].y * aabbMax.y + frustum[i].z * aabbMin.z + frustum[i].w) <= 0.0f)
-				&& ((frustum[i].x * aabbMax.x + frustum[i].y * aabbMax.y + frustum[i].z * aabbMin.z + frustum[i].w) <= 0.0f)
-				&& ((frustum[i].x * aabbMin.x + frustum[i].y * aabbMin.y + frustum[i].z * aabbMax.z + frustum[i].w) <= 0.0f)
-				&& ((frustum[i].x * aabbMax.x + frustum[i].y * aabbMin.y + frustum[i].z * aabbMax.z + frustum[i].w) <= 0.0f)
-				&& ((frustum[i].x * aabbMin.x + frustum[i].y * aabbMax.y + frustum[i].z * aabbMax.z + frustum[i].w) <= 0.0f)
-				&& ((frustum[i].x * aabbMax.x + frustum[i].y * aabbMax.y + frustum[i].z * aabbMax.z + frustum[i].w) <= 0.0f)) {
-				return;
-			}
+		if (!intersect(cameraFrustum, aabbMin, aabbMax)) {
+			return;
 		}
 
 		VkDrawIndexedIndirectCommand drawIndirectCommand;
@@ -168,19 +160,7 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 		aabbMin = newAABBMin;
 		aabbMax = newAABBMax;
 
-		bool inFrustum = true;
-		for (uint8_t i = 0; i < 6; i++) {
-			if (((frustum[i].x * aabbMin.x + frustum[i].y * aabbMin.y + frustum[i].z * aabbMin.z + frustum[i].w) <= 0.0f)
-				&& ((frustum[i].x * aabbMax.x + frustum[i].y * aabbMin.y + frustum[i].z * aabbMin.z + frustum[i].w) <= 0.0f)
-				&& ((frustum[i].x * aabbMin.x + frustum[i].y * aabbMax.y + frustum[i].z * aabbMin.z + frustum[i].w) <= 0.0f)
-				&& ((frustum[i].x * aabbMax.x + frustum[i].y * aabbMax.y + frustum[i].z * aabbMin.z + frustum[i].w) <= 0.0f)
-				&& ((frustum[i].x * aabbMin.x + frustum[i].y * aabbMin.y + frustum[i].z * aabbMax.z + frustum[i].w) <= 0.0f)
-				&& ((frustum[i].x * aabbMax.x + frustum[i].y * aabbMin.y + frustum[i].z * aabbMax.z + frustum[i].w) <= 0.0f)
-				&& ((frustum[i].x * aabbMin.x + frustum[i].y * aabbMax.y + frustum[i].z * aabbMax.z + frustum[i].w) <= 0.0f)
-				&& ((frustum[i].x * aabbMax.x + frustum[i].y * aabbMax.y + frustum[i].z * aabbMax.z + frustum[i].w) <= 0.0f)) {
-				inFrustum = false;
-			}
-		}
+		bool inFrustum = intersect(cameraFrustum, aabbMin, aabbMax);
 
 		if (inFrustum) {
 			VkDrawIndexedIndirectCommand drawIndirectCommand;
@@ -237,10 +217,10 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 #endif
 
 	uint32_t drawIndirectCount = static_cast<uint32_t>(drawIndirectCommands.size());
-	memcpy(m_drawIndirectBuffers[currentFrameInFlight].address, &drawIndirectCount, sizeof(uint32_t));
-	memcpy(reinterpret_cast<char*>(m_drawIndirectBuffers[currentFrameInFlight].address) + sizeof(uint32_t), drawIndirectCommands.data(), sizeof(VkDrawIndexedIndirectCommand) * drawIndirectCommands.size());
+	memcpy(m_cameraDrawIndirectBuffers[currentFrameInFlight].address, &drawIndirectCount, sizeof(uint32_t));
+	memcpy(reinterpret_cast<char*>(m_cameraDrawIndirectBuffers[currentFrameInFlight].address) + sizeof(uint32_t), drawIndirectCommands.data(), sizeof(VkDrawIndexedIndirectCommand) * drawIndirectCommands.size());
 
-	memcpy(m_perDrawBuffers[currentFrameInFlight].address, perDraw.data(), sizeof(uint32_t)* perDraw.size());
+	memcpy(m_cameraPerDrawBuffers[currentFrameInFlight].address, perDraw.data(), sizeof(uint32_t)* perDraw.size());
 
 #if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
 	memcpy(m_gpuFrustumCullingBuffers[currentFrameInFlight].address, cameraFrustum.data(), sizeof(NtshEngn::Math::vec4) * 6);
@@ -255,7 +235,7 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 	beforeFillBufferDrawCountMemoryBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 	beforeFillBufferDrawCountMemoryBarrier.srcQueueFamilyIndex = m_computeQueueFamilyIndex;
 	beforeFillBufferDrawCountMemoryBarrier.dstQueueFamilyIndex = m_computeQueueFamilyIndex;
-	beforeFillBufferDrawCountMemoryBarrier.buffer = m_gpuDrawIndirectBuffer.handle;
+	beforeFillBufferDrawCountMemoryBarrier.buffer = m_gpuCameraDrawIndirectBuffer.handle;
 	beforeFillBufferDrawCountMemoryBarrier.offset = 0;
 	beforeFillBufferDrawCountMemoryBarrier.size = sizeof(uint32_t);
 
@@ -268,7 +248,7 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 	beforeFillBufferDrawIndirectMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
 	beforeFillBufferDrawIndirectMemoryBarrier.srcQueueFamilyIndex = m_computeQueueFamilyIndex;
 	beforeFillBufferDrawIndirectMemoryBarrier.dstQueueFamilyIndex = m_computeQueueFamilyIndex;
-	beforeFillBufferDrawIndirectMemoryBarrier.buffer = m_gpuDrawIndirectBuffer.handle;
+	beforeFillBufferDrawIndirectMemoryBarrier.buffer = m_gpuCameraDrawIndirectBuffer.handle;
 	beforeFillBufferDrawIndirectMemoryBarrier.offset = sizeof(uint32_t);
 	beforeFillBufferDrawIndirectMemoryBarrier.size = 65536 - sizeof(uint32_t);
 
@@ -285,7 +265,7 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 	beforeFillBufferDependencyInfo.pImageMemoryBarriers = nullptr;
 	m_vkCmdPipelineBarrier2KHR(commandBuffer, &beforeFillBufferDependencyInfo);
 
-	vkCmdFillBuffer(commandBuffer, m_gpuDrawIndirectBuffer.handle, 0, sizeof(uint32_t), 0);
+	vkCmdFillBuffer(commandBuffer, m_gpuCameraDrawIndirectBuffer.handle, 0, sizeof(uint32_t), 0);
 
 	VkBufferMemoryBarrier2 beforeDispatchDrawIndirectBufferMemoryBarrier = {};
 	beforeDispatchDrawIndirectBufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
@@ -296,7 +276,7 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 	beforeDispatchDrawIndirectBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
 	beforeDispatchDrawIndirectBufferMemoryBarrier.srcQueueFamilyIndex = m_computeQueueFamilyIndex;
 	beforeDispatchDrawIndirectBufferMemoryBarrier.dstQueueFamilyIndex = m_computeQueueFamilyIndex;
-	beforeDispatchDrawIndirectBufferMemoryBarrier.buffer = m_gpuDrawIndirectBuffer.handle;
+	beforeDispatchDrawIndirectBufferMemoryBarrier.buffer = m_gpuCameraDrawIndirectBuffer.handle;
 	beforeDispatchDrawIndirectBufferMemoryBarrier.offset = 0;
 	beforeDispatchDrawIndirectBufferMemoryBarrier.size = sizeof(uint32_t);
 
@@ -309,7 +289,7 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 	beforeDispatchPerDrawBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
 	beforeDispatchPerDrawBufferMemoryBarrier.srcQueueFamilyIndex = m_computeQueueFamilyIndex;
 	beforeDispatchPerDrawBufferMemoryBarrier.dstQueueFamilyIndex = m_computeQueueFamilyIndex;
-	beforeDispatchPerDrawBufferMemoryBarrier.buffer = m_gpuPerDrawBuffer.handle;
+	beforeDispatchPerDrawBufferMemoryBarrier.buffer = m_gpuCameraPerDrawBuffer.handle;
 	beforeDispatchPerDrawBufferMemoryBarrier.offset = 0;
 	beforeDispatchPerDrawBufferMemoryBarrier.size = 32768;
 
@@ -340,7 +320,7 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 	drawIndirectBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
 	drawIndirectBufferMemoryBarrier.srcQueueFamilyIndex = m_computeQueueFamilyIndex;
 	drawIndirectBufferMemoryBarrier.dstQueueFamilyIndex = m_computeQueueFamilyIndex;
-	drawIndirectBufferMemoryBarrier.buffer = m_gpuDrawIndirectBuffer.handle;
+	drawIndirectBufferMemoryBarrier.buffer = m_gpuCameraDrawIndirectBuffer.handle;
 	drawIndirectBufferMemoryBarrier.offset = 0;
 	drawIndirectBufferMemoryBarrier.size = 65536;
 
@@ -353,7 +333,7 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 	perDrawBufferMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
 	perDrawBufferMemoryBarrier.srcQueueFamilyIndex = m_computeQueueFamilyIndex;
 	perDrawBufferMemoryBarrier.dstQueueFamilyIndex = m_computeQueueFamilyIndex;
-	perDrawBufferMemoryBarrier.buffer = m_gpuPerDrawBuffer.handle;
+	perDrawBufferMemoryBarrier.buffer = m_gpuCameraPerDrawBuffer.handle;
 	perDrawBufferMemoryBarrier.offset = 0;
 	perDrawBufferMemoryBarrier.size = 32768;
 
@@ -374,28 +354,28 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 	return drawIndirectCount;
 }
 
-VulkanBuffer& FrustumCulling::getDrawIndirectBuffer(uint32_t frameInFlight) {
+VulkanBuffer& FrustumCulling::getCameraDrawIndirectBuffer(uint32_t frameInFlight) {
 #if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
 	NTSHENGN_UNUSED(frameInFlight);
 
-	return m_gpuDrawIndirectBuffer;
+	return m_gpuCameraDrawIndirectBuffer;
 #else
-	return m_drawIndirectBuffers[frameInFlight];
+	return m_cameraDrawIndirectBuffers[frameInFlight];
 #endif
 }
 
-std::vector<VkBuffer> FrustumCulling::getPerDrawBuffers() {
+std::vector<VkBuffer> FrustumCulling::getCameraPerDrawBuffers() {
 #if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
-	const std::vector<VkBuffer> gpuPerDrawBuffers(m_framesInFlight, m_gpuPerDrawBuffer.handle);
+	const std::vector<VkBuffer> gpuCameraPerDrawBuffers(m_framesInFlight, m_gpuCameraPerDrawBuffer.handle);
 
-	return gpuPerDrawBuffers;
+	return gpuCameraPerDrawBuffers;
 #else
-	std::vector<VkBuffer> perDrawBuffer;
-	for (size_t i = 0; i < m_perDrawBuffers.size(); i++) {
-		perDrawBuffer.push_back(m_perDrawBuffers[i].handle);
+	std::vector<VkBuffer> cameraPerDrawBuffer;
+	for (size_t i = 0; i < m_cameraPerDrawBuffers.size(); i++) {
+		cameraPerDrawBuffer.push_back(m_cameraPerDrawBuffers[i].handle);
 	}
 
-	return perDrawBuffer;
+	return cameraPerDrawBuffer;
 #endif
 }
 
@@ -414,24 +394,24 @@ void FrustumCulling::createBuffers() {
 	bufferAllocationCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
 	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 
-	// Create draw indirect buffers
-	m_drawIndirectBuffers.resize(m_framesInFlight);
+	// Create camera draw indirect buffers
+	m_cameraDrawIndirectBuffers.resize(m_framesInFlight);
 	bufferCreateInfo.size = 65536;
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_drawIndirectBuffers[i].handle, &m_drawIndirectBuffers[i].allocation, &allocationInfo));
-		m_drawIndirectBuffers[i].address = allocationInfo.pMappedData;
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_cameraDrawIndirectBuffers[i].handle, &m_cameraDrawIndirectBuffers[i].allocation, &allocationInfo));
+		m_cameraDrawIndirectBuffers[i].address = allocationInfo.pMappedData;
 	}
 
-	// Create per draw buffers
-	m_perDrawBuffers.resize(m_framesInFlight);
+	// Create camera per draw buffers
+	m_cameraPerDrawBuffers.resize(m_framesInFlight);
 	bufferCreateInfo.size = 32768;
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_perDrawBuffers[i].handle, &m_perDrawBuffers[i].allocation, &allocationInfo));
-		m_perDrawBuffers[i].address = allocationInfo.pMappedData;
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_cameraPerDrawBuffers[i].handle, &m_cameraPerDrawBuffers[i].allocation, &allocationInfo));
+		m_cameraPerDrawBuffers[i].address = allocationInfo.pMappedData;
 	}
 
 #if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
@@ -445,23 +425,23 @@ void FrustumCulling::createBuffers() {
 		m_gpuFrustumCullingBuffers[i].address = allocationInfo.pMappedData;
 	}
 
-	// Create GPU draw indirect buffer
+	// Create GPU camera draw indirect buffer
 	bufferCreateInfo.size = 65536;
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
 	bufferAllocationCreateInfo.flags = 0;
 	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_gpuDrawIndirectBuffer.handle, &m_gpuDrawIndirectBuffer.allocation, nullptr));
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_gpuCameraDrawIndirectBuffer.handle, &m_gpuCameraDrawIndirectBuffer.allocation, nullptr));
 
-	// Create GPU per draw buffer
+	// Create GPU camera per draw buffer
 	bufferCreateInfo.size = 32768;
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
 	bufferAllocationCreateInfo.flags = 0;
 	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_gpuPerDrawBuffer.handle, &m_gpuPerDrawBuffer.allocation, nullptr));
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_gpuCameraPerDrawBuffer.handle, &m_gpuCameraPerDrawBuffer.allocation, nullptr));
 #endif
 }
 
@@ -732,7 +712,7 @@ void FrustumCulling::createDescriptorSets() {
 		writeDescriptorSets.push_back(frustumCullingDescriptorWriteDescriptorSet);
 
 		VkDescriptorBufferInfo inDrawIndirectDescriptorBufferInfo;
-		inDrawIndirectDescriptorBufferInfo.buffer = m_drawIndirectBuffers[i].handle;
+		inDrawIndirectDescriptorBufferInfo.buffer = m_cameraDrawIndirectBuffers[i].handle;
 		inDrawIndirectDescriptorBufferInfo.offset = 0;
 		inDrawIndirectDescriptorBufferInfo.range = 65536;
 
@@ -750,7 +730,7 @@ void FrustumCulling::createDescriptorSets() {
 		writeDescriptorSets.push_back(inDrawIndirectDescriptorWriteDescriptorSet);
 
 		VkDescriptorBufferInfo outDrawIndirectDescriptorBufferInfo;
-		outDrawIndirectDescriptorBufferInfo.buffer = m_gpuDrawIndirectBuffer.handle;
+		outDrawIndirectDescriptorBufferInfo.buffer = m_gpuCameraDrawIndirectBuffer.handle;
 		outDrawIndirectDescriptorBufferInfo.offset = 0;
 		outDrawIndirectDescriptorBufferInfo.range = 65536;
 
@@ -768,7 +748,7 @@ void FrustumCulling::createDescriptorSets() {
 		writeDescriptorSets.push_back(outDrawIndirectDescriptorWriteDescriptorSet);
 
 		VkDescriptorBufferInfo inPerDrawDescriptorBufferInfo;
-		inPerDrawDescriptorBufferInfo.buffer = m_perDrawBuffers[i].handle;
+		inPerDrawDescriptorBufferInfo.buffer = m_cameraPerDrawBuffers[i].handle;
 		inPerDrawDescriptorBufferInfo.offset = 0;
 		inPerDrawDescriptorBufferInfo.range = 32768;
 
@@ -786,7 +766,7 @@ void FrustumCulling::createDescriptorSets() {
 		writeDescriptorSets.push_back(inPerDrawDescriptorWriteDescriptorSet);
 
 		VkDescriptorBufferInfo outPerDrawDescriptorBufferInfo;
-		outPerDrawDescriptorBufferInfo.buffer = m_gpuPerDrawBuffer.handle;
+		outPerDrawDescriptorBufferInfo.buffer = m_gpuCameraPerDrawBuffer.handle;
 		outPerDrawDescriptorBufferInfo.offset = 0;
 		outPerDrawDescriptorBufferInfo.range = 32768;
 
@@ -849,4 +829,21 @@ std::array<NtshEngn::Math::vec4, 6> FrustumCulling::calculateFrustumPlanes(const
 	}
 
 	return frustum;
+}
+
+bool FrustumCulling::intersect(const std::array<NtshEngn::Math::vec4, 6>& frustum, const NtshEngn::Math::vec3& aabbMin, const NtshEngn::Math::vec3& aabbMax) {
+	for (uint8_t i = 0; i < 6; i++) {
+		if (((frustum[i].x * aabbMin.x + frustum[i].y * aabbMin.y + frustum[i].z * aabbMin.z + frustum[i].w) <= 0.0f)
+			&& ((frustum[i].x * aabbMax.x + frustum[i].y * aabbMin.y + frustum[i].z * aabbMin.z + frustum[i].w) <= 0.0f)
+			&& ((frustum[i].x * aabbMin.x + frustum[i].y * aabbMax.y + frustum[i].z * aabbMin.z + frustum[i].w) <= 0.0f)
+			&& ((frustum[i].x * aabbMax.x + frustum[i].y * aabbMax.y + frustum[i].z * aabbMin.z + frustum[i].w) <= 0.0f)
+			&& ((frustum[i].x * aabbMin.x + frustum[i].y * aabbMin.y + frustum[i].z * aabbMax.z + frustum[i].w) <= 0.0f)
+			&& ((frustum[i].x * aabbMax.x + frustum[i].y * aabbMin.y + frustum[i].z * aabbMax.z + frustum[i].w) <= 0.0f)
+			&& ((frustum[i].x * aabbMin.x + frustum[i].y * aabbMax.y + frustum[i].z * aabbMax.z + frustum[i].w) <= 0.0f)
+			&& ((frustum[i].x * aabbMax.x + frustum[i].y * aabbMax.y + frustum[i].z * aabbMax.z + frustum[i].w) <= 0.0f)) {
+			return false;
+		}
+	}
+
+	return true;
 }

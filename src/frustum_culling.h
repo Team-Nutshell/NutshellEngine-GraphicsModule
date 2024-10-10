@@ -26,13 +26,13 @@ public:
 
 	uint32_t cull(VkCommandBuffer commandBuffer,
 		uint32_t currentFrameInFlight,
-		const NtshEngn::Math::mat4& cameraView,
-		const NtshEngn::Math::mat4& cameraProjection,
+		const NtshEngn::Math::mat4& cameraViewProj,
+		const std::vector<NtshEngn::Math::mat4>& lightViewProjs,
 		const std::unordered_map<NtshEngn::Entity, InternalObject>& objects,
 		const std::vector<InternalMesh>& meshes);
 
-	VulkanBuffer& getDrawIndirectBuffer(uint32_t frameInFlight);
-	std::vector<VkBuffer> getPerDrawBuffers();
+	VulkanBuffer& getCameraDrawIndirectBuffer(uint32_t frameInFlight);
+	std::vector<VkBuffer> getCameraPerDrawBuffers();
 
 private:
 	void createBuffers();
@@ -47,14 +47,16 @@ private:
 
 	std::array<NtshEngn::Math::vec4, 6> calculateFrustumPlanes(const NtshEngn::Math::mat4& viewProj);
 
+	bool intersect(const std::array<NtshEngn::Math::vec4, 6>& frustum, const NtshEngn::Math::vec3& aabbMin, const NtshEngn::Math::vec3& aabbMax);
+
 private:
-	std::vector<HostVisibleVulkanBuffer> m_drawIndirectBuffers;
-	std::vector<HostVisibleVulkanBuffer> m_perDrawBuffers;
+	std::vector<HostVisibleVulkanBuffer> m_cameraDrawIndirectBuffers;
+	std::vector<HostVisibleVulkanBuffer> m_cameraPerDrawBuffers;
 
 #if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
 	std::vector<HostVisibleVulkanBuffer> m_gpuFrustumCullingBuffers;
-	VulkanBuffer m_gpuDrawIndirectBuffer;
-	VulkanBuffer m_gpuPerDrawBuffer;
+	VulkanBuffer m_gpuCameraDrawIndirectBuffer;
+	VulkanBuffer m_gpuCameraPerDrawBuffer;
 
 	VkDescriptorSetLayout m_descriptorSetLayout;
 
