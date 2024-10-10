@@ -45,6 +45,8 @@ private:
 	void createDescriptorSets();
 #endif
 
+	std::array<NtshEngn::Math::vec4, 6> calculateFrustumPlanes(const NtshEngn::Math::mat4& viewProj);
+
 private:
 	std::vector<HostVisibleVulkanBuffer> m_drawIndirectBuffers;
 	std::vector<HostVisibleVulkanBuffer> m_perDrawBuffers;

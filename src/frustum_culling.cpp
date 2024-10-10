@@ -67,46 +67,7 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 	std::vector<uint32_t> perDraw;
 
 #if FRUSTUM_CULLING_TYPE != FRUSTUM_CULLING_DISABLED
-	const NtshEngn::Math::mat4 viewProj = cameraProjection * cameraView;
-
-	std::array<NtshEngn::Math::vec4, 6> frustum;
-	frustum[0].x = viewProj[0][3] + viewProj[0][0];
-	frustum[0].y = viewProj[1][3] + viewProj[1][0];
-	frustum[0].z = viewProj[2][3] + viewProj[2][0];
-	frustum[0].w = viewProj[3][3] + viewProj[3][0];
-
-	frustum[1].x = viewProj[0][3] - viewProj[0][0];
-	frustum[1].y = viewProj[1][3] - viewProj[1][0];
-	frustum[1].z = viewProj[2][3] - viewProj[2][0];
-	frustum[1].w = viewProj[3][3] - viewProj[3][0];
-
-	frustum[2].x = viewProj[0][3] + viewProj[0][1];
-	frustum[2].y = viewProj[1][3] + viewProj[1][1];
-	frustum[2].z = viewProj[2][3] + viewProj[2][1];
-	frustum[2].w = viewProj[3][3] + viewProj[3][1];
-
-	frustum[3].x = viewProj[0][3] - viewProj[0][1];
-	frustum[3].y = viewProj[1][3] - viewProj[1][1];
-	frustum[3].z = viewProj[2][3] - viewProj[2][1];
-	frustum[3].w = viewProj[3][3] - viewProj[3][1];
-
-	frustum[4].x = viewProj[0][3] + viewProj[0][2];
-	frustum[4].y = viewProj[1][3] + viewProj[1][2];
-	frustum[4].z = viewProj[2][3] + viewProj[2][2];
-	frustum[4].w = viewProj[3][3] + viewProj[3][2];
-
-	frustum[5].x = viewProj[0][3] - viewProj[0][2];
-	frustum[5].y = viewProj[1][3] - viewProj[1][2];
-	frustum[5].z = viewProj[2][3] - viewProj[2][2];
-	frustum[5].w = viewProj[3][3] - viewProj[3][2];
-
-	for (uint8_t i = 0; i < 6; i++) {
-		const float magnitude = NtshEngn::Math::vec3(frustum[i]).length();
-		frustum[i].x /= magnitude;
-		frustum[i].y /= magnitude;
-		frustum[i].z /= magnitude;
-		frustum[i].w /= magnitude;
-	}
+	std::array<NtshEngn::Math::vec4, 6> cameraFrustum = calculateFrustumPlanes(cameraProjection * cameraView);
 #endif
 
 #if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_CPU_MULTITHREADED
@@ -282,7 +243,7 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 	memcpy(m_perDrawBuffers[currentFrameInFlight].address, perDraw.data(), sizeof(uint32_t)* perDraw.size());
 
 #if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
-	memcpy(m_gpuFrustumCullingBuffers[currentFrameInFlight].address, frustum.data(), sizeof(NtshEngn::Math::vec4) * 6);
+	memcpy(m_gpuFrustumCullingBuffers[currentFrameInFlight].address, cameraFrustum.data(), sizeof(NtshEngn::Math::vec4) * 6);
 	memcpy(reinterpret_cast<char*>(m_gpuFrustumCullingBuffers[currentFrameInFlight].address) + sizeof(NtshEngn::Math::vec4) * 6, frustumCullingObjects.data(), sizeof(FrustumCullingObject) * frustumCullingObjects.size());
 
 	VkBufferMemoryBarrier2 beforeFillBufferDrawCountMemoryBarrier = {};
@@ -846,3 +807,46 @@ void FrustumCulling::createDescriptorSets() {
 	}
 }
 #endif
+
+std::array<NtshEngn::Math::vec4, 6> FrustumCulling::calculateFrustumPlanes(const NtshEngn::Math::mat4& viewProj) {
+	std::array<NtshEngn::Math::vec4, 6> frustum;
+	frustum[0].x = viewProj[0][3] + viewProj[0][0];
+	frustum[0].y = viewProj[1][3] + viewProj[1][0];
+	frustum[0].z = viewProj[2][3] + viewProj[2][0];
+	frustum[0].w = viewProj[3][3] + viewProj[3][0];
+
+	frustum[1].x = viewProj[0][3] - viewProj[0][0];
+	frustum[1].y = viewProj[1][3] - viewProj[1][0];
+	frustum[1].z = viewProj[2][3] - viewProj[2][0];
+	frustum[1].w = viewProj[3][3] - viewProj[3][0];
+
+	frustum[2].x = viewProj[0][3] + viewProj[0][1];
+	frustum[2].y = viewProj[1][3] + viewProj[1][1];
+	frustum[2].z = viewProj[2][3] + viewProj[2][1];
+	frustum[2].w = viewProj[3][3] + viewProj[3][1];
+
+	frustum[3].x = viewProj[0][3] - viewProj[0][1];
+	frustum[3].y = viewProj[1][3] - viewProj[1][1];
+	frustum[3].z = viewProj[2][3] - viewProj[2][1];
+	frustum[3].w = viewProj[3][3] - viewProj[3][1];
+
+	frustum[4].x = viewProj[0][3] + viewProj[0][2];
+	frustum[4].y = viewProj[1][3] + viewProj[1][2];
+	frustum[4].z = viewProj[2][3] + viewProj[2][2];
+	frustum[4].w = viewProj[3][3] + viewProj[3][2];
+
+	frustum[5].x = viewProj[0][3] - viewProj[0][2];
+	frustum[5].y = viewProj[1][3] - viewProj[1][2];
+	frustum[5].z = viewProj[2][3] - viewProj[2][2];
+	frustum[5].w = viewProj[3][3] - viewProj[3][2];
+
+	for (uint8_t i = 0; i < 6; i++) {
+		const float magnitude = NtshEngn::Math::vec3(frustum[i]).length();
+		frustum[i].x /= magnitude;
+		frustum[i].y /= magnitude;
+		frustum[i].z /= magnitude;
+		frustum[i].w /= magnitude;
+	}
+
+	return frustum;
+}
