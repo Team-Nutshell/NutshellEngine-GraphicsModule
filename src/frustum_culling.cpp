@@ -601,7 +601,7 @@ void FrustumCulling::createComputePipeline() {
 				outPerDraw.info[drawIndex] = inPerDraw.info[objectIndex];
 			}
 		}
-    )GLSL";
+	)GLSL";
 	const std::vector<uint32_t> computeShaderSpv = compileShader(computeShaderCode, ShaderType::Compute);
 
 	VkShaderModule computeShaderModule;
