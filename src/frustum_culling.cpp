@@ -498,6 +498,10 @@ void FrustumCulling::createComputePipeline() {
 
 		layout(local_size_x = 64) in;
 
+		struct Frustum {
+			vec4 planes[6];
+		};
+
 		struct ObjectInfo {
 			vec3 position;
 			mat4 rotation;
@@ -507,7 +511,7 @@ void FrustumCulling::createComputePipeline() {
 		};
 
 		layout(set = 0, binding = 0) restrict readonly buffer FrustumCulling {
-			vec4 frustum[6];
+			Frustum cameraFrustum;
 			ObjectInfo objectInfo[];
 		} frustumCulling;
 
@@ -541,7 +545,7 @@ void FrustumCulling::createComputePipeline() {
 			PerDrawInfo info[];
 		} outPerDraw;
 
-		bool intersect(vec3 aabbMin, vec3 aabbMax) {
+		bool intersect(Frustum frustum, vec3 aabbMin, vec3 aabbMax) {
 			const vec3 mmm = vec3(aabbMin.x, aabbMin.y, aabbMin.z);
 			const vec3 Mmm = vec3(aabbMax.x, aabbMin.y, aabbMin.z);
 			const vec3 mMm = vec3(aabbMin.x, aabbMax.y, aabbMin.z);
@@ -551,14 +555,14 @@ void FrustumCulling::createComputePipeline() {
 			const vec3 mMM = vec3(aabbMin.x, aabbMax.y, aabbMax.z);
 			const vec3 MMM = vec3(aabbMax.x, aabbMax.y, aabbMax.z);
 			for (uint i = 0; i < 6; i++) {
-				if (((dot(frustumCulling.frustum[i].xyz, mmm) + frustumCulling.frustum[i].w) <= 0.0f)
-					&& ((dot(frustumCulling.frustum[i].xyz, Mmm) + frustumCulling.frustum[i].w) <= 0.0f)
-					&& ((dot(frustumCulling.frustum[i].xyz, mMm) + frustumCulling.frustum[i].w) <= 0.0f)
-					&& ((dot(frustumCulling.frustum[i].xyz, MMm) + frustumCulling.frustum[i].w) <= 0.0f)
-					&& ((dot(frustumCulling.frustum[i].xyz, mmM) + frustumCulling.frustum[i].w) <= 0.0f)
-					&& ((dot(frustumCulling.frustum[i].xyz, MmM) + frustumCulling.frustum[i].w) <= 0.0f)
-					&& ((dot(frustumCulling.frustum[i].xyz, mMM) + frustumCulling.frustum[i].w) <= 0.0f)
-					&& ((dot(frustumCulling.frustum[i].xyz, MMM) + frustumCulling.frustum[i].w) <= 0.0f)) {
+				if (((dot(frustum.planes[i].xyz, mmm) + frustum.planes[i].w) <= 0.0f)
+					&& ((dot(frustum.planes[i].xyz, Mmm) + frustum.planes[i].w) <= 0.0f)
+					&& ((dot(frustum.planes[i].xyz, mMm) + frustum.planes[i].w) <= 0.0f)
+					&& ((dot(frustum.planes[i].xyz, MMm) + frustum.planes[i].w) <= 0.0f)
+					&& ((dot(frustum.planes[i].xyz, mmM) + frustum.planes[i].w) <= 0.0f)
+					&& ((dot(frustum.planes[i].xyz, MmM) + frustum.planes[i].w) <= 0.0f)
+					&& ((dot(frustum.planes[i].xyz, mMM) + frustum.planes[i].w) <= 0.0f)
+					&& ((dot(frustum.planes[i].xyz, MMM) + frustum.planes[i].w) <= 0.0f)) {
 					return false;
 				}
 			}
@@ -594,7 +598,7 @@ void FrustumCulling::createComputePipeline() {
 			aabbMin = newAABBMin;
 			aabbMax = newAABBMax;
 
-			if (intersect(aabbMin, aabbMax)) {
+			if (intersect(frustumCulling.cameraFrustum, aabbMin, aabbMax)) {
 				uint drawIndex = atomicAdd(outDrawIndirect.drawCount, 1);
 
 				outDrawIndirect.commands[drawIndex] = inDrawIndirect.commands[objectIndex];
