@@ -295,6 +295,7 @@ namespace NtshEngn {
 
 		PFN_vkCmdBeginRenderingKHR m_vkCmdBeginRenderingKHR;
 		PFN_vkCmdEndRenderingKHR m_vkCmdEndRenderingKHR;
+		PFN_vkCmdDrawIndexedIndirectCountKHR m_vkCmdDrawIndexedIndirectCountKHR;
 		PFN_vkCmdPipelineBarrier2KHR m_vkCmdPipelineBarrier2KHR;
 
 		uint32_t m_imageCount;

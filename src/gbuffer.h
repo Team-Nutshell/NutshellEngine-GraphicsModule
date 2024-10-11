@@ -13,7 +13,7 @@ public:
 		VkViewport viewport,
 		VkRect2D scissor,
 		uint32_t framesInFlight,
-		const std::vector<VkBuffer>& perDrawBuffers,
+		VkDescriptorSetLayout frustumCullingDescriptorSet1Layout,
 		const std::vector<HostVisibleVulkanBuffer>& cameraBuffers,
 		const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
 		VulkanBuffer meshBuffer,
@@ -21,12 +21,13 @@ public:
 		const std::vector<HostVisibleVulkanBuffer>& materialBuffers,
 		PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 		PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
+		PFN_vkCmdDrawIndexedIndirectCountKHR vkCmdDrawIndexedIndirectCountKHR,
 		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
+	void update(const NtshEngn::Math::mat4& cameraViewProj);
 	void destroy();
 
 	void draw(VkCommandBuffer commandBuffer,
 		uint32_t currentFrameInFlight,
-		VulkanBuffer& drawIndirectBuffer,
 		uint32_t drawIndirectCount,
 		VulkanBuffer vertexBuffer,
 		VulkanBuffer indexBuffer);
@@ -46,6 +47,8 @@ public:
 	VulkanImage& getEmissive();
 	VulkanImage& getDepth();
 
+	FrustumCullingInfo& getFrustumCullingInfo();
+
 private:
 	void createImages(uint32_t width, uint32_t height);
 	void destroyImages();
@@ -54,12 +57,13 @@ private:
 
 	void createGraphicsPipeline();
 
-	void createDescriptorSets(const std::vector<VkBuffer>& perDrawBuffers,
-		const std::vector<HostVisibleVulkanBuffer>& cameraBuffers,
+	void createDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& cameraBuffers,
 		const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
 		VulkanBuffer meshBuffer,
 		const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers,
 		const std::vector<HostVisibleVulkanBuffer>& materialBuffers);
+
+	void createFrustumCullingInfo(VkDescriptorSetLayout frustumCullingDescriptorSet1Layout);
 
 private:
 	VulkanImage m_position;
@@ -77,6 +81,9 @@ private:
 	VkDescriptorPool m_descriptorPool;
 	std::vector<VkDescriptorSet> m_descriptorSets;
 	std::vector<bool> m_descriptorSetsNeedUpdate;
+
+	VkDescriptorPool m_cameraFrustumCullingDescriptorPool;
+	FrustumCullingInfo m_frustumCullingInfo;
 
 	VkDevice m_device;
 	VkQueue m_graphicsQueue;

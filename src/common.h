@@ -23,12 +23,6 @@
 #include <vector>
 #include <unordered_map>
 
-#define FRUSTUM_CULLING_DISABLED 0
-#define FRUSTUM_CULLING_CPU_SINGLETHREADED 1
-#define FRUSTUM_CULLING_CPU_MULTITHREADED 2
-#define FRUSTUM_CULLING_GPU 3
-#define FRUSTUM_CULLING_TYPE FRUSTUM_CULLING_GPU
-
 #define SHADOW_MAPPING_RESOLUTION 2048
 #define SHADOW_MAPPING_CASCADE_COUNT 3
 #define SHADOW_MAPPING_CASCADE_SPLIT_LAMBDA 0.7f
@@ -157,6 +151,12 @@ struct VulkanBuffer {
 
 struct HostVisibleVulkanBuffer : public VulkanBuffer {
 	void* address;
+};
+
+struct FrustumCullingInfo {
+	NtshEngn::Math::mat4 viewProj;
+	VkDescriptorSet descriptorSet;
+	VulkanBuffer drawIndirectBuffer;
 };
 
 struct Particle {

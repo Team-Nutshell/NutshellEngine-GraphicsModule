@@ -2,24 +2,40 @@
 #include "common.h"
 #include <map>
 
-struct ShadowCascade {
+struct DirectionalLightShadowCascade {
 	NtshEngn::Math::mat4 viewProj;
 	float splitDepth;
+	FrustumCullingInfo frustumCullingInfo;
+	VkDescriptorSet perDrawDescriptorSet;
 };
 
 struct DirectionalLightShadowMap {
 	VulkanImage shadowMap;
-	std::array<ShadowCascade, SHADOW_MAPPING_CASCADE_COUNT> cascades;
+	std::array<DirectionalLightShadowCascade, SHADOW_MAPPING_CASCADE_COUNT> cascades;
+	VkDescriptorPool frustumCullingDescriptorPool;
+	VkDescriptorPool perDrawDescriptorPool;
+};
+
+struct PointLightShadowFace {
+	NtshEngn::Math::mat4 viewProj;
+	FrustumCullingInfo frustumCullingInfo;
+	VkDescriptorSet perDrawDescriptorSet;
 };
 
 struct PointLightShadowMap {
 	VulkanImage shadowMap;
-	std::array<NtshEngn::Math::mat4, 6> viewProjs;
+	std::array<PointLightShadowFace, 6> faces;
+	VkDescriptorPool frustumCullingDescriptorPool;
+	VkDescriptorPool perDrawDescriptorPool;
 };
 
 struct SpotLightShadowMap {
 	VulkanImage shadowMap;
 	NtshEngn::Math::mat4 viewProj;
+	FrustumCullingInfo frustumCullingInfo;
+	VkDescriptorPool frustumCullingDescriptorPool;
+	VkDescriptorPool perDrawDescriptorPool;
+	VkDescriptorSet perDrawDescriptorSet;
 };
 
 class ShadowMapping {
@@ -32,12 +48,14 @@ public:
 		VkCommandBuffer initializationCommandBuffer,
 		VkFence initializationFence,
 		uint32_t framesInFlight,
+		VkDescriptorSetLayout frustumCullingDescriptorSet1Layout,
 		const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
 		VulkanBuffer meshBuffer,
 		const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers,
 		const std::vector<HostVisibleVulkanBuffer>& materialBuffers,
 		PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 		PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
+		PFN_vkCmdDrawIndexedIndirectCountKHR vkCmdDrawIndexedIndirectCountKHR,
 		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR,
 		NtshEngn::ECSInterface* ecs);
 	void update(uint32_t currentFrameInFlight,
@@ -49,8 +67,7 @@ public:
 
 	void draw(VkCommandBuffer commandBuffer,
 		uint32_t currentFrameInFlight,
-		const std::unordered_map<NtshEngn::Entity, InternalObject>& objects,
-		const std::vector<InternalMesh>& meshes,
+		uint32_t drawIndirectCount,
 		VulkanBuffer& vertexBuffer,
 		VulkanBuffer& indexBuffer);
 
@@ -72,10 +89,14 @@ public:
 	VulkanBuffer& getShadowSceneBuffer(uint32_t frameInFlight);
 	std::vector<VulkanImage> getShadowMapImages();
 
+	std::vector<FrustumCullingInfo> getFrustumCullingInfos();
+
 private:
 	void createImageAndBuffers();
 
 	void createDescriptorSetLayout();
+	void createDescriptorSet0Layout();
+	void createDescriptorSet1Layout();
 
 	void createGraphicsPipelines();
 	void createDirectionalLightShadowGraphicsPipeline();
@@ -99,7 +120,8 @@ private:
 	std::vector<NtshEngn::Entity> m_spotLightEntities;
 	std::vector<SpotLightShadowMap> m_spotLightShadowMaps;
 
-	VkDescriptorSetLayout m_descriptorSetLayout;
+	VkDescriptorSetLayout m_descriptorSet0Layout;
+	VkDescriptorSetLayout m_descriptorSet1Layout;
 
 	VkPipeline m_directionalLightShadowGraphicsPipeline;
 	VkPipelineLayout m_directionalLightShadowGraphicsPipelineLayout;
@@ -111,6 +133,8 @@ private:
 	VkDescriptorPool m_descriptorPool;
 	std::vector<VkDescriptorSet> m_descriptorSets;
 	std::vector<bool> m_descriptorSetsNeedUpdate;
+
+	VkDescriptorSetLayout m_frustumCullingDescriptorSet1Layout;
 
 	VkViewport m_viewport;
 	VkRect2D m_scissor;
@@ -126,6 +150,7 @@ private:
 
 	PFN_vkCmdBeginRenderingKHR m_vkCmdBeginRenderingKHR;
 	PFN_vkCmdEndRenderingKHR m_vkCmdEndRenderingKHR;
+	PFN_vkCmdDrawIndexedIndirectCountKHR m_vkCmdDrawIndexedIndirectCountKHR;
 	PFN_vkCmdPipelineBarrier2KHR m_vkCmdPipelineBarrier2KHR;
 
 	NtshEngn::ECSInterface* m_ecs;

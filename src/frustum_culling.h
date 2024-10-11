@@ -2,7 +2,8 @@
 #include "common.h"
 #include "../Common/job_system/ntshengn_job_system_interface.h"
 
-#if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
+typedef std::array<NtshEngn::Math::vec4, 6> Frustum;
+
 struct FrustumCullingObject {
 	NtshEngn::Math::vec4 position;
 	NtshEngn::Math::mat4 rotation;
@@ -10,7 +11,6 @@ struct FrustumCullingObject {
 	NtshEngn::Math::vec4 aabbMin;
 	NtshEngn::Math::vec4 aabbMax;
 };
-#endif
 
 class FrustumCulling {
 public:
@@ -26,46 +26,41 @@ public:
 
 	uint32_t cull(VkCommandBuffer commandBuffer,
 		uint32_t currentFrameInFlight,
-		const NtshEngn::Math::mat4& cameraViewProj,
-		const std::vector<NtshEngn::Math::mat4>& lightViewProjs,
+		const std::vector<FrustumCullingInfo>& frustumCullingInfo,
 		const std::unordered_map<NtshEngn::Entity, InternalObject>& objects,
 		const std::vector<InternalMesh>& meshes);
 
-	VulkanBuffer& getCameraDrawIndirectBuffer(uint32_t frameInFlight);
-	std::vector<VkBuffer> getCameraPerDrawBuffers();
+	VkDescriptorSetLayout getDescriptorSet1Layout();
 
 private:
 	void createBuffers();
 
-#if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
-	void createDescriptorSetLayout();
+	void createDescriptorSetLayouts();
+	void createDescriptorSet0Layout();
+	void createDescriptorSet1Layout();
 
 	void createComputePipeline();
 
 	void createDescriptorSets();
-#endif
 
-	std::array<NtshEngn::Math::vec4, 6> calculateFrustumPlanes(const NtshEngn::Math::mat4& viewProj);
+	Frustum calculateFrustumPlanes(const NtshEngn::Math::mat4& viewProj);
 
-	bool intersect(const std::array<NtshEngn::Math::vec4, 6>& frustum, const NtshEngn::Math::vec3& aabbMin, const NtshEngn::Math::vec3& aabbMax);
+	bool intersect(const Frustum& frustum, const NtshEngn::Math::vec3& aabbMin, const NtshEngn::Math::vec3& aabbMax);
 
 private:
-	std::vector<HostVisibleVulkanBuffer> m_cameraDrawIndirectBuffers;
-	std::vector<HostVisibleVulkanBuffer> m_cameraPerDrawBuffers;
+	std::vector<HostVisibleVulkanBuffer> m_inDrawIndirectBuffers;
+	std::vector<HostVisibleVulkanBuffer> m_inPerDrawBuffers;
+	std::vector<HostVisibleVulkanBuffer> m_frustumBuffers;
+	std::vector<HostVisibleVulkanBuffer> m_frustumCullingObjectBuffers;
 
-#if FRUSTUM_CULLING_TYPE == FRUSTUM_CULLING_GPU
-	std::vector<HostVisibleVulkanBuffer> m_gpuFrustumCullingBuffers;
-	VulkanBuffer m_gpuCameraDrawIndirectBuffer;
-	VulkanBuffer m_gpuCameraPerDrawBuffer;
-
-	VkDescriptorSetLayout m_descriptorSetLayout;
+	VkDescriptorSetLayout m_descriptorSet0Layout;
+	VkDescriptorSetLayout m_descriptorSet1Layout;
 
 	VkPipeline m_computePipeline;
 	VkPipelineLayout m_computePipelineLayout;
 
 	VkDescriptorPool m_descriptorPool;
 	std::vector<VkDescriptorSet> m_descriptorSets;
-#endif
 
 	VkDevice m_device;
 	VkQueue m_computeQueue;

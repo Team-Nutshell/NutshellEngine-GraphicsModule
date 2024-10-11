@@ -288,6 +288,7 @@ void NtshEngn::GraphicsModule::init() {
 	// Get functions
 	m_vkCmdPipelineBarrier2KHR = (PFN_vkCmdPipelineBarrier2KHR)vkGetDeviceProcAddr(m_device, "vkCmdPipelineBarrier2KHR");
 	m_vkCmdBeginRenderingKHR = (PFN_vkCmdBeginRenderingKHR)vkGetDeviceProcAddr(m_device, "vkCmdBeginRenderingKHR");
+	m_vkCmdDrawIndexedIndirectCountKHR = (PFN_vkCmdDrawIndexedIndirectCountKHR)vkGetDeviceProcAddr(m_device, "vkCmdDrawIndexedIndirectCountKHR");
 	m_vkCmdEndRenderingKHR = (PFN_vkCmdEndRenderingKHR)vkGetDeviceProcAddr(m_device, "vkCmdEndRenderingKHR");
 
 	// Initialize VMA
@@ -525,7 +526,7 @@ void NtshEngn::GraphicsModule::init() {
 		m_viewport,
 		m_scissor,
 		m_framesInFlight,
-		m_frustumCulling.getCameraPerDrawBuffers(),
+		m_frustumCulling.getDescriptorSet1Layout(),
 		m_cameraBuffers,
 		m_objectBuffers,
 		m_meshBuffer,
@@ -533,6 +534,7 @@ void NtshEngn::GraphicsModule::init() {
 		m_materialBuffers,
 		m_vkCmdBeginRenderingKHR,
 		m_vkCmdEndRenderingKHR,
+		m_vkCmdDrawIndexedIndirectCountKHR,
 		m_vkCmdPipelineBarrier2KHR);
 
 	m_ssao.init(m_device,
@@ -560,12 +562,14 @@ void NtshEngn::GraphicsModule::init() {
 		m_initializationCommandBuffer,
 		m_initializationFence,
 		m_framesInFlight,
+		m_frustumCulling.getDescriptorSet1Layout(),
 		m_objectBuffers,
 		m_meshBuffer,
 		m_jointTransformBuffers,
 		m_materialBuffers,
 		m_vkCmdBeginRenderingKHR,
 		m_vkCmdEndRenderingKHR,
+		m_vkCmdDrawIndexedIndirectCountKHR,
 		m_vkCmdPipelineBarrier2KHR,
 		ecs);
 
@@ -923,8 +927,6 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	}
 
 	// Update lights buffer
-	std::vector<Math::mat4> lightViewProjs;
-
 	std::array<uint32_t, 4> lightsCount = { static_cast<uint32_t>(m_lights.directionalLights.size()), static_cast<uint32_t>(m_lights.pointLights.size()), static_cast<uint32_t>(m_lights.spotLights.size()), static_cast<uint32_t>(m_lights.ambientLights.size()) };
 	memcpy(m_lightBuffers[m_currentFrameInFlight].address, lightsCount.data(), 4 * sizeof(uint32_t));
 
@@ -1011,12 +1013,20 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		m_uiImageDescriptorSetsNeedUpdate[m_currentFrameInFlight] = false;
 	}
 
+	std::vector<FrustumCullingInfo> frustumCullingInfos;
+
+	// Update G-Buffer
+	m_gBuffer.update(cameraProjection * cameraView);
+	frustumCullingInfos.push_back(m_gBuffer.getFrustumCullingInfo());
+
 	// Update shadow mapping
 	m_shadowMapping.update(m_currentFrameInFlight,
 		cameraNearPlane,
 		cameraFarPlane,
 		cameraView,
 		cameraProjection);
+	std::vector<FrustumCullingInfo> shadowMappingFrustumCullingInfos = m_shadowMapping.getFrustumCullingInfos();
+	frustumCullingInfos.insert(frustumCullingInfos.end(), shadowMappingFrustumCullingInfos.begin(), shadowMappingFrustumCullingInfos.end());
 
 	// Record rendering commands
 	NTSHENGN_VK_CHECK(vkResetCommandPool(m_device, m_renderingCommandPools[m_currentFrameInFlight], 0));
@@ -1101,8 +1111,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	if (m_mainCamera != NTSHENGN_ENTITY_UNKNOWN) {
 		drawCount = m_frustumCulling.cull(m_renderingCommandBuffers[m_currentFrameInFlight],
 			m_currentFrameInFlight,
-			cameraProjection * cameraView,
-			lightViewProjs,
+			frustumCullingInfos,
 			m_objects,
 			m_meshes
 		);
@@ -1111,7 +1120,6 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	// Draw G-Buffer
 	m_gBuffer.draw(m_renderingCommandBuffers[m_currentFrameInFlight],
 		m_currentFrameInFlight,
-		m_frustumCulling.getCameraDrawIndirectBuffer(m_currentFrameInFlight),
 		drawCount,
 		m_vertexBuffer,
 		m_indexBuffer
@@ -1123,8 +1131,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	// Draw shadow mapping
 	m_shadowMapping.draw(m_renderingCommandBuffers[m_currentFrameInFlight],
 		m_currentFrameInFlight,
-		m_objects,
-		m_meshes,
+		drawCount,
 		m_vertexBuffer,
 		m_indexBuffer
 	);
@@ -3384,13 +3391,13 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 
 	// Allocate descriptor sets
 	m_compositingDescriptorSets.resize(m_framesInFlight);
+	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
+	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	descriptorSetAllocateInfo.pNext = nullptr;
+	descriptorSetAllocateInfo.descriptorPool = m_compositingDescriptorPool;
+	descriptorSetAllocateInfo.descriptorSetCount = 1;
+	descriptorSetAllocateInfo.pSetLayouts = &m_compositingDescriptorSetLayout;
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
-		descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		descriptorSetAllocateInfo.pNext = nullptr;
-		descriptorSetAllocateInfo.descriptorPool = m_compositingDescriptorPool;
-		descriptorSetAllocateInfo.descriptorSetCount = 1;
-		descriptorSetAllocateInfo.pSetLayouts = &m_compositingDescriptorSetLayout;
 		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_compositingDescriptorSets[i]));
 	}
 
@@ -4516,13 +4523,13 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 
 	// Allocate descriptor sets
 	m_uiTextDescriptorSets.resize(m_framesInFlight);
+	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
+	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	descriptorSetAllocateInfo.pNext = nullptr;
+	descriptorSetAllocateInfo.descriptorPool = m_uiTextDescriptorPool;
+	descriptorSetAllocateInfo.descriptorSetCount = 1;
+	descriptorSetAllocateInfo.pSetLayouts = &m_uiTextDescriptorSetLayout;
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
-		descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		descriptorSetAllocateInfo.pNext = nullptr;
-		descriptorSetAllocateInfo.descriptorPool = m_uiTextDescriptorPool;
-		descriptorSetAllocateInfo.descriptorSetCount = 1;
-		descriptorSetAllocateInfo.pSetLayouts = &m_uiTextDescriptorSetLayout;
 		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_uiTextDescriptorSets[i]));
 	}
 
@@ -5314,13 +5321,13 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 
 	// Allocate descriptor sets
 	m_uiImageDescriptorSets.resize(m_framesInFlight);
+	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
+	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	descriptorSetAllocateInfo.pNext = nullptr;
+	descriptorSetAllocateInfo.descriptorPool = m_uiImageDescriptorPool;
+	descriptorSetAllocateInfo.descriptorSetCount = 1;
+	descriptorSetAllocateInfo.pSetLayouts = &m_uiImageDescriptorSetLayout;
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
-		descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		descriptorSetAllocateInfo.pNext = nullptr;
-		descriptorSetAllocateInfo.descriptorPool = m_uiImageDescriptorPool;
-		descriptorSetAllocateInfo.descriptorSetCount = 1;
-		descriptorSetAllocateInfo.pSetLayouts = &m_uiImageDescriptorSetLayout;
 		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_uiImageDescriptorSets[i]));
 	}
 

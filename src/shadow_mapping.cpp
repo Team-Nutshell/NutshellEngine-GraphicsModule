@@ -10,12 +10,14 @@ void ShadowMapping::init(VkDevice device,
 	VkCommandBuffer initializationCommandBuffer,
 	VkFence initializationFence,
 	uint32_t framesInFlight,
+	VkDescriptorSetLayout frustumCullingDescriptorSet1Layout,
 	const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
 	VulkanBuffer meshBuffer,
 	const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers,
 	const std::vector<HostVisibleVulkanBuffer>& materialBuffers,
 	PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 	PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
+	PFN_vkCmdDrawIndexedIndirectCountKHR vkCmdDrawIndexedIndirectCountKHR,
 	PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR,
 	NtshEngn::ECSInterface* ecs) {
 	m_device = device;
@@ -28,8 +30,11 @@ void ShadowMapping::init(VkDevice device,
 	m_framesInFlight = framesInFlight;
 	m_vkCmdBeginRenderingKHR = vkCmdBeginRenderingKHR;
 	m_vkCmdEndRenderingKHR = vkCmdEndRenderingKHR;
+	m_vkCmdDrawIndexedIndirectCountKHR = vkCmdDrawIndexedIndirectCountKHR;
 	m_vkCmdPipelineBarrier2KHR = vkCmdPipelineBarrier2KHR;
 	m_ecs = ecs;
+
+	m_frustumCullingDescriptorSet1Layout = frustumCullingDescriptorSet1Layout;
 
 	m_viewport.x = 0.0f;
 	m_viewport.y = 0.0f;
@@ -146,6 +151,11 @@ void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane,
 	for (size_t directionalLightIndex = 0; directionalLightIndex < m_directionalLightEntities.size(); directionalLightIndex++) {
 		for (uint32_t cascadeIndex = 0; cascadeIndex < SHADOW_MAPPING_CASCADE_COUNT; cascadeIndex++) {
 			memcpy(reinterpret_cast<char*>(m_shadowBuffers[currentFrameInFlight].address) + (((directionalLightIndex * SHADOW_MAPPING_CASCADE_COUNT) + cascadeIndex) * sizeof(NtshEngn::Math::mat4)), &m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].viewProj, sizeof(NtshEngn::Math::mat4));
+
+			memcpy(reinterpret_cast<char*>(m_shadowSceneBuffers[currentFrameInFlight].address) + (((directionalLightIndex * SHADOW_MAPPING_CASCADE_COUNT) + cascadeIndex) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))), &m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].viewProj, sizeof(NtshEngn::Math::mat4));
+			memcpy(reinterpret_cast<char*>(m_shadowSceneBuffers[currentFrameInFlight].address) + (((directionalLightIndex * SHADOW_MAPPING_CASCADE_COUNT) + cascadeIndex) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + sizeof(NtshEngn::Math::mat4), &m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].splitDepth, sizeof(NtshEngn::Math::vec4));
+
+			m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].frustumCullingInfo.viewProj = m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].viewProj;
 		}
 	}
 	for (size_t pointLightIndex = 0; pointLightIndex < m_pointLightEntities.size(); pointLightIndex++) {
@@ -154,8 +164,12 @@ void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane,
 
 		for (uint32_t faceIndex = 0; faceIndex < 6; faceIndex++) {
 			const NtshEngn::Math::mat4 lightView = NtshEngn::Math::lookAtRH(lightTransform.position, lightTransform.position + lightCubeDirections[faceIndex], lightCubeUps[faceIndex]);
-			m_pointLightShadowMaps[pointLightIndex].viewProjs[faceIndex] = lightProj * lightView;
-			memcpy(reinterpret_cast<char*>(m_shadowBuffers[currentFrameInFlight].address) + (((m_directionalLightShadowMaps.size() * SHADOW_MAPPING_CASCADE_COUNT) * sizeof(NtshEngn::Math::mat4)) + (((pointLightIndex * 6) + faceIndex) * sizeof(NtshEngn::Math::mat4))), &m_pointLightShadowMaps[pointLightIndex].viewProjs[faceIndex], sizeof(NtshEngn::Math::mat4));
+			m_pointLightShadowMaps[pointLightIndex].faces[faceIndex].viewProj = lightProj * lightView;
+			memcpy(reinterpret_cast<char*>(m_shadowBuffers[currentFrameInFlight].address) + (((m_directionalLightShadowMaps.size() * SHADOW_MAPPING_CASCADE_COUNT) * sizeof(NtshEngn::Math::mat4)) + (((pointLightIndex * 6) + faceIndex) * sizeof(NtshEngn::Math::mat4))), &m_pointLightShadowMaps[pointLightIndex].faces[faceIndex].viewProj, sizeof(NtshEngn::Math::mat4));
+
+			memcpy(reinterpret_cast<char*>(m_shadowSceneBuffers[currentFrameInFlight].address) + (((m_directionalLightEntities.size() * SHADOW_MAPPING_CASCADE_COUNT) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + (((pointLightIndex * 6) + faceIndex) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4)))), &m_pointLightShadowMaps[pointLightIndex].faces[faceIndex].viewProj, sizeof(NtshEngn::Math::mat4));
+
+			m_pointLightShadowMaps[pointLightIndex].faces[faceIndex].frustumCullingInfo.viewProj = m_pointLightShadowMaps[pointLightIndex].faces[faceIndex].viewProj;
 		}
 	}
 	for (size_t spotLightIndex = 0; spotLightIndex < m_spotLightEntities.size(); spotLightIndex++) {
@@ -176,21 +190,10 @@ void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane,
 		lightProj[1][1] *= -1.0f;
 		m_spotLightShadowMaps[spotLightIndex].viewProj = lightProj * lightView;
 		memcpy(reinterpret_cast<char*>(m_shadowBuffers[currentFrameInFlight].address) + (((m_directionalLightShadowMaps.size() * SHADOW_MAPPING_CASCADE_COUNT) * sizeof(NtshEngn::Math::mat4)) + ((m_pointLightShadowMaps.size() * 6) * sizeof(NtshEngn::Math::mat4)) + (spotLightIndex * sizeof(NtshEngn::Math::mat4))), &m_spotLightShadowMaps[spotLightIndex].viewProj, sizeof(NtshEngn::Math::mat4));
-	}
 
-	for (size_t directionalLightIndex = 0; directionalLightIndex < m_directionalLightEntities.size(); directionalLightIndex++) {
-		for (uint32_t cascadeIndex = 0; cascadeIndex < SHADOW_MAPPING_CASCADE_COUNT; cascadeIndex++) {
-			memcpy(reinterpret_cast<char*>(m_shadowSceneBuffers[currentFrameInFlight].address) + (((directionalLightIndex * SHADOW_MAPPING_CASCADE_COUNT) + cascadeIndex) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))), &m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].viewProj, sizeof(NtshEngn::Math::mat4));
-			memcpy(reinterpret_cast<char*>(m_shadowSceneBuffers[currentFrameInFlight].address) + (((directionalLightIndex * SHADOW_MAPPING_CASCADE_COUNT) + cascadeIndex) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + sizeof(NtshEngn::Math::mat4), &m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].splitDepth, sizeof(NtshEngn::Math::vec4));
-		}
-	}
-	for (size_t pointLightIndex = 0; pointLightIndex < m_pointLightEntities.size(); pointLightIndex++) {
-		for (uint32_t faceIndex = 0; faceIndex < 6; faceIndex++) {
-			memcpy(reinterpret_cast<char*>(m_shadowSceneBuffers[currentFrameInFlight].address) + (((m_directionalLightEntities.size() * SHADOW_MAPPING_CASCADE_COUNT) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + (((pointLightIndex * 6) + faceIndex) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4)))), &m_pointLightShadowMaps[pointLightIndex].viewProjs[faceIndex], sizeof(NtshEngn::Math::mat4));
-		}
-	}
-	for (size_t spotLightIndex = 0; spotLightIndex < m_spotLightEntities.size(); spotLightIndex++) {
 		memcpy(reinterpret_cast<char*>(m_shadowSceneBuffers[currentFrameInFlight].address) + (((m_directionalLightEntities.size() * SHADOW_MAPPING_CASCADE_COUNT) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + ((m_pointLightEntities.size() * 6) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + (spotLightIndex * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4)))), &m_spotLightShadowMaps[spotLightIndex].viewProj, sizeof(NtshEngn::Math::mat4));
+
+		m_spotLightShadowMaps[spotLightIndex].frustumCullingInfo.viewProj = m_spotLightShadowMaps[spotLightIndex].viewProj;
 	}
 }
 
@@ -206,7 +209,8 @@ void ShadowMapping::destroy() {
 	vkDestroyPipeline(m_device, m_directionalLightShadowGraphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(m_device, m_directionalLightShadowGraphicsPipelineLayout, nullptr);
 
-	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(m_device, m_descriptorSet1Layout, nullptr);
+	vkDestroyDescriptorSetLayout(m_device, m_descriptorSet0Layout, nullptr);
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		m_shadowSceneBuffers[i].destroy(m_allocator);
@@ -214,12 +218,25 @@ void ShadowMapping::destroy() {
 	}
 
 	for (auto& spotLightShadowMap : m_spotLightShadowMaps) {
+		vkDestroyDescriptorPool(m_device, spotLightShadowMap.perDrawDescriptorPool, nullptr);
+		vkDestroyDescriptorPool(m_device, spotLightShadowMap.frustumCullingDescriptorPool, nullptr);
+		spotLightShadowMap.frustumCullingInfo.drawIndirectBuffer.destroy(m_allocator);
 		spotLightShadowMap.shadowMap.destroy(m_device, m_allocator);
 	}
 	for (auto& pointLightShadowMap : m_pointLightShadowMaps) {
+		vkDestroyDescriptorPool(m_device, pointLightShadowMap.perDrawDescriptorPool, nullptr);
+		vkDestroyDescriptorPool(m_device, pointLightShadowMap.frustumCullingDescriptorPool, nullptr);
+		for (uint32_t faceIndex = 0; faceIndex < 6; faceIndex++) {
+			pointLightShadowMap.faces[faceIndex].frustumCullingInfo.drawIndirectBuffer.destroy(m_allocator);
+		}
 		pointLightShadowMap.shadowMap.destroy(m_device, m_allocator);
 	}
 	for (auto& directionalLightShadowMap : m_directionalLightShadowMaps) {
+		vkDestroyDescriptorPool(m_device, directionalLightShadowMap.perDrawDescriptorPool, nullptr);
+		vkDestroyDescriptorPool(m_device, directionalLightShadowMap.frustumCullingDescriptorPool, nullptr);
+		for (uint32_t cascadeIndex = 0; cascadeIndex < SHADOW_MAPPING_CASCADE_COUNT; cascadeIndex++) {
+			directionalLightShadowMap.cascades[cascadeIndex].frustumCullingInfo.drawIndirectBuffer.destroy(m_allocator);
+		}
 		directionalLightShadowMap.shadowMap.destroy(m_device, m_allocator);
 	}
 	m_dummyShadowMap.destroy(m_device, m_allocator);
@@ -227,8 +244,7 @@ void ShadowMapping::destroy() {
 
 void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 	uint32_t currentFrameInFlight,
-	const std::unordered_map<NtshEngn::Entity, InternalObject>& objects,
-	const std::vector<InternalMesh>& meshes,
+	uint32_t drawIndirectCount,
 	VulkanBuffer& vertexBuffer,
 	VulkanBuffer& indexBuffer) {
 	// Shadow mapping layout transition
@@ -318,17 +334,14 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 			shadowMapCascadeRenderingInfo.pStencilAttachment = nullptr;
 			m_vkCmdBeginRenderingKHR(commandBuffer, &shadowMapCascadeRenderingInfo);
 
-			for (const auto& object : objects) {
-				if (object.second.meshID == 0) {
-					continue;
-				}
+			// Bind descriptor set 1
+			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_directionalLightShadowGraphicsPipelineLayout, 1, 1, &m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].perDrawDescriptorSet, 0, nullptr);
 
-				std::array<uint32_t, 2> directionalIndices = { (static_cast<uint32_t>(directionalLightIndex) * SHADOW_MAPPING_CASCADE_COUNT) + cascadeIndex, object.second.index };
-				vkCmdPushConstants(commandBuffer, m_directionalLightShadowGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t) * 2, directionalIndices.data());
+			uint32_t viewProjIndex = (static_cast<uint32_t>(directionalLightIndex) * SHADOW_MAPPING_CASCADE_COUNT) + cascadeIndex;
+			vkCmdPushConstants(commandBuffer, m_directionalLightShadowGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &viewProjIndex);
 
-				// Draw
-				vkCmdDrawIndexed(commandBuffer, meshes[object.second.meshID].indexCount, 1, meshes[object.second.meshID].firstIndex, meshes[object.second.meshID].vertexOffset, 0);
-			}
+			// Draw
+			m_vkCmdDrawIndexedIndirectCountKHR(commandBuffer, m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].frustumCullingInfo.drawIndirectBuffer.handle, sizeof(uint32_t), m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].frustumCullingInfo.drawIndirectBuffer.handle, 0, drawIndirectCount, sizeof(VkDrawIndexedIndirectCommand));
 
 			// End shadow mapping rendering
 			m_vkCmdEndRenderingKHR(commandBuffer);
@@ -369,20 +382,17 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 			shadowMapCascadeRenderingInfo.pStencilAttachment = nullptr;
 			m_vkCmdBeginRenderingKHR(commandBuffer, &shadowMapCascadeRenderingInfo);
 
-			for (const auto& object : objects) {
-				if (object.second.meshID == 0) {
-					continue;
-				}
+			// Bind descriptor set 1
+			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pointLightShadowGraphicsPipelineLayout, 1, 1, &m_pointLightShadowMaps[pointLightIndex].faces[faceIndex].perDrawDescriptorSet, 0, nullptr);
 
-				std::array<uint32_t, 2> pointIndices = { (static_cast<uint32_t>(m_directionalLightShadowMaps.size()) * SHADOW_MAPPING_CASCADE_COUNT) + (static_cast<uint32_t>(pointLightIndex) * 6) + faceIndex, object.second.index };
-				vkCmdPushConstants(commandBuffer, m_pointLightShadowGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t) * 2, pointIndices.data());
+			uint32_t viewProjIndex = (static_cast<uint32_t>(m_directionalLightShadowMaps.size()) * SHADOW_MAPPING_CASCADE_COUNT) + (static_cast<uint32_t>(pointLightIndex) * 6) + faceIndex;
+			vkCmdPushConstants(commandBuffer, m_pointLightShadowGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &viewProjIndex);
 
-				NtshEngn::Transform& lightTransform = m_ecs->getComponent<NtshEngn::Transform>(m_pointLightEntities[pointLightIndex]);
-				vkCmdPushConstants(commandBuffer, m_pointLightShadowGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(uint32_t) * 4, sizeof(NtshEngn::Math::vec3), lightTransform.position.data());
+			NtshEngn::Transform& lightTransform = m_ecs->getComponent<NtshEngn::Transform>(m_pointLightEntities[pointLightIndex]);
+			vkCmdPushConstants(commandBuffer, m_pointLightShadowGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(uint32_t) * 4, sizeof(NtshEngn::Math::vec3), lightTransform.position.data());
 
-				// Draw
-				vkCmdDrawIndexed(commandBuffer, meshes[object.second.meshID].indexCount, 1, meshes[object.second.meshID].firstIndex, meshes[object.second.meshID].vertexOffset, 0);
-			}
+			// Draw
+			m_vkCmdDrawIndexedIndirectCountKHR(commandBuffer, m_pointLightShadowMaps[pointLightIndex].faces[faceIndex].frustumCullingInfo.drawIndirectBuffer.handle, sizeof(uint32_t), m_pointLightShadowMaps[pointLightIndex].faces[faceIndex].frustumCullingInfo.drawIndirectBuffer.handle, 0, drawIndirectCount, sizeof(VkDrawIndexedIndirectCommand));
 
 			// End shadow mapping rendering
 			m_vkCmdEndRenderingKHR(commandBuffer);
@@ -422,17 +432,14 @@ void ShadowMapping::draw(VkCommandBuffer commandBuffer,
 		shadowMapCascadeRenderingInfo.pStencilAttachment = nullptr;
 		m_vkCmdBeginRenderingKHR(commandBuffer, &shadowMapCascadeRenderingInfo);
 
-		for (const auto& object : objects) {
-			if (object.second.meshID == 0) {
-				continue;
-			}
+		// Bind descriptor set 1
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_spotLightShadowGraphicsPipelineLayout, 1, 1, &m_spotLightShadowMaps[spotLightIndex].perDrawDescriptorSet, 0, nullptr);
 
-			std::array<uint32_t, 2> spotIndices = { (static_cast<uint32_t>(m_directionalLightShadowMaps.size()) * SHADOW_MAPPING_CASCADE_COUNT) + (static_cast<uint32_t>(m_pointLightShadowMaps.size()) * 6) + static_cast<uint32_t>(spotLightIndex), object.second.index };
-			vkCmdPushConstants(commandBuffer, m_spotLightShadowGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t) * 2, spotIndices.data());
+		uint32_t viewProjIndex = (static_cast<uint32_t>(m_directionalLightShadowMaps.size()) * SHADOW_MAPPING_CASCADE_COUNT) + (static_cast<uint32_t>(m_pointLightShadowMaps.size()) * 6) + static_cast<uint32_t>(spotLightIndex);
+		vkCmdPushConstants(commandBuffer, m_spotLightShadowGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &viewProjIndex);
 
-			// Draw
-			vkCmdDrawIndexed(commandBuffer, meshes[object.second.meshID].indexCount, 1, meshes[object.second.meshID].firstIndex, meshes[object.second.meshID].vertexOffset, 0);
-		}
+		// Draw
+		m_vkCmdDrawIndexedIndirectCountKHR(commandBuffer, m_spotLightShadowMaps[spotLightIndex].frustumCullingInfo.drawIndirectBuffer.handle, sizeof(uint32_t), m_spotLightShadowMaps[spotLightIndex].frustumCullingInfo.drawIndirectBuffer.handle, 0, drawIndirectCount, sizeof(VkDrawIndexedIndirectCommand));
 
 		// End shadow mapping rendering
 		m_vkCmdEndRenderingKHR(commandBuffer);
@@ -525,6 +532,7 @@ void ShadowMapping::createDirectionalLightShadowMap(NtshEngn::Entity entity) {
 		return;
 	}
 
+	// Create shadow map image
 	VulkanImage shadowMap;
 
 	VkExtent3D imageExtent;
@@ -598,6 +606,131 @@ void ShadowMapping::createDirectionalLightShadowMap(NtshEngn::Entity entity) {
 	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &shadowMapViewCreateInfo, nullptr, &shadowMap.view));
 
 	DirectionalLightShadowMap directionalLightShadowMap;
+
+	// Create frustum culling info
+	// Create draw indirect buffer
+	VkBufferCreateInfo bufferCreateInfo = {};
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.pNext = nullptr;
+	bufferCreateInfo.flags = 0;
+	bufferCreateInfo.size = 65536 + 32768;
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	bufferCreateInfo.queueFamilyIndexCount = 1;
+	bufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+
+	VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
+	bufferAllocationCreateInfo.flags = 0;
+	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	for (uint32_t cascadeIndex = 0; cascadeIndex < SHADOW_MAPPING_CASCADE_COUNT; cascadeIndex++) {
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &directionalLightShadowMap.cascades[cascadeIndex].frustumCullingInfo.drawIndirectBuffer.handle, &directionalLightShadowMap.cascades[cascadeIndex].frustumCullingInfo.drawIndirectBuffer.allocation, nullptr));
+	}
+
+	// Create descriptor pools
+	VkDescriptorPoolSize outDrawIndirectDescriptorPoolSize = {};
+	outDrawIndirectDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outDrawIndirectDescriptorPoolSize.descriptorCount = SHADOW_MAPPING_CASCADE_COUNT;
+
+	VkDescriptorPoolSize outPerDrawDescriptorPoolSize = {};
+	outPerDrawDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outPerDrawDescriptorPoolSize.descriptorCount = SHADOW_MAPPING_CASCADE_COUNT;
+
+	std::array<VkDescriptorPoolSize, 2> frustumCullingDescriptorPoolSizes = { outDrawIndirectDescriptorPoolSize, outPerDrawDescriptorPoolSize };
+	VkDescriptorPoolCreateInfo frustumCullingDescriptorPoolCreateInfo = {};
+	frustumCullingDescriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	frustumCullingDescriptorPoolCreateInfo.pNext = nullptr;
+	frustumCullingDescriptorPoolCreateInfo.flags = 0;
+	frustumCullingDescriptorPoolCreateInfo.maxSets = SHADOW_MAPPING_CASCADE_COUNT;
+	frustumCullingDescriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(frustumCullingDescriptorPoolSizes.size());
+	frustumCullingDescriptorPoolCreateInfo.pPoolSizes = frustumCullingDescriptorPoolSizes.data();
+	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &frustumCullingDescriptorPoolCreateInfo, nullptr, &directionalLightShadowMap.frustumCullingDescriptorPool));
+
+	VkDescriptorPoolCreateInfo perDrawDescriptorPoolCreateInfo = {};
+	perDrawDescriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	perDrawDescriptorPoolCreateInfo.pNext = nullptr;
+	perDrawDescriptorPoolCreateInfo.flags = 0;
+	perDrawDescriptorPoolCreateInfo.maxSets = SHADOW_MAPPING_CASCADE_COUNT;
+	perDrawDescriptorPoolCreateInfo.poolSizeCount = 1;
+	perDrawDescriptorPoolCreateInfo.pPoolSizes = &outPerDrawDescriptorPoolSize;
+	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &perDrawDescriptorPoolCreateInfo, nullptr, &directionalLightShadowMap.perDrawDescriptorPool));
+
+	// Allocate descriptor sets
+	VkDescriptorSetAllocateInfo frustumCullingDescriptorSetAllocateInfo = {};
+	frustumCullingDescriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	frustumCullingDescriptorSetAllocateInfo.pNext = nullptr;
+	frustumCullingDescriptorSetAllocateInfo.descriptorPool = directionalLightShadowMap.frustumCullingDescriptorPool;
+	frustumCullingDescriptorSetAllocateInfo.descriptorSetCount = 1;
+	frustumCullingDescriptorSetAllocateInfo.pSetLayouts = &m_frustumCullingDescriptorSet1Layout;
+
+	VkDescriptorSetAllocateInfo perDrawDescriptorSetAllocateInfo = {};
+	perDrawDescriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	perDrawDescriptorSetAllocateInfo.pNext = nullptr;
+	perDrawDescriptorSetAllocateInfo.descriptorPool = directionalLightShadowMap.perDrawDescriptorPool;
+	perDrawDescriptorSetAllocateInfo.descriptorSetCount = 1;
+	perDrawDescriptorSetAllocateInfo.pSetLayouts = &m_descriptorSet1Layout;
+
+	for (uint32_t cascadeIndex = 0; cascadeIndex < SHADOW_MAPPING_CASCADE_COUNT; cascadeIndex++) {
+		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &frustumCullingDescriptorSetAllocateInfo, &directionalLightShadowMap.cascades[cascadeIndex].frustumCullingInfo.descriptorSet));
+		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &perDrawDescriptorSetAllocateInfo, &directionalLightShadowMap.cascades[cascadeIndex].perDrawDescriptorSet));
+	}
+
+	// Update descriptor sets
+	for (uint32_t cascadeIndex = 0; cascadeIndex < SHADOW_MAPPING_CASCADE_COUNT; cascadeIndex++) {
+		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
+
+		VkDescriptorBufferInfo outDrawIndirectDescriptorBufferInfo;
+		outDrawIndirectDescriptorBufferInfo.buffer = directionalLightShadowMap.cascades[cascadeIndex].frustumCullingInfo.drawIndirectBuffer.handle;
+		outDrawIndirectDescriptorBufferInfo.offset = 0;
+		outDrawIndirectDescriptorBufferInfo.range = 65536;
+
+		VkWriteDescriptorSet outDrawIndirectDescriptorWriteDescriptorSet = {};
+		outDrawIndirectDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		outDrawIndirectDescriptorWriteDescriptorSet.pNext = nullptr;
+		outDrawIndirectDescriptorWriteDescriptorSet.dstSet = directionalLightShadowMap.cascades[cascadeIndex].frustumCullingInfo.descriptorSet;
+		outDrawIndirectDescriptorWriteDescriptorSet.dstBinding = 0;
+		outDrawIndirectDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		outDrawIndirectDescriptorWriteDescriptorSet.descriptorCount = 1;
+		outDrawIndirectDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		outDrawIndirectDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		outDrawIndirectDescriptorWriteDescriptorSet.pBufferInfo = &outDrawIndirectDescriptorBufferInfo;
+		outDrawIndirectDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(outDrawIndirectDescriptorWriteDescriptorSet);
+
+		VkDescriptorBufferInfo outPerDrawDescriptorBufferInfo;
+		outPerDrawDescriptorBufferInfo.buffer = directionalLightShadowMap.cascades[cascadeIndex].frustumCullingInfo.drawIndirectBuffer.handle;
+		outPerDrawDescriptorBufferInfo.offset = 65536;
+		outPerDrawDescriptorBufferInfo.range = 32768;
+
+		VkWriteDescriptorSet outPerDrawDescriptorWriteDescriptorSet = {};
+		outPerDrawDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		outPerDrawDescriptorWriteDescriptorSet.pNext = nullptr;
+		outPerDrawDescriptorWriteDescriptorSet.dstSet = directionalLightShadowMap.cascades[cascadeIndex].frustumCullingInfo.descriptorSet;
+		outPerDrawDescriptorWriteDescriptorSet.dstBinding = 1;
+		outPerDrawDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		outPerDrawDescriptorWriteDescriptorSet.descriptorCount = 1;
+		outPerDrawDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		outPerDrawDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		outPerDrawDescriptorWriteDescriptorSet.pBufferInfo = &outPerDrawDescriptorBufferInfo;
+		outPerDrawDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(outPerDrawDescriptorWriteDescriptorSet);
+
+		VkWriteDescriptorSet perDrawDescriptorWriteDescriptorSet = {};
+		perDrawDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		perDrawDescriptorWriteDescriptorSet.pNext = nullptr;
+		perDrawDescriptorWriteDescriptorSet.dstSet = directionalLightShadowMap.cascades[cascadeIndex].perDrawDescriptorSet;
+		perDrawDescriptorWriteDescriptorSet.dstBinding = 0;
+		perDrawDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		perDrawDescriptorWriteDescriptorSet.descriptorCount = 1;
+		perDrawDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		perDrawDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		perDrawDescriptorWriteDescriptorSet.pBufferInfo = &outPerDrawDescriptorBufferInfo;
+		perDrawDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(perDrawDescriptorWriteDescriptorSet);
+
+		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+	}
+
 	directionalLightShadowMap.shadowMap = shadowMap;
 	m_directionalLightShadowMaps.push_back(directionalLightShadowMap);
 
@@ -673,6 +806,7 @@ void ShadowMapping::createPointLightShadowMap(NtshEngn::Entity entity) {
 		return;
 	}
 
+	// Create shadow map image
 	VulkanImage shadowMap;
 
 	VkExtent3D imageExtent;
@@ -746,6 +880,131 @@ void ShadowMapping::createPointLightShadowMap(NtshEngn::Entity entity) {
 	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &shadowMapViewCreateInfo, nullptr, &shadowMap.view));
 
 	PointLightShadowMap pointLightShadowMap;
+
+	// Create frustum culling info
+	// Create draw indirect buffer
+	VkBufferCreateInfo bufferCreateInfo = {};
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.pNext = nullptr;
+	bufferCreateInfo.flags = 0;
+	bufferCreateInfo.size = 65536 + 32768;
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	bufferCreateInfo.queueFamilyIndexCount = 1;
+	bufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+
+	VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
+	bufferAllocationCreateInfo.flags = 0;
+	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	for (uint32_t faceIndex = 0; faceIndex < 6; faceIndex++) {
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &pointLightShadowMap.faces[faceIndex].frustumCullingInfo.drawIndirectBuffer.handle, &pointLightShadowMap.faces[faceIndex].frustumCullingInfo.drawIndirectBuffer.allocation, nullptr));
+	}
+
+	// Create descriptor pools
+	VkDescriptorPoolSize outDrawIndirectDescriptorPoolSize = {};
+	outDrawIndirectDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outDrawIndirectDescriptorPoolSize.descriptorCount = 6;
+
+	VkDescriptorPoolSize outPerDrawDescriptorPoolSize = {};
+	outPerDrawDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outPerDrawDescriptorPoolSize.descriptorCount = 6;
+
+	std::array<VkDescriptorPoolSize, 2> frustumCullingDescriptorPoolSizes = { outDrawIndirectDescriptorPoolSize, outPerDrawDescriptorPoolSize };
+	VkDescriptorPoolCreateInfo frustumCullingDescriptorPoolCreateInfo = {};
+	frustumCullingDescriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	frustumCullingDescriptorPoolCreateInfo.pNext = nullptr;
+	frustumCullingDescriptorPoolCreateInfo.flags = 0;
+	frustumCullingDescriptorPoolCreateInfo.maxSets = 6;
+	frustumCullingDescriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(frustumCullingDescriptorPoolSizes.size());
+	frustumCullingDescriptorPoolCreateInfo.pPoolSizes = frustumCullingDescriptorPoolSizes.data();
+	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &frustumCullingDescriptorPoolCreateInfo, nullptr, &pointLightShadowMap.frustumCullingDescriptorPool));
+
+	VkDescriptorPoolCreateInfo perDrawDescriptorPoolCreateInfo = {};
+	perDrawDescriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	perDrawDescriptorPoolCreateInfo.pNext = nullptr;
+	perDrawDescriptorPoolCreateInfo.flags = 0;
+	perDrawDescriptorPoolCreateInfo.maxSets = 6;
+	perDrawDescriptorPoolCreateInfo.poolSizeCount = 1;
+	perDrawDescriptorPoolCreateInfo.pPoolSizes = &outPerDrawDescriptorPoolSize;
+	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &perDrawDescriptorPoolCreateInfo, nullptr, &pointLightShadowMap.perDrawDescriptorPool));
+
+	// Allocate descriptor sets
+	VkDescriptorSetAllocateInfo frustumCullingDescriptorSetAllocateInfo = {};
+	frustumCullingDescriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	frustumCullingDescriptorSetAllocateInfo.pNext = nullptr;
+	frustumCullingDescriptorSetAllocateInfo.descriptorPool = pointLightShadowMap.frustumCullingDescriptorPool;
+	frustumCullingDescriptorSetAllocateInfo.descriptorSetCount = 1;
+	frustumCullingDescriptorSetAllocateInfo.pSetLayouts = &m_frustumCullingDescriptorSet1Layout;
+
+	VkDescriptorSetAllocateInfo perDrawDescriptorSetAllocateInfo = {};
+	perDrawDescriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	perDrawDescriptorSetAllocateInfo.pNext = nullptr;
+	perDrawDescriptorSetAllocateInfo.descriptorPool = pointLightShadowMap.perDrawDescriptorPool;
+	perDrawDescriptorSetAllocateInfo.descriptorSetCount = 1;
+	perDrawDescriptorSetAllocateInfo.pSetLayouts = &m_descriptorSet1Layout;
+
+	for (uint32_t faceIndex = 0; faceIndex < 6; faceIndex++) {
+		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &frustumCullingDescriptorSetAllocateInfo, &pointLightShadowMap.faces[faceIndex].frustumCullingInfo.descriptorSet));
+		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &perDrawDescriptorSetAllocateInfo, &pointLightShadowMap.faces[faceIndex].perDrawDescriptorSet));
+	}
+
+	// Update descriptor sets
+	for (uint32_t faceIndex = 0; faceIndex < 6; faceIndex++) {
+		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
+
+		VkDescriptorBufferInfo outDrawIndirectDescriptorBufferInfo;
+		outDrawIndirectDescriptorBufferInfo.buffer = pointLightShadowMap.faces[faceIndex].frustumCullingInfo.drawIndirectBuffer.handle;
+		outDrawIndirectDescriptorBufferInfo.offset = 0;
+		outDrawIndirectDescriptorBufferInfo.range = 65536;
+
+		VkWriteDescriptorSet outDrawIndirectDescriptorWriteDescriptorSet = {};
+		outDrawIndirectDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		outDrawIndirectDescriptorWriteDescriptorSet.pNext = nullptr;
+		outDrawIndirectDescriptorWriteDescriptorSet.dstSet = pointLightShadowMap.faces[faceIndex].frustumCullingInfo.descriptorSet;
+		outDrawIndirectDescriptorWriteDescriptorSet.dstBinding = 0;
+		outDrawIndirectDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		outDrawIndirectDescriptorWriteDescriptorSet.descriptorCount = 1;
+		outDrawIndirectDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		outDrawIndirectDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		outDrawIndirectDescriptorWriteDescriptorSet.pBufferInfo = &outDrawIndirectDescriptorBufferInfo;
+		outDrawIndirectDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(outDrawIndirectDescriptorWriteDescriptorSet);
+
+		VkDescriptorBufferInfo outPerDrawDescriptorBufferInfo;
+		outPerDrawDescriptorBufferInfo.buffer = pointLightShadowMap.faces[faceIndex].frustumCullingInfo.drawIndirectBuffer.handle;
+		outPerDrawDescriptorBufferInfo.offset = 65536;
+		outPerDrawDescriptorBufferInfo.range = 32768;
+
+		VkWriteDescriptorSet outPerDrawDescriptorWriteDescriptorSet = {};
+		outPerDrawDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		outPerDrawDescriptorWriteDescriptorSet.pNext = nullptr;
+		outPerDrawDescriptorWriteDescriptorSet.dstSet = pointLightShadowMap.faces[faceIndex].frustumCullingInfo.descriptorSet;
+		outPerDrawDescriptorWriteDescriptorSet.dstBinding = 1;
+		outPerDrawDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		outPerDrawDescriptorWriteDescriptorSet.descriptorCount = 1;
+		outPerDrawDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		outPerDrawDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		outPerDrawDescriptorWriteDescriptorSet.pBufferInfo = &outPerDrawDescriptorBufferInfo;
+		outPerDrawDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(outPerDrawDescriptorWriteDescriptorSet);
+
+		VkWriteDescriptorSet perDrawDescriptorWriteDescriptorSet = {};
+		perDrawDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		perDrawDescriptorWriteDescriptorSet.pNext = nullptr;
+		perDrawDescriptorWriteDescriptorSet.dstSet = pointLightShadowMap.faces[faceIndex].perDrawDescriptorSet;
+		perDrawDescriptorWriteDescriptorSet.dstBinding = 0;
+		perDrawDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		perDrawDescriptorWriteDescriptorSet.descriptorCount = 1;
+		perDrawDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		perDrawDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		perDrawDescriptorWriteDescriptorSet.pBufferInfo = &outPerDrawDescriptorBufferInfo;
+		perDrawDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(perDrawDescriptorWriteDescriptorSet);
+
+		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+	}
+
 	pointLightShadowMap.shadowMap = shadowMap;
 	m_pointLightShadowMaps.push_back(pointLightShadowMap);
 
@@ -821,6 +1080,7 @@ void ShadowMapping::createSpotLightShadowMap(NtshEngn::Entity entity) {
 		return;
 	}
 
+	// Create shadow map image
 	VulkanImage shadowMap;
 
 	VkExtent3D imageExtent;
@@ -870,6 +1130,123 @@ void ShadowMapping::createSpotLightShadowMap(NtshEngn::Entity entity) {
 	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &shadowMapViewCreateInfo, nullptr, &shadowMap.view));
 
 	SpotLightShadowMap spotLightShadowMap;
+
+	// Create frustum culling info
+	// Create draw indirect buffer
+	VkBufferCreateInfo bufferCreateInfo = {};
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.pNext = nullptr;
+	bufferCreateInfo.flags = 0;
+	bufferCreateInfo.size = 65536 + 32768;
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	bufferCreateInfo.queueFamilyIndexCount = 1;
+	bufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+
+	VmaAllocationCreateInfo bufferAllocationCreateInfo = {};
+	bufferAllocationCreateInfo.flags = 0;
+	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &spotLightShadowMap.frustumCullingInfo.drawIndirectBuffer.handle, &spotLightShadowMap.frustumCullingInfo.drawIndirectBuffer.allocation, nullptr));
+
+	// Create descriptor pools
+	VkDescriptorPoolSize outDrawIndirectDescriptorPoolSize = {};
+	outDrawIndirectDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outDrawIndirectDescriptorPoolSize.descriptorCount = 1;
+
+	VkDescriptorPoolSize outPerDrawDescriptorPoolSize = {};
+	outPerDrawDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outPerDrawDescriptorPoolSize.descriptorCount = 1;
+
+	std::array<VkDescriptorPoolSize, 2> frustumCullingDescriptorPoolSizes = { outDrawIndirectDescriptorPoolSize, outPerDrawDescriptorPoolSize };
+	VkDescriptorPoolCreateInfo frustumCullingDescriptorPoolCreateInfo = {};
+	frustumCullingDescriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	frustumCullingDescriptorPoolCreateInfo.pNext = nullptr;
+	frustumCullingDescriptorPoolCreateInfo.flags = 0;
+	frustumCullingDescriptorPoolCreateInfo.maxSets = 1;
+	frustumCullingDescriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(frustumCullingDescriptorPoolSizes.size());
+	frustumCullingDescriptorPoolCreateInfo.pPoolSizes = frustumCullingDescriptorPoolSizes.data();
+	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &frustumCullingDescriptorPoolCreateInfo, nullptr, &spotLightShadowMap.frustumCullingDescriptorPool));
+
+	VkDescriptorPoolCreateInfo perDrawDescriptorPoolCreateInfo = {};
+	perDrawDescriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	perDrawDescriptorPoolCreateInfo.pNext = nullptr;
+	perDrawDescriptorPoolCreateInfo.flags = 0;
+	perDrawDescriptorPoolCreateInfo.maxSets = 1;
+	perDrawDescriptorPoolCreateInfo.poolSizeCount = 1;
+	perDrawDescriptorPoolCreateInfo.pPoolSizes = &outPerDrawDescriptorPoolSize;
+	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &perDrawDescriptorPoolCreateInfo, nullptr, &spotLightShadowMap.perDrawDescriptorPool));
+
+	// Allocate descriptor sets
+	VkDescriptorSetAllocateInfo frustumCullingDescriptorSetAllocateInfo = {};
+	frustumCullingDescriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	frustumCullingDescriptorSetAllocateInfo.pNext = nullptr;
+	frustumCullingDescriptorSetAllocateInfo.descriptorPool = spotLightShadowMap.frustumCullingDescriptorPool;
+	frustumCullingDescriptorSetAllocateInfo.descriptorSetCount = 1;
+	frustumCullingDescriptorSetAllocateInfo.pSetLayouts = &m_frustumCullingDescriptorSet1Layout;
+	NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &frustumCullingDescriptorSetAllocateInfo, &spotLightShadowMap.frustumCullingInfo.descriptorSet));
+
+	VkDescriptorSetAllocateInfo perDrawDescriptorSetAllocateInfo = {};
+	perDrawDescriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	perDrawDescriptorSetAllocateInfo.pNext = nullptr;
+	perDrawDescriptorSetAllocateInfo.descriptorPool = spotLightShadowMap.perDrawDescriptorPool;
+	perDrawDescriptorSetAllocateInfo.descriptorSetCount = 1;
+	perDrawDescriptorSetAllocateInfo.pSetLayouts = &m_descriptorSet1Layout;
+	NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &perDrawDescriptorSetAllocateInfo, &spotLightShadowMap.perDrawDescriptorSet));
+
+	// Update descriptor sets
+	std::vector<VkWriteDescriptorSet> writeDescriptorSets;
+
+	VkDescriptorBufferInfo outDrawIndirectDescriptorBufferInfo;
+	outDrawIndirectDescriptorBufferInfo.buffer = spotLightShadowMap.frustumCullingInfo.drawIndirectBuffer.handle;
+	outDrawIndirectDescriptorBufferInfo.offset = 0;
+	outDrawIndirectDescriptorBufferInfo.range = 65536;
+
+	VkWriteDescriptorSet outDrawIndirectDescriptorWriteDescriptorSet = {};
+	outDrawIndirectDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	outDrawIndirectDescriptorWriteDescriptorSet.pNext = nullptr;
+	outDrawIndirectDescriptorWriteDescriptorSet.dstSet = spotLightShadowMap.frustumCullingInfo.descriptorSet;
+	outDrawIndirectDescriptorWriteDescriptorSet.dstBinding = 0;
+	outDrawIndirectDescriptorWriteDescriptorSet.dstArrayElement = 0;
+	outDrawIndirectDescriptorWriteDescriptorSet.descriptorCount = 1;
+	outDrawIndirectDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outDrawIndirectDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+	outDrawIndirectDescriptorWriteDescriptorSet.pBufferInfo = &outDrawIndirectDescriptorBufferInfo;
+	outDrawIndirectDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+	writeDescriptorSets.push_back(outDrawIndirectDescriptorWriteDescriptorSet);
+
+	VkDescriptorBufferInfo outPerDrawDescriptorBufferInfo;
+	outPerDrawDescriptorBufferInfo.buffer = spotLightShadowMap.frustumCullingInfo.drawIndirectBuffer.handle;
+	outPerDrawDescriptorBufferInfo.offset = 65536;
+	outPerDrawDescriptorBufferInfo.range = 32768;
+
+	VkWriteDescriptorSet outPerDrawDescriptorWriteDescriptorSet = {};
+	outPerDrawDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	outPerDrawDescriptorWriteDescriptorSet.pNext = nullptr;
+	outPerDrawDescriptorWriteDescriptorSet.dstSet = spotLightShadowMap.frustumCullingInfo.descriptorSet;
+	outPerDrawDescriptorWriteDescriptorSet.dstBinding = 1;
+	outPerDrawDescriptorWriteDescriptorSet.dstArrayElement = 0;
+	outPerDrawDescriptorWriteDescriptorSet.descriptorCount = 1;
+	outPerDrawDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	outPerDrawDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+	outPerDrawDescriptorWriteDescriptorSet.pBufferInfo = &outPerDrawDescriptorBufferInfo;
+	outPerDrawDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+	writeDescriptorSets.push_back(outPerDrawDescriptorWriteDescriptorSet);
+
+	VkWriteDescriptorSet perDrawDescriptorWriteDescriptorSet = {};
+	perDrawDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	perDrawDescriptorWriteDescriptorSet.pNext = nullptr;
+	perDrawDescriptorWriteDescriptorSet.dstSet = spotLightShadowMap.perDrawDescriptorSet;
+	perDrawDescriptorWriteDescriptorSet.dstBinding = 0;
+	perDrawDescriptorWriteDescriptorSet.dstArrayElement = 0;
+	perDrawDescriptorWriteDescriptorSet.descriptorCount = 1;
+	perDrawDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	perDrawDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+	perDrawDescriptorWriteDescriptorSet.pBufferInfo = &outPerDrawDescriptorBufferInfo;
+	perDrawDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+	writeDescriptorSets.push_back(perDrawDescriptorWriteDescriptorSet);
+
+	vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+
 	spotLightShadowMap.shadowMap = shadowMap;
 	m_spotLightShadowMaps.push_back(spotLightShadowMap);
 
@@ -960,6 +1337,26 @@ std::vector<VulkanImage> ShadowMapping::getShadowMapImages() {
 	}
 
 	return shadowMapImages;
+}
+
+std::vector<FrustumCullingInfo> ShadowMapping::getFrustumCullingInfos() {
+	std::vector<FrustumCullingInfo> frustumCullingInfos;
+
+	for (size_t i = 0; i < m_directionalLightEntities.size(); i++) {
+		for (uint32_t cascadeIndex = 0; cascadeIndex < SHADOW_MAPPING_CASCADE_COUNT; cascadeIndex++) {
+			frustumCullingInfos.push_back(m_directionalLightShadowMaps[i].cascades[cascadeIndex].frustumCullingInfo);
+		}
+	}
+	for (size_t i = 0; i < m_pointLightEntities.size(); i++) {
+		for (uint32_t faceIndex = 0; faceIndex < 6; faceIndex++) {
+			frustumCullingInfos.push_back(m_pointLightShadowMaps[i].faces[faceIndex].frustumCullingInfo);
+		}
+	}
+	for (size_t i = 0; i < m_spotLightEntities.size(); i++) {
+		frustumCullingInfos.push_back(m_spotLightShadowMaps[i].frustumCullingInfo);
+	}
+
+	return frustumCullingInfos;
 }
 
 void ShadowMapping::createImageAndBuffers() {
@@ -1092,6 +1489,11 @@ void ShadowMapping::createImageAndBuffers() {
 }
 
 void ShadowMapping::createDescriptorSetLayout() {
+	createDescriptorSet0Layout();
+	createDescriptorSet1Layout();
+}
+
+void ShadowMapping::createDescriptorSet0Layout() {
 	VkDescriptorSetLayoutBinding cascadeDescriptorSetLayoutBinding = {};
 	cascadeDescriptorSetLayoutBinding.binding = 0;
 	cascadeDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -1148,7 +1550,24 @@ void ShadowMapping::createDescriptorSetLayout() {
 	descriptorSetLayoutCreateInfo.flags = 0;
 	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size());
 	descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
-	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_descriptorSetLayout));
+	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_descriptorSet0Layout));
+}
+
+void ShadowMapping::createDescriptorSet1Layout() {
+	VkDescriptorSetLayoutBinding perDrawDescriptorSetLayoutBinding = {};
+	perDrawDescriptorSetLayoutBinding.binding = 0;
+	perDrawDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	perDrawDescriptorSetLayoutBinding.descriptorCount = 1;
+	perDrawDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	perDrawDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptorSetLayoutCreateInfo.pNext = nullptr;
+	descriptorSetLayoutCreateInfo.flags = 0;
+	descriptorSetLayoutCreateInfo.bindingCount = 1;
+	descriptorSetLayoutCreateInfo.pBindings = &perDrawDescriptorSetLayoutBinding;
+	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_descriptorSet1Layout));
 }
 
 void ShadowMapping::createGraphicsPipelines() {
@@ -1174,6 +1593,10 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 		#define SHADOW_MAPPING_CASCADE_COUNT )GLSL";
 	vertexShaderCode += std::to_string(SHADOW_MAPPING_CASCADE_COUNT);
 	vertexShaderCode += R"GLSL(
+
+		struct PerDrawInfo {
+			uint objectID;
+		};
 
 		struct ObjectInfo {
 			mat4 model;
@@ -1203,9 +1626,12 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 			mat4 matrix[];
 		} jointTransforms;
 
+		layout(std430, set = 1, binding = 0) restrict readonly buffer PerDraw {
+			PerDrawInfo info[];
+		} perDraw;
+
 		layout(push_constant) uniform PushConstants {
 			uint viewProjIndex;
-			uint objectID;
 		} pC;
 
 		layout(location = 0) in vec3 position;
@@ -1217,9 +1643,11 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 		layout(location = 1) out flat uint outMaterialID;
 
 		void main() {
+			uint objectID = perDraw.info[gl_DrawID].objectID;
+
 			mat4 skinMatrix = mat4(1.0);
-			if (meshes.info[objects.info[pC.objectID].meshID].hasSkin == 1) {
-				uint jointTransformOffset = objects.info[pC.objectID].jointTransformOffset;
+			if (meshes.info[objects.info[objectID].meshID].hasSkin == 1) {
+				uint jointTransformOffset = objects.info[objectID].jointTransformOffset;
 
 				skinMatrix = (weights.x * jointTransforms.matrix[jointTransformOffset + joints.x]) +
 					(weights.y * jointTransforms.matrix[jointTransformOffset + joints.y]) +
@@ -1227,9 +1655,9 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 					(weights.w * jointTransforms.matrix[jointTransformOffset + joints.w]);
 			}
 			outUv = uv;
-			outMaterialID = objects.info[pC.objectID].materialID;
+			outMaterialID = objects.info[objectID].materialID;
 
-			gl_Position = shadows.viewProjs[pC.viewProjIndex] * vec4(vec3(objects.info[pC.objectID].model * skinMatrix * vec4(position, 1.0)), 1.0);
+			gl_Position = shadows.viewProjs[pC.viewProjIndex] * vec4(vec3(objects.info[objectID].model * skinMatrix * vec4(position, 1.0)), 1.0);
 		}
 	)GLSL";
 	const std::vector<uint32_t> vertexShaderSpv = compileShader(vertexShaderCode, ShaderType::Vertex);
@@ -1420,14 +1848,15 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 	VkPushConstantRange pushConstantRange = {};
 	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	pushConstantRange.offset = 0;
-	pushConstantRange.size = sizeof(uint32_t) * 2;
+	pushConstantRange.size = sizeof(uint32_t);
 
+	std::array<VkDescriptorSetLayout, 2> descriptorSetLayouts = { m_descriptorSet0Layout, m_descriptorSet1Layout };
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutCreateInfo.pNext = nullptr;
 	pipelineLayoutCreateInfo.flags = 0;
-	pipelineLayoutCreateInfo.setLayoutCount = 1;
-	pipelineLayoutCreateInfo.pSetLayouts = &m_descriptorSetLayout;
+	pipelineLayoutCreateInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+	pipelineLayoutCreateInfo.pSetLayouts = descriptorSetLayouts.data();
 	pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
 	pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
 	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_directionalLightShadowGraphicsPipelineLayout));
@@ -1472,6 +1901,10 @@ void ShadowMapping::createPointLightShadowGraphicsPipeline() {
 	std::string vertexShaderCode = R"GLSL(
 		#version 460
 
+		struct PerDrawInfo {
+			uint objectID;
+		};
+
 		struct ObjectInfo {
 			mat4 model;
 			mat4 transposeInverseModel;
@@ -1500,9 +1933,12 @@ void ShadowMapping::createPointLightShadowGraphicsPipeline() {
 			mat4 matrix[];
 		} jointTransforms;
 
+		layout(std430, set = 1, binding = 0) restrict readonly buffer PerDraw {
+			PerDrawInfo info[];
+		} perDraw;
+
 		layout(push_constant) uniform PushConstants {
 			uint viewProjIndex;
-			uint objectID;
 		} pC;
 
 		layout(location = 0) in vec3 position;
@@ -1515,18 +1951,20 @@ void ShadowMapping::createPointLightShadowGraphicsPipeline() {
 		layout(location = 2) out flat uint outMaterialID;
 
 		void main() {
+			uint objectID = perDraw.info[gl_DrawID].objectID;
+
 			mat4 skinMatrix = mat4(1.0);
-			if (meshes.info[objects.info[pC.objectID].meshID].hasSkin == 1) {
-				uint jointTransformOffset = objects.info[pC.objectID].jointTransformOffset;
+			if (meshes.info[objects.info[objectID].meshID].hasSkin == 1) {
+				uint jointTransformOffset = objects.info[objectID].jointTransformOffset;
 
 				skinMatrix = (weights.x * jointTransforms.matrix[jointTransformOffset + joints.x]) +
 					(weights.y * jointTransforms.matrix[jointTransformOffset + joints.y]) +
 					(weights.z * jointTransforms.matrix[jointTransformOffset + joints.z]) +
 					(weights.w * jointTransforms.matrix[jointTransformOffset + joints.w]);
 			}
-			outPosition = vec3(objects.info[pC.objectID].model * skinMatrix * vec4(position, 1.0));
+			outPosition = vec3(objects.info[objectID].model * skinMatrix * vec4(position, 1.0));
 			outUv = uv;
-			outMaterialID = objects.info[pC.objectID].materialID;
+			outMaterialID = objects.info[objectID].materialID;
 
 			gl_Position = shadows.viewProjs[pC.viewProjIndex] * vec4(outPosition, 1.0);
 		}
@@ -1727,20 +2165,21 @@ void ShadowMapping::createPointLightShadowGraphicsPipeline() {
 	VkPushConstantRange vertexPushConstantRange = {};
 	vertexPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	vertexPushConstantRange.offset = 0;
-	vertexPushConstantRange.size = sizeof(uint32_t) * 2;
+	vertexPushConstantRange.size = sizeof(uint32_t);
 
 	VkPushConstantRange fragmentPushConstantRange = {};
 	fragmentPushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	fragmentPushConstantRange.offset = sizeof(uint32_t) * 4;
 	fragmentPushConstantRange.size = sizeof(NtshEngn::Math::vec3);
 
+	std::array<VkDescriptorSetLayout, 2> descriptorSetLayouts = { m_descriptorSet0Layout, m_descriptorSet1Layout };
 	std::array<VkPushConstantRange, 2> pushConstantRanges = { vertexPushConstantRange, fragmentPushConstantRange };
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutCreateInfo.pNext = nullptr;
 	pipelineLayoutCreateInfo.flags = 0;
-	pipelineLayoutCreateInfo.setLayoutCount = 1;
-	pipelineLayoutCreateInfo.pSetLayouts = &m_descriptorSetLayout;
+	pipelineLayoutCreateInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+	pipelineLayoutCreateInfo.pSetLayouts = descriptorSetLayouts.data();
 	pipelineLayoutCreateInfo.pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size());
 	pipelineLayoutCreateInfo.pPushConstantRanges = pushConstantRanges.data();
 	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_pointLightShadowGraphicsPipelineLayout));
@@ -1785,6 +2224,10 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 	std::string vertexShaderCode = R"GLSL(
 		#version 460
 
+		struct PerDrawInfo {
+			uint objectID;
+		};
+
 		struct ObjectInfo {
 			mat4 model;
 			mat4 transposeInverseModel;
@@ -1813,9 +2256,12 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 			mat4 matrix[];
 		} jointTransforms;
 
+		layout(std430, set = 1, binding = 0) restrict readonly buffer PerDraw {
+			PerDrawInfo info[];
+		} perDraw;
+
 		layout(push_constant) uniform PushConstants {
 			uint viewProjIndex;
-			uint objectID;
 		} pC;
 
 		layout(location = 0) in vec3 position;
@@ -1827,9 +2273,11 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 		layout(location = 1) out flat uint outMaterialID;
 
 		void main() {
+			uint objectID = perDraw.info[gl_DrawID].objectID;
+
 			mat4 skinMatrix = mat4(1.0);
-			if (meshes.info[objects.info[pC.objectID].meshID].hasSkin == 1) {
-				uint jointTransformOffset = objects.info[pC.objectID].jointTransformOffset;
+			if (meshes.info[objects.info[objectID].meshID].hasSkin == 1) {
+				uint jointTransformOffset = objects.info[objectID].jointTransformOffset;
 
 				skinMatrix = (weights.x * jointTransforms.matrix[jointTransformOffset + joints.x]) +
 					(weights.y * jointTransforms.matrix[jointTransformOffset + joints.y]) +
@@ -1837,9 +2285,9 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 					(weights.w * jointTransforms.matrix[jointTransformOffset + joints.w]);
 			}
 			outUv = uv;
-			outMaterialID = objects.info[pC.objectID].materialID;
+			outMaterialID = objects.info[objectID].materialID;
 
-			gl_Position = shadows.viewProjs[pC.viewProjIndex] * vec4(vec3(objects.info[pC.objectID].model * skinMatrix * vec4(position, 1.0)), 1.0);
+			gl_Position = shadows.viewProjs[pC.viewProjIndex] * vec4(vec3(objects.info[objectID].model * skinMatrix * vec4(position, 1.0)), 1.0);
 		}
 	)GLSL";
 	const std::vector<uint32_t> vertexShaderSpv = compileShader(vertexShaderCode, ShaderType::Vertex);
@@ -2030,14 +2478,15 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 	VkPushConstantRange pushConstantRange = {};
 	pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	pushConstantRange.offset = 0;
-	pushConstantRange.size = sizeof(uint32_t) * 2;
+	pushConstantRange.size = sizeof(uint32_t);
 
+	std::array<VkDescriptorSetLayout, 2> descriptorSetLayouts = { m_descriptorSet0Layout, m_descriptorSet1Layout };
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutCreateInfo.pNext = nullptr;
 	pipelineLayoutCreateInfo.flags = 0;
-	pipelineLayoutCreateInfo.setLayoutCount = 1;
-	pipelineLayoutCreateInfo.pSetLayouts = &m_descriptorSetLayout;
+	pipelineLayoutCreateInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+	pipelineLayoutCreateInfo.pSetLayouts = descriptorSetLayouts.data();
 	pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
 	pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
 	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_spotLightShadowGraphicsPipelineLayout));
@@ -2109,13 +2558,13 @@ void ShadowMapping::createDescriptorSets(const std::vector<HostVisibleVulkanBuff
 
 	// Allocate descriptor sets
 	m_descriptorSets.resize(m_framesInFlight);
+	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
+	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	descriptorSetAllocateInfo.pNext = nullptr;
+	descriptorSetAllocateInfo.descriptorPool = m_descriptorPool;
+	descriptorSetAllocateInfo.descriptorSetCount = 1;
+	descriptorSetAllocateInfo.pSetLayouts = &m_descriptorSet0Layout;
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
-		descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		descriptorSetAllocateInfo.pNext = nullptr;
-		descriptorSetAllocateInfo.descriptorPool = m_descriptorPool;
-		descriptorSetAllocateInfo.descriptorSetCount = 1;
-		descriptorSetAllocateInfo.pSetLayouts = &m_descriptorSetLayout;
 		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_descriptorSets[i]));
 	}
 
