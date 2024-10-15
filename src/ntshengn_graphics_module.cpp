@@ -309,7 +309,7 @@ void NtshEngn::GraphicsModule::init() {
 				memoryTypeIndex = i;
 			}
 		}
-		NTSHENGN_ASSERT(memoryTypeIndex < memoryProperties.memoryTypeCount);
+		NTSHENGN_ASSERT(memoryTypeIndex < memoryProperties.memoryTypeCount, "No fitting memory type has been found.");
 
 		VkMemoryAllocateInfo memoryAllocateInfo = {};
 		memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
