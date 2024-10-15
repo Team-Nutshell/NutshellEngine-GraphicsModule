@@ -235,7 +235,7 @@ void NtshEngn::GraphicsModule::init() {
 	m_fenceValues[m_frameIndex]++;
 
 	m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-	NTSHENGN_ASSERT(m_fenceEvent != nullptr);
+	NTSHENGN_ASSERT(m_fenceEvent != nullptr, "Fence event could not be created.");
 
 	waitForGPUIDle();
 }
@@ -449,7 +449,7 @@ void NtshEngn::GraphicsModule::getHardwareAdapter(IDXGIFactory1* factory, IDXGIA
 			}
 		}
 	}
-	NTSHENGN_ASSERT(adapter.Get() != nullptr);
+	NTSHENGN_ASSERT(adapter.Get() != nullptr, "No adapter has been found.");
 
 	*hardwareAdapter = adapter.Detach();
 }
