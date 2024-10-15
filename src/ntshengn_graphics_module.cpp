@@ -2243,7 +2243,7 @@ void NtshEngn::GraphicsModule::emitParticles(const ParticleEmitter& particleEmit
 }
 
 void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::string& text, const Math::vec2& position, const Math::vec4& color) {
-	NTSHENGN_ASSERT(fontID < m_fonts.size());
+	NTSHENGN_ASSERT(fontID < m_fonts.size(), "FontID " + std::to_string(fontID) + " is superior than the number of loaded fonts (" + std::to_string(m_fonts.size()) + ").");
 
 	float positionAdvance = 0.0f;
 	std::vector<Math::vec2> positionsAndUVs;
@@ -2294,7 +2294,7 @@ void NtshEngn::GraphicsModule::drawUIRectangle(const Math::vec2& position, const
 }
 
 void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter imageSamplerFilter, const Math::vec2& position, float rotation, const Math::vec2& scale, const Math::vec4& color) {
-	NTSHENGN_ASSERT(imageID < m_textureImages.size());
+	NTSHENGN_ASSERT(imageID < m_textureImages.size(), "ImageID " + std::to_string(imageID) + " is superior than the number of loaded images (" + std::to_string(m_textureImages.size()) + ").");
 
 	const Math::mat3 transform = Math::translate(position) * Math::rotate(rotation) * Math::scale(Math::vec2(std::abs(scale.x), std::abs(scale.y)));
 	const float x = (m_textureSizes[imageID].x) / 2.0f;
