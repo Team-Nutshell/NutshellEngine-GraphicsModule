@@ -650,12 +650,13 @@ void NtshEngn::GraphicsModule::update(float dt) {
 			Math::rotate(cameraTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f));
 		Math::mat4 cameraView = cameraRotation * Math::lookAtRH(cameraTransform.position, cameraTransform.position + camera.forward, camera.up);
 		Math::mat4 cameraProjection = Math::mat4::identity();
+		float aspectRatio = m_viewport.width / m_viewport.height;
         if (camera.projectionType == CameraProjectionType::Perspective) {
-            cameraProjection = Math::perspectiveRH(camera.fov, m_viewport.width / m_viewport.height, camera.nearPlane, camera.farPlane);
+            cameraProjection = Math::perspectiveRH(camera.fov, aspectRatio, camera.nearPlane, camera.farPlane);
             cameraProjection[1][1] *= -1.0f;
         }
         else if (camera.projectionType == CameraProjectionType::Orthographic) {
-            cameraProjection = Math::orthoRH(camera.left, camera.right, camera.bottom, camera.top, camera.nearPlane, camera.farPlane);
+            cameraProjection = Math::orthoRH(camera.left * aspectRatio, camera.right * aspectRatio, camera.bottom, camera.top, camera.nearPlane, camera.farPlane);
             cameraProjection[1][1] *= -1.0f;
         }
 		std::array<Math::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
