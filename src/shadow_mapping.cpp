@@ -55,81 +55,83 @@ void ShadowMapping::init(VkDevice device,
 }
 
 void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane, float cameraFarPlane, const NtshEngn::Math::mat4& cameraView, const NtshEngn::Math::mat4& cameraProjection) {
-	std::array<float, SHADOW_MAPPING_CASCADE_COUNT> cascadeSplits;
+	if (!m_directionalLightEntities.empty()) {
+		std::array<float, SHADOW_MAPPING_CASCADE_COUNT> cascadeSplits;
 
-	const float clipRange = cameraFarPlane - cameraNearPlane;
-	const float clipRatio = cameraFarPlane / cameraNearPlane;
+		const float clipRange = cameraFarPlane - cameraNearPlane;
+		const float clipRatio = cameraFarPlane / cameraNearPlane;
 
-	for (uint32_t cascadeIndex = 0; cascadeIndex < SHADOW_MAPPING_CASCADE_COUNT; cascadeIndex++) {
-		const float p = (cascadeIndex + 1) / static_cast<float>(SHADOW_MAPPING_CASCADE_COUNT);
-		const float log = cameraNearPlane * std::pow(clipRatio, p);
-		const float uniform = cameraNearPlane + (clipRange * p);
-		const float d = SHADOW_MAPPING_CASCADE_SPLIT_LAMBDA * (log - uniform) + uniform;
-		cascadeSplits[cascadeIndex] = (d - cameraNearPlane) / clipRange;
-	}
-
-	std::array<NtshEngn::Math::vec3, 8> frustumCorners = { NtshEngn::Math::vec3(-1.0f, 1.0f, 0.0f),
-		NtshEngn::Math::vec3(1.0f, 1.0f, 0.0f),
-		NtshEngn::Math::vec3(1.0f, -1.0f, 0.0f),
-		NtshEngn::Math::vec3(-1.0f, -1.0f, 0.0f),
-		NtshEngn::Math::vec3(-1.0f, 1.0f, 1.0f),
-		NtshEngn::Math::vec3(1.0f, 1.0f, 1.0f),
-		NtshEngn::Math::vec3(1.0f, -1.0f, 1.0f),
-		NtshEngn::Math::vec3(-1.0f, -1.0f, 1.0f)
-	};
-
-	const NtshEngn::Math::mat4 inverseViewProj = NtshEngn::Math::inverse(cameraProjection * cameraView);
-	for (uint8_t i = 0; i < 8; i++) {
-		const NtshEngn::Math::vec4 inverseFrustumCorner = inverseViewProj * NtshEngn::Math::vec4(frustumCorners[i], 1.0f);
-		frustumCorners[i] = inverseFrustumCorner / inverseFrustumCorner.w;
-	}
-
-	float lastSplitDistance = 0.0f;
-	for (uint32_t cascadeIndex = 0; cascadeIndex < SHADOW_MAPPING_CASCADE_COUNT; cascadeIndex++) {
-		float splitDistance = cascadeSplits[cascadeIndex];
-
-		std::array<NtshEngn::Math::vec3, 8> cascadeFrustumCorners = frustumCorners;
-
-		for (uint8_t i = 0; i < 4; i++) {
-			const NtshEngn::Math::vec3 distance = cascadeFrustumCorners[i + 4] - cascadeFrustumCorners[i];
-			cascadeFrustumCorners[i + 4] = cascadeFrustumCorners[i] + (distance * splitDistance);
-			cascadeFrustumCorners[i] = cascadeFrustumCorners[i] + (distance * lastSplitDistance);
+		for (uint32_t cascadeIndex = 0; cascadeIndex < SHADOW_MAPPING_CASCADE_COUNT; cascadeIndex++) {
+			const float p = (cascadeIndex + 1) / static_cast<float>(SHADOW_MAPPING_CASCADE_COUNT);
+			const float log = cameraNearPlane * std::pow(clipRatio, p);
+			const float uniform = cameraNearPlane + (clipRange * p);
+			const float d = SHADOW_MAPPING_CASCADE_SPLIT_LAMBDA * (log - uniform) + uniform;
+			cascadeSplits[cascadeIndex] = (d - cameraNearPlane) / clipRange;
 		}
 
-		NtshEngn::Math::vec3 cascadeFrustumCenter = { 0.0f, 0.0f, 0.0f };
-		for (uint32_t i = 0; i < 8; i++) {
-			cascadeFrustumCenter += cascadeFrustumCorners[i];
-		}
-		cascadeFrustumCenter /= 8.0f;
+		std::array<NtshEngn::Math::vec3, 8> frustumCorners = { NtshEngn::Math::vec3(-1.0f, 1.0f, 0.0f),
+			NtshEngn::Math::vec3(1.0f, 1.0f, 0.0f),
+			NtshEngn::Math::vec3(1.0f, -1.0f, 0.0f),
+			NtshEngn::Math::vec3(-1.0f, -1.0f, 0.0f),
+			NtshEngn::Math::vec3(-1.0f, 1.0f, 1.0f),
+			NtshEngn::Math::vec3(1.0f, 1.0f, 1.0f),
+			NtshEngn::Math::vec3(1.0f, -1.0f, 1.0f),
+			NtshEngn::Math::vec3(-1.0f, -1.0f, 1.0f)
+		};
 
-		float radius = 0.0f;
+		const NtshEngn::Math::mat4 inverseViewProj = NtshEngn::Math::inverse(cameraProjection * cameraView);
 		for (uint8_t i = 0; i < 8; i++) {
-			const float distanceToCenter = (cascadeFrustumCorners[i] - cascadeFrustumCenter).length();
-			radius = std::max(radius, distanceToCenter);
-		}
-		radius = std::ceil(radius * 16.0f) / 16.0f;
-
-		for (size_t directionalLightIndex = 0; directionalLightIndex < m_directionalLightEntities.size(); directionalLightIndex++) {
-			const NtshEngn::Light& light = m_ecs->getComponent<NtshEngn::Light>(m_directionalLightEntities[directionalLightIndex]);
-			const NtshEngn::Transform& lightTransform = m_ecs->getComponent<NtshEngn::Transform>(m_directionalLightEntities[directionalLightIndex]);
-
-			const NtshEngn::Math::vec3 baseLightDirection = NtshEngn::Math::normalize(light.direction);
-			const float baseDirectionYaw = std::atan2(baseLightDirection.z, baseLightDirection.x);
-			const float baseDirectionPitch = -std::asin(baseLightDirection.y);
-			const NtshEngn::Math::vec3 lightDirection = NtshEngn::Math::normalize(NtshEngn::Math::vec3(
-				std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::cos(baseDirectionYaw + lightTransform.rotation.y),
-				-std::sin(baseDirectionPitch + lightTransform.rotation.x),
-				std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::sin(baseDirectionYaw + lightTransform.rotation.y)
-			));
-			const NtshEngn::Math::vec3 upVector = (std::abs(NtshEngn::Math::dot(lightDirection, NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f))) == 1.0f) ? NtshEngn::Math::vec3(1.0f, 0.0f, 0.0f) : NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f);
-			const NtshEngn::Math::mat4 lightView = NtshEngn::Math::lookAtRH(cascadeFrustumCenter - (lightDirection * radius), cascadeFrustumCenter, upVector);
-			const NtshEngn::Math::mat4 lightProj = NtshEngn::Math::orthoRH(-radius, radius, -radius, radius, 0.0f, radius * 2.0f);
-
-			m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].viewProj = lightProj * lightView;
-			m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].splitDepth = -(cameraNearPlane + (splitDistance * clipRange));
+			const NtshEngn::Math::vec4 inverseFrustumCorner = inverseViewProj * NtshEngn::Math::vec4(frustumCorners[i], 1.0f);
+			frustumCorners[i] = inverseFrustumCorner / inverseFrustumCorner.w;
 		}
 
-		lastSplitDistance = splitDistance;
+		float lastSplitDistance = 0.0f;
+		for (uint32_t cascadeIndex = 0; cascadeIndex < SHADOW_MAPPING_CASCADE_COUNT; cascadeIndex++) {
+			float splitDistance = cascadeSplits[cascadeIndex];
+
+			std::array<NtshEngn::Math::vec3, 8> cascadeFrustumCorners = frustumCorners;
+
+			for (uint8_t i = 0; i < 4; i++) {
+				const NtshEngn::Math::vec3 distance = cascadeFrustumCorners[i + 4] - cascadeFrustumCorners[i];
+				cascadeFrustumCorners[i + 4] = cascadeFrustumCorners[i] + (distance * splitDistance);
+				cascadeFrustumCorners[i] = cascadeFrustumCorners[i] + (distance * lastSplitDistance);
+			}
+
+			NtshEngn::Math::vec3 cascadeFrustumCenter = { 0.0f, 0.0f, 0.0f };
+			for (uint32_t i = 0; i < 8; i++) {
+				cascadeFrustumCenter += cascadeFrustumCorners[i];
+			}
+			cascadeFrustumCenter /= 8.0f;
+
+			float radius = 0.0f;
+			for (uint8_t i = 0; i < 8; i++) {
+				const float distanceToCenter = (cascadeFrustumCorners[i] - cascadeFrustumCenter).length();
+				radius = std::max(radius, distanceToCenter);
+			}
+			radius = std::ceil(radius * 16.0f) / 16.0f;
+
+			for (size_t directionalLightIndex = 0; directionalLightIndex < m_directionalLightEntities.size(); directionalLightIndex++) {
+				const NtshEngn::Light& light = m_ecs->getComponent<NtshEngn::Light>(m_directionalLightEntities[directionalLightIndex]);
+				const NtshEngn::Transform& lightTransform = m_ecs->getComponent<NtshEngn::Transform>(m_directionalLightEntities[directionalLightIndex]);
+
+				const NtshEngn::Math::vec3 baseLightDirection = NtshEngn::Math::normalize(light.direction);
+				const float baseDirectionYaw = std::atan2(baseLightDirection.z, baseLightDirection.x);
+				const float baseDirectionPitch = -std::asin(baseLightDirection.y);
+				const NtshEngn::Math::vec3 lightDirection = NtshEngn::Math::normalize(NtshEngn::Math::vec3(
+					std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::cos(baseDirectionYaw + lightTransform.rotation.y),
+					-std::sin(baseDirectionPitch + lightTransform.rotation.x),
+					std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::sin(baseDirectionYaw + lightTransform.rotation.y)
+				));
+				const NtshEngn::Math::vec3 upVector = (std::abs(NtshEngn::Math::dot(lightDirection, NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f))) == 1.0f) ? NtshEngn::Math::vec3(1.0f, 0.0f, 0.0f) : NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f);
+				const NtshEngn::Math::mat4 lightView = NtshEngn::Math::lookAtRH(cascadeFrustumCenter - (lightDirection * radius), cascadeFrustumCenter, upVector);
+				const NtshEngn::Math::mat4 lightProj = NtshEngn::Math::orthoRH(-radius, radius, -radius, radius, 0.0f, radius * 2.0f);
+
+				m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].viewProj = lightProj * lightView;
+				m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].splitDepth = -(cameraNearPlane + (splitDistance * clipRange));
+			}
+
+			lastSplitDistance = splitDistance;
+		}
 	}
 
 	const std::array<NtshEngn::Math::vec3, 6> lightCubeDirections = { NtshEngn::Math::vec3(1.0f, 0.0f, 0.0f),
@@ -613,7 +615,7 @@ void ShadowMapping::createDirectionalLightShadowMap(NtshEngn::Entity entity) {
 	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bufferCreateInfo.pNext = nullptr;
 	bufferCreateInfo.flags = 0;
-	bufferCreateInfo.size = 65536 + 32768;
+	bufferCreateInfo.size = DRAW_INDIRECT_MAX_ENTITIES_SIZE + PER_DRAW_MAX_ENTITIES_SIZE;
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	bufferCreateInfo.queueFamilyIndexCount = 1;
@@ -682,7 +684,7 @@ void ShadowMapping::createDirectionalLightShadowMap(NtshEngn::Entity entity) {
 		VkDescriptorBufferInfo outDrawIndirectDescriptorBufferInfo;
 		outDrawIndirectDescriptorBufferInfo.buffer = directionalLightShadowMap.cascades[cascadeIndex].frustumCullingInfo.drawIndirectBuffer.handle;
 		outDrawIndirectDescriptorBufferInfo.offset = 0;
-		outDrawIndirectDescriptorBufferInfo.range = 65536;
+		outDrawIndirectDescriptorBufferInfo.range = DRAW_INDIRECT_MAX_ENTITIES_SIZE;
 
 		VkWriteDescriptorSet outDrawIndirectDescriptorWriteDescriptorSet = {};
 		outDrawIndirectDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -699,8 +701,8 @@ void ShadowMapping::createDirectionalLightShadowMap(NtshEngn::Entity entity) {
 
 		VkDescriptorBufferInfo outPerDrawDescriptorBufferInfo;
 		outPerDrawDescriptorBufferInfo.buffer = directionalLightShadowMap.cascades[cascadeIndex].frustumCullingInfo.drawIndirectBuffer.handle;
-		outPerDrawDescriptorBufferInfo.offset = 65536;
-		outPerDrawDescriptorBufferInfo.range = 32768;
+		outPerDrawDescriptorBufferInfo.offset = DRAW_INDIRECT_MAX_ENTITIES_SIZE;
+		outPerDrawDescriptorBufferInfo.range = PER_DRAW_MAX_ENTITIES_SIZE;
 
 		VkWriteDescriptorSet outPerDrawDescriptorWriteDescriptorSet = {};
 		outPerDrawDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -887,7 +889,7 @@ void ShadowMapping::createPointLightShadowMap(NtshEngn::Entity entity) {
 	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bufferCreateInfo.pNext = nullptr;
 	bufferCreateInfo.flags = 0;
-	bufferCreateInfo.size = 65536 + 32768;
+	bufferCreateInfo.size = DRAW_INDIRECT_MAX_ENTITIES_SIZE + PER_DRAW_MAX_ENTITIES_SIZE;
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	bufferCreateInfo.queueFamilyIndexCount = 1;
@@ -956,7 +958,7 @@ void ShadowMapping::createPointLightShadowMap(NtshEngn::Entity entity) {
 		VkDescriptorBufferInfo outDrawIndirectDescriptorBufferInfo;
 		outDrawIndirectDescriptorBufferInfo.buffer = pointLightShadowMap.faces[faceIndex].frustumCullingInfo.drawIndirectBuffer.handle;
 		outDrawIndirectDescriptorBufferInfo.offset = 0;
-		outDrawIndirectDescriptorBufferInfo.range = 65536;
+		outDrawIndirectDescriptorBufferInfo.range = DRAW_INDIRECT_MAX_ENTITIES_SIZE;
 
 		VkWriteDescriptorSet outDrawIndirectDescriptorWriteDescriptorSet = {};
 		outDrawIndirectDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -973,8 +975,8 @@ void ShadowMapping::createPointLightShadowMap(NtshEngn::Entity entity) {
 
 		VkDescriptorBufferInfo outPerDrawDescriptorBufferInfo;
 		outPerDrawDescriptorBufferInfo.buffer = pointLightShadowMap.faces[faceIndex].frustumCullingInfo.drawIndirectBuffer.handle;
-		outPerDrawDescriptorBufferInfo.offset = 65536;
-		outPerDrawDescriptorBufferInfo.range = 32768;
+		outPerDrawDescriptorBufferInfo.offset = DRAW_INDIRECT_MAX_ENTITIES_SIZE;
+		outPerDrawDescriptorBufferInfo.range = PER_DRAW_MAX_ENTITIES_SIZE;
 
 		VkWriteDescriptorSet outPerDrawDescriptorWriteDescriptorSet = {};
 		outPerDrawDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1137,7 +1139,7 @@ void ShadowMapping::createSpotLightShadowMap(NtshEngn::Entity entity) {
 	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bufferCreateInfo.pNext = nullptr;
 	bufferCreateInfo.flags = 0;
-	bufferCreateInfo.size = 65536 + 32768;
+	bufferCreateInfo.size = DRAW_INDIRECT_MAX_ENTITIES_SIZE + PER_DRAW_MAX_ENTITIES_SIZE;
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	bufferCreateInfo.queueFamilyIndexCount = 1;
@@ -1199,7 +1201,7 @@ void ShadowMapping::createSpotLightShadowMap(NtshEngn::Entity entity) {
 	VkDescriptorBufferInfo outDrawIndirectDescriptorBufferInfo;
 	outDrawIndirectDescriptorBufferInfo.buffer = spotLightShadowMap.frustumCullingInfo.drawIndirectBuffer.handle;
 	outDrawIndirectDescriptorBufferInfo.offset = 0;
-	outDrawIndirectDescriptorBufferInfo.range = 65536;
+	outDrawIndirectDescriptorBufferInfo.range = DRAW_INDIRECT_MAX_ENTITIES_SIZE;
 
 	VkWriteDescriptorSet outDrawIndirectDescriptorWriteDescriptorSet = {};
 	outDrawIndirectDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1216,8 +1218,8 @@ void ShadowMapping::createSpotLightShadowMap(NtshEngn::Entity entity) {
 
 	VkDescriptorBufferInfo outPerDrawDescriptorBufferInfo;
 	outPerDrawDescriptorBufferInfo.buffer = spotLightShadowMap.frustumCullingInfo.drawIndirectBuffer.handle;
-	outPerDrawDescriptorBufferInfo.offset = 65536;
-	outPerDrawDescriptorBufferInfo.range = 32768;
+	outPerDrawDescriptorBufferInfo.offset = DRAW_INDIRECT_MAX_ENTITIES_SIZE;
+	outPerDrawDescriptorBufferInfo.range = PER_DRAW_MAX_ENTITIES_SIZE;
 
 	VkWriteDescriptorSet outPerDrawDescriptorWriteDescriptorSet = {};
 	outPerDrawDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -2593,7 +2595,7 @@ void ShadowMapping::createDescriptorSets(const std::vector<HostVisibleVulkanBuff
 		VkDescriptorBufferInfo objectsDescriptorBufferInfo;
 		objectsDescriptorBufferInfo.buffer = objectBuffers[i].handle;
 		objectsDescriptorBufferInfo.offset = 0;
-		objectsDescriptorBufferInfo.range = 262144;
+		objectsDescriptorBufferInfo.range = ((sizeof(NtshEngn::Math::mat4) * 2) + sizeof(NtshEngn::Math::vec4)) * NTSHENGN_MAX_ENTITIES;
 
 		VkWriteDescriptorSet objectsDescriptorWriteDescriptorSet = {};
 		objectsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
