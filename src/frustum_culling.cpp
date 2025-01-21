@@ -163,7 +163,7 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 		beforeDispatchDrawIndirectBufferMemoryBarrier.dstQueueFamilyIndex = m_computeQueueFamilyIndex;
 		beforeDispatchDrawIndirectBufferMemoryBarrier.buffer = frustumCullingInfos[i].drawIndirectBuffer.handle;
 		beforeDispatchDrawIndirectBufferMemoryBarrier.offset = sizeof(uint32_t);
-		beforeDispatchDrawIndirectBufferMemoryBarrier.size = 65536 - sizeof(uint32_t);
+		beforeDispatchDrawIndirectBufferMemoryBarrier.size = DRAW_INDIRECT_MAX_ENTITIES_SIZE - sizeof(uint32_t);
 		beforeDispatchBufferMemoryBarriers.push_back(beforeDispatchDrawIndirectBufferMemoryBarrier);
 
 		VkBufferMemoryBarrier2 beforeDispatchPerDrawBufferMemoryBarrier = {};
@@ -176,8 +176,8 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 		beforeDispatchPerDrawBufferMemoryBarrier.srcQueueFamilyIndex = m_computeQueueFamilyIndex;
 		beforeDispatchPerDrawBufferMemoryBarrier.dstQueueFamilyIndex = m_computeQueueFamilyIndex;
 		beforeDispatchPerDrawBufferMemoryBarrier.buffer = frustumCullingInfos[i].drawIndirectBuffer.handle;
-		beforeDispatchPerDrawBufferMemoryBarrier.offset = 65536;
-		beforeDispatchPerDrawBufferMemoryBarrier.size = 32768;
+		beforeDispatchPerDrawBufferMemoryBarrier.offset = DRAW_INDIRECT_MAX_ENTITIES_SIZE;
+		beforeDispatchPerDrawBufferMemoryBarrier.size = PER_DRAW_MAX_ENTITIES_SIZE;
 		beforeDispatchBufferMemoryBarriers.push_back(beforeDispatchPerDrawBufferMemoryBarrier);
 	}
 
@@ -217,7 +217,7 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 		drawIndirectBufferMemoryBarrier.dstQueueFamilyIndex = m_computeQueueFamilyIndex;
 		drawIndirectBufferMemoryBarrier.buffer = frustumCullingInfos[i].drawIndirectBuffer.handle;
 		drawIndirectBufferMemoryBarrier.offset = 0;
-		drawIndirectBufferMemoryBarrier.size = 65536;
+		drawIndirectBufferMemoryBarrier.size = DRAW_INDIRECT_MAX_ENTITIES_SIZE;
 		indirectDrawBufferMemoryBarriers.push_back(drawIndirectBufferMemoryBarrier);
 
 		VkBufferMemoryBarrier2 perDrawBufferMemoryBarrier = {};
@@ -230,8 +230,8 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 		perDrawBufferMemoryBarrier.srcQueueFamilyIndex = m_computeQueueFamilyIndex;
 		perDrawBufferMemoryBarrier.dstQueueFamilyIndex = m_computeQueueFamilyIndex;
 		perDrawBufferMemoryBarrier.buffer = frustumCullingInfos[i].drawIndirectBuffer.handle;
-		perDrawBufferMemoryBarrier.offset = 65536;
-		perDrawBufferMemoryBarrier.size = 32768;
+		perDrawBufferMemoryBarrier.offset = DRAW_INDIRECT_MAX_ENTITIES_SIZE;
+		perDrawBufferMemoryBarrier.size = PER_DRAW_MAX_ENTITIES_SIZE;
 		indirectDrawBufferMemoryBarriers.push_back(perDrawBufferMemoryBarrier);
 	}
 
@@ -271,7 +271,7 @@ void FrustumCulling::createBuffers() {
 
 	// Create input draw indirect buffers
 	m_inDrawIndirectBuffers.resize(m_framesInFlight);
-	bufferCreateInfo.size = 65536;
+	bufferCreateInfo.size = DRAW_INDIRECT_MAX_ENTITIES_SIZE;
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
@@ -281,7 +281,7 @@ void FrustumCulling::createBuffers() {
 
 	// Create input per draw buffers
 	m_inPerDrawBuffers.resize(m_framesInFlight);
-	bufferCreateInfo.size = 32768;
+	bufferCreateInfo.size = PER_DRAW_MAX_ENTITIES_SIZE;
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
@@ -301,7 +301,7 @@ void FrustumCulling::createBuffers() {
 
 	// Create frustum culling object buffers
 	m_frustumCullingObjectBuffers.resize(m_framesInFlight);
-	bufferCreateInfo.size = 262144;
+	bufferCreateInfo.size = sizeof(FrustumCullingObject) * NTSHENGN_MAX_ENTITIES;
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
@@ -614,7 +614,7 @@ void FrustumCulling::createDescriptorSets() {
 		VkDescriptorBufferInfo frustumCullingObjectDescriptorBufferInfo;
 		frustumCullingObjectDescriptorBufferInfo.buffer = m_frustumCullingObjectBuffers[i].handle;
 		frustumCullingObjectDescriptorBufferInfo.offset = 0;
-		frustumCullingObjectDescriptorBufferInfo.range = 262144;
+		frustumCullingObjectDescriptorBufferInfo.range = sizeof(FrustumCullingObject) * NTSHENGN_MAX_ENTITIES;
 
 		VkWriteDescriptorSet frustumCullingObjectDescriptorWriteDescriptorSet = {};
 		frustumCullingObjectDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -632,7 +632,7 @@ void FrustumCulling::createDescriptorSets() {
 		VkDescriptorBufferInfo inDrawIndirectDescriptorBufferInfo;
 		inDrawIndirectDescriptorBufferInfo.buffer = m_inDrawIndirectBuffers[i].handle;
 		inDrawIndirectDescriptorBufferInfo.offset = 0;
-		inDrawIndirectDescriptorBufferInfo.range = 65536;
+		inDrawIndirectDescriptorBufferInfo.range = DRAW_INDIRECT_MAX_ENTITIES_SIZE;
 
 		VkWriteDescriptorSet inDrawIndirectDescriptorWriteDescriptorSet = {};
 		inDrawIndirectDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -650,7 +650,7 @@ void FrustumCulling::createDescriptorSets() {
 		VkDescriptorBufferInfo inPerDrawDescriptorBufferInfo;
 		inPerDrawDescriptorBufferInfo.buffer = m_inPerDrawBuffers[i].handle;
 		inPerDrawDescriptorBufferInfo.offset = 0;
-		inPerDrawDescriptorBufferInfo.range = 32768;
+		inPerDrawDescriptorBufferInfo.range = PER_DRAW_MAX_ENTITIES_SIZE;
 
 		VkWriteDescriptorSet inPerDrawDescriptorWriteDescriptorSet = {};
 		inPerDrawDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

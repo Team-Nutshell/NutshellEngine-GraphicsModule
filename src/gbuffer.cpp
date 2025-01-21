@@ -1239,8 +1239,8 @@ void GBuffer::createDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& c
 
 		VkDescriptorBufferInfo perDrawDescriptorBufferInfo;
 		perDrawDescriptorBufferInfo.buffer = m_frustumCullingInfo.drawIndirectBuffer.handle;
-		perDrawDescriptorBufferInfo.offset = 65536;
-		perDrawDescriptorBufferInfo.range = 32768;
+		perDrawDescriptorBufferInfo.offset = DRAW_INDIRECT_MAX_ENTITIES_SIZE;
+		perDrawDescriptorBufferInfo.range = PER_DRAW_MAX_ENTITIES_SIZE;
 
 		VkWriteDescriptorSet perDrawDescriptorWriteDescriptorSet = {};
 		perDrawDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1276,7 +1276,7 @@ void GBuffer::createDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& c
 		VkDescriptorBufferInfo objectsDescriptorBufferInfo;
 		objectsDescriptorBufferInfo.buffer = objectBuffers[i].handle;
 		objectsDescriptorBufferInfo.offset = 0;
-		objectsDescriptorBufferInfo.range = 262144;
+		objectsDescriptorBufferInfo.range = ((sizeof(NtshEngn::Math::mat4) * 2) + sizeof(NtshEngn::Math::vec4)) * NTSHENGN_MAX_ENTITIES;
 
 		VkWriteDescriptorSet objectsDescriptorWriteDescriptorSet = {};
 		objectsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1360,7 +1360,7 @@ void GBuffer::createFrustumCullingInfo(VkDescriptorSetLayout frustumCullingDescr
 	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bufferCreateInfo.pNext = nullptr;
 	bufferCreateInfo.flags = 0;
-	bufferCreateInfo.size = 65536 + 32768;
+	bufferCreateInfo.size = DRAW_INDIRECT_MAX_ENTITIES_SIZE + PER_DRAW_MAX_ENTITIES_SIZE;
 	bufferCreateInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	bufferCreateInfo.queueFamilyIndexCount = 1;
@@ -1406,7 +1406,7 @@ void GBuffer::createFrustumCullingInfo(VkDescriptorSetLayout frustumCullingDescr
 	VkDescriptorBufferInfo outDrawIndirectDescriptorBufferInfo;
 	outDrawIndirectDescriptorBufferInfo.buffer = m_frustumCullingInfo.drawIndirectBuffer.handle;
 	outDrawIndirectDescriptorBufferInfo.offset = 0;
-	outDrawIndirectDescriptorBufferInfo.range = 65536;
+	outDrawIndirectDescriptorBufferInfo.range = DRAW_INDIRECT_MAX_ENTITIES_SIZE;
 
 	VkWriteDescriptorSet outDrawIndirectDescriptorWriteDescriptorSet = {};
 	outDrawIndirectDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1423,8 +1423,8 @@ void GBuffer::createFrustumCullingInfo(VkDescriptorSetLayout frustumCullingDescr
 
 	VkDescriptorBufferInfo outPerDrawDescriptorBufferInfo;
 	outPerDrawDescriptorBufferInfo.buffer = m_frustumCullingInfo.drawIndirectBuffer.handle;
-	outPerDrawDescriptorBufferInfo.offset = 65536;
-	outPerDrawDescriptorBufferInfo.range = 32768;
+	outPerDrawDescriptorBufferInfo.offset = DRAW_INDIRECT_MAX_ENTITIES_SIZE;
+	outPerDrawDescriptorBufferInfo.range = PER_DRAW_MAX_ENTITIES_SIZE;
 
 	VkWriteDescriptorSet outPerDrawDescriptorWriteDescriptorSet = {};
 	outPerDrawDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

@@ -34,6 +34,9 @@
 
 #define FXAA_ENABLE 1
 
+#define DRAW_INDIRECT_MAX_ENTITIES_SIZE (sizeof(uint32_t) * 4) + (sizeof(VkDrawIndexedIndirectCommand) * NTSHENGN_MAX_ENTITIES)
+#define PER_DRAW_MAX_ENTITIES_SIZE sizeof(uint32_t) * NTSHENGN_MAX_ENTITIES
+
 #define NTSHENGN_VK_CHECK(f) \
 	do { \
 		int64_t check = f; \
