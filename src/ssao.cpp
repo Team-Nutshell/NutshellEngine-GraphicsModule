@@ -1,5 +1,4 @@
 #include "ssao.h"
-#include <random>
 
 void SSAO::init(VkDevice device,
 	VkQueue graphicsQueue,
@@ -260,9 +259,6 @@ VulkanImage& SSAO::getSSAO() {
 }
 
 void SSAO::createImagesAndBuffer(uint32_t width, uint32_t height) {
-	std::uniform_real_distribution<float> uniformRealDistribution(0.0f, 1.0f);
-	std::default_random_engine gen;
-
 	// SSAO images
 	createSSAOImages(width, height);
 
@@ -327,13 +323,24 @@ void SSAO::createImagesAndBuffer(uint32_t width, uint32_t height) {
 	stagingBufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &stagingBufferCreateInfo, &stagingBufferAllocationCreateInfo, &stagingBuffer.handle, &stagingBuffer.allocation, nullptr));
 
-	std::array<float, 16 * 4> randomData;
-	for (uint8_t i = 0; i < 16; i++) {
-		randomData[(i * 4)] = uniformRealDistribution(gen) * 2.0f - 1.0f;
-		randomData[(i * 4) + 1] = uniformRealDistribution(gen) * 2.0f - 1.0f;
-		randomData[(i * 4) + 2] = 0.0f;
-		randomData[(i * 4) + 3] = 1.0f;
-	}
+	std::array<NtshEngn::Math::vec4, 16> randomData = {
+		NtshEngn::Math::vec4(0.62945f, -0.72905f, 0.0f, 1.0f),
+		NtshEngn::Math::vec4(0.81158f, 0.67002f, 0.0f, 1.0f),
+		NtshEngn::Math::vec4(-0.74603f, 0.93774f, 0.0f, 1.0f),
+		NtshEngn::Math::vec4(0.82675f, -0.55793f, 0.0f, 1.0f),
+		NtshEngn::Math::vec4(0.26472f, -0.38367f, 0.0f, 1.0f),
+		NtshEngn::Math::vec4(-0.80492f, 0.09444f, 0.0f, 1.0f),
+		NtshEngn::Math::vec4(-0.443f, -0.62324f, 0.0f, 1.0f),
+		NtshEngn::Math::vec4(0.09376f, 0.98576f, 0.0f, 1.0f),
+		NtshEngn::Math::vec4(0.91501f, 0.99292f, 0.0f, 1.0f),
+		NtshEngn::Math::vec4(0.92978f, 0.93539f, 0.0f, 1.0f),
+		NtshEngn::Math::vec4(-0.68477f, 0.45168f, 0.0f, 1.0f),
+		NtshEngn::Math::vec4(0.94119f, 0.96222f, 0.0f, 1.0f),
+		NtshEngn::Math::vec4(0.91433f, -0.78028f, 0.0f, 1.0f),
+		NtshEngn::Math::vec4(-0.02925f, -0.59621f, 0.0f, 1.0f),
+		NtshEngn::Math::vec4(0.60056f, -0.40594f, 0.0f, 1.0f),
+		NtshEngn::Math::vec4(-0.71623f, -0.99043f, 0.0f, 1.0f)
+	};
 
 	void* data;
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, stagingBuffer.allocation, &data));
@@ -459,21 +466,72 @@ void SSAO::createImagesAndBuffer(uint32_t width, uint32_t height) {
 	bufferAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_randomSampleBuffer.handle, &m_randomSampleBuffer.allocation, nullptr));
 
-	std::array<NtshEngn::Math::vec4, SSAO_SAMPLE_COUNT> samples;
-	for (uint32_t i = 0; i < SSAO_SAMPLE_COUNT; i++) {
-		NtshEngn::Math::vec3 tmpSample = NtshEngn::Math::vec3(uniformRealDistribution(gen) * 2.0f - 1.0f,
-			uniformRealDistribution(gen) * 2.0f - 1.0f,
-			uniformRealDistribution(gen));
-
-		tmpSample = NtshEngn::Math::normalize(tmpSample);
-		tmpSample *= uniformRealDistribution(gen);
-
-		float scale = static_cast<float>(i) / static_cast<float>(SSAO_SAMPLE_COUNT);
-		scale = 0.1f + (scale * scale) * (1.0f - 0.1f);
-		tmpSample *= scale;
-
-		samples[i] = NtshEngn::Math::vec4(tmpSample, 0.0f);
-	}
+	std::array<NtshEngn::Math::vec4, SSAO_SAMPLE_COUNT> samples = {
+		NtshEngn::Math::vec4(0.04387f, -0.0409f, 0.02226f, 0.0f),
+		NtshEngn::Math::vec4(0.03244f, 0.02672f, 0.02796f, 0.0f),
+		NtshEngn::Math::vec4(-0.02637f, 0.01692f, 0.01862f, 0.0f),
+		NtshEngn::Math::vec4(0.04487f, -0.02979f, 0.0439f, 0.0f),
+		NtshEngn::Math::vec4(0.04511f, -0.01772f, 0.0594f, 0.0f),
+		NtshEngn::Math::vec4(-0.01238f, -0.0029f, 0.04267f, 0.0f),
+		NtshEngn::Math::vec4(-0.01888f, -0.01873f, 0.01882f, 0.0f),
+		NtshEngn::Math::vec4(-0.02497f, 0.01586f, 0.01883f, 0.0f),
+		NtshEngn::Math::vec4(-0.0128f, 0.0105f, 0.0039f, 0.0f),
+		NtshEngn::Math::vec4(0.05285f, 0.08073f, 0.00794f, 0.0f),
+		NtshEngn::Math::vec4(-0.03139f, -0.06433f, 0.05962f, 0.0f),
+		NtshEngn::Math::vec4(-0.05879f, -0.00119f, 0.05999f, 0.0f),
+		NtshEngn::Math::vec4(-0.00729f, -0.02303f, 0.0135f, 0.0f),
+		NtshEngn::Math::vec4(0.00224f, -0.0034f, 0.0029f, 0.0f),
+		NtshEngn::Math::vec4(-0.00512f, -0.04564f, 0.04673f, 0.0f),
+		NtshEngn::Math::vec4(0.06506f, -0.00553f, 0.09907f, 0.0f),
+		NtshEngn::Math::vec4(0.05299f, 0.08756f, 0.07379f, 0.0f),
+		NtshEngn::Math::vec4(0.00027f, 0.00031f, 0.00021f, 0.0f),
+		NtshEngn::Math::vec4(-0.07218f, 0.04508f, 0.07008f, 0.0f),
+		NtshEngn::Math::vec4(-0.00307f, -0.08246f, 0.11159f, 0.0f),
+		NtshEngn::Math::vec4(-0.05145f, 0.02377f, 0.15468f, 0.0f),
+		NtshEngn::Math::vec4(-0.00191f, 0.00213f, 0.00202f, 0.0f),
+		NtshEngn::Math::vec4(-0.0752f, 0.09864f, 0.11534f, 0.0f),
+		NtshEngn::Math::vec4(0.03258f, 0.07202f, 0.0414f, 0.0f),
+		NtshEngn::Math::vec4(0.09381f, -0.01569f, 0.09098f, 0.0f),
+		NtshEngn::Math::vec4(-0.11506f, -0.10887f, 0.08712f, 0.0f),
+		NtshEngn::Math::vec4(-0.13175f, -0.14662f, 0.04056f, 0.0f),
+		NtshEngn::Math::vec4(-0.03081f, 0.06126f, 0.05272f, 0.0f),
+		NtshEngn::Math::vec4(-0.00181f, -0.00142f, 0.00288f, 0.0f),
+		NtshEngn::Math::vec4(-0.06871f, -0.1295f, 0.2128f, 0.0f),
+		NtshEngn::Math::vec4(-0.1611f, 0.22553f, 0.06362f, 0.0f),
+		NtshEngn::Math::vec4(-0.01971f, 0.2058f, 0.22729f, 0.0f),
+		NtshEngn::Math::vec4(0.14914f, -0.19493f, 0.07926f, 0.0f),
+		NtshEngn::Math::vec4(0.03969f, 0.07543f, 0.23356f, 0.0f),
+		NtshEngn::Math::vec4(-0.09501f, 0.08661f, 0.20344f, 0.0f),
+		NtshEngn::Math::vec4(0.11232f, -0.04767f, 0.1676f, 0.0f),
+		NtshEngn::Math::vec4(0.03877f, -0.16688f, 0.10874f, 0.0f),
+		NtshEngn::Math::vec4(-0.13776f, -0.02959f, 0.01171f, 0.0f),
+		NtshEngn::Math::vec4(0.10477f, 0.03484f, 0.0996f, 0.0f),
+		NtshEngn::Math::vec4(-0.03284f, 0.04125f, 0.04143f, 0.0f),
+		NtshEngn::Math::vec4(-0.01757f, -0.06031f, 0.16322f, 0.0f),
+		NtshEngn::Math::vec4(-0.10631f, 0.14814f, 0.00388f, 0.0f),
+		NtshEngn::Math::vec4(0.11913f, 0.17306f, 0.03283f, 0.0f),
+		NtshEngn::Math::vec4(0.02265f, 0.28788f, 0.12351f, 0.0f),
+		NtshEngn::Math::vec4(0.06283f, -0.23438f, 0.05102f, 0.0f),
+		NtshEngn::Math::vec4(0.17244f, -0.17882f, 0.14716f, 0.0f),
+		NtshEngn::Math::vec4(0.2908f, 0.25324f, 0.40384f, 0.0f),
+		NtshEngn::Math::vec4(-0.42584f, 0.22561f, 0.2305f, 0.0f),
+		NtshEngn::Math::vec4(0.32614f, 0.00434f, 0.09034f, 0.0f),
+		NtshEngn::Math::vec4(0.2826f, 0.00277f, 0.06608f, 0.0f),
+		NtshEngn::Math::vec4(0.25458f, 0.02391f, 0.13812f, 0.0f),
+		NtshEngn::Math::vec4(-0.0644f, 0.39819f, 0.04391f, 0.0f),
+		NtshEngn::Math::vec4(0.67571f, -0.00213f, 0.07801f, 0.0f),
+		NtshEngn::Math::vec4(0.35622f, -0.60341f, 0.003f, 0.0f),
+		NtshEngn::Math::vec4(0.32721f, -0.12142f, 0.36268f, 0.0f),
+		NtshEngn::Math::vec4(-0.34826f, -0.53434f, 0.14671f, 0.0f),
+		NtshEngn::Math::vec4(0.27897f, -0.42296f, 0.1208f, 0.0f),
+		NtshEngn::Math::vec4(0.08436f, 0.05135f, 0.04431f, 0.0f),
+		NtshEngn::Math::vec4(-0.0347f, 0.07086f, 0.01336f, 0.0f),
+		NtshEngn::Math::vec4(-0.58702f, -0.35055f, 0.11738f, 0.0f),
+		NtshEngn::Math::vec4(0.07288f, -0.38629f, 0.39744f, 0.0f),
+		NtshEngn::Math::vec4(-0.33276f, -0.46103f, 0.25767f, 0.0f),
+		NtshEngn::Math::vec4(0.11367f, 0.0316f, 0.39723f, 0.0f),
+		NtshEngn::Math::vec4(0.0051f, -0.11576f, 0.06761f, 0.0f)
+	};
 
 	NTSHENGN_VK_CHECK(vmaMapMemory(m_allocator, m_randomSampleBuffer.allocation, &data));
 	memcpy(data, samples.data(), SSAO_SAMPLE_COUNT * sizeof(NtshEngn::Math::vec4));
