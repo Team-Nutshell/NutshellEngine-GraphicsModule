@@ -2250,12 +2250,12 @@ void NtshEngn::GraphicsModule::emitParticles(const ParticleEmitter& particleEmit
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
-void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::string& text, const Math::vec2& position, const Math::vec4& color) {
+void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& text, const Math::vec2& position, const Math::vec4& color) {
 	NTSHENGN_ASSERT(fontID < m_fonts.size(), "FontID " + std::to_string(fontID) + " is superior than the number of loaded fonts (" + std::to_string(m_fonts.size()) + ").");
 
 	float positionAdvance = 0.0f;
 	std::vector<Math::vec2> positionsAndUVs;
-	for (const char& c : text) {
+	for (const wchar_t& c : text) {
 		const Math::vec2 topLeft = position + m_fonts[fontID].glyphs[c].positionTopLeft + Math::vec2(positionAdvance, 0.0f);
 		const Math::vec2 bottomRight = position + m_fonts[fontID].glyphs[c].positionBottomRight + Math::vec2(positionAdvance, 0.0f);
 		positionsAndUVs.push_back(Math::vec2((topLeft.x / m_viewport.width) * 2.0f - 1.0f, (topLeft.y / m_viewport.height) * 2.0f - 1.0f));
