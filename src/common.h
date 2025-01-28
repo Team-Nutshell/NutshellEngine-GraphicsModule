@@ -93,7 +93,7 @@ struct InternalFont {
 
 	NtshEngn::ImageSamplerFilter filter;
 
-	std::unordered_map<char, NtshEngn::FontGlyph> glyphs;
+	std::unordered_map<wchar_t, NtshEngn::FontGlyph> glyphs;
 };
 
 struct InternalObject {
