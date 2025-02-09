@@ -5638,12 +5638,12 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 
 	InternalMaterial material = m_materials[object.materialIndex];
 	if (renderable.material.diffuseTexture.image) {
-		const std::unordered_map<const Image*, ImageID>::const_iterator newImage = m_imageAddresses.find(renderable.material.diffuseTexture.image);
-		ImageID imageID = m_textures[material.diffuseTextureIndex].imageID;
-
 		bool textureChanged = false;
-		if ((newImage == m_imageAddresses.end()) || (newImage->second != imageID)) {
-			imageID = load(*renderable.material.diffuseTexture.image);
+
+		ImageID imageID = m_textures[material.diffuseTextureIndex].imageID;
+		ImageID newImageID = load(*renderable.material.diffuseTexture.image);
+		if (imageID != newImageID) {
+			imageID = newImageID;
 			textureChanged = true;
 		}
 
@@ -5657,12 +5657,12 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		}
 	}
 	if (renderable.material.normalTexture.image) {
-		const std::unordered_map<const Image*, ImageID>::const_iterator newImage = m_imageAddresses.find(renderable.material.normalTexture.image);
-		ImageID imageID = m_textures[material.normalTextureIndex].imageID;
-
 		bool textureChanged = false;
-		if ((newImage == m_imageAddresses.end()) || (newImage->second != imageID)) {
-			imageID = load(*renderable.material.normalTexture.image);
+
+		ImageID imageID = m_textures[material.normalTextureIndex].imageID;
+		ImageID newImageID = load(*renderable.material.normalTexture.image);
+		if (imageID != newImageID) {
+			imageID = newImageID;
 			textureChanged = true;
 		}
 
@@ -5676,12 +5676,12 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		}
 	}
 	if (renderable.material.metalnessTexture.image) {
-		const std::unordered_map<const Image*, ImageID>::const_iterator newImage = m_imageAddresses.find(renderable.material.metalnessTexture.image);
-		ImageID imageID = m_textures[material.metalnessTextureIndex].imageID;
-
 		bool textureChanged = false;
-		if ((newImage == m_imageAddresses.end()) || (newImage->second != imageID)) {
-			imageID = load(*renderable.material.metalnessTexture.image);
+
+		ImageID imageID = m_textures[material.metalnessTextureIndex].imageID;
+		ImageID newImageID = load(*renderable.material.metalnessTexture.image);
+		if (imageID != newImageID) {
+			imageID = newImageID;
 			textureChanged = true;
 		}
 
@@ -5695,12 +5695,12 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		}
 	}
 	if (renderable.material.roughnessTexture.image) {
-		const std::unordered_map<const Image*, ImageID>::const_iterator newImage = m_imageAddresses.find(renderable.material.roughnessTexture.image);
-		ImageID imageID = m_textures[material.roughnessTextureIndex].imageID;
-
 		bool textureChanged = false;
-		if ((newImage == m_imageAddresses.end()) || (newImage->second != imageID)) {
-			imageID = load(*renderable.material.roughnessTexture.image);
+
+		ImageID imageID = m_textures[material.roughnessTextureIndex].imageID;
+		ImageID newImageID = load(*renderable.material.roughnessTexture.image);
+		if (imageID != newImageID) {
+			imageID = newImageID;
 			textureChanged = true;
 		}
 
@@ -5714,12 +5714,12 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		}
 	}
 	if (renderable.material.occlusionTexture.image) {
-		const std::unordered_map<const Image*, ImageID>::const_iterator newImage = m_imageAddresses.find(renderable.material.occlusionTexture.image);
-		ImageID imageID = m_textures[material.occlusionTextureIndex].imageID;
-
 		bool textureChanged = false;
-		if ((newImage == m_imageAddresses.end()) || (newImage->second != imageID)) {
-			imageID = load(*renderable.material.occlusionTexture.image);
+
+		ImageID imageID = m_textures[material.occlusionTextureIndex].imageID;
+		ImageID newImageID = load(*renderable.material.occlusionTexture.image);
+		if (imageID != newImageID) {
+			imageID = newImageID;
 			textureChanged = true;
 		}
 
@@ -5733,12 +5733,12 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		}
 	}
 	if (renderable.material.emissiveTexture.image) {
-		const std::unordered_map<const Image*, ImageID>::const_iterator newImage = m_imageAddresses.find(renderable.material.emissiveTexture.image);
-		ImageID imageID = m_textures[material.emissiveTextureIndex].imageID;
-
 		bool textureChanged = false;
-		if ((newImage == m_imageAddresses.end()) || (newImage->second != imageID)) {
-			imageID = load(*renderable.material.emissiveTexture.image);
+
+		ImageID imageID = m_textures[material.emissiveTextureIndex].imageID;
+		ImageID newImageID = load(*renderable.material.emissiveTexture.image);
+		if (imageID != newImageID) {
+			imageID = newImageID;
 			textureChanged = true;
 		}
 
@@ -5821,6 +5821,11 @@ uint32_t NtshEngn::GraphicsModule::addToTextures(const InternalTexture& texture)
 	}
 
 	m_textures.push_back(texture);
+
+	// Mark descriptor sets for update
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		m_descriptorSetsNeedUpdate[i] = true;
+	}
 
 	return static_cast<uint32_t>(m_textures.size()) - 1;
 }
