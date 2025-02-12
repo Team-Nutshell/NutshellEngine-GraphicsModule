@@ -268,6 +268,9 @@ void NtshEngn::GraphicsModule::init() {
 	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		deviceExtensions.push_back("VK_KHR_swapchain");
 	}
+#if defined(NTSHENGN_DEBUG)
+	deviceExtensions.push_back("VK_KHR_shader_non_semantic_info");
+#endif
 	deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
 	deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
 	deviceCreateInfo.pEnabledFeatures = nullptr;
@@ -1690,6 +1693,11 @@ std::vector<uint32_t> NtshEngn::GraphicsModule::compileFragmentShader() {
 	// Compile
 	spv::SpvBuildLogger buildLogger;
 	glslang::SpvOptions spvOptions;
+#if defined(NTSHENGN_DEBUG)
+	spvOptions.generateDebugInfo = true;
+	spvOptions.emitNonSemanticShaderDebugInfo = true;
+	spvOptions.emitNonSemanticShaderDebugSource = true;
+#endif
 	glslang::GlslangToSpv(*program.getIntermediate(shaderType), spvCode, &buildLogger, &spvOptions);
 
 	return spvCode;
