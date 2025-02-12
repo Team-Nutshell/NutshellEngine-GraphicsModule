@@ -578,6 +578,16 @@ void NtshEngn::GraphicsModule::init() {
 
 	createCompositingResources();
 
+	// Create particle default texture=
+	m_defaultParticleTexture.width = 1;
+	m_defaultParticleTexture.height = 1;
+	m_defaultParticleTexture.format = ImageFormat::R8G8B8A8;
+	m_defaultParticleTexture.colorSpace = ImageColorSpace::SRGB;
+	m_defaultParticleTexture.data = { 255, 255, 255, 255 };
+
+	ImageID defaultParticleTextureImageID = load(m_defaultParticleTexture);
+	m_particles.getParticleImages().push_back(defaultParticleTextureImageID);
+
 	m_particles.init(m_device,
 		m_graphicsComputeQueue,
 		m_graphicsComputeQueueFamilyIndex,
@@ -1013,6 +1023,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 
 		m_compositingDescriptorSetsNeedShadowUpdate[m_currentFrameInFlight] = false;
 	}
+	m_particles.updateGraphicsDescriptorSets(m_currentFrameInFlight, m_textureImageViews);
 	if (m_uiTextDescriptorSetsNeedUpdate[m_currentFrameInFlight]) {
 		updateUITextDescriptorSet(m_currentFrameInFlight);
 
@@ -2421,8 +2432,34 @@ void NtshEngn::GraphicsModule::emitParticles(const ParticleEmitter& particleEmit
 	if (particleEmitter.number == 0) {
 		return;
 	}
+	
+	uint32_t textureIndex = 0;
+	if (particleEmitter.image) {
+		NtshEngn::ImageID particleImageID = load(*particleEmitter.image);
+		bool foundParticleImage = false;
+		std::vector<ImageID>& particleImages = m_particles.getParticleImages();
+		for (size_t i = 0; i < particleImages.size(); i++) {
+			if (particleImages[i] == particleImageID) {
+				textureIndex = static_cast<uint32_t>(i);
 
-	m_particles.emitParticles(particleEmitter, m_currentFrameInFlight);
+				foundParticleImage = true;
+				break;
+			}
+		}
+		if (!foundParticleImage) {
+			particleImages.push_back(particleImageID);
+
+			textureIndex = static_cast<uint32_t>(particleImages.size() - 1);
+
+			for (uint32_t i = 0; i < m_framesInFlight; i++) {
+				for (uint32_t j = 0; j < 2; j++) {
+					m_particles.graphicsDescriptorSetNeedsUpdate(i, j);
+				}
+			}
+		}
+	}
+
+	m_particles.emitParticles(particleEmitter, m_currentFrameInFlight, textureIndex);
 }
 
 void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& text, const Math::vec2& position, const Math::vec4& color) {

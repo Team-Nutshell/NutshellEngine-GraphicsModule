@@ -322,6 +322,8 @@ namespace NtshEngn {
 		Image m_defaultOcclusionTexture;
 		Image m_defaultEmissiveTexture;
 
+		Image m_defaultParticleTexture;
+
 		std::vector<InternalMesh> m_meshes;
 		int32_t m_currentVertexOffset = 0;
 		uint32_t m_currentIndexOffset = 0;

@@ -24,10 +24,15 @@ public:
 
 	void draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView drawImageView, VkImage depthImage, VkImageView depthImageView, uint32_t currentFrameInFlight, float dt);
 
+	void graphicsDescriptorSetNeedsUpdate(uint32_t frameInFlight, uint32_t particleBufferIndex);
+	void updateGraphicsDescriptorSets(uint32_t frameInFlight, const std::vector<VkImageView>& textureImageViews);
+
 	void onResize(uint32_t width,
 		uint32_t height);
 
-	void emitParticles(const NtshEngn::ParticleEmitter& particleEmitter, uint32_t currentFrameInFlight);
+	void emitParticles(const NtshEngn::ParticleEmitter& particleEmitter, uint32_t currentFrameInFlight, uint32_t textureIndex);
+
+	std::vector<NtshEngn::ImageID>& getParticleImages();
 
 private:
 	void createBuffers();
@@ -51,8 +56,11 @@ private:
 	VkDescriptorSetLayout m_graphicsDescriptorSetLayout;
 	VkDescriptorPool m_graphicsDescriptorPool;
 	std::vector<VkDescriptorSet> m_graphicsDescriptorSets;
+	std::vector<bool> m_graphicsDescriptorSetsNeedUpdate;
 	VkPipeline m_graphicsPipeline;
 	VkPipelineLayout m_graphicsPipelineLayout;
+	std::vector<NtshEngn::ImageID> m_particleImages;
+	VkSampler m_textureSampler;
 
 	uint32_t m_inParticleBufferCurrentIndex = 0;
 	uint32_t m_maxParticlesNumber = 100000;
