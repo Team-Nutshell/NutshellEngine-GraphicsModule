@@ -204,7 +204,9 @@ struct Particle {
 	NtshEngn::Math::vec3 direction = { 0.0f, 0.0f, 0.0f };
 	float speed = 0.0f;
 	float duration = 0.0f;
-	NtshEngn::Math::vec3 padding = { 0.0f, 0.0f, 0.0f };
+	float rotation = 0.0f;
+	uint32_t textureIndex = 0;
+	float padding = 0.0f;
 };
 
 namespace NtshEngn {
@@ -289,6 +291,7 @@ namespace NtshEngn {
 
 		// Particles resources
 		void createParticleResources();
+		void updateParticleGraphicsDescriptorSet(uint32_t frameInFlight, uint32_t particleBufferCurrentIndex);
 
 		// Tone mapping resources
 		void createToneMappingResources();
@@ -392,8 +395,12 @@ namespace NtshEngn {
 		VkDescriptorSetLayout m_particleGraphicsDescriptorSetLayout;
 		VkDescriptorPool m_particleGraphicsDescriptorPool;
 		std::vector<VkDescriptorSet> m_particleGraphicsDescriptorSets;
+		std::vector<bool> m_particleGraphicsDescriptorSetsNeedUpdate;
 		VkPipeline m_particleGraphicsPipeline;
 		VkPipelineLayout m_particleGraphicsPipelineLayout;
+		std::vector<ImageID> m_particleImages;
+		VkSampler m_particleTextureSampler;
+		Image m_defaultParticleTexture;
 		uint32_t m_inParticleBufferCurrentIndex = 0;
 		uint32_t m_maxParticlesNumber = 100000;
 		size_t m_currentParticleHostSize = 0;
