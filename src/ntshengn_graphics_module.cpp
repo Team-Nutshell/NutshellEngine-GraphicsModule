@@ -4379,7 +4379,7 @@ void NtshEngn::GraphicsModule::createParticleResources() {
 
 			mat2 rotationMatrix = mat2(cosTheta, -sinTheta, sinTheta, cosTheta);
 			
-			vec2 localPosition = rotationMatrix* (localOffset[gl_VertexIndex] * particle.size);
+			vec2 localPosition = rotationMatrix * (localOffset[gl_VertexIndex] * particle.size);
 			vec3 cameraRight = vec3(camera.view[0].x, camera.view[1].x, camera.view[2].x);
 			vec3 cameraUp = vec3(camera.view[0].y, camera.view[1].y, camera.view[2].y);
 
