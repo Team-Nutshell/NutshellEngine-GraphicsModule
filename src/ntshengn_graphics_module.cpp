@@ -897,10 +897,10 @@ void NtshEngn::GraphicsModule::update(float dt) {
 
 		m_descriptorSetsNeedUpdate[m_currentFrameInFlight] = false;
 	}
-	if (m_particleGraphicsDescriptorSetsNeedUpdate[(m_currentFrameInFlight * 2) + (m_inParticleBufferCurrentIndex + 1) % 2]) {
-		updateParticleGraphicsDescriptorSet(m_currentFrameInFlight, (m_inParticleBufferCurrentIndex + 1) % 2);
+	if (m_particleGraphicsDescriptorSetsNeedUpdate[(m_currentFrameInFlight * 2) + ((m_inParticleBufferCurrentIndex + 1) % 2)]) {
+		updateParticleGraphicsDescriptorSet(m_currentFrameInFlight, ((m_inParticleBufferCurrentIndex + 1) % 2));
 
-		m_particleGraphicsDescriptorSetsNeedUpdate[(m_currentFrameInFlight * 2) + (m_inParticleBufferCurrentIndex + 1) % 2] = false;
+		m_particleGraphicsDescriptorSetsNeedUpdate[(m_currentFrameInFlight * 2) + ((m_inParticleBufferCurrentIndex + 1) % 2)] = false;
 	}
 	if (m_uiTextDescriptorSetsNeedUpdate[m_currentFrameInFlight]) {
 		updateUITextDescriptorSet(m_currentFrameInFlight);
@@ -1275,7 +1275,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	vkCmdSetViewport(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_viewport);
 	vkCmdSetScissor(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_scissor);
 
-	vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_particleGraphicsPipelineLayout, 0, 1, &m_particleGraphicsDescriptorSets[(m_currentFrameInFlight * 2) + (m_inParticleBufferCurrentIndex + 1) % 2], 0, nullptr);
+	vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_particleGraphicsPipelineLayout, 0, 1, &m_particleGraphicsDescriptorSets[(m_currentFrameInFlight * 2) + ((m_inParticleBufferCurrentIndex + 1) % 2)], 0, nullptr);
 
 	vkCmdDrawIndirect(m_renderingCommandBuffers[m_currentFrameInFlight], m_particleDrawIndirectBuffer.handle, 0, 1, 0);
 
