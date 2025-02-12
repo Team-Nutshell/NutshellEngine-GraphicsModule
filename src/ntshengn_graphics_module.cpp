@@ -4702,7 +4702,7 @@ void NtshEngn::GraphicsModule::createParticleResources() {
 	VkDescriptorBufferInfo outDrawIndirectDescriptorBufferInfo;
 	outDrawIndirectDescriptorBufferInfo.buffer = m_particleDrawIndirectBuffer.handle;
 	outDrawIndirectDescriptorBufferInfo.offset = 0;
-	outDrawIndirectDescriptorBufferInfo.range = 4 * sizeof(uint32_t);
+	outDrawIndirectDescriptorBufferInfo.range = 2 * sizeof(uint32_t);
 
 	VkWriteDescriptorSet outDrawIndirect0DescriptorWriteDescriptorSet = {};
 	outDrawIndirect0DescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
