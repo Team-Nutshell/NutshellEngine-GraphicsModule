@@ -278,6 +278,9 @@ void NtshEngn::GraphicsModule::init() {
 	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		deviceExtensions.push_back("VK_KHR_swapchain");
 	}
+#if defined(NTSHENGN_DEBUG)
+	deviceExtensions.push_back("VK_KHR_shader_non_semantic_info");
+#endif
 	deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
 	deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
 	deviceCreateInfo.pEnabledFeatures = &physicalDeviceFeatures;

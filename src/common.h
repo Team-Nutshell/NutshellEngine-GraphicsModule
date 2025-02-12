@@ -357,6 +357,11 @@ inline std::vector<uint32_t> compileShader(const std::string& shaderCode, Shader
 	// Compile
 	spv::SpvBuildLogger buildLogger;
 	glslang::SpvOptions spvOptions;
+#if defined(NTSHENGN_DEBUG)
+	spvOptions.generateDebugInfo = true;
+	spvOptions.emitNonSemanticShaderDebugInfo = true;
+	spvOptions.emitNonSemanticShaderDebugSource = true;
+#endif
 	glslang::GlslangToSpv(*program.getIntermediate(shaderType), spvCode, &buildLogger, &spvOptions);
 
 	return spvCode;
