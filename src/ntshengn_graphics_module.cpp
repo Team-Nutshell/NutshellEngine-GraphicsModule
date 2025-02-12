@@ -318,12 +318,12 @@ void NtshEngn::GraphicsModule::init() {
 		"VK_KHR_buffer_device_address",
 		"VK_KHR_deferred_host_operations",
 		"VK_KHR_acceleration_structure" };
-#if defined(NTSHENGN_DEBUG)
-	deviceExtensions.push_back("VK_KHR_shader_non_semantic_info");
-#endif
 	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		deviceExtensions.push_back("VK_KHR_swapchain");
 	}
+#if defined(NTSHENGN_DEBUG)
+	deviceExtensions.push_back("VK_KHR_shader_non_semantic_info");
+#endif
 	deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
 	deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
 	deviceCreateInfo.pEnabledFeatures = &physicalDeviceFeatures;
