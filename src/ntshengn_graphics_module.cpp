@@ -318,6 +318,9 @@ void NtshEngn::GraphicsModule::init() {
 		"VK_KHR_buffer_device_address",
 		"VK_KHR_deferred_host_operations",
 		"VK_KHR_acceleration_structure" };
+#if defined(NTSHENGN_DEBUG)
+	deviceExtensions.push_back("VK_KHR_shader_non_semantic_info");
+#endif
 	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		deviceExtensions.push_back("VK_KHR_swapchain");
 	}
@@ -3116,6 +3119,11 @@ std::vector<uint32_t> NtshEngn::GraphicsModule::compileShader(const std::string&
 	// Compile
 	spv::SpvBuildLogger buildLogger;
 	glslang::SpvOptions spvOptions;
+#if defined(NTSHENGN_DEBUG)
+	spvOptions.generateDebugInfo = true;
+	spvOptions.emitNonSemanticShaderDebugInfo = true;
+	spvOptions.emitNonSemanticShaderDebugSource = true;
+#endif
 	glslang::GlslangToSpv(*program.getIntermediate(shaderType), spvCode, &buildLogger, &spvOptions);
 
 	return spvCode;
