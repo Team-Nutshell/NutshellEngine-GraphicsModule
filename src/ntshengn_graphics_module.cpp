@@ -578,16 +578,6 @@ void NtshEngn::GraphicsModule::init() {
 
 	createCompositingResources();
 
-	// Create particle default texture=
-	m_defaultParticleTexture.width = 1;
-	m_defaultParticleTexture.height = 1;
-	m_defaultParticleTexture.format = ImageFormat::R8G8B8A8;
-	m_defaultParticleTexture.colorSpace = ImageColorSpace::SRGB;
-	m_defaultParticleTexture.data = { 255, 255, 255, 255 };
-
-	ImageID defaultParticleTextureImageID = load(m_defaultParticleTexture);
-	m_particles.getParticleImages().push_back(defaultParticleTextureImageID);
-
 	m_particles.init(m_device,
 		m_graphicsComputeQueue,
 		m_graphicsComputeQueueFamilyIndex,
@@ -5504,6 +5494,16 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	m_textures.push_back({ 5, "defaultSampler" });
 
 	m_materials.push_back(InternalMaterial());
+
+	// Create particle default texture
+	m_defaultParticleTexture.width = 1;
+	m_defaultParticleTexture.height = 1;
+	m_defaultParticleTexture.format = ImageFormat::R8G8B8A8;
+	m_defaultParticleTexture.colorSpace = ImageColorSpace::SRGB;
+	m_defaultParticleTexture.data = { 255, 255, 255, 255 };
+
+	ImageID defaultParticleTextureImageID = load(m_defaultParticleTexture);
+	m_particles.getParticleImages().push_back(defaultParticleTextureImageID);
 }
 
 void NtshEngn::GraphicsModule::resize() {
