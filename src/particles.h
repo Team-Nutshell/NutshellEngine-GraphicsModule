@@ -31,6 +31,7 @@ public:
 		uint32_t height);
 
 	void emitParticles(const NtshEngn::ParticleEmitter& particleEmitter, uint32_t currentFrameInFlight, uint32_t textureIndex);
+	void destroyParticles(uint32_t currentFrameInFlight);
 
 	std::vector<NtshEngn::ImageID>& getParticleImages();
 

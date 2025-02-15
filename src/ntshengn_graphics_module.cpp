@@ -2452,6 +2452,10 @@ void NtshEngn::GraphicsModule::emitParticles(const ParticleEmitter& particleEmit
 	m_particles.emitParticles(particleEmitter, m_currentFrameInFlight, textureIndex);
 }
 
+void NtshEngn::GraphicsModule::destroyParticles() {
+	m_particles.destroyParticles(m_currentFrameInFlight);
+}
+
 void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& text, const Math::vec2& position, const Math::vec4& color) {
 	NTSHENGN_ASSERT(fontID < m_fonts.size(), "FontID " + std::to_string(fontID) + " is superior than the number of loaded fonts (" + std::to_string(m_fonts.size()) + ").");
 

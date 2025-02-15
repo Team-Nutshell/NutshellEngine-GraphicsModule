@@ -472,6 +472,14 @@ void Particles::emitParticles(const NtshEngn::ParticleEmitter& particleEmitter, 
 	m_particleBuffersNeedUpdate[currentFrameInFlight] = true;
 }
 
+void Particles::destroyParticles(uint32_t currentFrameInFlight) {
+	memset(m_stagingBuffers[currentFrameInFlight].address, 0, m_maxParticlesNumber * sizeof(Particle));
+
+	m_currentParticleHostSize = m_maxParticlesNumber * sizeof(Particle);
+
+	m_particleBuffersNeedUpdate[currentFrameInFlight] = true;
+}
+
 std::vector<NtshEngn::ImageID>& Particles::getParticleImages() {
 	return m_particleImages;
 }
