@@ -2529,6 +2529,14 @@ void NtshEngn::GraphicsModule::emitParticles(const ParticleEmitter& particleEmit
 	m_particleBuffersNeedUpdate[m_currentFrameInFlight] = true;
 }
 
+void NtshEngn::GraphicsModule::destroyParticles() {
+	memset(m_particleStagingBuffers[m_currentFrameInFlight].address, 0, m_maxParticlesNumber * sizeof(Particle));
+
+	m_currentParticleHostSize = m_maxParticlesNumber * sizeof(Particle);
+
+	m_particleBuffersNeedUpdate[m_currentFrameInFlight] = true;
+}
+
 void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& text, const Math::vec2& position, const Math::vec4& color) {
 	NTSHENGN_ASSERT(fontID < m_fonts.size(), "FontID " + std::to_string(fontID) + " is superior than the number of loaded fonts (" + std::to_string(m_fonts.size()) + ").");
 
