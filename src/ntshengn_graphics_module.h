@@ -404,7 +404,7 @@ namespace NtshEngn {
 		VkSampler m_particleTextureSampler;
 		Image m_defaultParticleTexture;
 		uint32_t m_inParticleBufferCurrentIndex = 0;
-		uint32_t m_maxParticlesNumber = 100000;
+		uint32_t m_maxParticlesNumber = 1000000;
 		size_t m_currentParticleHostSize = 0;
 
 		VkSampler m_toneMappingSampler;
