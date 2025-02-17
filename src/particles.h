@@ -64,7 +64,7 @@ private:
 	VkSampler m_textureSampler;
 
 	uint32_t m_inParticleBufferCurrentIndex = 0;
-	uint32_t m_maxParticlesNumber = 100000;
+	uint32_t m_maxParticlesNumber = 1000000;
 	size_t m_currentParticleHostSize = 0;
 
 	VkDevice m_device;
