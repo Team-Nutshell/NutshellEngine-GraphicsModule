@@ -849,6 +849,12 @@ void NtshEngn::GraphicsModule::stopAnimation(Entity entity) {
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
+void NtshEngn::GraphicsModule::setAnimationCurrentTime(Entity entity, float time) {
+	NTSHENGN_UNUSED(entity);
+	NTSHENGN_UNUSED(time);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
+}
+
 bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animationIndex) {
 	NTSHENGN_UNUSED(entity);
 	NTSHENGN_UNUSED(animationIndex);
