@@ -2450,6 +2450,12 @@ void NtshEngn::GraphicsModule::stopAnimation(Entity entity) {
 	}
 }
 
+void NtshEngn::GraphicsModule::setAnimationCurrentTime(Entity entity, float time) {
+	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
+		m_playingAnimations[&m_objects[entity]].time = time;
+	}
+}
+
 bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animationIndex) {
 	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
 		if (m_playingAnimations[&m_objects[entity]].animationIndex == animationIndex) {
