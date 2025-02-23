@@ -153,6 +153,8 @@ namespace NtshEngn {
 		void pauseAnimation(Entity entity);
 		// Stops an animation played by an entity
 		void stopAnimation(Entity entity);
+		// Sets the current playing time of an animation played by an entity
+		void setAnimationCurrentTime(Entity entity, float time);
 
 		// Returns true if the entity is currently playing the animation with index animationIndex, else, returns false
 		bool isAnimationPlaying(Entity entity, uint32_t animationIndex);
