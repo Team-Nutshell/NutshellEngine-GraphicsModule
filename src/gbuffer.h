@@ -13,7 +13,6 @@ public:
 		VkViewport viewport,
 		VkRect2D scissor,
 		uint32_t framesInFlight,
-		VkDescriptorSetLayout frustumCullingDescriptorSet1Layout,
 		const std::vector<HostVisibleVulkanBuffer>& cameraBuffers,
 		const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
 		VulkanBuffer meshBuffer,
@@ -22,7 +21,8 @@ public:
 		PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 		PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
 		PFN_vkCmdDrawIndexedIndirectCountKHR vkCmdDrawIndexedIndirectCountKHR,
-		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
+		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR,
+		PFN_vkGetBufferDeviceAddressKHR m_vkGetBufferDeviceAddressKHR);
 	void update(const NtshEngn::Math::mat4& cameraViewProj);
 	void destroy();
 
@@ -63,7 +63,7 @@ private:
 		const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers,
 		const std::vector<HostVisibleVulkanBuffer>& materialBuffers);
 
-	void createFrustumCullingInfo(VkDescriptorSetLayout frustumCullingDescriptorSet1Layout);
+	void createFrustumCullingInfo();
 
 private:
 	VulkanImage m_position;
@@ -82,7 +82,6 @@ private:
 	std::vector<VkDescriptorSet> m_descriptorSets;
 	std::vector<bool> m_descriptorSetsNeedUpdate;
 
-	VkDescriptorPool m_cameraFrustumCullingDescriptorPool;
 	FrustumCullingInfo m_frustumCullingInfo;
 
 	VkDevice m_device;
@@ -100,4 +99,5 @@ private:
 	PFN_vkCmdEndRenderingKHR m_vkCmdEndRenderingKHR;
 	PFN_vkCmdPipelineBarrier2KHR m_vkCmdPipelineBarrier2KHR;
 	PFN_vkCmdDrawIndexedIndirectCountKHR m_vkCmdDrawIndexedIndirectCountKHR;
+	PFN_vkGetBufferDeviceAddressKHR m_vkGetBufferDeviceAddressKHR;
 };

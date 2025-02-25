@@ -301,6 +301,7 @@ namespace NtshEngn {
 		PFN_vkCmdEndRenderingKHR m_vkCmdEndRenderingKHR;
 		PFN_vkCmdDrawIndexedIndirectCountKHR m_vkCmdDrawIndexedIndirectCountKHR;
 		PFN_vkCmdPipelineBarrier2KHR m_vkCmdPipelineBarrier2KHR;
+		PFN_vkGetBufferDeviceAddressKHR m_vkGetBufferDeviceAddressKHR;
 
 		uint32_t m_imageCount;
 		uint32_t m_framesInFlight;

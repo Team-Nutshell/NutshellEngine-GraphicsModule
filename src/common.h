@@ -156,10 +156,13 @@ struct HostVisibleVulkanBuffer : public VulkanBuffer {
 	void* address;
 };
 
+struct BDAVulkanBuffer : public VulkanBuffer {
+	VkDeviceAddress bufferDeviceAddress;
+};
+
 struct FrustumCullingInfo {
 	NtshEngn::Math::mat4 viewProj;
-	VkDescriptorSet descriptorSet;
-	VulkanBuffer drawIndirectBuffer;
+	BDAVulkanBuffer drawIndirectBuffer;
 };
 
 struct Particle {

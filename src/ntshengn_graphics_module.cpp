@@ -233,9 +233,14 @@ void NtshEngn::GraphicsModule::init() {
 	deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
 
 	// Enable features
+	VkPhysicalDeviceBufferDeviceAddressFeaturesKHR physicalDeviceBufferDeviceAddressFeatures = {};
+	physicalDeviceBufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES_KHR;
+	physicalDeviceBufferDeviceAddressFeatures.pNext = nullptr;
+	physicalDeviceBufferDeviceAddressFeatures.bufferDeviceAddress = VK_TRUE;
+
 	VkPhysicalDeviceShaderDrawParametersFeatures physicalDeviceShaderDrawParametersFeatures;
 	physicalDeviceShaderDrawParametersFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES;
-	physicalDeviceShaderDrawParametersFeatures.pNext = nullptr;
+	physicalDeviceShaderDrawParametersFeatures.pNext = &physicalDeviceBufferDeviceAddressFeatures;
 	physicalDeviceShaderDrawParametersFeatures.shaderDrawParameters = VK_TRUE;
 
 	VkPhysicalDeviceDescriptorIndexingFeatures physicalDeviceDescriptorIndexingFeatures = {};
@@ -260,6 +265,7 @@ void NtshEngn::GraphicsModule::init() {
 	physicalDeviceFeatures.multiDrawIndirect = VK_TRUE;
 	physicalDeviceFeatures.depthClamp = VK_TRUE;
 	physicalDeviceFeatures.samplerAnisotropy = VK_TRUE;
+	physicalDeviceFeatures.shaderInt64 = VK_TRUE;
 
 	// Create the logical device
 	VkDeviceCreateInfo deviceCreateInfo = {};
@@ -274,7 +280,8 @@ void NtshEngn::GraphicsModule::init() {
 		"VK_KHR_depth_stencil_resolve",
 		"VK_KHR_dynamic_rendering",
 		"VK_EXT_descriptor_indexing",
-		"VK_KHR_draw_indirect_count" };
+		"VK_KHR_draw_indirect_count",
+		"VK_KHR_buffer_device_address" };
 	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		deviceExtensions.push_back("VK_KHR_swapchain");
 	}
@@ -293,10 +300,11 @@ void NtshEngn::GraphicsModule::init() {
 	m_vkCmdBeginRenderingKHR = (PFN_vkCmdBeginRenderingKHR)vkGetDeviceProcAddr(m_device, "vkCmdBeginRenderingKHR");
 	m_vkCmdDrawIndexedIndirectCountKHR = (PFN_vkCmdDrawIndexedIndirectCountKHR)vkGetDeviceProcAddr(m_device, "vkCmdDrawIndexedIndirectCountKHR");
 	m_vkCmdEndRenderingKHR = (PFN_vkCmdEndRenderingKHR)vkGetDeviceProcAddr(m_device, "vkCmdEndRenderingKHR");
+	m_vkGetBufferDeviceAddressKHR = (PFN_vkGetBufferDeviceAddressKHR)vkGetDeviceProcAddr(m_device, "vkGetBufferDeviceAddressKHR");
 
 	// Initialize VMA
 	VmaAllocatorCreateInfo vmaAllocatorCreateInfo = {};
-	vmaAllocatorCreateInfo.flags = 0;
+	vmaAllocatorCreateInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 	vmaAllocatorCreateInfo.physicalDevice = m_physicalDevice;
 	vmaAllocatorCreateInfo.device = m_device;
 	vmaAllocatorCreateInfo.preferredLargeHeapBlockSize = 0;
@@ -516,7 +524,6 @@ void NtshEngn::GraphicsModule::init() {
 		m_allocator,
 		m_framesInFlight,
 		m_vkCmdPipelineBarrier2KHR,
-		jobSystem,
 		ecs);
 
 	m_gBuffer.init(m_device,
@@ -529,7 +536,6 @@ void NtshEngn::GraphicsModule::init() {
 		m_viewport,
 		m_scissor,
 		m_framesInFlight,
-		m_frustumCulling.getDescriptorSet1Layout(),
 		m_cameraBuffers,
 		m_objectBuffers,
 		m_meshBuffer,
@@ -538,7 +544,8 @@ void NtshEngn::GraphicsModule::init() {
 		m_vkCmdBeginRenderingKHR,
 		m_vkCmdEndRenderingKHR,
 		m_vkCmdDrawIndexedIndirectCountKHR,
-		m_vkCmdPipelineBarrier2KHR);
+		m_vkCmdPipelineBarrier2KHR,
+		m_vkGetBufferDeviceAddressKHR);
 
 	m_ssao.init(m_device,
 		m_graphicsComputeQueue,
@@ -565,7 +572,6 @@ void NtshEngn::GraphicsModule::init() {
 		m_initializationCommandBuffer,
 		m_initializationFence,
 		m_framesInFlight,
-		m_frustumCulling.getDescriptorSet1Layout(),
 		m_objectBuffers,
 		m_meshBuffer,
 		m_jointTransformBuffers,
@@ -574,6 +580,7 @@ void NtshEngn::GraphicsModule::init() {
 		m_vkCmdEndRenderingKHR,
 		m_vkCmdDrawIndexedIndirectCountKHR,
 		m_vkCmdPipelineBarrier2KHR,
+		m_vkGetBufferDeviceAddressKHR,
 		ecs);
 
 	createCompositingResources();

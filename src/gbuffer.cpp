@@ -10,7 +10,6 @@ void GBuffer::init(VkDevice device,
 	VkViewport viewport,
 	VkRect2D scissor,
 	uint32_t framesInFlight,
-	VkDescriptorSetLayout frustumCullingDescriptorSet1Layout,
 	const std::vector<HostVisibleVulkanBuffer>& cameraBuffers,
 	const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
 	VulkanBuffer meshBuffer,
@@ -19,7 +18,8 @@ void GBuffer::init(VkDevice device,
 	PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 	PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
 	PFN_vkCmdDrawIndexedIndirectCountKHR vkCmdDrawIndexedIndirectCountKHR,
-	PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
+	PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR,
+	PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR) {
 	m_device = device;
 	m_graphicsQueue = graphicsQueue;
 	m_graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
@@ -34,8 +34,9 @@ void GBuffer::init(VkDevice device,
 	m_vkCmdEndRenderingKHR = vkCmdEndRenderingKHR;
 	m_vkCmdPipelineBarrier2KHR = vkCmdPipelineBarrier2KHR;
 	m_vkCmdDrawIndexedIndirectCountKHR = vkCmdDrawIndexedIndirectCountKHR;
+	m_vkGetBufferDeviceAddressKHR = vkGetBufferDeviceAddressKHR;
 
-	createFrustumCullingInfo(frustumCullingDescriptorSet1Layout);
+	createFrustumCullingInfo();
 
 	createImages(m_scissor.extent.width, m_scissor.extent.height);
 	createDescriptorSetLayout();
@@ -59,8 +60,6 @@ void GBuffer::destroy() {
 
 	// Destroy frustum culling resources
 	m_frustumCullingInfo.drawIndirectBuffer.destroy(m_allocator);
-
-	vkDestroyDescriptorPool(m_device, m_cameraFrustumCullingDescriptorPool, nullptr);
 }
 
 void GBuffer::draw(VkCommandBuffer commandBuffer,
@@ -1354,14 +1353,14 @@ void GBuffer::createDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& c
 	}
 }
 
-void GBuffer::createFrustumCullingInfo(VkDescriptorSetLayout frustumCullingDescriptorSet1Layout) {
+void GBuffer::createFrustumCullingInfo() {
 	// Create camera draw indirect buffer
 	VkBufferCreateInfo bufferCreateInfo = {};
 	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bufferCreateInfo.pNext = nullptr;
 	bufferCreateInfo.flags = 0;
 	bufferCreateInfo.size = DRAW_INDIRECT_MAX_ENTITIES_SIZE + PER_DRAW_MAX_ENTITIES_SIZE;
-	bufferCreateInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR;
 	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	bufferCreateInfo.queueFamilyIndexCount = 1;
 	bufferCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
@@ -1372,72 +1371,9 @@ void GBuffer::createFrustumCullingInfo(VkDescriptorSetLayout frustumCullingDescr
 
 	NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_frustumCullingInfo.drawIndirectBuffer.handle, &m_frustumCullingInfo.drawIndirectBuffer.allocation, nullptr));
 
-	// Create descriptor pool
-	VkDescriptorPoolSize outDrawIndirectDescriptorPoolSize = {};
-	outDrawIndirectDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	outDrawIndirectDescriptorPoolSize.descriptorCount = 1;
-
-	VkDescriptorPoolSize outPerDrawDescriptorPoolSize = {};
-	outPerDrawDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	outPerDrawDescriptorPoolSize.descriptorCount = 1;
-
-	std::array<VkDescriptorPoolSize, 2> descriptorPoolSizes = { outDrawIndirectDescriptorPoolSize, outPerDrawDescriptorPoolSize };
-	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
-	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	descriptorPoolCreateInfo.pNext = nullptr;
-	descriptorPoolCreateInfo.flags = 0;
-	descriptorPoolCreateInfo.maxSets = 1;
-	descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(descriptorPoolSizes.size());
-	descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes.data();
-	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_cameraFrustumCullingDescriptorPool));
-
-	// Allocate descriptor sets
-	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
-	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	descriptorSetAllocateInfo.pNext = nullptr;
-	descriptorSetAllocateInfo.descriptorPool = m_cameraFrustumCullingDescriptorPool;
-	descriptorSetAllocateInfo.descriptorSetCount = 1;
-	descriptorSetAllocateInfo.pSetLayouts = &frustumCullingDescriptorSet1Layout;
-	NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_frustumCullingInfo.descriptorSet));
-
-	// Update descriptor set
-	std::vector<VkWriteDescriptorSet> writeDescriptorSets;
-
-	VkDescriptorBufferInfo outDrawIndirectDescriptorBufferInfo;
-	outDrawIndirectDescriptorBufferInfo.buffer = m_frustumCullingInfo.drawIndirectBuffer.handle;
-	outDrawIndirectDescriptorBufferInfo.offset = 0;
-	outDrawIndirectDescriptorBufferInfo.range = DRAW_INDIRECT_MAX_ENTITIES_SIZE;
-
-	VkWriteDescriptorSet outDrawIndirectDescriptorWriteDescriptorSet = {};
-	outDrawIndirectDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	outDrawIndirectDescriptorWriteDescriptorSet.pNext = nullptr;
-	outDrawIndirectDescriptorWriteDescriptorSet.dstSet = m_frustumCullingInfo.descriptorSet;
-	outDrawIndirectDescriptorWriteDescriptorSet.dstBinding = 0;
-	outDrawIndirectDescriptorWriteDescriptorSet.dstArrayElement = 0;
-	outDrawIndirectDescriptorWriteDescriptorSet.descriptorCount = 1;
-	outDrawIndirectDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	outDrawIndirectDescriptorWriteDescriptorSet.pImageInfo = nullptr;
-	outDrawIndirectDescriptorWriteDescriptorSet.pBufferInfo = &outDrawIndirectDescriptorBufferInfo;
-	outDrawIndirectDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
-	writeDescriptorSets.push_back(outDrawIndirectDescriptorWriteDescriptorSet);
-
-	VkDescriptorBufferInfo outPerDrawDescriptorBufferInfo;
-	outPerDrawDescriptorBufferInfo.buffer = m_frustumCullingInfo.drawIndirectBuffer.handle;
-	outPerDrawDescriptorBufferInfo.offset = DRAW_INDIRECT_MAX_ENTITIES_SIZE;
-	outPerDrawDescriptorBufferInfo.range = PER_DRAW_MAX_ENTITIES_SIZE;
-
-	VkWriteDescriptorSet outPerDrawDescriptorWriteDescriptorSet = {};
-	outPerDrawDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	outPerDrawDescriptorWriteDescriptorSet.pNext = nullptr;
-	outPerDrawDescriptorWriteDescriptorSet.dstSet = m_frustumCullingInfo.descriptorSet;
-	outPerDrawDescriptorWriteDescriptorSet.dstBinding = 1;
-	outPerDrawDescriptorWriteDescriptorSet.dstArrayElement = 0;
-	outPerDrawDescriptorWriteDescriptorSet.descriptorCount = 1;
-	outPerDrawDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	outPerDrawDescriptorWriteDescriptorSet.pImageInfo = nullptr;
-	outPerDrawDescriptorWriteDescriptorSet.pBufferInfo = &outPerDrawDescriptorBufferInfo;
-	outPerDrawDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
-	writeDescriptorSets.push_back(outPerDrawDescriptorWriteDescriptorSet);
-
-	vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+	VkBufferDeviceAddressInfoKHR bufferDeviceAddressInfoKHR = {};
+	bufferDeviceAddressInfoKHR.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO_KHR;
+	bufferDeviceAddressInfoKHR.pNext = nullptr;
+	bufferDeviceAddressInfoKHR.buffer = m_frustumCullingInfo.drawIndirectBuffer.handle;
+	m_frustumCullingInfo.drawIndirectBuffer.bufferDeviceAddress = m_vkGetBufferDeviceAddressKHR(m_device, &bufferDeviceAddressInfoKHR);
 }

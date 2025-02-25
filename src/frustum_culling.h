@@ -1,8 +1,13 @@
 #pragma once
 #include "common.h"
-#include "../Common/job_system/ntshengn_job_system_interface.h"
 
 typedef std::array<NtshEngn::Math::vec4, 6> Frustum;
+
+struct InternalFrustumCullingInfo {
+	Frustum frustum;
+	uint64_t bufferAddress;
+	NtshEngn::Math::vec2 padding;
+};
 
 struct FrustumCullingObject {
 	NtshEngn::Math::vec4 position;
@@ -20,7 +25,6 @@ public:
 		VmaAllocator allocator,
 		uint32_t framesInFlight,
 		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR,
-		NtshEngn::JobSystemInterface* jobSystem,
 		NtshEngn::ECSInterface* ecs);
 	void destroy();
 
@@ -30,14 +34,10 @@ public:
 		const std::unordered_map<NtshEngn::Entity, InternalObject>& objects,
 		const std::vector<InternalMesh>& meshes);
 
-	VkDescriptorSetLayout getDescriptorSet1Layout();
-
 private:
 	void createBuffers();
 
-	void createDescriptorSetLayouts();
-	void createDescriptorSet0Layout();
-	void createDescriptorSet1Layout();
+	void createDescriptorSetLayout();
 
 	void createComputePipeline();
 
@@ -45,16 +45,13 @@ private:
 
 	Frustum calculateFrustumPlanes(const NtshEngn::Math::mat4& viewProj);
 
-	bool intersect(const Frustum& frustum, const NtshEngn::Math::vec3& aabbMin, const NtshEngn::Math::vec3& aabbMax);
-
 private:
 	std::vector<HostVisibleVulkanBuffer> m_inDrawIndirectBuffers;
 	std::vector<HostVisibleVulkanBuffer> m_inPerDrawBuffers;
-	std::vector<HostVisibleVulkanBuffer> m_frustumBuffers;
+	std::vector<HostVisibleVulkanBuffer> m_frustumCullingInfoBuffers;
 	std::vector<HostVisibleVulkanBuffer> m_frustumCullingObjectBuffers;
 
-	VkDescriptorSetLayout m_descriptorSet0Layout;
-	VkDescriptorSetLayout m_descriptorSet1Layout;
+	VkDescriptorSetLayout m_descriptorSetLayout;
 
 	VkPipeline m_computePipeline;
 	VkPipelineLayout m_computePipelineLayout;
@@ -70,6 +67,5 @@ private:
 
 	PFN_vkCmdPipelineBarrier2KHR m_vkCmdPipelineBarrier2KHR;
 
-	NtshEngn::JobSystemInterface* m_jobSystem;
 	NtshEngn::ECSInterface* m_ecs;
 };

@@ -12,7 +12,6 @@ struct DirectionalLightShadowCascade {
 struct DirectionalLightShadowMap {
 	VulkanImage shadowMap;
 	std::array<DirectionalLightShadowCascade, SHADOW_MAPPING_CASCADE_COUNT> cascades;
-	VkDescriptorPool frustumCullingDescriptorPool;
 	VkDescriptorPool perDrawDescriptorPool;
 };
 
@@ -25,7 +24,6 @@ struct PointLightShadowFace {
 struct PointLightShadowMap {
 	VulkanImage shadowMap;
 	std::array<PointLightShadowFace, 6> faces;
-	VkDescriptorPool frustumCullingDescriptorPool;
 	VkDescriptorPool perDrawDescriptorPool;
 };
 
@@ -33,7 +31,6 @@ struct SpotLightShadowMap {
 	VulkanImage shadowMap;
 	NtshEngn::Math::mat4 viewProj;
 	FrustumCullingInfo frustumCullingInfo;
-	VkDescriptorPool frustumCullingDescriptorPool;
 	VkDescriptorPool perDrawDescriptorPool;
 	VkDescriptorSet perDrawDescriptorSet;
 };
@@ -48,7 +45,6 @@ public:
 		VkCommandBuffer initializationCommandBuffer,
 		VkFence initializationFence,
 		uint32_t framesInFlight,
-		VkDescriptorSetLayout frustumCullingDescriptorSet1Layout,
 		const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
 		VulkanBuffer meshBuffer,
 		const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers,
@@ -57,6 +53,7 @@ public:
 		PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
 		PFN_vkCmdDrawIndexedIndirectCountKHR vkCmdDrawIndexedIndirectCountKHR,
 		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR,
+		PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR,
 		NtshEngn::ECSInterface* ecs);
 	void update(uint32_t currentFrameInFlight,
 		float cameraNearPlane,
@@ -134,8 +131,6 @@ private:
 	std::vector<VkDescriptorSet> m_descriptorSets;
 	std::vector<bool> m_descriptorSetsNeedUpdate;
 
-	VkDescriptorSetLayout m_frustumCullingDescriptorSet1Layout;
-
 	VkViewport m_viewport;
 	VkRect2D m_scissor;
 
@@ -152,6 +147,7 @@ private:
 	PFN_vkCmdEndRenderingKHR m_vkCmdEndRenderingKHR;
 	PFN_vkCmdDrawIndexedIndirectCountKHR m_vkCmdDrawIndexedIndirectCountKHR;
 	PFN_vkCmdPipelineBarrier2KHR m_vkCmdPipelineBarrier2KHR;
+	PFN_vkGetBufferDeviceAddressKHR m_vkGetBufferDeviceAddressKHR;
 
 	NtshEngn::ECSInterface* m_ecs;
 };
