@@ -26,7 +26,7 @@ public:
 
 	uint32_t cull(VkCommandBuffer commandBuffer,
 		uint32_t currentFrameInFlight,
-		const std::vector<FrustumCullingInfo>& frustumCullingInfo,
+		const std::vector<FrustumCullingInfo>& frustumCullingInfos,
 		const std::unordered_map<NtshEngn::Entity, InternalObject>& objects,
 		const std::vector<InternalMesh>& meshes);
 
