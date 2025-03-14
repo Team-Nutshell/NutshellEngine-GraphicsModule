@@ -97,7 +97,7 @@ void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane,
 			}
 
 			NtshEngn::Math::vec3 cascadeFrustumCenter = { 0.0f, 0.0f, 0.0f };
-			for (uint32_t i = 0; i < 8; i++) {
+			for (uint8_t i = 0; i < 8; i++) {
 				cascadeFrustumCenter += cascadeFrustumCorners[i];
 			}
 			cascadeFrustumCenter /= 8.0f;
