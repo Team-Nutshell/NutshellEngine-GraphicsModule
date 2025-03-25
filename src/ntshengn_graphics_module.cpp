@@ -1330,7 +1330,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &toneMappingDependencyInfo);
 
 	// FXAA
-	m_fxaa.draw(m_renderingCommandBuffers[m_currentFrameInFlight], (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage.handle, (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImage.view);
+	m_fxaa.draw(m_renderingCommandBuffers[m_currentFrameInFlight], (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage.handle, (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImage.view, m_fxaaEnabled);
 
 	// UI
 	if (!m_uiElements.empty()) {

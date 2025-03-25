@@ -234,6 +234,8 @@ namespace NtshEngn {
 		VulkanBuffer m_vertexBuffer;
 		VulkanBuffer m_indexBuffer;
 
+		bool m_fxaaEnabled = false;
+
 		Bloom m_bloom;
 		FrustumCulling m_frustumCulling;
 		FXAA m_fxaa;

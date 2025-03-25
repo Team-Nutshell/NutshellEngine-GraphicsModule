@@ -14,7 +14,7 @@ public:
 		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
 	void destroy();
 
-	void draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView drawImageView);
+	void draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView drawImageView, bool enabled);
 
 	void onResize(uint32_t width,
 		uint32_t height,
@@ -23,7 +23,7 @@ public:
 private:
 	void createDescriptorSetLayout();
 
-	void createGraphicsPipeline(VkFormat drawImageFormat);
+	void createGraphicsPipelines(VkFormat drawImageFormat);
 
 	void createDescriptorSet();
 
@@ -32,7 +32,8 @@ private:
 private:
 	VkDescriptorSetLayout m_descriptorSetLayout;
 
-	VkPipeline m_graphicsPipeline;
+	VkPipeline m_fxaaGraphicsPipeline;
+	VkPipeline m_passthroughGraphicsPipeline;
 	VkPipelineLayout m_graphicsPipelineLayout;
 
 	VkDescriptorPool m_descriptorPool;

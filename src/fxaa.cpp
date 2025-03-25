@@ -39,7 +39,7 @@ void FXAA::init(VkDevice device,
 	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_sampler));
 
 	createDescriptorSetLayout();
-	createGraphicsPipeline(drawImageFormat);
+	createGraphicsPipelines(drawImageFormat);
 	createDescriptorSet();
 	updateDescriptorSet(colorImageView);
 }
@@ -47,7 +47,8 @@ void FXAA::init(VkDevice device,
 void FXAA::destroy() {
 	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
 
-	vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
+	vkDestroyPipeline(m_device, m_passthroughGraphicsPipeline, nullptr);
+	vkDestroyPipeline(m_device, m_fxaaGraphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(m_device, m_graphicsPipelineLayout, nullptr);
 
 	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
@@ -55,7 +56,7 @@ void FXAA::destroy() {
 	vkDestroySampler(m_device, m_sampler, nullptr);
 }
 
-void FXAA::draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView drawImageView) {
+void FXAA::draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView drawImageView, bool enabled) {
 	VkRenderingAttachmentInfo attachmentInfo = {};
 	attachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 	attachmentInfo.pNext = nullptr;
@@ -82,7 +83,12 @@ void FXAA::draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView dr
 	m_vkCmdBeginRenderingKHR(commandBuffer, &renderingInfo);
 
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipelineLayout, 0, 1, &m_descriptorSet, 0, nullptr);
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+	if (enabled) {
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_fxaaGraphicsPipeline);
+	}
+	else {
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_passthroughGraphicsPipeline);
+	}
 	vkCmdSetViewport(commandBuffer, 0, 1, &m_viewport);
 	vkCmdSetScissor(commandBuffer, 0, 1, &m_scissor);
 
@@ -149,7 +155,7 @@ void FXAA::createDescriptorSetLayout() {
 	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_descriptorSetLayout));
 }
 
-void FXAA::createGraphicsPipeline(VkFormat drawImageFormat) {
+void FXAA::createGraphicsPipelines(VkFormat drawImageFormat) {
 	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
 	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
 	pipelineRenderingCreateInfo.pNext = nullptr;
@@ -189,8 +195,7 @@ void FXAA::createGraphicsPipeline(VkFormat drawImageFormat) {
 	vertexShaderStageCreateInfo.pName = "main";
 	vertexShaderStageCreateInfo.pSpecializationInfo = nullptr;
 
-#if FXAA_ENABLE == 1
-	const std::string fragmentShaderCode = R"GLSL(
+	const std::string fxaaFragmentShaderCode = R"GLSL(
 		#version 460
 
 		#define FXAA_THRESHOLD 0.0312
@@ -273,8 +278,9 @@ void FXAA::createGraphicsPipeline(VkFormat drawImageFormat) {
 			}
 		}
 	)GLSL";
-#else
-	const std::string fragmentShaderCode = R"GLSL(
+	const std::vector<uint32_t> fxaaFragmentShaderSpv = compileShader(fxaaFragmentShaderCode, ShaderType::Fragment);
+
+	const std::string passthroughFragmentShaderCode = R"GLSL(
 		#version 460
 		
 		layout(set = 0, binding = 0) uniform sampler2D imageSampler;
@@ -287,28 +293,47 @@ void FXAA::createGraphicsPipeline(VkFormat drawImageFormat) {
 			outColor = texture(imageSampler, uv);
 		}
 	)GLSL";
-#endif
-	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
+	const std::vector<uint32_t> passthroughFragmentShaderSpv = compileShader(passthroughFragmentShaderCode, ShaderType::Fragment);
 
-	VkShaderModule fragmentShaderModule;
-	VkShaderModuleCreateInfo fragmentShaderModuleCreateInfo = {};
-	fragmentShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	fragmentShaderModuleCreateInfo.pNext = nullptr;
-	fragmentShaderModuleCreateInfo.flags = 0;
-	fragmentShaderModuleCreateInfo.codeSize = fragmentShaderSpv.size() * sizeof(uint32_t);
-	fragmentShaderModuleCreateInfo.pCode = fragmentShaderSpv.data();
-	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &fragmentShaderModuleCreateInfo, nullptr, &fragmentShaderModule));
+	VkShaderModule fxaaFragmentShaderModule;
+	VkShaderModuleCreateInfo fxaaFragmentShaderModuleCreateInfo = {};
+	fxaaFragmentShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	fxaaFragmentShaderModuleCreateInfo.pNext = nullptr;
+	fxaaFragmentShaderModuleCreateInfo.flags = 0;
+	fxaaFragmentShaderModuleCreateInfo.codeSize = fxaaFragmentShaderSpv.size() * sizeof(uint32_t);
+	fxaaFragmentShaderModuleCreateInfo.pCode = fxaaFragmentShaderSpv.data();
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &fxaaFragmentShaderModuleCreateInfo, nullptr, &fxaaFragmentShaderModule));
 
-	VkPipelineShaderStageCreateInfo fragmentShaderStageCreateInfo = {};
-	fragmentShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	fragmentShaderStageCreateInfo.pNext = nullptr;
-	fragmentShaderStageCreateInfo.flags = 0;
-	fragmentShaderStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragmentShaderStageCreateInfo.module = fragmentShaderModule;
-	fragmentShaderStageCreateInfo.pName = "main";
-	fragmentShaderStageCreateInfo.pSpecializationInfo = nullptr;
+	VkPipelineShaderStageCreateInfo fxaaFragmentShaderStageCreateInfo = {};
+	fxaaFragmentShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fxaaFragmentShaderStageCreateInfo.pNext = nullptr;
+	fxaaFragmentShaderStageCreateInfo.flags = 0;
+	fxaaFragmentShaderStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fxaaFragmentShaderStageCreateInfo.module = fxaaFragmentShaderModule;
+	fxaaFragmentShaderStageCreateInfo.pName = "main";
+	fxaaFragmentShaderStageCreateInfo.pSpecializationInfo = nullptr;
 
-	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStageCreateInfos = { vertexShaderStageCreateInfo, fragmentShaderStageCreateInfo };
+	std::array<VkPipelineShaderStageCreateInfo, 2> fxaaShaderStageCreateInfos = { vertexShaderStageCreateInfo, fxaaFragmentShaderStageCreateInfo };
+
+	VkShaderModule passthroughFragmentShaderModule;
+	VkShaderModuleCreateInfo passthroughFragmentShaderModuleCreateInfo = {};
+	passthroughFragmentShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	passthroughFragmentShaderModuleCreateInfo.pNext = nullptr;
+	passthroughFragmentShaderModuleCreateInfo.flags = 0;
+	passthroughFragmentShaderModuleCreateInfo.codeSize = passthroughFragmentShaderSpv.size() * sizeof(uint32_t);
+	passthroughFragmentShaderModuleCreateInfo.pCode = passthroughFragmentShaderSpv.data();
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &passthroughFragmentShaderModuleCreateInfo, nullptr, &passthroughFragmentShaderModule));
+
+	VkPipelineShaderStageCreateInfo passthroughFragmentShaderStageCreateInfo = {};
+	passthroughFragmentShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	passthroughFragmentShaderStageCreateInfo.pNext = nullptr;
+	passthroughFragmentShaderStageCreateInfo.flags = 0;
+	passthroughFragmentShaderStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	passthroughFragmentShaderStageCreateInfo.module = passthroughFragmentShaderModule;
+	passthroughFragmentShaderStageCreateInfo.pName = "main";
+	passthroughFragmentShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	std::array<VkPipelineShaderStageCreateInfo, 2> passthroughShaderStageCreateInfos = { vertexShaderStageCreateInfo, passthroughFragmentShaderStageCreateInfo };
 
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
 	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -417,7 +442,7 @@ void FXAA::createGraphicsPipeline(VkFormat drawImageFormat) {
 	graphicsPipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
 	graphicsPipelineCreateInfo.flags = 0;
 	graphicsPipelineCreateInfo.stageCount = 2;
-	graphicsPipelineCreateInfo.pStages = shaderStageCreateInfos.data();
+	graphicsPipelineCreateInfo.pStages = fxaaShaderStageCreateInfos.data();
 	graphicsPipelineCreateInfo.pVertexInputState = &vertexInputStateCreateInfo;
 	graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;
 	graphicsPipelineCreateInfo.pTessellationState = nullptr;
@@ -432,10 +457,15 @@ void FXAA::createGraphicsPipeline(VkFormat drawImageFormat) {
 	graphicsPipelineCreateInfo.subpass = 0;
 	graphicsPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
 	graphicsPipelineCreateInfo.basePipelineIndex = 0;
-	NTSHENGN_VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_graphicsPipeline));
+	NTSHENGN_VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_fxaaGraphicsPipeline));
+
+	graphicsPipelineCreateInfo.pStages = passthroughShaderStageCreateInfos.data();
+	NTSHENGN_VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_passthroughGraphicsPipeline));
 
 	vkDestroyShaderModule(m_device, vertexShaderModule, nullptr);
-	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
+
+	vkDestroyShaderModule(m_device, passthroughFragmentShaderModule, nullptr);
+	vkDestroyShaderModule(m_device, fxaaFragmentShaderModule, nullptr);
 }
 
 void FXAA::createDescriptorSet() {
