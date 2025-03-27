@@ -2528,6 +2528,9 @@ void NtshEngn::GraphicsModule::emitParticles(const ParticleEmitter& particleEmit
 	}
 
 	size_t size = particles.size() * sizeof(Particle);
+	if ((m_currentParticleHostSize + size) > (m_maxParticlesNumber * sizeof(Particle))) { // Too many particles
+		size = (m_maxParticlesNumber * sizeof(Particle)) - m_currentParticleHostSize;
+	}
 	memcpy(reinterpret_cast<uint8_t*>(m_particleStagingBuffers[m_currentFrameInFlight].address) + m_currentParticleHostSize, particles.data(), size);
 
 	m_currentParticleHostSize += size;
