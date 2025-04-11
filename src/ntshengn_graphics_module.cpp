@@ -233,14 +233,20 @@ void NtshEngn::GraphicsModule::init() {
 	deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
 
 	// Enable features
+#if defined(NTSHENGN_DEBUG)
 	VkPhysicalDeviceShaderRelaxedExtendedInstructionFeaturesKHR physicalDeviceShaderRelaxedExtendedInstructionFeatures = {};
 	physicalDeviceShaderRelaxedExtendedInstructionFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_RELAXED_EXTENDED_INSTRUCTION_FEATURES_KHR;
 	physicalDeviceShaderRelaxedExtendedInstructionFeatures.pNext = nullptr;
 	physicalDeviceShaderRelaxedExtendedInstructionFeatures.shaderRelaxedExtendedInstruction = VK_TRUE;
+#endif
 
 	VkPhysicalDeviceBufferDeviceAddressFeaturesKHR physicalDeviceBufferDeviceAddressFeatures = {};
 	physicalDeviceBufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES_KHR;
+#if defined(NTSHENGN_DEBUG)
 	physicalDeviceBufferDeviceAddressFeatures.pNext = &physicalDeviceShaderRelaxedExtendedInstructionFeatures;
+#else
+	physicalDeviceBufferDeviceAddressFeatures.pNext = nullptr;
+#endif
 	physicalDeviceBufferDeviceAddressFeatures.bufferDeviceAddress = VK_TRUE;
 
 	VkPhysicalDeviceShaderDrawParametersFeatures physicalDeviceShaderDrawParametersFeatures;
