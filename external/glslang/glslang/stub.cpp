@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2002-2005  3Dlabs Inc. Ltd.
+// Copyright (C) 2024 The Khronos Group Inc.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -31,19 +31,7 @@
 // ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 //
-#ifndef __INITIALIZEDLL_H
-#define __INITIALIZEDLL_H
 
-#include "../glslang/OSDependent/osinclude.h"
-
-namespace glslang {
-
-bool InitProcess();
-bool InitThread();
-bool DetachThread();  // not called from standalone, perhaps other tools rely on parts of it
-bool DetachProcess(); // not called from standalone, perhaps other tools rely on parts of it
-
-} // end namespace glslang
-
-#endif // __INITIALIZEDLL_H
-
+// This empty source file exists to support building stubbed versions of
+// deprecated libraries which have been integrated into the main glslang
+// library. It should be deleted once the stub libraries are fully removed.
