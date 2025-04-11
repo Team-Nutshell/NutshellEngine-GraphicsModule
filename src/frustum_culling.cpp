@@ -397,12 +397,12 @@ void FrustumCulling::createComputePipeline() {
 			PerDrawInfo info[];
 		} inPerDraw;
 
-		layout(buffer_reference) buffer DrawIndirectBuffer {
+		layout(buffer_reference, buffer_reference_align = 4) buffer DrawIndirectBuffer {
 			uint drawCount;
 			DrawIndirect commands[];
 		};
 
-		layout(buffer_reference) buffer PerDrawBuffer {
+		layout(buffer_reference, buffer_reference_align = 4) buffer PerDrawBuffer {
 			PerDrawInfo info[];
 		};
 

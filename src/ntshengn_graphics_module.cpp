@@ -286,12 +286,12 @@ void NtshEngn::GraphicsModule::init() {
 		"VK_KHR_dynamic_rendering",
 		"VK_EXT_descriptor_indexing",
 		"VK_KHR_draw_indirect_count",
-		"VK_KHR_buffer_device_address",
-		"VK_KHR_shader_relaxed_extended_instruction" };
+		"VK_KHR_buffer_device_address" };
 	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		deviceExtensions.push_back("VK_KHR_swapchain");
 	}
 #if defined(NTSHENGN_DEBUG)
+	deviceExtensions.push_back("VK_KHR_shader_relaxed_extended_instruction");
 	deviceExtensions.push_back("VK_KHR_shader_non_semantic_info");
 #endif
 	deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
