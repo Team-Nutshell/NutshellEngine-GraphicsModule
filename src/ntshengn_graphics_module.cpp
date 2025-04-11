@@ -233,9 +233,14 @@ void NtshEngn::GraphicsModule::init() {
 	deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
 
 	// Enable features
+	VkPhysicalDeviceShaderRelaxedExtendedInstructionFeaturesKHR physicalDeviceShaderRelaxedExtendedInstructionFeatures = {};
+	physicalDeviceShaderRelaxedExtendedInstructionFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_RELAXED_EXTENDED_INSTRUCTION_FEATURES_KHR;
+	physicalDeviceShaderRelaxedExtendedInstructionFeatures.pNext = nullptr;
+	physicalDeviceShaderRelaxedExtendedInstructionFeatures.shaderRelaxedExtendedInstruction = VK_TRUE;
+
 	VkPhysicalDeviceBufferDeviceAddressFeaturesKHR physicalDeviceBufferDeviceAddressFeatures = {};
 	physicalDeviceBufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES_KHR;
-	physicalDeviceBufferDeviceAddressFeatures.pNext = nullptr;
+	physicalDeviceBufferDeviceAddressFeatures.pNext = &physicalDeviceShaderRelaxedExtendedInstructionFeatures;
 	physicalDeviceBufferDeviceAddressFeatures.bufferDeviceAddress = VK_TRUE;
 
 	VkPhysicalDeviceShaderDrawParametersFeatures physicalDeviceShaderDrawParametersFeatures;
@@ -281,7 +286,8 @@ void NtshEngn::GraphicsModule::init() {
 		"VK_KHR_dynamic_rendering",
 		"VK_EXT_descriptor_indexing",
 		"VK_KHR_draw_indirect_count",
-		"VK_KHR_buffer_device_address" };
+		"VK_KHR_buffer_device_address",
+		"VK_KHR_shader_relaxed_extended_instruction" };
 	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 		deviceExtensions.push_back("VK_KHR_swapchain");
 	}
