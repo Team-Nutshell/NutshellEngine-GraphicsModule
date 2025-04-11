@@ -36,13 +36,8 @@
 #include "SPVRemapper.h"
 #include "doc.h"
 
-#if !defined (use_cpp11)
-// ... not supported before C++11
-#else // defined (use_cpp11)
-
 #include <algorithm>
 #include <cassert>
-#include "../glslang/Include/Common.h"
 
 namespace spv {
 
@@ -655,6 +650,40 @@ namespace spv {
             case spv::OperandExecutionMode:
                 return nextInst;
 
+            case spv::OperandMemoryAccess:
+                {
+                    uint32_t mask = spv[word];
+                    if (mask & uint32_t(spv::MemoryAccessMask::MemoryAccessAlignedMask)) {
+                        ++word;
+                        --numOperands;
+                    }
+                    if (mask & uint32_t(spv::MemoryAccessMask::MemoryAccessMakePointerAvailableMask |
+                                        spv::MemoryAccessMask::MemoryAccessMakePointerVisibleMask)) {
+                        idFn(asId(word+1));
+                        ++word;
+                        --numOperands;
+                    }
+                    ++word;
+                }
+                break;
+
+            case spv::OperandTensorAddressingOperands:
+                {
+                    uint32_t mask = spv[word];
+                    if (mask & uint32_t(spv::TensorAddressingOperandsMask::TensorAddressingOperandsTensorViewMask)) {
+                        idFn(asId(word+1));
+                        ++word;
+                        --numOperands;
+                    }
+                    if (mask & uint32_t(spv::TensorAddressingOperandsMask::TensorAddressingOperandsDecodeFuncMask)) {
+                        idFn(asId(word+1));
+                        ++word;
+                        --numOperands;
+                    }
+                    ++word;
+                }
+                break;
+
             // Single word operands we simply ignore, as they hold no IDs
             case spv::OperandLiteralNumber:
             case spv::OperandSource:
@@ -679,11 +708,11 @@ namespace spv {
             case spv::OperandSelect:
             case spv::OperandLoop:
             case spv::OperandFunction:
-            case spv::OperandMemoryAccess:
             case spv::OperandGroupOperation:
             case spv::OperandKernelEnqueueFlags:
             case spv::OperandKernelProfilingInfo:
             case spv::OperandCapability:
+            case spv::OperandCooperativeMatrixOperands:
                 ++word;
                 break;
 
@@ -1355,13 +1384,15 @@ namespace spv {
                 return hash;
             }
 
-        case spv::OpTypeEvent:           return 300000;
-        case spv::OpTypeDeviceEvent:     return 300001;
-        case spv::OpTypeReserveId:       return 300002;
-        case spv::OpTypeQueue:           return 300003;
-        case spv::OpTypePipe:            return 300004;
-        case spv::OpConstantTrue:        return 300007;
-        case spv::OpConstantFalse:       return 300008;
+        case spv::OpTypeEvent:                      return 300000;
+        case spv::OpTypeDeviceEvent:                return 300001;
+        case spv::OpTypeReserveId:                  return 300002;
+        case spv::OpTypeQueue:                      return 300003;
+        case spv::OpTypePipe:                       return 300004;
+        case spv::OpConstantTrue:                   return 300007;
+        case spv::OpConstantFalse:                  return 300008;
+        case spv::OpTypeRayQueryKHR:                return 300009;
+        case spv::OpTypeAccelerationStructureKHR:   return 300010;
         case spv::OpConstantComposite:
             {
                 std::uint32_t hash = 300011 + hashType(idPos(spv[typeStart+1]));
@@ -1527,6 +1558,4 @@ namespace spv {
     }
 
 } // namespace SPV
-
-#endif // defined (use_cpp11)
 
