@@ -255,9 +255,21 @@ void NtshEngn::GraphicsModule::init() {
 	deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
 
 	// Enable features
+#if defined(NTSHENGN_DEBUG)
+	VkPhysicalDeviceShaderRelaxedExtendedInstructionFeaturesKHR physicalDeviceShaderRelaxedExtendedInstructionFeatures = {};
+	physicalDeviceShaderRelaxedExtendedInstructionFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_RELAXED_EXTENDED_INSTRUCTION_FEATURES_KHR;
+	physicalDeviceShaderRelaxedExtendedInstructionFeatures.pNext = nullptr;
+	physicalDeviceShaderRelaxedExtendedInstructionFeatures.shaderRelaxedExtendedInstruction = VK_TRUE;
+#endif
+
 	VkPhysicalDeviceRayTracingPipelineFeaturesKHR physicalDeviceRayTracingPipelineFeatures = {};
 	physicalDeviceRayTracingPipelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+
+#if defined(NTSHENGN_DEBUG)
+	physicalDeviceRayTracingPipelineFeatures.pNext = &physicalDeviceShaderRelaxedExtendedInstructionFeatures;
+#else
 	physicalDeviceRayTracingPipelineFeatures.pNext = nullptr;
+#endif
 	physicalDeviceRayTracingPipelineFeatures.rayTracingPipeline = VK_TRUE;
 
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR physicalDeviceAccelerationStructureFeatures = {};
@@ -322,6 +334,7 @@ void NtshEngn::GraphicsModule::init() {
 		deviceExtensions.push_back("VK_KHR_swapchain");
 	}
 #if defined(NTSHENGN_DEBUG)
+	deviceExtensions.push_back("VK_KHR_shader_relaxed_extended_instruction");
 	deviceExtensions.push_back("VK_KHR_shader_non_semantic_info");
 #endif
 	deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
