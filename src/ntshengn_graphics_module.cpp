@@ -3417,9 +3417,9 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 		layout(location = 0) rayPayloadInEXT HitPayload payload;
 
-	    layout(push_constant) uniform BackgroundColor {
-            layout(offset = 16) vec4 color;
-        } bg;
+		layout(push_constant) uniform BackgroundColor {
+			layout(offset = 16) vec4 color;
+		} bg;
 
 		void main() {
 			payload.directLighting = bg.color.rgb;
@@ -3904,11 +3904,11 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 			// Ambient Lights
 			uint lightIndex = lightCount;
-            for (uint i = 0; i < lights.count.w; i++) {
-                directLighting += (lights.info[lightIndex].color * lights.info[lightIndex].intensity) * d;
+			for (uint i = 0; i < lights.count.w; i++) {
+				directLighting += (lights.info[lightIndex].color * lights.info[lightIndex].intensity) * d;
 
-                lightIndex++;
-            }
+				lightIndex++;
+			}
 
 			vec4 brdf = sampleBRDF(n, v, d, metalnessSample, roughnessSample, payload.rngState, payload.rayDirection);
 
