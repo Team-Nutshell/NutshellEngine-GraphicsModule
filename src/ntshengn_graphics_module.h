@@ -73,7 +73,10 @@ bool operator==(const NtshEngn::Material& lhs, const NtshEngn::Material& rhs) {
 		(lhs.emissiveTexture.imageSampler == rhs.emissiveTexture.imageSampler) &&
 		(lhs.emissiveFactor == rhs.emissiveFactor) &&
 		(lhs.alphaCutoff == rhs.alphaCutoff) &&
-		(lhs.indexOfRefraction == rhs.indexOfRefraction);
+		(lhs.indexOfRefraction == rhs.indexOfRefraction) &&
+		(lhs.useTriplanarMapping == rhs.useTriplanarMapping) &&
+		(lhs.scaleUV == rhs.scaleUV) &&
+		(lhs.offsetUV == rhs.offsetUV);
 }
 
 struct PreviousCamera {
@@ -136,6 +139,10 @@ struct InternalMaterial {
 	uint32_t emissiveTextureIndex = 5;
 	float emissiveFactor = 1.0f;
 	float alphaCutoff = 0.0f;
+	NtshEngn::Math::vec2 scaleUV = NtshEngn::Math::vec2(1.0f, 1.0f);
+	NtshEngn::Math::vec2 offsetUV = NtshEngn::Math::vec2(0.0f, 0.0f);
+	uint32_t useTriplanarMapping = 0;
+	float padding = 0.0f;
 };
 
 struct InternalFont {
