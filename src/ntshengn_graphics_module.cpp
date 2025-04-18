@@ -3472,6 +3472,12 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 
 		#define M_PI 3.1415926535897932384626433832795
 
+		struct TriplanarUV {
+			vec2 x;
+			vec2 y;
+			vec2 z;
+		};
+
 		// BRDF
 		float distribution(float NdotH, float roughness) {
 			const float a = roughness * roughness;
@@ -3547,6 +3553,9 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 			uint emissiveTextureIndex;
 			float emissiveFactor;
 			float alphaCutoff;
+			vec2 scaleUV;
+			vec2 offsetUV;
+			uint useTriplanarMapping;
 		};
 
 		struct LightInfo {
@@ -3578,18 +3587,101 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 
 		void main() {
 			const MaterialInfo material = materials.info[materialID];
-			const vec4 diffuseSample = texture(textures[nonuniformEXT(material.diffuseTextureIndex)], uv);
+
+			vec4 diffuseSample;
+			vec3 normalSample;
+			float metalnessSample;
+			float roughnessSample;
+			float occlusionSample;
+			vec3 emissiveSample;
+
+			vec3 n;
+			
+			if (material.useTriplanarMapping == 0) {
+				const vec2 scaleOffsetUV = (uv * material.scaleUV) + material.offsetUV;
+
+				diffuseSample = texture(textures[nonuniformEXT(material.diffuseTextureIndex)], scaleOffsetUV);
+				normalSample = texture(textures[nonuniformEXT(material.normalTextureIndex)], scaleOffsetUV).xyz;
+				metalnessSample = texture(textures[nonuniformEXT(material.metalnessTextureIndex)], scaleOffsetUV).b;
+				roughnessSample = texture(textures[nonuniformEXT(material.roughnessTextureIndex)], scaleOffsetUV).g;
+				occlusionSample = texture(textures[nonuniformEXT(material.occlusionTextureIndex)], scaleOffsetUV).r;
+				emissiveSample = texture(textures[nonuniformEXT(material.emissiveTextureIndex)], scaleOffsetUV).rgb;
+
+				n = normalize(TBN * ((normalSample * 2.0) - 1.0));
+			}
+			else {
+				vec3 normal = normalize(TBN[2]);
+
+				TriplanarUV triplanarUV;
+				triplanarUV.x = position.zy;
+				triplanarUV.x.y = -triplanarUV.x.y;
+				if (normal.x >= 0.0) {
+					triplanarUV.x.x = -triplanarUV.x.x;
+				}
+				triplanarUV.y = position.xz;
+				if (normal.y < 0.0) {
+					triplanarUV.y.y = -triplanarUV.y.y;
+				}
+				triplanarUV.z = position.xy;
+				triplanarUV.z.y = -triplanarUV.z.y;
+				if (normal.z < 0.0) {
+					triplanarUV.z.x = -triplanarUV.z.x;
+				}
+
+				triplanarUV.x = (triplanarUV.x * material.scaleUV) + material.offsetUV;
+				triplanarUV.y = (triplanarUV.y * material.scaleUV) + material.offsetUV;
+				triplanarUV.z = (triplanarUV.z * material.scaleUV) + material.offsetUV;
+
+				vec3 triplanarWeights = abs(normal);
+				triplanarWeights /= (triplanarWeights.x + triplanarWeights.y + triplanarWeights.z);
+
+				diffuseSample = (texture(textures[nonuniformEXT(material.diffuseTextureIndex)], triplanarUV.x) * triplanarWeights.x) +
+					(texture(textures[nonuniformEXT(material.diffuseTextureIndex)], triplanarUV.y) * triplanarWeights.y) +
+					(texture(textures[nonuniformEXT(material.diffuseTextureIndex)], triplanarUV.z) * triplanarWeights.z);
+
+				vec3 tangentNormalX = (texture(textures[nonuniformEXT(material.normalTextureIndex)], triplanarUV.x).xyz * 2.0) - 1.0;
+				vec3 tangentNormalY = (texture(textures[nonuniformEXT(material.normalTextureIndex)], triplanarUV.y).xyz * 2.0) - 1.0;
+				vec3 tangentNormalZ = (texture(textures[nonuniformEXT(material.normalTextureIndex)], triplanarUV.z).xyz * 2.0) - 1.0;
+
+				if (normal.x < 0.0) {
+					tangentNormalX.z = -tangentNormalX.z;
+				}
+				if (normal.y < 0.0) {
+					tangentNormalY.z = -tangentNormalY.z;
+				}
+				if (normal.z < 0.0) {
+					tangentNormalZ.z = -tangentNormalZ.z;
+				}
+			
+				vec3 worldNormalX = vec3(tangentNormalX.xy + normal.zy, tangentNormalX.z + normal.x).zyx;
+				vec3 worldNormalY = vec3(tangentNormalY.xy + normal.xz, tangentNormalY.z + normal.y).xzy;
+				vec3 worldNormalZ = vec3(tangentNormalZ.xy + normal.xy, tangentNormalZ.z + normal.z).xyz;
+
+				normalSample = normalize((worldNormalX * triplanarWeights.x) + 
+					(worldNormalY * triplanarWeights.y) + 
+					(worldNormalZ * triplanarWeights.z));
+
+				metalnessSample = (texture(textures[nonuniformEXT(material.metalnessTextureIndex)], triplanarUV.x).b * triplanarWeights.x) +
+					(texture(textures[nonuniformEXT(material.metalnessTextureIndex)], triplanarUV.y).b * triplanarWeights.y) +
+					(texture(textures[nonuniformEXT(material.metalnessTextureIndex)], triplanarUV.z).b * triplanarWeights.z);
+				roughnessSample = (texture(textures[nonuniformEXT(material.roughnessTextureIndex)], triplanarUV.x).g * triplanarWeights.x) +
+					(texture(textures[nonuniformEXT(material.roughnessTextureIndex)], triplanarUV.y).g * triplanarWeights.y) +
+					(texture(textures[nonuniformEXT(material.roughnessTextureIndex)], triplanarUV.z).g * triplanarWeights.z);
+				occlusionSample = (texture(textures[nonuniformEXT(material.occlusionTextureIndex)], triplanarUV.x).r * triplanarWeights.x) +
+					(texture(textures[nonuniformEXT(material.occlusionTextureIndex)], triplanarUV.y).r * triplanarWeights.y) +
+					(texture(textures[nonuniformEXT(material.occlusionTextureIndex)], triplanarUV.z).r * triplanarWeights.z);
+				emissiveSample = (texture(textures[nonuniformEXT(material.emissiveTextureIndex)], triplanarUV.x).rgb * triplanarWeights.x) +
+					(texture(textures[nonuniformEXT(material.emissiveTextureIndex)], triplanarUV.y).rgb * triplanarWeights.y) +
+					(texture(textures[nonuniformEXT(material.emissiveTextureIndex)], triplanarUV.z).rgb * triplanarWeights.z);
+
+				n = normalSample;
+			}
+
 			if (diffuseSample.a < material.alphaCutoff) {
 				discard;
 			}
-			const vec3 normalSample = texture(textures[nonuniformEXT(material.normalTextureIndex)], uv).xyz;
-			const float metalnessSample = texture(textures[nonuniformEXT(material.metalnessTextureIndex)], uv).b;
-			const float roughnessSample = texture(textures[nonuniformEXT(material.roughnessTextureIndex)], uv).g;
-			const float occlusionSample = texture(textures[nonuniformEXT(material.occlusionTextureIndex)], uv).r;
-			const vec3 emissiveSample = texture(textures[nonuniformEXT(material.emissiveTextureIndex)], uv).rgb;
 
 			const vec3 d = vec3(diffuseSample);
-			const vec3 n = normalize(TBN * (normalSample * 2.0 - 1.0));
 			const vec3 v = normalize(cameraPosition - position);
 
 			vec3 color = vec3(0.0);
@@ -6587,10 +6679,21 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 			material.emissiveTextureIndex = addToTextures({ imageID, samplerKey });
 		}
 	}
-	if ((renderable.material.emissiveFactor != material.emissiveFactor) ||
-		(renderable.material.alphaCutoff != material.alphaCutoff)) {
+	if (renderable.material.emissiveFactor != material.emissiveFactor) {
 		material.emissiveFactor = renderable.material.emissiveFactor;
+	}
+	if (renderable.material.alphaCutoff != material.alphaCutoff) {
 		material.alphaCutoff = renderable.material.alphaCutoff;
+	}
+	uint32_t materialUseTriplanarMapping = renderable.material.useTriplanarMapping ? 1 : 0;
+	if (materialUseTriplanarMapping != material.useTriplanarMapping) {
+		material.useTriplanarMapping = materialUseTriplanarMapping;
+	}
+	if (renderable.material.scaleUV != material.scaleUV) {
+		material.scaleUV = renderable.material.scaleUV;
+	}
+	if (renderable.material.offsetUV != material.offsetUV) {
+		material.offsetUV = renderable.material.offsetUV;
 	}
 
 	uint32_t materialID = addToMaterials(material);
@@ -6676,7 +6779,10 @@ uint32_t NtshEngn::GraphicsModule::addToMaterials(const InternalMaterial& materi
 			(mat.occlusionTextureIndex == material.occlusionTextureIndex) &&
 			(mat.emissiveTextureIndex == material.emissiveTextureIndex) &&
 			(mat.emissiveFactor == material.emissiveFactor) &&
-			(mat.alphaCutoff == material.alphaCutoff)) {
+			(mat.alphaCutoff == material.alphaCutoff) &&
+			(mat.scaleUV == material.scaleUV) &&
+			(mat.offsetUV == material.offsetUV) &&
+			(mat.useTriplanarMapping == material.useTriplanarMapping)) {
 			return static_cast<uint32_t>(i);
 		}
 	}
