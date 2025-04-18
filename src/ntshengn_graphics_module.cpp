@@ -3589,7 +3589,6 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 			const MaterialInfo material = materials.info[materialID];
 
 			vec4 diffuseSample;
-			vec3 normalSample;
 			float metalnessSample;
 			float roughnessSample;
 			float occlusionSample;
@@ -3601,7 +3600,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 				const vec2 scaleOffsetUV = (uv * material.scaleUV) + material.offsetUV;
 
 				diffuseSample = texture(textures[nonuniformEXT(material.diffuseTextureIndex)], scaleOffsetUV);
-				normalSample = texture(textures[nonuniformEXT(material.normalTextureIndex)], scaleOffsetUV).xyz;
+				const vec3 normalSample = texture(textures[nonuniformEXT(material.normalTextureIndex)], scaleOffsetUV).xyz;
 				metalnessSample = texture(textures[nonuniformEXT(material.metalnessTextureIndex)], scaleOffsetUV).b;
 				roughnessSample = texture(textures[nonuniformEXT(material.roughnessTextureIndex)], scaleOffsetUV).g;
 				occlusionSample = texture(textures[nonuniformEXT(material.occlusionTextureIndex)], scaleOffsetUV).r;
@@ -3657,7 +3656,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 				vec3 worldNormalY = vec3(tangentNormalY.xy + normal.xz, tangentNormalY.z + normal.y).xzy;
 				vec3 worldNormalZ = vec3(tangentNormalZ.xy + normal.xy, tangentNormalZ.z + normal.z).xyz;
 
-				normalSample = normalize((worldNormalX * triplanarWeights.x) + 
+				n = normalize((worldNormalX * triplanarWeights.x) + 
 					(worldNormalY * triplanarWeights.y) + 
 					(worldNormalZ * triplanarWeights.z));
 
@@ -3673,8 +3672,6 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 				emissiveSample = (texture(textures[nonuniformEXT(material.emissiveTextureIndex)], triplanarUV.x).rgb * triplanarWeights.x) +
 					(texture(textures[nonuniformEXT(material.emissiveTextureIndex)], triplanarUV.y).rgb * triplanarWeights.y) +
 					(texture(textures[nonuniformEXT(material.emissiveTextureIndex)], triplanarUV.z).rgb * triplanarWeights.z);
-
-				n = normalSample;
 			}
 
 			if (diffuseSample.a < material.alphaCutoff) {
