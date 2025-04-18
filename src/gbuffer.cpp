@@ -912,6 +912,12 @@ void GBuffer::createGraphicsPipeline() {
 		#version 460
 		#extension GL_EXT_nonuniform_qualifier : enable
 
+		struct TriplanarUV {
+			vec2 x;
+			vec2 y;
+			vec2 z;
+		};
+
 		const mat4 ditheringThreshold = mat4(
 			1.0 / 17.0, 13.0 / 17.0, 4.0 / 17.0, 16.0 / 17.0,
 			9.0 / 17.0, 5.0 / 17.0, 12.0 / 17.0, 8.0 / 17.0,
@@ -928,6 +934,9 @@ void GBuffer::createGraphicsPipeline() {
 			uint emissiveTextureIndex;
 			float emissiveFactor;
 			float alphaCutoff;
+			vec2 scaleUV;
+			vec2 offsetUV;
+			uint useTriplanarMapping;
 		};
 
 		layout(set = 0, binding = 5) restrict readonly buffer Materials {
@@ -949,32 +958,114 @@ void GBuffer::createGraphicsPipeline() {
 
 		void main() {
 			const MaterialInfo material = materials.info[materialID];
-			const vec4 diffuseSample = texture(textures[nonuniformEXT(material.diffuseTextureIndex)], uv);
+
+			vec4 diffuseSample;
+			vec3 materialSample;
+			vec3 emissiveSample;
+
+			vec3 n;
+
+			if (material.useTriplanarMapping == 0) {
+				const vec2 scaleOffsetUV = (uv * material.scaleUV) + material.offsetUV;
+
+				diffuseSample = texture(textures[nonuniformEXT(material.diffuseTextureIndex)], scaleOffsetUV);
+				const vec3 normalSample = texture(textures[nonuniformEXT(material.normalTextureIndex)], scaleOffsetUV).xyz;
+				if (material.occlusionTextureIndex == material.roughnessTextureIndex &&
+					material.roughnessTextureIndex == material.metalnessTextureIndex) {
+					materialSample = texture(textures[nonuniformEXT(material.occlusionTextureIndex)], scaleOffsetUV).rgb;
+				}
+				else {
+					materialSample.r = texture(textures[nonuniformEXT(material.occlusionTextureIndex)], scaleOffsetUV).r;
+					materialSample.g = texture(textures[nonuniformEXT(material.roughnessTextureIndex)], scaleOffsetUV).g;
+					materialSample.b = texture(textures[nonuniformEXT(material.metalnessTextureIndex)], scaleOffsetUV).b;
+				}
+				emissiveSample = texture(textures[nonuniformEXT(material.emissiveTextureIndex)], scaleOffsetUV).rgb;
+
+				n = normalize(TBN * (normalSample * 2.0 - 1.0));
+			}
+			else {
+				vec3 normal = normalize(TBN[2]);
+
+				TriplanarUV triplanarUV;
+				triplanarUV.x = position.zy;
+				triplanarUV.x.y = -triplanarUV.x.y;
+				if (normal.x >= 0.0) {
+					triplanarUV.x.x = -triplanarUV.x.x;
+				}
+				triplanarUV.y = position.xz;
+				if (normal.y < 0.0) {
+					triplanarUV.y.y = -triplanarUV.y.y;
+				}
+				triplanarUV.z = position.xy;
+				triplanarUV.z.y = -triplanarUV.z.y;
+				if (normal.z < 0.0) {
+					triplanarUV.z.x = -triplanarUV.z.x;
+				}
+
+				triplanarUV.x = (triplanarUV.x * material.scaleUV) + material.offsetUV;
+				triplanarUV.y = (triplanarUV.y * material.scaleUV) + material.offsetUV;
+				triplanarUV.z = (triplanarUV.z * material.scaleUV) + material.offsetUV;
+
+				vec3 triplanarWeights = abs(normal);
+				triplanarWeights /= (triplanarWeights.x + triplanarWeights.y + triplanarWeights.z);
+
+				diffuseSample = (texture(textures[nonuniformEXT(material.diffuseTextureIndex)], triplanarUV.x) * triplanarWeights.x) +
+					(texture(textures[nonuniformEXT(material.diffuseTextureIndex)], triplanarUV.y) * triplanarWeights.y) +
+					(texture(textures[nonuniformEXT(material.diffuseTextureIndex)], triplanarUV.z) * triplanarWeights.z);
+
+				vec3 tangentNormalX = (texture(textures[nonuniformEXT(material.normalTextureIndex)], triplanarUV.x).xyz * 2.0) - 1.0;
+				vec3 tangentNormalY = (texture(textures[nonuniformEXT(material.normalTextureIndex)], triplanarUV.y).xyz * 2.0) - 1.0;
+				vec3 tangentNormalZ = (texture(textures[nonuniformEXT(material.normalTextureIndex)], triplanarUV.z).xyz * 2.0) - 1.0;
+
+				if (normal.x < 0.0) {
+					tangentNormalX.z = -tangentNormalX.z;
+				}
+				if (normal.y < 0.0) {
+					tangentNormalY.z = -tangentNormalY.z;
+				}
+				if (normal.z < 0.0) {
+					tangentNormalZ.z = -tangentNormalZ.z;
+				}
+			
+				vec3 worldNormalX = vec3(tangentNormalX.xy + normal.zy, tangentNormalX.z + normal.x).zyx;
+				vec3 worldNormalY = vec3(tangentNormalY.xy + normal.xz, tangentNormalY.z + normal.y).xzy;
+				vec3 worldNormalZ = vec3(tangentNormalZ.xy + normal.xy, tangentNormalZ.z + normal.z).xyz;
+
+				n = normalize((worldNormalX * triplanarWeights.x) + 
+					(worldNormalY * triplanarWeights.y) + 
+					(worldNormalZ * triplanarWeights.z));
+
+				if (material.occlusionTextureIndex == material.roughnessTextureIndex &&
+					material.roughnessTextureIndex == material.metalnessTextureIndex) {
+					materialSample = (texture(textures[nonuniformEXT(material.occlusionTextureIndex)], triplanarUV.x).rgb * triplanarWeights.x) +
+						(texture(textures[nonuniformEXT(material.occlusionTextureIndex)], triplanarUV.y).rgb * triplanarWeights.y) +
+						(texture(textures[nonuniformEXT(material.occlusionTextureIndex)], triplanarUV.z).rgb * triplanarWeights.z);
+				}
+				else {
+					materialSample.r = (texture(textures[nonuniformEXT(material.occlusionTextureIndex)], triplanarUV.x).r * triplanarWeights.x) +
+						(texture(textures[nonuniformEXT(material.occlusionTextureIndex)], triplanarUV.y).r * triplanarWeights.y) +
+						(texture(textures[nonuniformEXT(material.occlusionTextureIndex)], triplanarUV.z).r * triplanarWeights.z);
+					materialSample.g = (texture(textures[nonuniformEXT(material.roughnessTextureIndex)], triplanarUV.x).g * triplanarWeights.x) +
+						(texture(textures[nonuniformEXT(material.roughnessTextureIndex)], triplanarUV.y).g * triplanarWeights.y) +
+						(texture(textures[nonuniformEXT(material.roughnessTextureIndex)], triplanarUV.z).g * triplanarWeights.z);
+					materialSample.b = (texture(textures[nonuniformEXT(material.metalnessTextureIndex)], triplanarUV.x).b * triplanarWeights.x) +
+						(texture(textures[nonuniformEXT(material.metalnessTextureIndex)], triplanarUV.y).b * triplanarWeights.y) +
+						(texture(textures[nonuniformEXT(material.metalnessTextureIndex)], triplanarUV.z).b * triplanarWeights.z);
+				}
+				emissiveSample = (texture(textures[nonuniformEXT(material.emissiveTextureIndex)], triplanarUV.x).rgb * triplanarWeights.x) +
+					(texture(textures[nonuniformEXT(material.emissiveTextureIndex)], triplanarUV.y).rgb * triplanarWeights.y) +
+					(texture(textures[nonuniformEXT(material.emissiveTextureIndex)], triplanarUV.z).rgb * triplanarWeights.z);
+			}
+
 			if ((diffuseSample.a < material.alphaCutoff) || (diffuseSample.a < ditheringThreshold[int(mod(gl_FragCoord.x, 4.0))][int(mod(gl_FragCoord.y, 4.0))])) {
 				discard;
 			}
 
 			outGBufferPosition = vec4(position, 1.0);
-
-			const vec3 normalSample = texture(textures[nonuniformEXT(material.normalTextureIndex)], uv).xyz;
-			const vec3 n = normalize(TBN * (normalSample * 2.0 - 1.0));
 			outGBufferNormal = vec4(n, 0.0);
-
 			outGBufferDiffuse = diffuseSample;
-			
-			if (material.occlusionTextureIndex == material.roughnessTextureIndex &&
-				material.roughnessTextureIndex == material.metalnessTextureIndex) {
-				const vec3 materialSample = texture(textures[nonuniformEXT(material.occlusionTextureIndex)], uv).rgb;
-				outGBufferMaterial = vec4(materialSample, material.alphaCutoff);
-			}
-			else {
-				const float occlusionSample = texture(textures[nonuniformEXT(material.occlusionTextureIndex)], uv).r;
-				const float roughnessSample = texture(textures[nonuniformEXT(material.roughnessTextureIndex)], uv).g;
-				const float metalnessSample = texture(textures[nonuniformEXT(material.metalnessTextureIndex)], uv).b;
-				outGBufferMaterial = vec4(occlusionSample, roughnessSample, metalnessSample, material.alphaCutoff);
-			}
-
-			outGBufferEmissive = texture(textures[nonuniformEXT(material.emissiveTextureIndex)], uv) * material.emissiveFactor;
+			outGBufferMaterial = vec4(materialSample, material.alphaCutoff);
+			outGBufferEmissive = vec4(emissiveSample, 0.0) * material.emissiveFactor;
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);

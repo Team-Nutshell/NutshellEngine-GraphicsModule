@@ -82,6 +82,10 @@ struct InternalMaterial {
 	uint32_t emissiveTextureIndex = 5;
 	float emissiveFactor = 1.0f;
 	float alphaCutoff = 0.0f;
+	NtshEngn::Math::vec2 scaleUV = NtshEngn::Math::vec2(1.0f, 1.0f);
+	NtshEngn::Math::vec2 offsetUV = NtshEngn::Math::vec2(0.0f, 0.0f);
+	uint32_t useTriplanarMapping = 0;
+	float padding = 0.0f;
 };
 
 struct InternalFont {

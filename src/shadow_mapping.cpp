@@ -1492,12 +1492,15 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 		} pC;
 
 		layout(location = 0) in vec3 position;
-		layout(location = 1) in vec2 uv;
-		layout(location = 2) in uvec4 joints;
-		layout(location = 3) in vec4 weights;
+		layout(location = 1) in vec3 normal;
+		layout(location = 2) in vec2 uv;
+		layout(location = 3) in uvec4 joints;
+		layout(location = 4) in vec4 weights;
 
-		layout(location = 0) out vec2 outUv;
-		layout(location = 1) out flat uint outMaterialID;
+		layout(location = 0) out vec3 outPosition;
+		layout(location = 1) out vec3 outNormal;
+		layout(location = 2) out vec2 outUv;
+		layout(location = 3) out flat uint outMaterialID;
 
 		void main() {
 			uint objectID = perDraw.info[gl_DrawID].objectID;
@@ -1511,10 +1514,13 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 					(weights.z * jointTransforms.matrix[jointTransformOffset + joints.z]) +
 					(weights.w * jointTransforms.matrix[jointTransformOffset + joints.w]);
 			}
+			outPosition = vec3(objects.info[objectID].model * skinMatrix * vec4(position, 1.0));
+			vec3 skinnedNormal = vec3(transpose(inverse(skinMatrix)) * vec4(normal, 0.0));
+			outNormal = normalize(vec3(objects.info[objectID].transposeInverseModel * vec4(skinnedNormal, 0.0)));
 			outUv = uv;
 			outMaterialID = objects.info[objectID].materialID;
 
-			gl_Position = shadows.viewProjs[pC.viewProjIndex] * vec4(vec3(objects.info[objectID].model * skinMatrix * vec4(position, 1.0)), 1.0);
+			gl_Position = shadows.viewProjs[pC.viewProjIndex] * vec4(outPosition, 1.0);
 		}
 	)GLSL";
 	const std::vector<uint32_t> vertexShaderSpv = compileShader(vertexShaderCode, ShaderType::Vertex);
@@ -1541,6 +1547,12 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 		#version 460
 		#extension GL_EXT_nonuniform_qualifier : enable
 
+		struct TriplanarUV {
+			vec2 x;
+			vec2 y;
+			vec2 z;
+		};
+
 		const mat4 ditheringThreshold = mat4(
 			1.0 / 17.0, 13.0 / 17.0, 4.0 / 17.0, 16.0 / 17.0,
 			9.0 / 17.0, 5.0 / 17.0, 12.0 / 17.0, 8.0 / 17.0,
@@ -1557,6 +1569,9 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 			uint emissiveTextureIndex;
 			float emissiveFactor;
 			float alphaCutoff;
+			vec2 scaleUV;
+			vec2 offsetUV;
+			uint useTriplanarMapping;
 		};
 
 		layout(set = 0, binding = 4) restrict readonly buffer Materials {
@@ -1565,12 +1580,50 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 
 		layout(set = 0, binding = 5) uniform sampler2D textures[];
 
-		layout(location = 0) in vec2 uv;
-		layout(location = 1) in flat uint materialID;
+		layout(location = 0) in vec3 position;
+		layout(location = 1) in vec3 normal;
+		layout(location = 2) in vec2 uv;
+		layout(location = 3) in flat uint materialID;
 
 		void main() {
 			const MaterialInfo material = materials.info[materialID];
-			const float diffuseAlpha = texture(textures[nonuniformEXT(material.diffuseTextureIndex)], uv).a;
+
+			float diffuseAlpha;
+
+			if (material.useTriplanarMapping == 0) {
+				const vec2 scaleOffsetUV = (uv * material.scaleUV) + material.offsetUV;
+
+				diffuseAlpha = texture(textures[nonuniformEXT(material.diffuseTextureIndex)], scaleOffsetUV).a;
+			}
+			else {
+				TriplanarUV triplanarUV;
+				triplanarUV.x = position.zy;
+				triplanarUV.x.y = -triplanarUV.x.y;
+				if (normal.x >= 0.0) {
+					triplanarUV.x.x = -triplanarUV.x.x;
+				}
+				triplanarUV.y = position.xz;
+				if (normal.y < 0.0) {
+					triplanarUV.y.y = -triplanarUV.y.y;
+				}
+				triplanarUV.z = position.xy;
+				triplanarUV.z.y = -triplanarUV.z.y;
+				if (normal.z < 0.0) {
+					triplanarUV.z.x = -triplanarUV.z.x;
+				}
+
+				triplanarUV.x = (triplanarUV.x * material.scaleUV) + material.offsetUV;
+				triplanarUV.y = (triplanarUV.y * material.scaleUV) + material.offsetUV;
+				triplanarUV.z = (triplanarUV.z * material.scaleUV) + material.offsetUV;
+
+				vec3 triplanarWeights = abs(normal);
+				triplanarWeights /= (triplanarWeights.x + triplanarWeights.y + triplanarWeights.z);
+
+				diffuseAlpha = (texture(textures[nonuniformEXT(material.diffuseTextureIndex)], triplanarUV.x).a * triplanarWeights.x) +
+					(texture(textures[nonuniformEXT(material.diffuseTextureIndex)], triplanarUV.y).a * triplanarWeights.y) +
+					(texture(textures[nonuniformEXT(material.diffuseTextureIndex)], triplanarUV.z).a * triplanarWeights.z);
+			}
+
 			if ((diffuseAlpha < material.alphaCutoff) || (diffuseAlpha < ditheringThreshold[int(mod(gl_FragCoord.x, 4.0))][int(mod(gl_FragCoord.y, 4.0))])) {
 				discard;
 			}
@@ -1609,25 +1662,31 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 	vertexPositionInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
 	vertexPositionInputAttributeDescription.offset = 0;
 
+	VkVertexInputAttributeDescription vertexNormalInputAttributeDescription = {};
+	vertexNormalInputAttributeDescription.location = 1;
+	vertexNormalInputAttributeDescription.binding = 0;
+	vertexNormalInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
+	vertexNormalInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, normal);
+
 	VkVertexInputAttributeDescription vertexUVInputAttributeDescription = {};
-	vertexUVInputAttributeDescription.location = 1;
+	vertexUVInputAttributeDescription.location = 2;
 	vertexUVInputAttributeDescription.binding = 0;
 	vertexUVInputAttributeDescription.format = VK_FORMAT_R32G32_SFLOAT;
 	vertexUVInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, uv);
 
 	VkVertexInputAttributeDescription vertexJointsInputAttributeDescription = {};
-	vertexJointsInputAttributeDescription.location = 2;
+	vertexJointsInputAttributeDescription.location = 3;
 	vertexJointsInputAttributeDescription.binding = 0;
 	vertexJointsInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_UINT;
 	vertexJointsInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, joints);
 
 	VkVertexInputAttributeDescription vertexWeightsInputAttributeDescription = {};
-	vertexWeightsInputAttributeDescription.location = 3;
+	vertexWeightsInputAttributeDescription.location = 4;
 	vertexWeightsInputAttributeDescription.binding = 0;
 	vertexWeightsInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
 	vertexWeightsInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, weights);
 
-	std::array<VkVertexInputAttributeDescription, 4> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexUVInputAttributeDescription, vertexJointsInputAttributeDescription, vertexWeightsInputAttributeDescription };
+	std::array<VkVertexInputAttributeDescription, 5> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexNormalInputAttributeDescription, vertexUVInputAttributeDescription, vertexJointsInputAttributeDescription, vertexWeightsInputAttributeDescription };
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
 	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputStateCreateInfo.pNext = nullptr;
@@ -1799,13 +1858,15 @@ void ShadowMapping::createPointLightShadowGraphicsPipeline() {
 		} pC;
 
 		layout(location = 0) in vec3 position;
-		layout(location = 1) in vec2 uv;
-		layout(location = 2) in uvec4 joints;
-		layout(location = 3) in vec4 weights;
+		layout(location = 1) in vec3 normal;
+		layout(location = 2) in vec2 uv;
+		layout(location = 3) in uvec4 joints;
+		layout(location = 4) in vec4 weights;
 
 		layout(location = 0) out vec3 outPosition;
-		layout(location = 1) out vec2 outUv;
-		layout(location = 2) out flat uint outMaterialID;
+		layout(location = 1) out vec3 outNormal;
+		layout(location = 2) out vec2 outUv;
+		layout(location = 3) out flat uint outMaterialID;
 
 		void main() {
 			uint objectID = perDraw.info[gl_DrawID].objectID;
@@ -1820,6 +1881,8 @@ void ShadowMapping::createPointLightShadowGraphicsPipeline() {
 					(weights.w * jointTransforms.matrix[jointTransformOffset + joints.w]);
 			}
 			outPosition = vec3(objects.info[objectID].model * skinMatrix * vec4(position, 1.0));
+			vec3 skinnedNormal = vec3(transpose(inverse(skinMatrix)) * vec4(normal, 0.0));
+			outNormal = normalize(vec3(objects.info[objectID].transposeInverseModel * vec4(skinnedNormal, 0.0)));
 			outUv = uv;
 			outMaterialID = objects.info[objectID].materialID;
 
@@ -1850,6 +1913,12 @@ void ShadowMapping::createPointLightShadowGraphicsPipeline() {
 		#version 460
 		#extension GL_EXT_nonuniform_qualifier : enable
 
+		struct TriplanarUV {
+			vec2 x;
+			vec2 y;
+			vec2 z;
+		};
+
 		const mat4 ditheringThreshold = mat4(
 			1.0 / 17.0, 13.0 / 17.0, 4.0 / 17.0, 16.0 / 17.0,
 			9.0 / 17.0, 5.0 / 17.0, 12.0 / 17.0, 8.0 / 17.0,
@@ -1866,6 +1935,9 @@ void ShadowMapping::createPointLightShadowGraphicsPipeline() {
 			uint emissiveTextureIndex;
 			float emissiveFactor;
 			float alphaCutoff;
+			vec2 scaleUV;
+			vec2 offsetUV;
+			uint useTriplanarMapping;
 		};
 
 		layout(set = 0, binding = 4) restrict readonly buffer Materials {
@@ -1879,12 +1951,49 @@ void ShadowMapping::createPointLightShadowGraphicsPipeline() {
 		} pC;
 
 		layout(location = 0) in vec3 position;
-		layout(location = 1) in vec2 uv;
-		layout(location = 2) in flat uint materialID;
+		layout(location = 1) in vec3 normal;
+		layout(location = 2) in vec2 uv;
+		layout(location = 3) in flat uint materialID;
 
 		void main() {
 			const MaterialInfo material = materials.info[materialID];
-			const float diffuseAlpha = texture(textures[nonuniformEXT(material.diffuseTextureIndex)], uv).a;
+
+			float diffuseAlpha;
+
+			if (material.useTriplanarMapping == 0) {
+				const vec2 scaleOffsetUV = (uv * material.scaleUV) + material.offsetUV;
+
+				diffuseAlpha = texture(textures[nonuniformEXT(material.diffuseTextureIndex)], scaleOffsetUV).a;
+			}
+			else {
+				TriplanarUV triplanarUV;
+				triplanarUV.x = position.zy;
+				triplanarUV.x.y = -triplanarUV.x.y;
+				if (normal.x >= 0.0) {
+					triplanarUV.x.x = -triplanarUV.x.x;
+				}
+				triplanarUV.y = position.xz;
+				if (normal.y < 0.0) {
+					triplanarUV.y.y = -triplanarUV.y.y;
+				}
+				triplanarUV.z = position.xy;
+				triplanarUV.z.y = -triplanarUV.z.y;
+				if (normal.z < 0.0) {
+					triplanarUV.z.x = -triplanarUV.z.x;
+				}
+
+				triplanarUV.x = (triplanarUV.x * material.scaleUV) + material.offsetUV;
+				triplanarUV.y = (triplanarUV.y * material.scaleUV) + material.offsetUV;
+				triplanarUV.z = (triplanarUV.z * material.scaleUV) + material.offsetUV;
+
+				vec3 triplanarWeights = abs(normal);
+				triplanarWeights /= (triplanarWeights.x + triplanarWeights.y + triplanarWeights.z);
+
+				diffuseAlpha = (texture(textures[nonuniformEXT(material.diffuseTextureIndex)], triplanarUV.x).a * triplanarWeights.x) +
+					(texture(textures[nonuniformEXT(material.diffuseTextureIndex)], triplanarUV.y).a * triplanarWeights.y) +
+					(texture(textures[nonuniformEXT(material.diffuseTextureIndex)], triplanarUV.z).a * triplanarWeights.z);
+			}
+
 			if ((diffuseAlpha < material.alphaCutoff) || (diffuseAlpha < ditheringThreshold[int(mod(gl_FragCoord.x, 4.0))][int(mod(gl_FragCoord.y, 4.0))])) {
 				discard;
 			}
@@ -1926,25 +2035,31 @@ void ShadowMapping::createPointLightShadowGraphicsPipeline() {
 	vertexPositionInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
 	vertexPositionInputAttributeDescription.offset = 0;
 
+	VkVertexInputAttributeDescription vertexNormalInputAttributeDescription = {};
+	vertexNormalInputAttributeDescription.location = 1;
+	vertexNormalInputAttributeDescription.binding = 0;
+	vertexNormalInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
+	vertexNormalInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, normal);
+
 	VkVertexInputAttributeDescription vertexUVInputAttributeDescription = {};
-	vertexUVInputAttributeDescription.location = 1;
+	vertexUVInputAttributeDescription.location = 2;
 	vertexUVInputAttributeDescription.binding = 0;
 	vertexUVInputAttributeDescription.format = VK_FORMAT_R32G32_SFLOAT;
 	vertexUVInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, uv);
 
 	VkVertexInputAttributeDescription vertexJointsInputAttributeDescription = {};
-	vertexJointsInputAttributeDescription.location = 2;
+	vertexJointsInputAttributeDescription.location = 3;
 	vertexJointsInputAttributeDescription.binding = 0;
 	vertexJointsInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_UINT;
 	vertexJointsInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, joints);
 
 	VkVertexInputAttributeDescription vertexWeightsInputAttributeDescription = {};
-	vertexWeightsInputAttributeDescription.location = 3;
+	vertexWeightsInputAttributeDescription.location = 4;
 	vertexWeightsInputAttributeDescription.binding = 0;
 	vertexWeightsInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
 	vertexWeightsInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, weights);
 
-	std::array<VkVertexInputAttributeDescription, 4> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexUVInputAttributeDescription, vertexJointsInputAttributeDescription, vertexWeightsInputAttributeDescription };
+	std::array<VkVertexInputAttributeDescription, 5> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexNormalInputAttributeDescription, vertexUVInputAttributeDescription, vertexJointsInputAttributeDescription, vertexWeightsInputAttributeDescription };
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
 	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputStateCreateInfo.pNext = nullptr;
@@ -2122,12 +2237,15 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 		} pC;
 
 		layout(location = 0) in vec3 position;
-		layout(location = 1) in vec2 uv;
-		layout(location = 2) in uvec4 joints;
-		layout(location = 3) in vec4 weights;
+		layout(location = 1) in vec3 normal;
+		layout(location = 2) in vec2 uv;
+		layout(location = 3) in uvec4 joints;
+		layout(location = 4) in vec4 weights;
 
-		layout(location = 0) out vec2 outUv;
-		layout(location = 1) out flat uint outMaterialID;
+		layout(location = 0) out vec3 outPosition;
+		layout(location = 1) out vec3 outNormal;
+		layout(location = 2) out vec2 outUv;
+		layout(location = 3) out flat uint outMaterialID;
 
 		void main() {
 			uint objectID = perDraw.info[gl_DrawID].objectID;
@@ -2141,10 +2259,13 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 					(weights.z * jointTransforms.matrix[jointTransformOffset + joints.z]) +
 					(weights.w * jointTransforms.matrix[jointTransformOffset + joints.w]);
 			}
+			outPosition = vec3(objects.info[objectID].model * skinMatrix * vec4(position, 1.0));
+			vec3 skinnedNormal = vec3(transpose(inverse(skinMatrix)) * vec4(normal, 0.0));
+			outNormal = normalize(vec3(objects.info[objectID].transposeInverseModel * vec4(skinnedNormal, 0.0)));
 			outUv = uv;
 			outMaterialID = objects.info[objectID].materialID;
 
-			gl_Position = shadows.viewProjs[pC.viewProjIndex] * vec4(vec3(objects.info[objectID].model * skinMatrix * vec4(position, 1.0)), 1.0);
+			gl_Position = shadows.viewProjs[pC.viewProjIndex] * vec4(outPosition, 1.0);
 		}
 	)GLSL";
 	const std::vector<uint32_t> vertexShaderSpv = compileShader(vertexShaderCode, ShaderType::Vertex);
@@ -2171,6 +2292,12 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 		#version 460
 		#extension GL_EXT_nonuniform_qualifier : enable
 
+		struct TriplanarUV {
+			vec2 x;
+			vec2 y;
+			vec2 z;
+		};
+
 		const mat4 ditheringThreshold = mat4(
 			1.0 / 17.0, 13.0 / 17.0, 4.0 / 17.0, 16.0 / 17.0,
 			9.0 / 17.0, 5.0 / 17.0, 12.0 / 17.0, 8.0 / 17.0,
@@ -2187,6 +2314,9 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 			uint emissiveTextureIndex;
 			float emissiveFactor;
 			float alphaCutoff;
+			vec2 scaleUV;
+			vec2 offsetUV;
+			uint useTriplanarMapping;
 		};
 
 		layout(set = 0, binding = 4) restrict readonly buffer Materials {
@@ -2195,12 +2325,50 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 
 		layout(set = 0, binding = 5) uniform sampler2D textures[];
 
-		layout(location = 0) in vec2 uv;
-		layout(location = 1) in flat uint materialID;
+		layout(location = 0) in vec3 position;
+		layout(location = 1) in vec3 normal;
+		layout(location = 2) in vec2 uv;
+		layout(location = 3) in flat uint materialID;
 
 		void main() {
 			const MaterialInfo material = materials.info[materialID];
-			const float diffuseAlpha = texture(textures[nonuniformEXT(material.diffuseTextureIndex)], uv).a;
+
+			float diffuseAlpha;
+
+			if (material.useTriplanarMapping == 0) {
+				const vec2 scaleOffsetUV = (uv * material.scaleUV) + material.offsetUV;
+
+				diffuseAlpha = texture(textures[nonuniformEXT(material.diffuseTextureIndex)], scaleOffsetUV).a;
+			}
+			else {
+				TriplanarUV triplanarUV;
+				triplanarUV.x = position.zy;
+				triplanarUV.x.y = -triplanarUV.x.y;
+				if (normal.x >= 0.0) {
+					triplanarUV.x.x = -triplanarUV.x.x;
+				}
+				triplanarUV.y = position.xz;
+				if (normal.y < 0.0) {
+					triplanarUV.y.y = -triplanarUV.y.y;
+				}
+				triplanarUV.z = position.xy;
+				triplanarUV.z.y = -triplanarUV.z.y;
+				if (normal.z < 0.0) {
+					triplanarUV.z.x = -triplanarUV.z.x;
+				}
+
+				triplanarUV.x = (triplanarUV.x * material.scaleUV) + material.offsetUV;
+				triplanarUV.y = (triplanarUV.y * material.scaleUV) + material.offsetUV;
+				triplanarUV.z = (triplanarUV.z * material.scaleUV) + material.offsetUV;
+
+				vec3 triplanarWeights = abs(normal);
+				triplanarWeights /= (triplanarWeights.x + triplanarWeights.y + triplanarWeights.z);
+
+				diffuseAlpha = (texture(textures[nonuniformEXT(material.diffuseTextureIndex)], triplanarUV.x).a * triplanarWeights.x) +
+					(texture(textures[nonuniformEXT(material.diffuseTextureIndex)], triplanarUV.y).a * triplanarWeights.y) +
+					(texture(textures[nonuniformEXT(material.diffuseTextureIndex)], triplanarUV.z).a * triplanarWeights.z);
+			}
+
 			if ((diffuseAlpha < material.alphaCutoff) || (diffuseAlpha < ditheringThreshold[int(mod(gl_FragCoord.x, 4.0))][int(mod(gl_FragCoord.y, 4.0))])) {
 				discard;
 			}
@@ -2239,25 +2407,31 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 	vertexPositionInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
 	vertexPositionInputAttributeDescription.offset = 0;
 
+	VkVertexInputAttributeDescription vertexNormalInputAttributeDescription = {};
+	vertexNormalInputAttributeDescription.location = 1;
+	vertexNormalInputAttributeDescription.binding = 0;
+	vertexNormalInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
+	vertexNormalInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, normal);
+
 	VkVertexInputAttributeDescription vertexUVInputAttributeDescription = {};
-	vertexUVInputAttributeDescription.location = 1;
+	vertexUVInputAttributeDescription.location = 2;
 	vertexUVInputAttributeDescription.binding = 0;
 	vertexUVInputAttributeDescription.format = VK_FORMAT_R32G32_SFLOAT;
 	vertexUVInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, uv);
 
 	VkVertexInputAttributeDescription vertexJointsInputAttributeDescription = {};
-	vertexJointsInputAttributeDescription.location = 2;
+	vertexJointsInputAttributeDescription.location = 3;
 	vertexJointsInputAttributeDescription.binding = 0;
 	vertexJointsInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_UINT;
 	vertexJointsInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, joints);
 
 	VkVertexInputAttributeDescription vertexWeightsInputAttributeDescription = {};
-	vertexWeightsInputAttributeDescription.location = 3;
+	vertexWeightsInputAttributeDescription.location = 4;
 	vertexWeightsInputAttributeDescription.binding = 0;
 	vertexWeightsInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
 	vertexWeightsInputAttributeDescription.offset = offsetof(NtshEngn::Vertex, weights);
 
-	std::array<VkVertexInputAttributeDescription, 4> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexUVInputAttributeDescription, vertexJointsInputAttributeDescription, vertexWeightsInputAttributeDescription };
+	std::array<VkVertexInputAttributeDescription, 5> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexNormalInputAttributeDescription, vertexUVInputAttributeDescription, vertexJointsInputAttributeDescription, vertexWeightsInputAttributeDescription };
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
 	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputStateCreateInfo.pNext = nullptr;

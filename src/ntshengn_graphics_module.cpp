@@ -5714,10 +5714,21 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 			material.emissiveTextureIndex = addToTextures({ imageID, samplerKey });
 		}
 	}
-	if ((renderable.material.emissiveFactor != material.emissiveFactor) ||
-		(renderable.material.alphaCutoff != material.alphaCutoff)) {
+	if (renderable.material.emissiveFactor != material.emissiveFactor) {
 		material.emissiveFactor = renderable.material.emissiveFactor;
+	}
+	if (renderable.material.alphaCutoff != material.alphaCutoff) {
 		material.alphaCutoff = renderable.material.alphaCutoff;
+	}
+	uint32_t materialUseTriplanarMapping = renderable.material.useTriplanarMapping ? 1 : 0;
+	if (materialUseTriplanarMapping != material.useTriplanarMapping) {
+		material.useTriplanarMapping = materialUseTriplanarMapping;
+	}
+	if (renderable.material.scaleUV != material.scaleUV) {
+		material.scaleUV = renderable.material.scaleUV;
+	}
+	if (renderable.material.offsetUV != material.offsetUV) {
+		material.offsetUV = renderable.material.offsetUV;
 	}
 
 	uint32_t materialID = addToMaterials(material);
@@ -5804,7 +5815,10 @@ uint32_t NtshEngn::GraphicsModule::addToMaterials(const InternalMaterial& materi
 			(mat.occlusionTextureIndex == material.occlusionTextureIndex) &&
 			(mat.emissiveTextureIndex == material.emissiveTextureIndex) &&
 			(mat.emissiveFactor == material.emissiveFactor) &&
-			(mat.alphaCutoff == material.alphaCutoff)) {
+			(mat.alphaCutoff == material.alphaCutoff) &&
+			(mat.scaleUV == material.scaleUV) &&
+			(mat.offsetUV == material.offsetUV) &&
+			(mat.useTriplanarMapping == material.useTriplanarMapping)) {
 			return static_cast<uint32_t>(i);
 		}
 	}

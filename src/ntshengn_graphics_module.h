@@ -51,7 +51,10 @@ bool operator==(const NtshEngn::Material& lhs, const NtshEngn::Material& rhs) {
 		(lhs.emissiveTexture.imageSampler == rhs.emissiveTexture.imageSampler) &&
 		(lhs.emissiveFactor == rhs.emissiveFactor) &&
 		(lhs.alphaCutoff == rhs.alphaCutoff) &&
-		(lhs.indexOfRefraction == rhs.indexOfRefraction);
+		(lhs.indexOfRefraction == rhs.indexOfRefraction) &&
+		(lhs.useTriplanarMapping == rhs.useTriplanarMapping) &&
+		(lhs.scaleUV == rhs.scaleUV) &&
+		(lhs.offsetUV == rhs.offsetUV);
 }
 
 enum class UIElement {
