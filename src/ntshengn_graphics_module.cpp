@@ -950,11 +950,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	}
 
 	// Update materials buffer
-	for (size_t i = 0; i < m_materials.size(); i++) {
-		size_t offset = i * sizeof(InternalMaterial);
-
-		memcpy(reinterpret_cast<char*>(m_materialBuffers[m_currentFrameInFlight].address) + offset, &m_materials[i], sizeof(InternalMaterial));
-	}
+	memcpy(m_materialBuffers[m_currentFrameInFlight].address, m_materials.data(), m_materials.size() * sizeof(InternalMaterial));
 
 	// Update lights buffer
 	std::array<uint32_t, 4> lightsCount = { static_cast<uint32_t>(m_lights.directionalLights.size()), static_cast<uint32_t>(m_lights.pointLights.size()), static_cast<uint32_t>(m_lights.spotLights.size()), static_cast<uint32_t>(m_lights.ambientLights.size()) };
