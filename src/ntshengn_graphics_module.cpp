@@ -3803,10 +3803,10 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 		float shadows(vec3 l, float distanceToLight) {
 			isShadowed = true;
-			float tMin = 0.001;
-			float tMax = distanceToLight;
-			vec3 origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
-			vec3 direction = l;
+			const float tMin = 0.001;
+			const float tMax = distanceToLight;
+			const vec3 origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+			const vec3 direction = l;
 			uint rayFlags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT | gl_RayFlagsSkipClosestHitShaderEXT;
 			traceRayEXT(tlas, rayFlags, 0xFF, 0, 0, 1, origin, tMin, direction, tMax, 1);
 
@@ -3819,9 +3819,9 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 
 	const std::string rayClosestHitShaderCode2 = R"GLSL(
 		void main() {
-			ObjectInfo object = objects.info[gl_InstanceCustomIndexEXT];
-			MeshInfo mesh = meshes.info[object.meshID];
-			MaterialInfo material = materials.info[object.materialID];
+			const ObjectInfo object = objects.info[gl_InstanceCustomIndexEXT];
+			const MeshInfo mesh = meshes.info[object.meshID];
+			const MaterialInfo material = materials.info[object.materialID];
 			Vertices vertices = Vertices(mesh.vertexAddress);
 			Indices indices = Indices(mesh.indexAddress);
 
