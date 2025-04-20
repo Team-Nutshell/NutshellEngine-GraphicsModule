@@ -3987,8 +3987,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 					lc = lights.info[lightIndex].color * lights.info[lightIndex].intensity;
 					float theta = dot(l, -lights.info[lightIndex].direction);
 					float epsilon = cos(lights.info[lightIndex].cutoff.y) - cos(lights.info[lightIndex].cutoff.x);
-					intensity = clamp((theta - cos(lights.info[lightIndex].cutoff.x)) / epsilon, 0.0, 1.0);
-					intensity = 1.0 - intensity;
+					intensity = 1.0 - clamp((theta - cos(lights.info[lightIndex].cutoff.x)) / epsilon, 0.0, 1.0);
 
 					inLightDistance = lights.info[lightIndex].distance >= distance;
 				}
