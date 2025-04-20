@@ -3548,35 +3548,35 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 		}
 
 		void main() {
-			ObjectInfo object = objects.info[gl_InstanceCustomIndexEXT];
-			MeshInfo mesh = meshes.info[object.meshID];
-			MaterialInfo material = materials.info[object.materialID];
+			const ObjectInfo object = objects.info[gl_InstanceCustomIndexEXT];
+			const MeshInfo mesh = meshes.info[object.meshID];
+			const MaterialInfo material = materials.info[object.materialID];
 			Vertices vertices = Vertices(mesh.vertexAddress);
 			Indices indices = Indices(mesh.indexAddress);
 
 			// Vertices
-			uvec3 ind = indices.index[gl_PrimitiveID];
-			Vertex v0 = vertices.vertex[ind.x];
-			Vertex v1 = vertices.vertex[ind.y];
-			Vertex v2 = vertices.vertex[ind.z];
+			const uvec3 ind = indices.index[gl_PrimitiveID];
+			const Vertex v0 = vertices.vertex[ind.x];
+			const Vertex v1 = vertices.vertex[ind.y];
+			const Vertex v2 = vertices.vertex[ind.z];
 
-			vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
+			const vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
 
-			vec3 position = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
-			vec3 worldPosition = vec3(gl_ObjectToWorldEXT * vec4(position, 1.0));
+			const vec3 position = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
+			const vec3 worldPosition = vec3(gl_ObjectToWorldEXT * vec4(position, 1.0));
 
-			vec3 normal = v0.normal * barycentrics.x + v1.normal * barycentrics.y + v2.normal * barycentrics.z;
-			vec3 worldNormal = normalize(vec3(normal * gl_WorldToObjectEXT));
+			const vec3 normal = v0.normal * barycentrics.x + v1.normal * barycentrics.y + v2.normal * barycentrics.z;
+			const vec3 worldNormal = normalize(vec3(normal * gl_WorldToObjectEXT));
 
-			vec3 tangent = v0.tangent.xyz * barycentrics.x + v1.tangent.xyz * barycentrics.y + v2.tangent.xyz * barycentrics.z;
-			vec3 worldTangent = vec3(gl_ObjectToWorldEXT * vec4(tangent, 0.0));
+			const vec3 tangent = v0.tangent.xyz * barycentrics.x + v1.tangent.xyz * barycentrics.y + v2.tangent.xyz * barycentrics.z;
+			const vec3 worldTangent = vec3(gl_ObjectToWorldEXT * vec4(tangent, 0.0));
 
-			vec3 bitangent = cross(normal, tangent.xyz) * v0.tangent.w;
-			vec3 worldBitangent =  vec3(gl_ObjectToWorldEXT * vec4(bitangent, 0.0));
+			const vec3 bitangent = cross(normal, tangent.xyz) * v0.tangent.w;
+			const vec3 worldBitangent =  vec3(gl_ObjectToWorldEXT * vec4(bitangent, 0.0));
 
-			mat3 TBN = mat3(worldTangent, worldBitangent, worldNormal);
+			const mat3 TBN = mat3(worldTangent, worldBitangent, worldNormal);
 
-			vec2 uv = v0.uv * barycentrics.x + v1.uv * barycentrics.y + v2.uv * barycentrics.z;
+			const vec2 uv = v0.uv * barycentrics.x + v1.uv * barycentrics.y + v2.uv * barycentrics.z;
 
 			// Material
 			vec4 diffuseSample;
@@ -3588,7 +3588,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 n;
 
 			if (material.useTriplanarMapping == 0) {
-				vec2 scaleOffsetUV = (uv * material.scaleUV) + material.offsetUV;
+				const vec2 scaleOffsetUV = (uv * material.scaleUV) + material.offsetUV;
 
 				diffuseSample = texture(textures[nonuniformEXT(material.diffuseTextureIndex)], scaleOffsetUV);
 				vec3 normalSample = texture(textures[nonuniformEXT(material.normalTextureIndex)], scaleOffsetUV).xyz;
@@ -3641,9 +3641,9 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 					tangentNormalZ.z = -tangentNormalZ.z;
 				}
 			
-				vec3 worldNormalX = vec3(tangentNormalX.xy + worldNormal.zy, tangentNormalX.z + worldNormal.x).zyx;
-				vec3 worldNormalY = vec3(tangentNormalY.xy + worldNormal.xz, tangentNormalY.z + worldNormal.y).xzy;
-				vec3 worldNormalZ = vec3(tangentNormalZ.xy + worldNormal.xy, tangentNormalZ.z + worldNormal.z).xyz;
+				const vec3 worldNormalX = vec3(tangentNormalX.xy + worldNormal.zy, tangentNormalX.z + worldNormal.x).zyx;
+				const vec3 worldNormalY = vec3(tangentNormalY.xy + worldNormal.xz, tangentNormalY.z + worldNormal.y).xzy;
+				const vec3 worldNormalZ = vec3(tangentNormalZ.xy + worldNormal.xy, tangentNormalZ.z + worldNormal.z).xyz;
 
 				n = normalize((worldNormalX * triplanarWeights.x) + 
 					(worldNormalY * triplanarWeights.y) + 
@@ -3670,29 +3670,29 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 				return;
 			}
 
-			vec3 d = diffuseSample.rgb;
-			vec3 v = -gl_WorldRayDirectionEXT;
+			const vec3 d = diffuseSample.rgb;
+			const vec3 v = -gl_WorldRayDirectionEXT;
 
 			vec3 color = vec3(0.0);
 
 			uint lightIndex = 0;
 			// Directional Lights
 			for (int i = 0; i < lights.count.x; i++) {
-				vec3 l = -lights.info[lightIndex].direction;
+				const vec3 l = -lights.info[lightIndex].direction;
 
-				vec3 lc = lights.info[lightIndex].color * lights.info[lightIndex].intensity;
+				const vec3 lc = lights.info[lightIndex].color * lights.info[lightIndex].intensity;
 				color += shade(n, v, l, lc, d, metalnessSample, roughnessSample) * shadows(l, 10000.0);
 
 				lightIndex++;
 			}
 			// Point Lights
 			for (int i = 0; i < lights.count.y; i++) {
-				vec3 l = normalize(lights.info[lightIndex].position - worldPosition);
+				const vec3 l = normalize(lights.info[lightIndex].position - worldPosition);
 
-				float distance = length(lights.info[lightIndex].position - worldPosition);
+				const float distance = length(lights.info[lightIndex].position - worldPosition);
 				if (lights.info[lightIndex].distance >= distance) {
-					float attenuation = 1.0 / (distance * distance);
-					vec3 radiance = (lights.info[lightIndex].color * lights.info[lightIndex].intensity) * attenuation;
+					const float attenuation = 1.0 / (distance * distance);
+					const vec3 radiance = (lights.info[lightIndex].color * lights.info[lightIndex].intensity) * attenuation;
 					color += shade(n, v, l, radiance, d, metalnessSample, roughnessSample) * shadows(l, distance);
 				}
 
@@ -3700,15 +3700,14 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			}
 			// Spot Lights
 			for (int i = 0; i < lights.count.z; i++) {
-				vec3 l = normalize(lights.info[lightIndex].position - worldPosition);
+				const vec3 l = normalize(lights.info[lightIndex].position - worldPosition);
 
-				float distance = length(lights.info[lightIndex].position - worldPosition);
+				const float distance = length(lights.info[lightIndex].position - worldPosition);
 				if (lights.info[lightIndex].distance >= distance) {
-					vec3 lc = lights.info[lightIndex].color * lights.info[lightIndex].intensity;
-					float theta = dot(l, -lights.info[lightIndex].direction);
-					float epsilon = cos(lights.info[lightIndex].cutoff.y) - cos(lights.info[lightIndex].cutoff.x);
-					float intensity = clamp((theta - cos(lights.info[lightIndex].cutoff.x)) / epsilon, 0.0, 1.0);
-					intensity = 1.0 - intensity;
+					const vec3 lc = lights.info[lightIndex].color * lights.info[lightIndex].intensity;
+					const float theta = dot(l, -lights.info[lightIndex].direction);
+					const float epsilon = cos(lights.info[lightIndex].cutoff.y) - cos(lights.info[lightIndex].cutoff.x);
+					const float intensity = 1.0 - clamp((theta - cos(lights.info[lightIndex].cutoff.x)) / epsilon, 0.0, 1.0);
 					color += shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample) * shadows(l, length(lights.info[lightIndex].position - worldPosition));
 				}
 
