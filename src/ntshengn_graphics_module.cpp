@@ -741,6 +741,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		InternalLight internalLight;
 		internalLight.position = Math::vec4(lightTransform.position, 0.0f);
 		internalLight.color = Math::vec4(lightLight.color, lightLight.intensity);
+		internalLight.cutoff.z = lightLight.distance;
 
 		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
@@ -762,7 +763,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		internalLight.position = Math::vec4(lightTransform.position, 0.0f);
 		internalLight.direction = Math::vec4(lightDirection, 0.0f);
 		internalLight.color = Math::vec4(lightLight.color, lightLight.intensity);
-		internalLight.cutoff = Math::vec4(lightLight.cutoff, 0.0f, 0.0f);
+		internalLight.cutoff = Math::vec4(lightLight.cutoff, lightLight.distance, 0.0f);
 
 		memcpy(reinterpret_cast<char*>(m_lightBuffers[m_currentFrameInFlight].address) + offset, &internalLight, sizeof(InternalLight));
 		offset += sizeof(InternalLight);
@@ -3389,6 +3390,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 color;
 			float intensity;
 			vec2 cutoff;
+			float distance;
 		};
 
 		struct Vertex {
@@ -3677,6 +3679,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			// Directional Lights
 			for (int i = 0; i < lights.count.x; i++) {
 				vec3 l = -lights.info[lightIndex].direction;
+
 				vec3 lc = lights.info[lightIndex].color * lights.info[lightIndex].intensity;
 				color += shade(n, v, l, lc, d, metalnessSample, roughnessSample) * shadows(l, 10000.0);
 
@@ -3685,22 +3688,29 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			// Point Lights
 			for (int i = 0; i < lights.count.y; i++) {
 				vec3 l = normalize(lights.info[lightIndex].position - worldPosition);
+
 				float distance = length(lights.info[lightIndex].position - worldPosition);
-				float attenuation = 1.0 / (distance * distance);
-				vec3 radiance = (lights.info[lightIndex].color * lights.info[lightIndex].intensity) * attenuation;
-				color += shade(n, v, l, radiance, d, metalnessSample, roughnessSample) * shadows(l, distance);
+				if (lights.info[lightIndex].distance >= distance) {
+					float attenuation = 1.0 / (distance * distance);
+					vec3 radiance = (lights.info[lightIndex].color * lights.info[lightIndex].intensity) * attenuation;
+					color += shade(n, v, l, radiance, d, metalnessSample, roughnessSample) * shadows(l, distance);
+				}
 
 				lightIndex++;
 			}
 			// Spot Lights
 			for (int i = 0; i < lights.count.z; i++) {
 				vec3 l = normalize(lights.info[lightIndex].position - worldPosition);
-				vec3 lc = lights.info[lightIndex].color * lights.info[lightIndex].intensity;
-				float theta = dot(l, -lights.info[lightIndex].direction);
-				float epsilon = cos(lights.info[lightIndex].cutoff.y) - cos(lights.info[lightIndex].cutoff.x);
-				float intensity = clamp((theta - cos(lights.info[lightIndex].cutoff.x)) / epsilon, 0.0, 1.0);
-				intensity = 1.0 - intensity;
-				color += shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample) * shadows(l, length(lights.info[lightIndex].position - worldPosition));
+
+				float distance = length(lights.info[lightIndex].position - worldPosition);
+				if (lights.info[lightIndex].distance >= distance) {
+					vec3 lc = lights.info[lightIndex].color * lights.info[lightIndex].intensity;
+					float theta = dot(l, -lights.info[lightIndex].direction);
+					float epsilon = cos(lights.info[lightIndex].cutoff.y) - cos(lights.info[lightIndex].cutoff.x);
+					float intensity = clamp((theta - cos(lights.info[lightIndex].cutoff.x)) / epsilon, 0.0, 1.0);
+					intensity = 1.0 - intensity;
+					color += shade(n, v, l, lc * intensity, d * intensity, metalnessSample, roughnessSample) * shadows(l, length(lights.info[lightIndex].position - worldPosition));
+				}
 
 				lightIndex++;
 			}
