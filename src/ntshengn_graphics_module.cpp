@@ -3225,8 +3225,7 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 					const vec3 l = normalize(lights.info[lightIndex].position - position);
 					const float theta = dot(l, -lights.info[lightIndex].direction);
 					const float epsilon = cos(lights.info[lightIndex].cutoff.y) - cos(lights.info[lightIndex].cutoff.x);
-					float intensity = clamp((theta - cos(lights.info[lightIndex].cutoff.x)) / epsilon, 0.0, 1.0);
-					intensity = 1.0 - intensity;
+					const float intensity = 1.0 - clamp((theta - cos(lights.info[lightIndex].cutoff.x)) / epsilon, 0.0, 1.0);
 
 					const vec4 shadowCoord = (shadowOffset * shadows.info[(lights.count.x * SHADOW_MAPPING_CASCADE_COUNT) + (lights.count.y * 6) + i].viewProj) * vec4(position, 1.0);
 
