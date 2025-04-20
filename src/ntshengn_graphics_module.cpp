@@ -3912,9 +3912,9 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 					tangentNormalZ.z = -tangentNormalZ.z;
 				}
 			
-				const vec3 worldNormalX = vec3(tangentNormalX.xy + worldNormal.zy, tangentNormalX.z + worldNormal.x).zyx;
-				const vec3 worldNormalY = vec3(tangentNormalY.xy + worldNormal.xz, tangentNormalY.z + worldNormal.y).xzy;
-				const vec3 worldNormalZ = vec3(tangentNormalZ.xy + worldNormal.xy, tangentNormalZ.z + worldNormal.z).xyz;
+				const vec3 worldNormalX = vec3(tangentNormalX.xy + worldNormal.zy, abs(tangentNormalX.z) * worldNormal.x).zyx;
+				const vec3 worldNormalY = vec3(tangentNormalY.xy + worldNormal.xz, abs(tangentNormalY.z) * worldNormal.y).xzy;
+				const vec3 worldNormalZ = vec3(tangentNormalZ.xy + worldNormal.xy, abs(tangentNormalZ.z) * worldNormal.z).xyz;
 
 				n = normalize((worldNormalX * triplanarWeights.x) + 
 					(worldNormalY * triplanarWeights.y) + 
