@@ -3650,9 +3650,9 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 					tangentNormalZ.z = -tangentNormalZ.z;
 				}
 			
-				vec3 worldNormalX = vec3(tangentNormalX.xy + normal.zy, tangentNormalX.z + normal.x).zyx;
-				vec3 worldNormalY = vec3(tangentNormalY.xy + normal.xz, tangentNormalY.z + normal.y).xzy;
-				vec3 worldNormalZ = vec3(tangentNormalZ.xy + normal.xy, tangentNormalZ.z + normal.z).xyz;
+				vec3 worldNormalX = vec3(tangentNormalX.xy + normal.zy, abs(tangentNormalX.z) * normal.x).zyx;
+				vec3 worldNormalY = vec3(tangentNormalY.xy + normal.xz, abs(tangentNormalY.z) * normal.y).xzy;
+				vec3 worldNormalZ = vec3(tangentNormalZ.xy + normal.xy, abs(tangentNormalZ.z) * normal.z).xyz;
 
 				n = normalize((worldNormalX * triplanarWeights.x) + 
 					(worldNormalY * triplanarWeights.y) + 
