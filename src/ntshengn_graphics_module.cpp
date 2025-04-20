@@ -3826,28 +3826,28 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			Indices indices = Indices(mesh.indexAddress);
 
 			// Vertices
-			uvec3 ind = indices.index[gl_PrimitiveID];
-			Vertex v0 = vertices.vertex[ind.x];
-			Vertex v1 = vertices.vertex[ind.y];
-			Vertex v2 = vertices.vertex[ind.z];
+			const uvec3 ind = indices.index[gl_PrimitiveID];
+			const Vertex v0 = vertices.vertex[ind.x];
+			const Vertex v1 = vertices.vertex[ind.y];
+			const Vertex v2 = vertices.vertex[ind.z];
 
-			vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
+			const vec3 barycentrics = vec3(1.0 - attribs.x - attribs.y, attribs.x, attribs.y);
 
-			vec3 position = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
-			vec3 worldPosition = vec3(gl_ObjectToWorldEXT * vec4(position, 1.0));
+			const vec3 position = v0.position * barycentrics.x + v1.position * barycentrics.y + v2.position * barycentrics.z;
+			const vec3 worldPosition = vec3(gl_ObjectToWorldEXT * vec4(position, 1.0));
 
-			vec3 normal = v0.normal * barycentrics.x + v1.normal * barycentrics.y + v2.normal * barycentrics.z;
-			vec3 worldNormal = normalize(vec3(normal * gl_WorldToObjectEXT));
+			const vec3 normal = v0.normal * barycentrics.x + v1.normal * barycentrics.y + v2.normal * barycentrics.z;
+			const vec3 worldNormal = normalize(vec3(normal * gl_WorldToObjectEXT));
 
-			vec3 tangent = v0.tangent.xyz * barycentrics.x + v1.tangent.xyz * barycentrics.y + v2.tangent.xyz * barycentrics.z;
-			vec3 worldTangent = vec3(gl_ObjectToWorldEXT * vec4(tangent, 0.0));
+			const vec3 tangent = v0.tangent.xyz * barycentrics.x + v1.tangent.xyz * barycentrics.y + v2.tangent.xyz * barycentrics.z;
+			const vec3 worldTangent = vec3(gl_ObjectToWorldEXT * vec4(tangent, 0.0));
 
-			vec3 bitangent = cross(normal, tangent.xyz) * v0.tangent.w;
-			vec3 worldBitangent = vec3(gl_ObjectToWorldEXT * vec4(bitangent, 0.0));
+			const vec3 bitangent = cross(normal, tangent.xyz) * v0.tangent.w;
+			const vec3 worldBitangent = vec3(gl_ObjectToWorldEXT * vec4(bitangent, 0.0));
 
-			mat3 TBN = mat3(worldTangent, worldBitangent, worldNormal);
+			const mat3 TBN = mat3(worldTangent, worldBitangent, worldNormal);
 
-			vec2 uv = v0.uv * barycentrics.x + v1.uv * barycentrics.y + v2.uv * barycentrics.z;
+			const vec2 uv = v0.uv * barycentrics.x + v1.uv * barycentrics.y + v2.uv * barycentrics.z;
 
 			// Material
 			vec4 diffuseSample;
@@ -3859,7 +3859,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 n;
 
 			if (material.useTriplanarMapping == 0) {
-				vec2 scaleOffsetUV = (uv * material.scaleUV) + material.offsetUV;
+				const vec2 scaleOffsetUV = (uv * material.scaleUV) + material.offsetUV;
 
 				diffuseSample = texture(textures[nonuniformEXT(material.diffuseTextureIndex)], scaleOffsetUV);
 				vec3 normalSample = texture(textures[nonuniformEXT(material.normalTextureIndex)], scaleOffsetUV).xyz;
@@ -3912,9 +3912,9 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 					tangentNormalZ.z = -tangentNormalZ.z;
 				}
 			
-				vec3 worldNormalX = vec3(tangentNormalX.xy + worldNormal.zy, tangentNormalX.z + worldNormal.x).zyx;
-				vec3 worldNormalY = vec3(tangentNormalY.xy + worldNormal.xz, tangentNormalY.z + worldNormal.y).xzy;
-				vec3 worldNormalZ = vec3(tangentNormalZ.xy + worldNormal.xy, tangentNormalZ.z + worldNormal.z).xyz;
+				const vec3 worldNormalX = vec3(tangentNormalX.xy + worldNormal.zy, tangentNormalX.z + worldNormal.x).zyx;
+				const vec3 worldNormalY = vec3(tangentNormalY.xy + worldNormal.xz, tangentNormalY.z + worldNormal.y).xzy;
+				const vec3 worldNormalZ = vec3(tangentNormalZ.xy + worldNormal.xy, tangentNormalZ.z + worldNormal.z).xyz;
 
 				n = normalize((worldNormalX * triplanarWeights.x) + 
 					(worldNormalY * triplanarWeights.y) + 
@@ -3941,8 +3941,8 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 				return;
 			}
 
-			vec3 d = diffuseSample.rgb;
-			vec3 v = -gl_WorldRayDirectionEXT;
+			const vec3 d = diffuseSample.rgb;
+			const vec3 v = -gl_WorldRayDirectionEXT;
 
 			vec3 directLighting = vec3(0.0);
 
@@ -4007,7 +4007,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 				lightIndex++;
 			}
 
-			vec4 brdf = sampleBRDF(n, v, d, metalnessSample, roughnessSample, payload.rngState, payload.rayDirection);
+			const vec4 brdf = sampleBRDF(n, v, d, metalnessSample, roughnessSample, payload.rngState, payload.rayDirection);
 
 			payload.directLighting = directLighting;
 			payload.brdf = brdf;
