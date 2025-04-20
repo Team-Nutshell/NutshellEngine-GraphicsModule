@@ -160,8 +160,10 @@ void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane,
 		}
 	}
 	for (size_t pointLightIndex = 0; pointLightIndex < m_pointLightEntities.size(); pointLightIndex++) {
+		const NtshEngn::Light& light = m_ecs->getComponent<NtshEngn::Light>(m_pointLightEntities[pointLightIndex]);
 		const NtshEngn::Transform& lightTransform = m_ecs->getComponent<NtshEngn::Transform>(m_pointLightEntities[pointLightIndex]);
-		NtshEngn::Math::mat4 lightProj = NtshEngn::Math::perspectiveRH(NtshEngn::Math::toRad(90.0f), 1.0f, 0.05f, 50.0f);
+
+		NtshEngn::Math::mat4 lightProj = NtshEngn::Math::perspectiveRH(NtshEngn::Math::toRad(90.0f), 1.0f, 0.05f, light.distance);
 
 		for (uint32_t faceIndex = 0; faceIndex < 6; faceIndex++) {
 			const NtshEngn::Math::mat4 lightView = NtshEngn::Math::lookAtRH(lightTransform.position, lightTransform.position + lightCubeDirections[faceIndex], lightCubeUps[faceIndex]);
@@ -187,7 +189,7 @@ void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane,
 		));
 		const NtshEngn::Math::vec3 upVector = (std::abs(NtshEngn::Math::dot(lightDirection, NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f))) == 1.0f) ? NtshEngn::Math::vec3(1.0f, 0.0f, 0.0f) : NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f);
 		const NtshEngn::Math::mat4 lightView = NtshEngn::Math::lookAtRH(lightTransform.position, lightTransform.position + lightDirection, upVector);
-		NtshEngn::Math::mat4 lightProj = NtshEngn::Math::perspectiveRH(light.cutoff.y * 2.0f, 1.0f, 0.05f, 50.0f);
+		NtshEngn::Math::mat4 lightProj = NtshEngn::Math::perspectiveRH(light.cutoff.y * 2.0f, 1.0f, 0.05f, light.distance);
 		lightProj[1][1] *= -1.0f;
 		m_spotLightShadowMaps[spotLightIndex].viewProj = lightProj * lightView;
 		memcpy(reinterpret_cast<char*>(m_shadowBuffers[currentFrameInFlight].address) + (((m_directionalLightShadowMaps.size() * SHADOW_MAPPING_CASCADE_COUNT) * sizeof(NtshEngn::Math::mat4)) + ((m_pointLightShadowMaps.size() * 6) * sizeof(NtshEngn::Math::mat4)) + (spotLightIndex * sizeof(NtshEngn::Math::mat4))), &m_spotLightShadowMaps[spotLightIndex].viewProj, sizeof(NtshEngn::Math::mat4));
