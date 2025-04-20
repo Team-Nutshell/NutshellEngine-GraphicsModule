@@ -3711,8 +3711,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 				if (lights.info[lightIndex].distance >= distance) {
 					const float theta = dot(l, -lights.info[lightIndex].direction);
 					const float epsilon = cos(lights.info[lightIndex].cutoff.y) - cos(lights.info[lightIndex].cutoff.x);
-					float intensity = clamp((theta - cos(lights.info[lightIndex].cutoff.x)) / epsilon, 0.0, 1.0);
-					intensity = 1.0 - intensity;
+					const float intensity = 1.0 - clamp((theta - cos(lights.info[lightIndex].cutoff.x)) / epsilon, 0.0, 1.0);
 					color += shade(n, v, l, (lights.info[lightIndex].color * lights.info[lightIndex].intensity) * intensity, d * intensity, metalnessSample, roughnessSample);
 				}
 
