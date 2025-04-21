@@ -970,8 +970,8 @@ void GBuffer::createGraphicsPipeline() {
 
 				diffuseSample = texture(textures[nonuniformEXT(material.diffuseTextureIndex)], scaleOffsetUV);
 				const vec3 normalSample = texture(textures[nonuniformEXT(material.normalTextureIndex)], scaleOffsetUV).xyz;
-				if (material.occlusionTextureIndex == material.roughnessTextureIndex &&
-					material.roughnessTextureIndex == material.metalnessTextureIndex) {
+				if ((material.occlusionTextureIndex == material.roughnessTextureIndex) &&
+					(material.roughnessTextureIndex == material.metalnessTextureIndex)) {
 					materialSample = texture(textures[nonuniformEXT(material.occlusionTextureIndex)], scaleOffsetUV).rgb;
 				}
 				else {
