@@ -12,7 +12,7 @@
 	do { \
 		o = f; \
 		if (!(o)) { \
-			NTSHENGN_MODULE_ERROR("WebGPU Error.\nFile: " + std::string(__FILE__) + "\nLine: " + std::to_string(__LINE__) + "\nError with object \"" + #o + "\" assignation.", NtshEngn::Result::ModuleError); \
+			NTSHENGN_MODULE_ERROR("WebGPU Error.\nFile: " + std::filesystem::path(__FILE__).filename().string() + "\nLine: " + std::to_string(__LINE__) + "\nError with object \"" + #o + "\" assignation."); \
 		} \
 	} while(0)
 
@@ -23,7 +23,7 @@ struct AdapterRequestUserData {
 void onAdapterRequestEndCallback(WGPURequestAdapterStatus status, WGPUAdapter adapter, char const* message, void* pUserData) {
 	AdapterRequestUserData& userData = *reinterpret_cast<AdapterRequestUserData*>(pUserData);
 	if (status != WGPURequestAdapterStatus_Success) {
-		NTSHENGN_MODULE_ERROR(message, NtshEngn::Result::ModuleError);
+		NTSHENGN_MODULE_ERROR(message);
 	}
 	userData.adapter = adapter;
 }
@@ -35,7 +35,7 @@ struct DeviceRequestUserData {
 void onDeviceRequestEndCallback(WGPURequestDeviceStatus status, WGPUDevice device, char const* message, void* pUserData) {
 	DeviceRequestUserData& userData = *reinterpret_cast<DeviceRequestUserData*>(pUserData);
 	if (status != WGPURequestDeviceStatus_Success) {
-		NTSHENGN_MODULE_ERROR(message, NtshEngn::Result::ModuleError);
+		NTSHENGN_MODULE_ERROR(message);
 	}
 	userData.device = device;
 }
