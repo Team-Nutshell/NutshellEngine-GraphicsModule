@@ -147,7 +147,7 @@ void NtshEngn::GraphicsModule::init() {
 	uint32_t deviceCount;
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
 	if (deviceCount == 0) {
-		NTSHENGN_MODULE_ERROR("Vulkan: Found no suitable GPU.", Result::ModuleError);
+		NTSHENGN_MODULE_ERROR("Vulkan: Found no suitable GPU.");
 	}
 	std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, physicalDevices.data());
@@ -509,7 +509,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 			resize();
 		}
 		else if (acquireNextImageResult != VK_SUCCESS && acquireNextImageResult != VK_SUBOPTIMAL_KHR) {
-			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.", Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.");
 		}
 	}
 	else {
@@ -857,7 +857,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 			resize();
 		}
 		else if (queuePresentResult != VK_SUCCESS) {
-			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.", Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.");
 		}
 	}
 	else {
@@ -1153,7 +1153,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image & image) {
 			sizeComponent = 4;
 			break;
 		default:
-			NTSHENGN_MODULE_ERROR("Image format unrecognized.", Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Image format unrecognized.");
 		}
 	}
 	else if (image.colorSpace == ImageColorSpace::Linear) {
@@ -1219,7 +1219,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image & image) {
 			sizeComponent = 4;
 			break;
 		default:
-			NTSHENGN_MODULE_ERROR("Image format unrecognized.", Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Image format unrecognized.");
 		}
 	}
 
