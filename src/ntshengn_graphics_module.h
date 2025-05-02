@@ -14,7 +14,7 @@ using Microsoft::WRL::ComPtr;
 		if (FAILED(check)) { \
 			char str[64] = {}; \
 			sprintf_s(str, "0x%08X", static_cast<uint32_t>(check)); \
-			NTSHENGN_MODULE_ERROR("DirectX 12 Error.\nError code: " + std::string(str) + "\nFile: " + std::string(__FILE__) + "\nFunction: " + #f + "\nLine: " + std::to_string(__LINE__), NtshEngn::Result::UnknownError); \
+			NTSHENGN_MODULE_ERROR("DirectX 12 Error.\nError code: " + std::string(str) + "\nFile: " + std::filesystem::path(__FILE__).filename().string() + "\nFunction: " + #f + "\nLine: " + std::to_string(__LINE__)); \
 		} \
 	} while(0)
 
