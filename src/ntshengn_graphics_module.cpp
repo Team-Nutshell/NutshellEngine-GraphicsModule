@@ -148,7 +148,7 @@ void NtshEngn::GraphicsModule::init() {
 	uint32_t deviceCount;
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
 	if (deviceCount == 0) {
-		NTSHENGN_MODULE_ERROR("Vulkan: Found no suitable GPU.", Result::ModuleError);
+		NTSHENGN_MODULE_ERROR("Vulkan: Found no suitable GPU.");
 	}
 	std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, physicalDevices.data());
@@ -542,7 +542,7 @@ void NtshEngn::GraphicsModule::init() {
 	}
 	else {
 		const std::filesystem::path absolutePath = std::filesystem::absolute(std::filesystem::current_path());
-		NTSHENGN_MODULE_ERROR("Fragment shader \"shader.frag\" does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", Result::ModuleError);
+		NTSHENGN_MODULE_ERROR("Fragment shader \"shader.frag\" does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").");
 	}
 	recreateGraphicsPipeline();
 
@@ -711,7 +711,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	}
 	else {
 		const std::filesystem::path absolutePath = std::filesystem::absolute(std::filesystem::current_path());
-		NTSHENGN_MODULE_ERROR("Fragment shader \"shader.frag\" does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", Result::ModuleError);
+		NTSHENGN_MODULE_ERROR("Fragment shader \"shader.frag\" does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").");
 	}
 
 	if (shaderModified) {
@@ -732,7 +732,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 			resize();
 		}
 		else if (acquireNextImageResult != VK_SUCCESS && acquireNextImageResult != VK_SUBOPTIMAL_KHR) {
-			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.", Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.");
 		}
 	}
 	else {
@@ -1056,7 +1056,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 			resize();
 		}
 		else if (queuePresentResult != VK_SUCCESS) {
-			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.", Result::ModuleError);
+			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.");
 		}
 	}
 	else {
@@ -1542,7 +1542,7 @@ std::vector<uint32_t> NtshEngn::GraphicsModule::compileFragmentShader() {
 
 	if (!std::filesystem::exists(m_fragmentShaderName)) {
 		const std::filesystem::path absolutePath = std::filesystem::absolute(std::filesystem::current_path());
-		NTSHENGN_MODULE_ERROR("Fragment shader shader.frag does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").", Result::ModuleError);
+		NTSHENGN_MODULE_ERROR("Fragment shader shader.frag does not exist (\"" + absolutePath.string() + "/" + m_fragmentShaderName + "\").");
 	}
 	std::string shaderCode = m_fragmentShaderPrefix + File::readAscii(m_fragmentShaderName);
 	const char* shaderCodeCharPtr = shaderCode.c_str();

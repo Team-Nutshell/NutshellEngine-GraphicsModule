@@ -25,7 +25,7 @@
 	do { \
 		int64_t check = f; \
 		if (check) { \
-			NTSHENGN_MODULE_ERROR("Vulkan Error.\nError code: " + std::to_string(check) + "\nFile: " + std::string(__FILE__) + "\nFunction: " + #f + "\nLine: " + std::to_string(__LINE__), NtshEngn::Result::UnknownError); \
+			NTSHENGN_MODULE_ERROR("Vulkan Error.\nError code: " + std::to_string(check) + "\nFile: " + std::filesystem::path(__FILE__).filename().string() + "\nFunction: " + #f + "\nLine: " + std::to_string(__LINE__)); \
 		} \
 	} while(0)
 
