@@ -5,6 +5,7 @@
 #include "../Common/utils/ntshengn_enums.h"
 #include "../Common/utils/ntshengn_utils_math.h"
 #include "../Common/utils/ntshengn_utils_block_suballocator.h"
+#include "../Common/utils/ntshengn_utils_id_pool.h"
 #include "../Module/utils/ntshengn_module_defines.h"
 #if defined(NTSHENGN_OS_WINDOWS)
 #define VK_USE_PLATFORM_WIN32_KHR
@@ -505,7 +506,7 @@ namespace NtshEngn {
 		std::vector<InternalMaterial> m_materials;
 
 		std::unordered_map<Entity, InternalObject> m_objects;
-		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
+		IDPool m_objectsIDPool;
 		BlockSuballocator m_freeJointTransformOffsets{ 4096 };
 		std::unordered_map<Entity, Material> m_lastKnownMaterial;
 

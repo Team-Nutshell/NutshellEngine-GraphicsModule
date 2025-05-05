@@ -6807,17 +6807,11 @@ uint32_t NtshEngn::GraphicsModule::findPreviousAnimationKeyframe(float time, con
 }
 
 uint32_t NtshEngn::GraphicsModule::attributeObjectIndex() {
-	uint32_t objectID = m_freeObjectsIndices[0];
-	m_freeObjectsIndices.erase(m_freeObjectsIndices.begin());
-	if (m_freeObjectsIndices.empty()) {
-		m_freeObjectsIndices.push_back(objectID + 1);
-	}
-
-	return objectID;
+	return m_objectsIDPool.get();
 }
 
 void NtshEngn::GraphicsModule::retrieveObjectIndex(uint32_t objectIndex) {
-	m_freeObjectsIndices.insert(m_freeObjectsIndices.begin(), objectIndex);
+	m_objectsIDPool.free(objectIndex);
 }
 
 extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface* createModule() {
