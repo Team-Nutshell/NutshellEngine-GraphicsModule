@@ -5,6 +5,7 @@
 #include "../Common/utils/ntshengn_enums.h"
 #include "../Common/utils/ntshengn_utils_math.h"
 #include "../Module/utils/ntshengn_module_defines.h"
+#include "../Common/utils/ntshengn_utils_id_pool.h"
 #if defined(NTSHENGN_OS_WINDOWS)
 #define VK_USE_PLATFORM_WIN32_KHR
 #elif defined(NTSHENGN_OS_LINUX) || defined(NTSHENGN_OS_FREEBSD)
@@ -494,7 +495,7 @@ namespace NtshEngn {
 		std::vector<InternalMaterial> m_materials;
 
 		std::unordered_map<Entity, InternalObject> m_objects;
-		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
+		IDPool m_objectsIDPool;
 		std::unordered_map<Entity, Material> m_lastKnownMaterial;
 
 		Entity m_mainCamera = NTSHENGN_ENTITY_UNKNOWN;
