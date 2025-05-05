@@ -1,6 +1,7 @@
 #pragma once
 #include "../Common/modules/ntshengn_graphics_module_interface.h"
 #include "../Common/utils/ntshengn_utils_block_suballocator.h"
+#include "../Common/utils/ntshengn_utils_id_pool.h"
 #include "common.h"
 #include "bloom.h"
 #include "frustum_culling.h"
@@ -351,7 +352,7 @@ namespace NtshEngn {
 		std::vector<InternalMaterial> m_materials;
 
 		std::unordered_map<Entity, InternalObject> m_objects;
-		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
+		IDPool m_objectsIDPool;
 		BlockSuballocator m_freeJointTransformOffsets{ 4096 };
 		std::unordered_map<Entity, Material> m_lastKnownMaterial;
 
