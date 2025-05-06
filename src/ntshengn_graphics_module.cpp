@@ -3,6 +3,7 @@
 #include "../Common/modules/ntshengn_window_module_interface.h"
 #include <limits>
 #include <array>
+#include <cstring>
 
 void NtshEngn::GraphicsModule::init() {
 	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
