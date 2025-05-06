@@ -508,7 +508,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		if (acquireNextImageResult == VK_ERROR_OUT_OF_DATE_KHR) {
 			resize();
 		}
-		else if (acquireNextImageResult != VK_SUCCESS && acquireNextImageResult != VK_SUBOPTIMAL_KHR) {
+		else if ((acquireNextImageResult != VK_SUCCESS) && (acquireNextImageResult != VK_SUBOPTIMAL_KHR)) {
 			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.");
 		}
 	}
@@ -853,8 +853,11 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		presentInfo.pImageIndices = &imageIndex;
 		presentInfo.pResults = nullptr;
 		VkResult queuePresentResult = vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
-		if (queuePresentResult == VK_ERROR_OUT_OF_DATE_KHR || queuePresentResult == VK_SUBOPTIMAL_KHR) {
+		if ((queuePresentResult == VK_ERROR_OUT_OF_DATE_KHR) || (queuePresentResult == VK_SUBOPTIMAL_KHR)) {
 			resize();
+#if defined(NTSHENGN_OS_LINUX) || defined(NTSHENGN_OS_FREEBSD)
+			return;
+#endif
 		}
 		else if (queuePresentResult != VK_SUCCESS) {
 			NTSHENGN_MODULE_ERROR("Queue present swapchain image failed.");
