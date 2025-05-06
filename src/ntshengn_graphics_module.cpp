@@ -809,7 +809,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		presentInfo.pImageIndices = &imageIndex;
 		presentInfo.pResults = nullptr;
 		VkResult queuePresentResult = vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
-		if (queuePresentResult == VK_ERROR_OUT_OF_DATE_KHR || queuePresentResult == VK_SUBOPTIMAL_KHR) {
+		if ((queuePresentResult == VK_ERROR_OUT_OF_DATE_KHR) || (queuePresentResult == VK_SUBOPTIMAL_KHR)) {
 			resize();
 		}
 		else if (queuePresentResult != VK_SUCCESS) {
