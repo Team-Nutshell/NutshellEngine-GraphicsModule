@@ -588,8 +588,11 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		VkResult acquireNextImageResult = vkAcquireNextImageKHR(m_device, m_perWindowResources[i].swapchain, std::numeric_limits<uint64_t>::max(), m_perWindowResources[i].imageAvailableSemaphores[m_currentFrameInFlight], VK_NULL_HANDLE, &imageIndices[i]);
 		if (acquireNextImageResult == VK_ERROR_OUT_OF_DATE_KHR) {
 			resize(i);
+#if defined(NTSHENGN_OS_LINUX) || defined(NTSHENGN_OS_FREEBSD)
+			continue;
+#endif
 		}
-		else if (acquireNextImageResult != VK_SUCCESS && acquireNextImageResult != VK_SUBOPTIMAL_KHR) {
+		else if ((acquireNextImageResult != VK_SUCCESS) && (acquireNextImageResult != VK_SUBOPTIMAL_KHR)) {
 			NTSHENGN_MODULE_ERROR("Next swapchain image acquire failed.");
 		}
 	}
@@ -766,7 +769,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 			continue;
 		}
 
-		if (presentResults[i] == VK_ERROR_OUT_OF_DATE_KHR || presentResults[i] == VK_SUBOPTIMAL_KHR) {
+		if ((presentResults[i] == VK_ERROR_OUT_OF_DATE_KHR) || (presentResults[i] == VK_SUBOPTIMAL_KHR)) {
 			resize(i);
 		}
 		else if (presentResults[i] != VK_SUCCESS) {
