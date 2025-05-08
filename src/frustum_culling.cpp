@@ -469,8 +469,12 @@ void FrustumCulling::createComputePipeline() {
 			if (intersect(frustumCullingInfo, aabbMin, aabbMax)) {
 				uint drawIndex = atomicAdd(DrawIndirectBuffer(frustumCullingInfo.address).drawCount, 1);
 
-				DrawIndirectBuffer(frustumCullingInfo.address).commands[drawIndex] = inDrawIndirect.commands[objectIndex];
-				PerDrawBuffer(frustumCullingInfo.address + DRAW_INDIRECT_MAX_ENTITIES_SIZE).info[drawIndex] = inPerDraw.info[objectIndex];
+				DrawIndirectBuffer(frustumCullingInfo.address).commands[drawIndex].indexCount = inDrawIndirect.commands[objectIndex].indexCount;
+				DrawIndirectBuffer(frustumCullingInfo.address).commands[drawIndex].instanceCount = inDrawIndirect.commands[objectIndex].instanceCount;
+				DrawIndirectBuffer(frustumCullingInfo.address).commands[drawIndex].firstIndex = inDrawIndirect.commands[objectIndex].firstIndex;
+				DrawIndirectBuffer(frustumCullingInfo.address).commands[drawIndex].vertexOffset = inDrawIndirect.commands[objectIndex].vertexOffset;
+				DrawIndirectBuffer(frustumCullingInfo.address).commands[drawIndex].firstInstance = inDrawIndirect.commands[objectIndex].firstInstance;
+				PerDrawBuffer(frustumCullingInfo.address + DRAW_INDIRECT_MAX_ENTITIES_SIZE).info[drawIndex].objectID = inPerDraw.info[objectIndex].objectID;
 			}
 		}
 	)GLSL";
