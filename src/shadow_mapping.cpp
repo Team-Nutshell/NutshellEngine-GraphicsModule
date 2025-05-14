@@ -86,7 +86,7 @@ void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane,
 
 		float lastSplitDistance = 0.0f;
 		for (uint32_t cascadeIndex = 0; cascadeIndex < SHADOW_MAPPING_CASCADE_COUNT; cascadeIndex++) {
-			float splitDistance = cascadeSplits[cascadeIndex];
+			const float splitDistance = cascadeSplits[cascadeIndex];
 
 			std::array<NtshEngn::Math::vec3, 8> cascadeFrustumCorners = frustumCorners;
 
@@ -102,12 +102,9 @@ void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane,
 			}
 			cascadeFrustumCenter /= 8.0f;
 
-			float radius = 0.0f;
-			for (uint8_t i = 0; i < 8; i++) {
-				const float distanceToCenter = (cascadeFrustumCorners[i] - cascadeFrustumCenter).length();
-				radius = std::max(radius, distanceToCenter);
-			}
-			radius = std::ceil(radius * 16.0f) / 16.0f;
+			const float radius = (cascadeFrustumCorners[4] - cascadeFrustumCorners[0]).length() / 2.0f;
+			const float texelsPerUnit = static_cast<float>(SHADOW_MAPPING_RESOLUTION) / (radius * 2.0f);
+			const NtshEngn::Math::mat4 scale = NtshEngn::Math::scale(NtshEngn::Math::vec3(texelsPerUnit, texelsPerUnit, texelsPerUnit));
 
 			for (size_t directionalLightIndex = 0; directionalLightIndex < m_directionalLightEntities.size(); directionalLightIndex++) {
 				const NtshEngn::Light& light = m_ecs->getComponent<NtshEngn::Light>(m_directionalLightEntities[directionalLightIndex]);
@@ -122,8 +119,16 @@ void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane,
 					std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::sin(baseDirectionYaw + lightTransform.rotation.y)
 				));
 				const NtshEngn::Math::vec3 upVector = (std::abs(NtshEngn::Math::dot(lightDirection, NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f))) == 1.0f) ? NtshEngn::Math::vec3(1.0f, 0.0f, 0.0f) : NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f);
-				const NtshEngn::Math::mat4 lightView = NtshEngn::Math::lookAtRH(cascadeFrustumCenter - (lightDirection * radius), cascadeFrustumCenter, upVector);
-				const NtshEngn::Math::mat4 lightProj = NtshEngn::Math::orthoRH(-radius, radius, -radius, radius, 0.0f, radius * 2.0f);
+
+				const NtshEngn::Math::mat4 scaledLightView = scale * NtshEngn::Math::lookAtRH(NtshEngn::Math::vec3(0.0f, 0.0f, 0.0f), -lightDirection, upVector);
+				NtshEngn::Math::vec3 fixedCenter = NtshEngn::Math::vec3(scaledLightView * NtshEngn::Math::vec4(cascadeFrustumCenter, 0.0f));
+				fixedCenter.x = static_cast<float>(std::floor(fixedCenter.x));
+				fixedCenter.y = static_cast<float>(std::floor(fixedCenter.y));
+				fixedCenter = NtshEngn::Math::vec3(NtshEngn::Math::inverse(scaledLightView) * NtshEngn::Math::vec4(fixedCenter, 0.0f));
+				const NtshEngn::Math::vec3 eye = fixedCenter - (lightDirection * radius * 2.0f);
+				const NtshEngn::Math::mat4 lightView = NtshEngn::Math::lookAtRH(eye, fixedCenter, upVector);
+
+				const NtshEngn::Math::mat4 lightProj = NtshEngn::Math::orthoRH(-radius, radius, -radius, radius, 0.0f, radius * 6.0f);
 
 				m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].viewProj = lightProj * lightView;
 				m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].splitDepth = -(cameraNearPlane + (splitDistance * clipRange));
