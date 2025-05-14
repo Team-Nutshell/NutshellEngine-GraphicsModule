@@ -11,4 +11,4 @@ NutshellEngine's Graphics Module resources.
 - [vulkan-collider](https://github.com/Team-Nutshell/NutshellEngine-GraphicsModule/tree/module/vulkan-collider): Draw colliders with Vulkan.
 - [vulkan-ray-tracing](https://github.com/Team-Nutshell/NutshellEngine-GraphicsModule/tree/module/vulkan-ray-tracing): Draw models (meshes and textures) using ray tracing with Vulkan.
 - [vulkan-path-tracing](https://github.com/Team-Nutshell/NutshellEngine-GraphicsModule/tree/module/vulkan-path-tracing): Draw models (meshes and textures) using path tracing with Vulkan.
-- [neige](https://github.com/Team-Nutshell/NutshellEngine-GraphicsModule/tree/module/neige): Implement rendering technics, to be used in a game or application.
+- [sirius](https://github.com/Team-Nutshell/NutshellEngine-GraphicsModule/tree/module/sirius): Implement rendering technics, to be used in a game or application.
