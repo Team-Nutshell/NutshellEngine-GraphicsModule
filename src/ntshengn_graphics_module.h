@@ -98,7 +98,7 @@ namespace NtshEngn {
 
 	class GraphicsModule : public GraphicsModuleInterface {
 	public:
-		GraphicsModule() : GraphicsModuleInterface("Neige Graphics Module") {}
+		GraphicsModule() : GraphicsModuleInterface("Sirius Graphics Module") {}
 
 		void init();
 		void update(float dt);
