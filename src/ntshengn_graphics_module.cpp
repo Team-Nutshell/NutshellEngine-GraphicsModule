@@ -31,6 +31,7 @@
 #include <array>
 #include <chrono>
 #include <algorithm>
+#include <filesystem>
 #include <cmath>
 
 void NtshEngn::GraphicsModule::init() {
