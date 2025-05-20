@@ -31,7 +31,6 @@
 #include <array>
 #include <chrono>
 #include <algorithm>
-#include <filesystem>
 #include <cmath>
 
 void NtshEngn::GraphicsModule::init() {
@@ -701,11 +700,9 @@ void NtshEngn::GraphicsModule::update(float dt) {
 
 	// Check for any file modification
 	bool shaderModified = false;
-	const std::filesystem::file_time_type timeNow = std::filesystem::_File_time_clock::now();
-	std::filesystem::file_time_type fileLastModified;
 	if (std::filesystem::exists(m_fragmentShaderName)) {
-		fileLastModified = std::filesystem::last_write_time(m_fragmentShaderName);
-		if ((fileLastModified > m_fragmentShaderLastModified) && (timeNow > (fileLastModified + std::chrono::milliseconds(250)))) {
+		std::filesystem::file_time_type fileLastModified = std::filesystem::last_write_time(m_fragmentShaderName);
+		if (fileLastModified > m_fragmentShaderLastModified) {
 			shaderModified = true;
 			m_fragmentShaderLastModified = fileLastModified;
 		}
