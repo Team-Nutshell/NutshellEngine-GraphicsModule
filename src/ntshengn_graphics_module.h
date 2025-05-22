@@ -62,27 +62,6 @@ bool operator==(const NtshEngn::ImageSampler& lhs, const NtshEngn::ImageSampler&
 		(lhs.anisotropyLevel == rhs.anisotropyLevel);
 }
 
-bool operator==(const NtshEngn::Material& lhs, const NtshEngn::Material& rhs) {
-	return (lhs.diffuseTexture.image == rhs.diffuseTexture.image) &&
-		(lhs.diffuseTexture.imageSampler == rhs.diffuseTexture.imageSampler) &&
-		(lhs.normalTexture.image == rhs.normalTexture.image) &&
-		(lhs.normalTexture.imageSampler == rhs.normalTexture.imageSampler) &&
-		(lhs.metalnessTexture.image == rhs.metalnessTexture.image) &&
-		(lhs.metalnessTexture.imageSampler == rhs.metalnessTexture.imageSampler) &&
-		(lhs.roughnessTexture.image == rhs.roughnessTexture.image) &&
-		(lhs.roughnessTexture.imageSampler == rhs.roughnessTexture.imageSampler) &&
-		(lhs.occlusionTexture.image == rhs.occlusionTexture.image) &&
-		(lhs.occlusionTexture.imageSampler == rhs.occlusionTexture.imageSampler) &&
-		(lhs.emissiveTexture.image == rhs.emissiveTexture.image) &&
-		(lhs.emissiveTexture.imageSampler == rhs.emissiveTexture.imageSampler) &&
-		(lhs.emissiveFactor == rhs.emissiveFactor) &&
-		(lhs.alphaCutoff == rhs.alphaCutoff) &&
-		(lhs.indexOfRefraction == rhs.indexOfRefraction) &&
-		(lhs.useTriplanarMapping == rhs.useTriplanarMapping) &&
-		(lhs.scaleUV == rhs.scaleUV) &&
-		(lhs.offsetUV == rhs.offsetUV);
-}
-
 struct HostVisibleBuffer {
 	VkBuffer handle;
 	void* address;
@@ -332,17 +311,8 @@ namespace NtshEngn {
 		// Add to textures
 		uint32_t addToTextures(const InternalTexture& texture);
 
-		// Add to materials
-		uint32_t addToMaterials(const InternalMaterial& material);
-
 		// Find previous animation keyframe
 		uint32_t findPreviousAnimationKeyframe(float time, const std::vector<AnimationChannelKeyframe>& keyframes);
-
-		// Attribute an InternalObject index
-		uint32_t attributeObjectIndex();
-
-		// Retrieve an InternalObject index
-		void retrieveObjectIndex(uint32_t objectIndex);
 
 	private:
 		VkInstance m_instance;
@@ -504,11 +474,11 @@ namespace NtshEngn {
 		std::vector<InternalTexture> m_textures;
 
 		std::vector<InternalMaterial> m_materials;
+		IDPool m_materialsIDPool;
 
 		std::unordered_map<Entity, InternalObject> m_objects;
 		IDPool m_objectsIDPool;
 		BlockSuballocator m_freeJointTransformOffsets{ 4096 };
-		std::unordered_map<Entity, Material> m_lastKnownMaterial;
 
 		std::unordered_map<InternalObject*, PlayingAnimation> m_playingAnimations;
 
