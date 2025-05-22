@@ -2457,7 +2457,11 @@ const NtshEngn::ComponentMask NtshEngn::GraphicsModule::getComponentMask() const
 void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component componentID) {
 	if (componentID == ecs->getComponentID<Renderable>()) {
 		InternalObject object;
-		object.index = attributeObjectIndex();
+		object.index = m_objectsIDPool.get();
+		object.materialIndex = m_materialsIDPool.get();
+		if (m_materials.size() < (object.materialIndex + 1)) {
+			m_materials.resize(object.materialIndex + 1);
+		}
 		m_objects[entity] = object;
 
 		PreviousObject previousObject;
@@ -2468,7 +2472,6 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 
 		m_sampleBatch = 0;
 
-		m_lastKnownMaterial[entity] = Material();
 		loadRenderableForEntity(entity);
 	}
 	else if (componentID == ecs->getComponentID<Camera>()) {
@@ -2525,9 +2528,8 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 	if (componentID == ecs->getComponentID<Renderable>()) {
 		const InternalObject& object = m_objects[entity];
 
-		retrieveObjectIndex(object.index);
-
-		m_lastKnownMaterial.erase(entity);
+		m_objectsIDPool.free(object.index);
+		m_materialsIDPool.free(object.materialIndex);
 
 		m_objects.erase(entity);
 
@@ -5970,8 +5972,6 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 
 	load(m_defaultEmissiveTexture);
 	m_textures.push_back({ 5, "defaultSampler" });
-
-	m_materials.push_back(InternalMaterial());
 }
 
 void NtshEngn::GraphicsModule::resize() {
@@ -6059,11 +6059,7 @@ bool NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		}
 	}
 
-	if (renderable.material == m_lastKnownMaterial[entity]) {
-		return meshChanged;
-	}
-
-	InternalMaterial material = m_materials[object.materialIndex];
+	InternalMaterial& material = m_materials[object.materialIndex];
 	if (renderable.material.diffuseTexture.image) {
 		bool textureChanged = false;
 
@@ -6195,11 +6191,6 @@ bool NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		material.offsetUV = renderable.material.offsetUV;
 	}
 
-	uint32_t materialID = addToMaterials(material);
-	object.materialIndex = materialID;
-
-	m_lastKnownMaterial[entity] = renderable.material;
-
 	return true;
 }
 
@@ -6263,42 +6254,6 @@ uint32_t NtshEngn::GraphicsModule::addToTextures(const InternalTexture& texture)
 	m_textures.push_back(texture);
 
 	return static_cast<uint32_t>(m_textures.size()) - 1;
-}
-
-uint32_t NtshEngn::GraphicsModule::addToMaterials(const InternalMaterial& material) {
-	for (size_t i = 0; i < m_materials.size(); i++) {
-		const InternalMaterial& mat = m_materials[i];
-		if ((mat.diffuseTextureIndex == material.diffuseTextureIndex) &&
-			(mat.normalTextureIndex == material.normalTextureIndex) &&
-			(mat.metalnessTextureIndex == material.metalnessTextureIndex) &&
-			(mat.roughnessTextureIndex == material.roughnessTextureIndex) &&
-			(mat.occlusionTextureIndex == material.occlusionTextureIndex) &&
-			(mat.emissiveTextureIndex == material.emissiveTextureIndex) &&
-			(mat.emissiveFactor == material.emissiveFactor) &&
-			(mat.alphaCutoff == material.alphaCutoff) &&
-			(mat.scaleUV == material.scaleUV) &&
-			(mat.offsetUV == material.offsetUV) &&
-			(mat.useTriplanarMapping == material.useTriplanarMapping)) {
-			return static_cast<uint32_t>(i);
-		}
-	}
-
-	m_materials.push_back(material);
-
-	// Mark descriptor sets for update
-	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		m_descriptorSetsNeedUpdate[i] = true;
-	}
-
-	return static_cast<uint32_t>(m_materials.size()) - 1;
-}
-
-uint32_t NtshEngn::GraphicsModule::attributeObjectIndex() {
-	return m_objectsIDPool.get();
-}
-
-void NtshEngn::GraphicsModule::retrieveObjectIndex(uint32_t objectIndex) {
-	m_objectsIDPool.free(objectIndex);
 }
 
 extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface* createModule() {
