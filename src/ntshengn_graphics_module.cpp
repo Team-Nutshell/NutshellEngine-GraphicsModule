@@ -2589,10 +2589,13 @@ const NtshEngn::ComponentMask NtshEngn::GraphicsModule::getComponentMask() const
 void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component componentID) {
 	if (componentID == ecs->getComponentID<Renderable>()) {
 		InternalObject object;
-		object.index = attributeObjectIndex();
+		object.index = m_objectsIDPool.get();
+		object.materialIndex = m_materialsIDPool.get();
+		if (m_materials.size() < (object.materialIndex + 1)) {
+			m_materials.resize(object.materialIndex + 1);
+		}
 		m_objects[entity] = object;
 
-		m_lastKnownMaterial[entity] = Material();
 		loadRenderableForEntity(entity);
 	}
 	else if (componentID == ecs->getComponentID<Camera>()) {
@@ -2646,13 +2649,12 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 	if (componentID == ecs->getComponentID<Renderable>()) {
 		const InternalObject& object = m_objects[entity];
 
-		retrieveObjectIndex(object.index);
-
 		if (m_meshes[object.meshID].jointCount > 0) {
 			m_freeJointTransformOffsets.freeBlock(static_cast<size_t>(object.jointTransformOffset), static_cast<size_t>(m_meshes[object.meshID].jointCount));
 		}
 
-		m_lastKnownMaterial.erase(entity);
+		m_objectsIDPool.free(object.index);
+		m_materialsIDPool.free(object.materialIndex);
 
 		m_objects.erase(entity);
 	}
@@ -5527,8 +5529,6 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	load(m_defaultEmissiveTexture);
 	m_textures.push_back({ 5, "defaultSampler" });
 
-	m_materials.push_back(InternalMaterial());
-
 	// Create particle default texture
 	m_defaultParticleTexture.width = 1;
 	m_defaultParticleTexture.height = 1;
@@ -5600,11 +5600,7 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		object.meshID = 0;
 	}
 
-	if (renderable.material == m_lastKnownMaterial[entity]) {
-		return;
-	}
-
-	InternalMaterial material = m_materials[object.materialIndex];
+	InternalMaterial& material = m_materials[object.materialIndex];
 	if (renderable.material.diffuseTexture.image) {
 		bool textureChanged = false;
 
@@ -5735,11 +5731,6 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 	if (renderable.material.offsetUV != material.offsetUV) {
 		material.offsetUV = renderable.material.offsetUV;
 	}
-
-	uint32_t materialID = addToMaterials(material);
-	object.materialIndex = materialID;
-
-	m_lastKnownMaterial[entity] = renderable.material;
 }
 
 std::string NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler) {
@@ -5810,29 +5801,6 @@ uint32_t NtshEngn::GraphicsModule::addToTextures(const InternalTexture& texture)
 	return static_cast<uint32_t>(m_textures.size()) - 1;
 }
 
-uint32_t NtshEngn::GraphicsModule::addToMaterials(const InternalMaterial& material) {
-	for (size_t i = 0; i < m_materials.size(); i++) {
-		const InternalMaterial& mat = m_materials[i];
-		if ((mat.diffuseTextureIndex == material.diffuseTextureIndex) &&
-			(mat.normalTextureIndex == material.normalTextureIndex) &&
-			(mat.metalnessTextureIndex == material.metalnessTextureIndex) &&
-			(mat.roughnessTextureIndex == material.roughnessTextureIndex) &&
-			(mat.occlusionTextureIndex == material.occlusionTextureIndex) &&
-			(mat.emissiveTextureIndex == material.emissiveTextureIndex) &&
-			(mat.emissiveFactor == material.emissiveFactor) &&
-			(mat.alphaCutoff == material.alphaCutoff) &&
-			(mat.scaleUV == material.scaleUV) &&
-			(mat.offsetUV == material.offsetUV) &&
-			(mat.useTriplanarMapping == material.useTriplanarMapping)) {
-			return static_cast<uint32_t>(i);
-		}
-	}
-
-	m_materials.push_back(material);
-
-	return static_cast<uint32_t>(m_materials.size()) - 1;
-}
-
 uint32_t NtshEngn::GraphicsModule::findPreviousAnimationKeyframe(float time, const std::vector<AnimationChannelKeyframe>& keyframes) {
 	const std::vector<AnimationChannelKeyframe>::const_iterator previousKeyframe = std::lower_bound(keyframes.begin(), keyframes.end(), time, [](const AnimationChannelKeyframe& keyframe, float time) {
 		return keyframe.timestamp < time;
@@ -5843,14 +5811,6 @@ uint32_t NtshEngn::GraphicsModule::findPreviousAnimationKeyframe(float time, con
 	}
 
 	return std::numeric_limits<uint32_t>::max();
-}
-
-uint32_t NtshEngn::GraphicsModule::attributeObjectIndex() {
-	return m_objectsIDPool.get();
-}
-
-void NtshEngn::GraphicsModule::retrieveObjectIndex(uint32_t objectIndex) {
-	m_objectsIDPool.free(objectIndex);
 }
 
 extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface * createModule() {
