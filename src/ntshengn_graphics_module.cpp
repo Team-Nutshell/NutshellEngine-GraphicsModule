@@ -2661,6 +2661,7 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		}
 		m_objects[entity] = object;
 
+		m_lastKnownMaterial[entity] = Material();
 		loadRenderableForEntity(entity);
 	}
 	else if (componentID == ecs->getComponentID<Camera>()) {
@@ -2703,6 +2704,7 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 			m_freeJointTransformOffsets.freeBlock(static_cast<size_t>(object.jointTransformOffset), static_cast<size_t>(m_meshes[object.meshID].jointCount));
 		}
 
+		m_lastKnownMaterial.erase(entity);
 		m_objectsIDPool.free(object.index);
 		m_materialsIDPool.free(object.materialIndex);
 
@@ -6565,6 +6567,10 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		object.meshID = 0;
 	}
 
+	if (renderable.material == m_lastKnownMaterial[entity]) {
+		return;
+	}
+
 	InternalMaterial& material = m_materials[object.materialIndex];
 	if (renderable.material.diffuseTexture.image) {
 		bool textureChanged = false;
@@ -6696,6 +6702,8 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 	if (renderable.material.offsetUV != material.offsetUV) {
 		material.offsetUV = renderable.material.offsetUV;
 	}
+
+	m_lastKnownMaterial[entity] = renderable.material;
 }
 
 std::string NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler) {
