@@ -2472,6 +2472,7 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 
 		m_sampleBatch = 0;
 
+		m_lastKnownMaterial[entity] = Material();
 		loadRenderableForEntity(entity);
 	}
 	else if (componentID == ecs->getComponentID<Camera>()) {
@@ -2528,6 +2529,7 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 	if (componentID == ecs->getComponentID<Renderable>()) {
 		const InternalObject& object = m_objects[entity];
 
+		m_lastKnownMaterial.erase(entity);
 		m_objectsIDPool.free(object.index);
 		m_materialsIDPool.free(object.materialIndex);
 
@@ -6059,6 +6061,10 @@ bool NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		}
 	}
 
+	if (renderable.material == m_lastKnownMaterial[entity]) {
+		return meshChanged;
+	}
+
 	InternalMaterial& material = m_materials[object.materialIndex];
 	if (renderable.material.diffuseTexture.image) {
 		bool textureChanged = false;
@@ -6190,6 +6196,8 @@ bool NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 	if (renderable.material.offsetUV != material.offsetUV) {
 		material.offsetUV = renderable.material.offsetUV;
 	}
+
+	m_lastKnownMaterial[entity] = renderable.material;
 
 	return true;
 }
