@@ -6085,6 +6085,9 @@ bool NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 			material.diffuseTextureIndex = addToTextures({ imageID, samplerKey });
 		}
 	}
+	else {
+		material.diffuseTextureIndex = 0;
+	}
 	if (renderable.material.normalTexture.image) {
 		bool textureChanged = false;
 
@@ -6103,6 +6106,9 @@ bool NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		if (textureChanged) {
 			material.normalTextureIndex = addToTextures({ imageID, samplerKey });
 		}
+	}
+	else {
+		material.normalTextureIndex = 1;
 	}
 	if (renderable.material.metalnessTexture.image) {
 		bool textureChanged = false;
@@ -6123,6 +6129,9 @@ bool NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 			material.metalnessTextureIndex = addToTextures({ imageID, samplerKey });
 		}
 	}
+	else {
+		material.metalnessTextureIndex = 2;
+	}
 	if (renderable.material.roughnessTexture.image) {
 		bool textureChanged = false;
 
@@ -6141,6 +6150,9 @@ bool NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		if (textureChanged) {
 			material.roughnessTextureIndex = addToTextures({ imageID, samplerKey });
 		}
+	}
+	else {
+		material.roughnessTextureIndex = 3;
 	}
 	if (renderable.material.occlusionTexture.image) {
 		bool textureChanged = false;
@@ -6161,6 +6173,9 @@ bool NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 			material.occlusionTextureIndex = addToTextures({ imageID, samplerKey });
 		}
 	}
+	else {
+		material.occlusionTextureIndex = 4;
+	}
 	if (renderable.material.emissiveTexture.image) {
 		bool textureChanged = false;
 
@@ -6179,6 +6194,9 @@ bool NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		if (textureChanged) {
 			material.emissiveTextureIndex = addToTextures({ imageID, samplerKey });
 		}
+	}
+	else {
+		material.emissiveTextureIndex = 5;
 	}
 	if (renderable.material.emissiveFactor != material.emissiveFactor) {
 		material.emissiveFactor = renderable.material.emissiveFactor;
