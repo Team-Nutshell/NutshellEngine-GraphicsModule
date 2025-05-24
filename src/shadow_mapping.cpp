@@ -102,7 +102,12 @@ void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane,
 			}
 			cascadeFrustumCenter /= 8.0f;
 
-			const float radius = (cascadeFrustumCorners[4] - cascadeFrustumCorners[0]).length() / 2.0f;
+			float radius = 0.0f;
+			for (uint8_t i = 0; i < 8; i++) {
+				const float distanceToCenter = (cascadeFrustumCorners[i] - cascadeFrustumCenter).length();
+				radius = std::max(radius, distanceToCenter);
+			}
+			radius = std::ceil(radius * 16.0f) / 16.0f;
 			const float texelsPerUnit = static_cast<float>(SHADOW_MAPPING_RESOLUTION) / (radius * 2.0f);
 			const NtshEngn::Math::mat4 scale = NtshEngn::Math::scale(NtshEngn::Math::vec3(texelsPerUnit, texelsPerUnit, texelsPerUnit));
 
