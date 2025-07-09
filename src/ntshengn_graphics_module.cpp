@@ -1204,7 +1204,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 				vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_uiTextGraphicsPipeline);
 				vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_uiTextGraphicsPipelineLayout, 0, 1, &m_uiTextDescriptorSets[m_currentFrameInFlight], 0, nullptr);
 				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiTextGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &uiText.bufferOffset);
-				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiTextGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec4), sizeof(Math::vec4) + sizeof(uint32_t), &uiText.color);
+				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiTextGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec4), sizeof(Math::vec4) + (sizeof(uint32_t) * 2), &uiText.color);
 
 				vkCmdDraw(m_renderingCommandBuffers[m_currentFrameInFlight], uiText.charactersCount * 6, 1, 0, 0);
 
@@ -2295,7 +2295,11 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 
 	vmaDestroyBuffer(m_allocator, textureStagingBuffer, textureStagingBufferAllocation);
 
-	m_fonts.push_back({ textureImage, textureImageAllocation, textureImageView, font.imageSamplerFilter, font.glyphs });
+	uint32_t fontType = 0; // Bitmap
+	if (font.type == NtshEngn::FontType::SDF) { // SDF
+		fontType = 1;
+	}
+	m_fonts.push_back({ fontType, textureImage, textureImageAllocation, textureImageView, font.imageSamplerFilter, font.glyphs });
 
 	// Mark descriptor sets for update
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
@@ -2349,7 +2353,7 @@ void NtshEngn::GraphicsModule::destroyParticles() {
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
-void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& text, const Math::vec2& position, const Math::vec4& color) {
+void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& text, const Math::vec2& position, const Math::vec2& scale, const Math::vec4& color) {
 	NTSHENGN_ASSERT(fontID < m_fonts.size(), "FontID " + std::to_string(fontID) + " is superior than the number of loaded fonts (" + std::to_string(m_fonts.size()) + ").");
 
 	float positionAdvance = 0.0f;
@@ -2357,8 +2361,8 @@ void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& tex
 	for (const wchar_t& c : text) {
 		const Math::vec2 topLeft = position + m_fonts[fontID].glyphs[c].positionTopLeft + Math::vec2(positionAdvance, 0.0f);
 		const Math::vec2 bottomRight = position + m_fonts[fontID].glyphs[c].positionBottomRight + Math::vec2(positionAdvance, 0.0f);
-		positionsAndUVs.push_back(Math::vec2((topLeft.x / m_viewport.width) * 2.0f - 1.0f, (topLeft.y / m_viewport.height) * 2.0f - 1.0f));
-		positionsAndUVs.push_back(Math::vec2((bottomRight.x / m_viewport.width) * 2.0f - 1.0f, (bottomRight.y / m_viewport.height) * 2.0f - 1.0f));
+		positionsAndUVs.push_back(Math::vec2((topLeft.x / m_viewport.width) * scale.x * 2.0f - 1.0f, (topLeft.y / m_viewport.height) * scale.y * 2.0f - 1.0f));
+		positionsAndUVs.push_back(Math::vec2((bottomRight.x / m_viewport.width) * scale.x * 2.0f - 1.0f, (bottomRight.y / m_viewport.height) * scale.y * 2.0f - 1.0f));
 		positionsAndUVs.push_back(m_fonts[fontID].glyphs[c].uvTopLeft);
 		positionsAndUVs.push_back(m_fonts[fontID].glyphs[c].uvBottomRight);
 
@@ -2369,8 +2373,9 @@ void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& tex
 	memcpy(reinterpret_cast<uint8_t*>(m_uiTextBuffers[m_currentFrameInFlight].address) + offset, positionsAndUVs.data(), sizeof(Math::vec2) * 4 * text.size());
 
 	InternalUIText uiText;
-	uiText.fontID = fontID;
 	uiText.color = color;
+	uiText.fontID = fontID;
+	uiText.fontType = m_fonts[fontID].type;
 	uiText.charactersCount = static_cast<uint32_t>(text.size());
 	uiText.bufferOffset = m_uiTextBufferOffset;
 	m_uiTexts.push(uiText);
@@ -4852,6 +4857,7 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 		layout(push_constant) uniform TextInfo {
 			layout(offset = 16) vec4 color;
 			uint fontID;
+            uint fontType;
 		} tI;
 
 		layout(location = 0) in vec2 uv;
@@ -4859,7 +4865,13 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			outColor = vec4(1.0, 1.0, 1.0, texture(fonts[nonuniformEXT(tI.fontID)], uv).r) * tI.color;
+			float alpha = texture(fonts[nonuniformEXT(tI.fontID)], uv).r;
+			if (tI.fontType == 1) { // SDF
+				const float smoothing = 1.0 / 64.0;
+				alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, alpha);
+			}
+
+			outColor = vec4(1.0, 1.0, 1.0, alpha) * tI.color;
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
@@ -4984,7 +4996,7 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 	VkPushConstantRange fragmentPushConstantRange = {};
 	fragmentPushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	fragmentPushConstantRange.offset = sizeof(Math::vec4);
-	fragmentPushConstantRange.size = sizeof(Math::vec4) + sizeof(uint32_t);
+	fragmentPushConstantRange.size = sizeof(Math::vec4) + (sizeof(uint32_t) * 2);
 
 	std::array<VkPushConstantRange, 2> pushConstantRanges = { vertexPushConstantRange, fragmentPushConstantRange };
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
