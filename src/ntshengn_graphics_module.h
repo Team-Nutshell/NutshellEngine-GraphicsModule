@@ -76,8 +76,8 @@ namespace NtshEngn {
 		// Destroys all particles
 		void destroyParticles();
 
-		// Draws a text on the UI with the font in the fontID parameter using the position on screen and color
-		void drawUIText(FontID fontID, const std::wstring& text, const Math::vec2& position, const Math::vec4& color);
+		// Draws a text on the UI with the font in the fontID parameter using the position on screen, scale and color
+		void drawUIText(FontID fontID, const std::wstring& text, const Math::vec2& position, const Math::vec2& scale, const Math::vec4& color);
 		// Draws a line on the UI according to its start and end points and its color
 		void drawUILine(const Math::vec2& start, const Math::vec2& end, const Math::vec4& color);
 		// Draws a rectangle on the UI according to its position, its size (width and height) and its color
