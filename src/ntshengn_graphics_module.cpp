@@ -3899,7 +3899,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createBox(const ColliderBox* box) {
 		Math::rotate(box->rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
 		Math::rotate(box->rotation.z, Math::vec3(0.0f, 0.0f, 1.0f));
 
-	Model* cubeModel = assetManager->createModel();
+	Model* cubeModel = assetManager->createModel("BoxCollider" + std::to_string(m_meshes.size()));
 	cubeModel->primitives.resize(1);
 	Mesh& cubeMesh = cubeModel->primitives[0].mesh;
 	cubeMesh.vertices.resize(8);
@@ -3931,7 +3931,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createBox(const ColliderBox* box) {
 }
 
 NtshEngn::MeshID NtshEngn::GraphicsModule::createSphere(const ColliderSphere* sphere) {
-	Model* sphereModel = assetManager->createModel();
+	Model* sphereModel = assetManager->createModel("SphereCollider" + std::to_string(m_meshes.size()));
 	sphereModel->primitives.resize(1);
 	Mesh& sphereMesh = sphereModel->primitives[0].mesh;
 	const size_t nbLongLat = 25;
@@ -3964,7 +3964,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createSphere(const ColliderSphere* sp
 }
 
 NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const ColliderCapsule* capsule) {
-	Model* capsuleModel = assetManager->createModel();
+	Model* capsuleModel = assetManager->createModel("CapsuleCollider" + std::to_string(m_meshes.size()));
 	capsuleModel->primitives.resize(1);
 	Mesh& capsuleMesh = capsuleModel->primitives[0].mesh;
 	const size_t nbLongLat = 25;
