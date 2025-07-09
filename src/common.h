@@ -89,6 +89,8 @@ struct InternalMaterial {
 };
 
 struct InternalFont {
+	uint32_t type;
+
 	VkImage image;
 	VmaAllocation imageAllocation;
 	VkImageView imageView;
