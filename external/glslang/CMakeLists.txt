@@ -1,4 +1,4 @@
-# Copyright (C) 2020 The Khronos Group Inc.
+# Copyright (C) 2020-2025 The Khronos Group Inc.
 #
 # All rights reserved.
 #
@@ -30,23 +30,10 @@
 # LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
-
-# increase to 3.1 once all major distributions
-# include a version of CMake >= 3.1
-cmake_minimum_required(VERSION 3.14.0)
-if (POLICY CMP0048)
-  cmake_policy(SET CMP0048 NEW)
-endif()
-if(POLICY CMP0054)
-  cmake_policy(SET CMP0054 NEW)
-endif()
-
-project(glslang LANGUAGES CXX)
+cmake_minimum_required(VERSION 3.22.1)
+project(glslang)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-
-# Enable compile commands database
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Adhere to GNU filesystem layout conventions
 include(GNUInstallDirs)
@@ -55,9 +42,15 @@ include(CMakePackageConfigHelpers)
 # Needed for CMAKE_DEPENDENT_OPTION macro
 include(CMakeDependentOption)
 
+option(BUILD_SHARED_LIBS "Build Shared Libraries")
 option(BUILD_EXTERNAL "Build external dependencies in /External" ON)
+option(BUILD_WERROR "Enable warnings as errors (default is OFF)" OFF)
 
 set(LIB_TYPE STATIC)
+
+if(BUILD_SHARED_LIBS)
+    set(LIB_TYPE SHARED)
+endif()
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "")
     # This logic inside SPIRV-Tools, which can upset build target dependencies
@@ -67,94 +60,109 @@ if ("${CMAKE_BUILD_TYPE}" STREQUAL "")
     set(CMAKE_BUILD_TYPE "Debug")
 endif()
 
-option(ENABLE_OPT "Enables spirv-opt capability if present" ON)
+option(ENABLE_SPIRV "Enables SPIRV output support" ON)
+option(ENABLE_SPVREMAPPER "Enables building of SPVRemapper" ON)
 
-if(MINGW OR (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND ${CMAKE_CXX_COMPILER_ID} MATCHES "GNU"))
+option(ENABLE_HLSL "Enables HLSL input support" ON)
+option(ENABLE_RTTI "Enables RTTI")
+option(ENABLE_EXCEPTIONS "Enables Exceptions")
+
+if(MINGW OR (APPLE AND ${CMAKE_CXX_COMPILER_ID} MATCHES "GNU"))
     # Workaround for CMake behavior on Mac OS with gcc, cmake generates -Xarch_* arguments
     # which gcc rejects
-    option(ENABLE_PCH "Enables Precompiled header" OFF)
-else()
-    option(ENABLE_PCH "Enables Precompiled header" ON)
+    set(ENABLE_PCH OFF)
+    message(NOTICE "Disabling PCH")
+endif()
+
+option(ENABLE_PCH "Enables Precompiled header" ON)
+
+if(ENABLE_SPIRV)
+    add_compile_definitions(ENABLE_SPIRV)
+endif()
+
+if(ENABLE_HLSL)
+    add_compile_definitions(ENABLE_HLSL)
 endif()
 
 if(WIN32)
     set(CMAKE_DEBUG_POSTFIX "d")
     add_definitions(-DGLSLANG_OSINCLUDE_WIN32)
-elseif(UNIX)
+elseif(UNIX OR ANDROID)
     add_definitions(-DGLSLANG_OSINCLUDE_UNIX)
 else()
     message("unknown platform")
 endif()
 
 if(${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
-    add_compile_options(-Wall -Wmaybe-uninitialized -Wuninitialized -Wunused -Wunused-local-typedefs
+    add_compile_options(-Wall -Wmaybe-uninitialized -Wuninitialized -Wunused -Wunused-local-typedefs -Wimplicit-fallthrough
                         -Wunused-parameter -Wunused-value  -Wunused-variable -Wunused-but-set-parameter -Wunused-but-set-variable -fno-exceptions)
-    add_compile_options(-Wno-reorder)  # disable this from -Wall, since it happens all over.
-    add_compile_options(-fno-rtti)
-    add_compile_options(-fno-exceptions)
+    if(NOT ENABLE_RTTI)
+        add_compile_options(-fno-rtti)
+    endif()
+    if(NOT ENABLE_EXCEPTIONS)
+        add_compile_options(-fno-exceptions)
+    endif()
     if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "9.0.0")
         add_compile_options(-Werror=deprecated-copy)
     endif()
 
-    if(NOT CMAKE_VERSION VERSION_LESS "3.13" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-        # Error if there's symbols that are not found at link time.
-        # add_link_options() was added in CMake 3.13 - if using an earlier
-        # version don't set this - it should be caught by presubmits anyway.
-        add_link_options("-Wl,--no-undefined")
+    if(NOT (CMAKE_SYSTEM_NAME STREQUAL "OpenBSD"))
+        if (NOT APPLE)
+            # Error if there's symbols that are not found at link time.
+            add_link_options("-Wl,--no-undefined")
+        endif()
     endif()
 elseif(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang" AND NOT MSVC)
-    add_compile_options(-Wall -Wuninitialized -Wunused -Wunused-local-typedefs
+    add_compile_options(-Wall -Wuninitialized -Wunused -Wunused-local-typedefs -Wimplicit-fallthrough
                         -Wunused-parameter -Wunused-value  -Wunused-variable)
-    add_compile_options(-Wno-reorder)  # disable this from -Wall, since it happens all over.
-    add_compile_options(-fno-rtti)
-    add_compile_options(-fno-exceptions)
+    if(NOT ENABLE_RTTI)
+        add_compile_options(-fno-rtti)
+    endif()
+    if(NOT ENABLE_EXCEPTIONS)
+        add_compile_options(-fno-exceptions)
+    endif()
 
-    if(NOT CMAKE_VERSION VERSION_LESS "3.13")
-        # Error if there's symbols that are not found at link time.
-        # add_link_options() was added in CMake 3.13 - if using an earlier
-        # version don't set this - it should be caught by presubmits anyway.
-        if (WIN32)
+    if(NOT (CMAKE_SYSTEM_NAME MATCHES "OpenBSD"))
+        # Error if there's symbols that are not found at link time. Some linkers do not support this flag.
+        if(NOT APPLE)
             add_link_options("-Wl,--no-undefined")
-        else()
-            add_link_options("-Wl,-undefined,error")
         endif()
     endif()
 elseif(MSVC)
-    string(FIND "${CMAKE_CXX_FLAGS}" "/GR" MSVC_HAS_GR)
-    if(MSVC_HAS_GR)
-        string(REGEX REPLACE "/GR" "/GR-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-    else()
+    if(NOT ENABLE_RTTI)
         add_compile_options(/GR-) # Disable RTTI
     endif()
-    string(REGEX REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}") # Try to remove default /EHsc cxx_flag
-    add_compile_options(/D_HAS_EXCEPTIONS=0)
+    if(ENABLE_EXCEPTIONS)
+        add_compile_options(/EHsc) # Enable Exceptions
+	else()
+        string(REGEX REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}") # Try to remove default /EHsc cxx_flag
+        add_compile_options(/D_HAS_EXCEPTIONS=0)
+    endif()
 endif()
 
-# Request C++11
-if(${CMAKE_VERSION} VERSION_LESS 3.1)
-    # CMake versions before 3.1 do not understand CMAKE_CXX_STANDARD
-    # remove this block once CMake >=3.1 has fixated in the ecosystem
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-else()
-    set(CMAKE_CXX_STANDARD 11)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
-    set(CMAKE_CXX_EXTENSIONS OFF)
+# NOTE we could potentially replace this logic with COMPILE_WARNING_AS_ERROR if cmake minimum is bumped to >= 3.24
+if (BUILD_WERROR)
+    if (NOT MSVC)
+        add_compile_options(-Werror)
+    else()
+        add_compile_options(/WX)
+    endif()
 endif()
+
+# Request C++17
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 function(glslang_set_link_args TARGET)
     # For MinGW compiles, statically link against the GCC and C++ runtimes.
     # This avoids the need to ship those runtimes as DLLs.
-    if(WIN32 AND ${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
+    # This is supported by GCC and Clang.
+    if(WIN32 AND NOT MSVC)
         set_target_properties(${TARGET} PROPERTIES
                               LINK_FLAGS "-static -static-libgcc -static-libstdc++")
     endif()
-endfunction(glslang_set_link_args)
-
-if(NOT COMMAND find_host_package)
-    macro(find_host_package)
-        find_package(${ARGN})
-    endmacro()
-endif()
+endfunction()
 
 # Root directory for build-time generated include files
 set(GLSLANG_GENERATED_INCLUDEDIR "${CMAKE_BINARY_DIR}/include")
@@ -190,41 +198,26 @@ endfunction()
 # GLSLANG_IS_SHARED_LIBRARY define, and GLSLANG_EXPORTING to 1 when specifically
 # building <target>.
 function(glslang_only_export_explicit_symbols target)
+    if(BUILD_SHARED_LIBS)
+        target_compile_definitions(${target} PUBLIC "GLSLANG_IS_SHARED_LIBRARY=1")
+        set_target_properties(${target} PROPERTIES CXX_VISIBILITY_PRESET hidden)
+        set_target_properties(${target} PROPERTIES C_VISIBILITY_PRESET hidden)
+        if(WIN32)
+            target_compile_definitions(${target} PRIVATE "GLSLANG_EXPORTING=1")
+        endif()
+    endif()
 endfunction()
 
 # glslang_pch() adds precompiled header rules to <target> for the pre-compiled
 # header file <pch>. As target_precompile_headers() was added in CMake 3.16,
 # this is a no-op if called on earlier versions of CMake.
-if(NOT CMAKE_VERSION VERSION_LESS "3.16" AND ENABLE_PCH)
-    function(glslang_pch target pch)
-        target_precompile_headers(${target} PRIVATE ${pch})
-    endfunction()
-else()
-    function(glslang_pch target pch)
-    endfunction()
+function(glslang_pch target pch)
     if(ENABLE_PCH)
-        message("Your CMake version is ${CMAKE_VERSION}. Update to at least 3.16 to enable precompiled headers to speed up incremental builds")
+        target_precompile_headers(${target} PRIVATE ${pch})
     endif()
+endfunction()
+
+if(ENABLE_SPIRV)
+    add_subdirectory(SPIRV)
 endif()
-
-if(BUILD_EXTERNAL AND IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/External)
-    find_host_package(PythonInterp 3 REQUIRED)
-
-    # We depend on these for later projects, so they should come first.
-    add_subdirectory(External)
-endif()
-
-if(NOT TARGET SPIRV-Tools-opt)
-    set(ENABLE_OPT OFF)
-endif()
-
-if(ENABLE_OPT)
-    message(STATUS "optimizer enabled")
-    add_definitions(-DENABLE_OPT=1)
-else()
-    add_definitions(-DENABLE_OPT=0)
-endif()
-
 add_subdirectory(glslang)
-add_subdirectory(OGLCompilersDLL)
-add_subdirectory(SPIRV)
