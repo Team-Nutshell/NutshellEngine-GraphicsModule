@@ -3212,7 +3212,7 @@ void NtshEngn::GraphicsModule::createCompositingResources() {
 
 				const vec4 shadowCoord = (shadowOffset * shadows.info[(i * SHADOW_MAPPING_CASCADE_COUNT) + cascadeIndex].viewProj) * vec4(position, 1.0);
 
-				color += shade(n, v, l, lights.info[lightIndex].color * lights.info[lightIndex].intensity, d, metalnessSample, roughnessSample) * shadowValue(i, cascadeIndex, shadowCoord / shadowCoord.w, 0.005);
+				color += shade(n, v, l, lights.info[lightIndex].color * lights.info[lightIndex].intensity, d, metalnessSample, roughnessSample) * shadowValue(i, cascadeIndex, shadowCoord / shadowCoord.w, 0.00005);
 
 				lightIndex++;
 			}
