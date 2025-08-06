@@ -5851,10 +5851,10 @@ uint32_t NtshEngn::GraphicsModule::findPreviousAnimationKeyframe(float time, con
 	return std::numeric_limits<uint32_t>::max();
 }
 
-extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface * createModule() {
+extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface* createModule() {
 	return new NtshEngn::GraphicsModule;
 }
 
-extern "C" NTSHENGN_MODULE_API void destroyModule(NtshEngn::GraphicsModuleInterface * m) {
+extern "C" NTSHENGN_MODULE_API void destroyModule(NtshEngn::GraphicsModuleInterface* m) {
 	delete m;
 }
