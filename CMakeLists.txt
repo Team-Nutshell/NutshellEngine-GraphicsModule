@@ -81,6 +81,7 @@ target_compile_definitions(${PROJECT_NAME}
 
 set_target_properties(${PROJECT_NAME}
     PROPERTIES
+	OUTPUT_NAME "NutshellEngine-GraphicsModule-WebGPU-Triangle"
     DEFINE_SYMBOL "NutshellEngineModule_EXPORTS")
 
 set(NTSHENGN_INSTALL_MODULE_PATH "NtshEngn_InstallModule_NOTFOUND" CACHE PATH "Give the option to install the built module into NutshellEngine\'s modules directory.")
