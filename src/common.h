@@ -122,9 +122,9 @@ struct InternalLight {
 };
 
 struct InternalLights {
-	std::set<NtshEngn::Entity> directionalLights;
-	std::set<NtshEngn::Entity> pointLights;
-	std::set<NtshEngn::Entity> spotLights;
+	std::vector<NtshEngn::Entity> directionalLights;
+	std::vector<NtshEngn::Entity> pointLights;
+	std::vector<NtshEngn::Entity> spotLights;
 	std::set<NtshEngn::Entity> ambientLights;
 };
 

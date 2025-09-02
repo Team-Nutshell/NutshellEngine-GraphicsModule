@@ -2615,19 +2615,19 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		bool compositingShadowDescriptorSetsNeedUpdate = false;
 		switch (light.type) {
 		case LightType::Directional:
-			m_lights.directionalLights.insert(entity);
+			m_lights.directionalLights.push_back(entity);
 			m_shadowMapping.createDirectionalLightShadowMap(entity);
 			compositingShadowDescriptorSetsNeedUpdate = true;
 			break;
 
 		case LightType::Point:
-			m_lights.pointLights.insert(entity);
+			m_lights.pointLights.push_back(entity);
 			m_shadowMapping.createPointLightShadowMap(entity);
 			compositingShadowDescriptorSetsNeedUpdate = true;
 			break;
 
 		case LightType::Spot:
-			m_lights.spotLights.insert(entity);
+			m_lights.spotLights.push_back(entity);
 			m_shadowMapping.createSpotLightShadowMap(entity);
 			compositingShadowDescriptorSetsNeedUpdate = true;
 			break;
@@ -2637,7 +2637,7 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 			break;
 
 		default: // Arbitrarily consider it a directional light
-			m_lights.directionalLights.insert(entity);
+			m_lights.directionalLights.push_back(entity);
 			m_shadowMapping.createDirectionalLightShadowMap(entity);
 			compositingShadowDescriptorSetsNeedUpdate = true;
 			break;
@@ -2676,19 +2676,19 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 		bool compositingShadowDescriptorSetsNeedUpdate = false;
 		switch (light.type) {
 		case LightType::Directional:
-			m_lights.directionalLights.erase(entity);
+			m_lights.directionalLights.erase(std::remove(m_lights.directionalLights.begin(), m_lights.directionalLights.end(), entity));
 			m_shadowMapping.destroyDirectionalLightShadowMap(entity);
 			compositingShadowDescriptorSetsNeedUpdate = true;
 			break;
 
 		case LightType::Point:
-			m_lights.pointLights.erase(entity);
+			m_lights.pointLights.erase(std::remove(m_lights.pointLights.begin(), m_lights.pointLights.end(), entity));
 			m_shadowMapping.destroyPointLightShadowMap(entity);
 			compositingShadowDescriptorSetsNeedUpdate = true;
 			break;
 
 		case LightType::Spot:
-			m_lights.spotLights.erase(entity);
+			m_lights.spotLights.erase(std::remove(m_lights.spotLights.begin(), m_lights.spotLights.end(), entity));
 			m_shadowMapping.destroySpotLightShadowMap(entity);
 			compositingShadowDescriptorSetsNeedUpdate = true;
 			break;
@@ -2698,7 +2698,7 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 			break;
 
 		default: // Arbitrarily consider it a directional light
-			m_lights.directionalLights.erase(entity);
+			m_lights.directionalLights.erase(std::remove(m_lights.directionalLights.begin(), m_lights.directionalLights.end(), entity));
 			m_shadowMapping.destroyDirectionalLightShadowMap(entity);
 			compositingShadowDescriptorSetsNeedUpdate = true;
 			break;
