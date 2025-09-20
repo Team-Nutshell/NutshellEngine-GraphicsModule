@@ -2602,6 +2602,7 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		m_objects[entity] = object;
 
 		m_lastKnownMaterial[entity] = Material();
+		m_materials[object.materialIndex] = InternalMaterial();
 		loadRenderableForEntity(entity);
 	}
 	else if (componentID == ecs->getComponentID<Camera>()) {
