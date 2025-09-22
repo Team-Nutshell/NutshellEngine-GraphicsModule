@@ -735,6 +735,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	float cameraFarPlane = 0.0f;
 	Math::mat4 cameraView = Math::mat4::identity();
 	Math::mat4 cameraProjection = Math::mat4::identity();
+	Math::mat4 cameraProjectionNonReversed = Math::mat4::identity();
 	if (m_mainCamera != NTSHENGN_ENTITY_UNKNOWN) {
 		const Camera& camera = ecs->getComponent<Camera>(m_mainCamera);
 		const Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
@@ -749,11 +750,13 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		cameraProjection = Math::mat4::identity();
 		float aspectRatio = m_viewport.width / m_viewport.height;
 		if (camera.projectionType == CameraProjectionType::Perspective) {
-			cameraProjection = Math::perspectiveRH(camera.fov, aspectRatio, camera.nearPlane, camera.farPlane);
+			cameraProjection = Math::perspectiveRH(camera.fov, aspectRatio, camera.farPlane, camera.nearPlane);
 			cameraProjection[1][1] *= -1.0f;
+			cameraProjectionNonReversed = Math::perspectiveRH(camera.fov, aspectRatio, camera.nearPlane, camera.farPlane);
+			cameraProjectionNonReversed[1][1] *= -1.0f;
 		}
 		else if (camera.projectionType == CameraProjectionType::Orthographic) {
-			cameraProjection = Math::orthoRH(camera.left * aspectRatio, camera.right * aspectRatio, camera.bottom, camera.top, camera.nearPlane, camera.farPlane);
+			cameraProjection = Math::orthoRH(camera.left * aspectRatio, camera.right * aspectRatio, camera.bottom, camera.top, camera.farPlane, camera.nearPlane);
 			cameraProjection[1][1] *= -1.0f;
 		}
 		std::array<Math::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
@@ -1055,7 +1058,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		cameraNearPlane,
 		cameraFarPlane,
 		cameraView,
-		cameraProjection);
+		cameraProjectionNonReversed);
 	std::vector<FrustumCullingInfo> shadowMappingFrustumCullingInfos = m_shadowMapping.getFrustumCullingInfos();
 	frustumCullingInfos.insert(frustumCullingInfos.end(), shadowMappingFrustumCullingInfos.begin(), shadowMappingFrustumCullingInfos.end());
 

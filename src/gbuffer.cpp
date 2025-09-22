@@ -260,7 +260,7 @@ void GBuffer::draw(VkCommandBuffer commandBuffer,
 	depthAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	depthAttachmentInfo.clearValue.depthStencil = { 1.0f, 0 };
+	depthAttachmentInfo.clearValue.depthStencil = { 0.0f, 0 };
 
 	std::array<VkRenderingAttachmentInfo, 5> gBufferAttachmentInfos = { positionAttachmentInfo, normalAttachmentInfo, diffuseAttachmentInfo, materialAttachmentInfo, emissiveAttachmentInfo };
 	VkRenderingInfo gBufferRenderingInfo = {};
@@ -1195,7 +1195,7 @@ void GBuffer::createGraphicsPipeline() {
 	depthStencilStateCreateInfo.flags = 0;
 	depthStencilStateCreateInfo.depthTestEnable = VK_TRUE;
 	depthStencilStateCreateInfo.depthWriteEnable = VK_TRUE;
-	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS;
+	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_GREATER;
 	depthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
 	depthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
 	depthStencilStateCreateInfo.front = {};

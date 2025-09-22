@@ -370,7 +370,7 @@ void Particles::draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageVi
 	particleRenderingDepthAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	particleRenderingDepthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
 	particleRenderingDepthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	particleRenderingDepthAttachmentInfo.clearValue.depthStencil = { 1.0f, 0 };
+	particleRenderingDepthAttachmentInfo.clearValue.depthStencil = { 0.0f, 0 };
 
 	VkRenderingInfo particleRenderingInfo = {};
 	particleRenderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -1070,7 +1070,7 @@ void Particles::createGraphicsResources(VkFormat drawImageFormat, const std::vec
 	depthStencilStateCreateInfo.flags = 0;
 	depthStencilStateCreateInfo.depthTestEnable = VK_TRUE;
 	depthStencilStateCreateInfo.depthWriteEnable = VK_FALSE;
-	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS;
+	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_GREATER;
 	depthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
 	depthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
 	depthStencilStateCreateInfo.front = {};
