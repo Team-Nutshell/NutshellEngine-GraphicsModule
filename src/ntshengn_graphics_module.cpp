@@ -758,6 +758,8 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		else if (camera.projectionType == CameraProjectionType::Orthographic) {
 			cameraProjection = Math::orthoRH(camera.left * aspectRatio, camera.right * aspectRatio, camera.bottom, camera.top, camera.farPlane, camera.nearPlane);
 			cameraProjection[1][1] *= -1.0f;
+			cameraProjectionNonReversed = Math::orthoRH(camera.left * aspectRatio, camera.right * aspectRatio, camera.bottom, camera.top, camera.nearPlane, camera.farPlane);
+			cameraProjectionNonReversed[1][1] *= -1.0f;
 		}
 		std::array<Math::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
 		Math::vec4 cameraPositionAsVec4 = { cameraTransform.position, 0.0f };
