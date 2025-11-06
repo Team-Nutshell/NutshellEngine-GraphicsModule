@@ -127,9 +127,7 @@ void FXAA::draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView dr
 	m_vkCmdPipelineBarrier2KHR(commandBuffer, &dependencyInfo);
 }
 
-void FXAA::onResize(uint32_t width,
-	uint32_t height,
-	VkImageView colorImageView) {
+void FXAA::onResize(uint32_t width, uint32_t height, VkImageView colorImageView) {
 	m_viewport.width = static_cast<float>(width);
 	m_viewport.height = static_cast<float>(height);
 	m_scissor.extent.width = width;

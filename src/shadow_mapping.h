@@ -83,7 +83,7 @@ public:
 	void createSpotLightShadowMap(NtshEngn::Entity entity);
 	void destroySpotLightShadowMap(NtshEngn::Entity entity);
 
-	VulkanBuffer& getShadowSceneBuffer(uint32_t frameInFlight);
+	std::vector<HostVisibleVulkanBuffer>& getShadowSceneBuffers();
 	std::vector<VulkanImage> getShadowMapImages();
 
 	std::vector<FrustumCullingInfo> getFrustumCullingInfos();

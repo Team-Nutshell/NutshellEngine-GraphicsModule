@@ -1185,8 +1185,8 @@ void ShadowMapping::destroySpotLightShadowMap(NtshEngn::Entity entity) {
 	}
 }
 
-VulkanBuffer& ShadowMapping::getShadowSceneBuffer(uint32_t frameInFlight) {
-	return m_shadowSceneBuffers[frameInFlight];
+std::vector<HostVisibleVulkanBuffer>& ShadowMapping::getShadowSceneBuffers() {
+	return m_shadowSceneBuffers;
 }
 
 std::vector<VulkanImage> ShadowMapping::getShadowMapImages() {

@@ -468,9 +468,7 @@ void Bloom::draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView d
 	m_vkCmdPipelineBarrier2KHR(commandBuffer, &compositingDependencyInfo);
 }
 
-void Bloom::onResize(uint32_t width,
-	uint32_t height,
-	VkImageView drawImageView) {
+void Bloom::onResize(uint32_t width, uint32_t height, VkImageView drawImageView) {
 	m_viewport.width = static_cast<float>(width);
 	m_viewport.height = static_cast<float>(height);
 	m_scissor.extent.width = width;

@@ -4,6 +4,7 @@
 #include "../Common/utils/ntshengn_utils_id_pool.h"
 #include "common.h"
 #include "bloom.h"
+#include "compositing.h"
 #include "frustum_culling.h"
 #include "fxaa.h"
 #include "gbuffer.h"
@@ -163,12 +164,6 @@ namespace NtshEngn {
 		// Vertex and index buffers creation
 		void createVertexAndIndexBuffers();
 
-		// Compositing resources
-		void createCompositingResources();
-		void createCompositingImage();
-		void updateCompositingDescriptorSets();
-		void updateCompositingDescriptorSetsShadow(uint32_t frameInFlight);
-
 		// Tone mapping resources
 		void createToneMappingResources();
 		void createToneMappingImage();
@@ -233,23 +228,13 @@ namespace NtshEngn {
 		bool m_fxaaEnabled = false;
 
 		Bloom m_bloom;
+		Compositing m_compositing;
 		FrustumCulling m_frustumCulling;
 		FXAA m_fxaa;
 		GBuffer m_gBuffer;
 		Particles m_particles;
 		SSAO m_ssao;
 		ShadowMapping m_shadowMapping;
-
-		VulkanImage m_compositingImage;
-		VkFormat m_compositingImageFormat;
-		VkSampler m_compositingSampler;
-		VkSampler m_compositingShadowSampler;
-		VkDescriptorSetLayout m_compositingDescriptorSetLayout;
-		VkDescriptorPool m_compositingDescriptorPool;
-		std::vector<VkDescriptorSet> m_compositingDescriptorSets;
-		std::vector<bool> m_compositingDescriptorSetsNeedShadowUpdate;
-		VkPipeline m_compositingGraphicsPipeline;
-		VkPipelineLayout m_compositingGraphicsPipelineLayout;
 
 		VulkanImage m_toneMappingImage;
 		VkSampler m_toneMappingSampler;

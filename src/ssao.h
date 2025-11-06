@@ -28,7 +28,7 @@ public:
 		VkImageView positionImageView,
 		VkImageView normalImageView);
 	
-	VulkanImage& getSSAO();
+	VulkanImage& getImage();
 
 private:
 	void createImagesAndBuffer(uint32_t width, uint32_t height);

@@ -16,9 +16,7 @@ public:
 
 	void draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView drawImageView, bool enabled);
 
-	void onResize(uint32_t width,
-		uint32_t height,
-		VkImageView colorImageView);
+	void onResize(uint32_t width, uint32_t height, VkImageView colorImageView);
 
 private:
 	void createDescriptorSetLayout();
@@ -45,7 +43,6 @@ private:
 	uint32_t m_graphicsQueueFamilyIndex;
 	VkViewport m_viewport;
 	VkRect2D m_scissor;
-	uint32_t m_framesInFlight;
 
 	PFN_vkCmdBeginRenderingKHR m_vkCmdBeginRenderingKHR;
 	PFN_vkCmdEndRenderingKHR m_vkCmdEndRenderingKHR;

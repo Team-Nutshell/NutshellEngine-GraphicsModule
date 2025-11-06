@@ -27,8 +27,7 @@ public:
 	void graphicsDescriptorSetNeedsUpdate(uint32_t frameInFlight, uint32_t particleBufferIndex);
 	void updateGraphicsDescriptorSets(uint32_t frameInFlight, const std::vector<VkImageView>& textureImageViews);
 
-	void onResize(uint32_t width,
-		uint32_t height);
+	void onResize(uint32_t width, uint32_t height);
 
 	void emitParticles(const NtshEngn::ParticleEmitter& particleEmitter, uint32_t currentFrameInFlight, uint32_t textureIndex);
 	void destroyParticles(uint32_t currentFrameInFlight);

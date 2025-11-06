@@ -23,9 +23,7 @@ public:
 
 	void draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView drawImageView);
 
-	void onResize(uint32_t width,
-		uint32_t height,
-		VkImageView drawImageView);
+	void onResize(uint32_t width, uint32_t height, VkImageView drawImageView);
 
 private:
 	void createImages(uint32_t width, uint32_t height);

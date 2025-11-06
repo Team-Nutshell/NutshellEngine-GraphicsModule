@@ -254,7 +254,7 @@ void SSAO::onResize(uint32_t width,
 	updateDescriptorSets(positionImageView, normalImageView);
 }
 
-VulkanImage& SSAO::getSSAO() {
+VulkanImage& SSAO::getImage() {
 	return m_ssaoBlurImage;
 }
 
