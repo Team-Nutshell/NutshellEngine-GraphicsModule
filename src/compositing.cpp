@@ -18,7 +18,7 @@ void Compositing::init(VkDevice device,
 	VkImageView gBufferDiffuseView,
 	VkImageView gBufferMaterialView,
 	VkImageView gBufferEmissiveView,
-	VkImageView ssaoView,
+	VkImageView ssaoImageView,
 	PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 	PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
 	PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
@@ -41,7 +41,7 @@ void Compositing::init(VkDevice device,
 	createGraphicsPipeline();
 	createSamplers();
 	createDescriptorSets(cameraBuffers, lightBuffers, shadowSceneBuffers);
-	updateDescriptorSets(gBufferPositionView, gBufferNormalView, gBufferDiffuseView, gBufferMaterialView, gBufferEmissiveView, ssaoView);
+	updateDescriptorSets(gBufferPositionView, gBufferNormalView, gBufferDiffuseView, gBufferMaterialView, gBufferEmissiveView, ssaoImageView);
 
 	m_descriptorSetsShadowNeedUpdate.resize(m_framesInFlight);
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
@@ -907,7 +907,7 @@ void Compositing::createDescriptorSets(const std::vector<HostVisibleVulkanBuffer
 	}
 }
 
-void Compositing::updateDescriptorSets(VkImageView gBufferPositionView, VkImageView gBufferNormalView, VkImageView gBufferDiffuseView, VkImageView gBufferMaterialView, VkImageView gBufferEmissiveView, VkImageView ssaoView) {
+void Compositing::updateDescriptorSets(VkImageView gBufferPositionView, VkImageView gBufferNormalView, VkImageView gBufferDiffuseView, VkImageView gBufferMaterialView, VkImageView gBufferEmissiveView, VkImageView ssaoImageView) {
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		VkDescriptorImageInfo gBufferPositionImageDescriptorImageInfo;
 		gBufferPositionImageDescriptorImageInfo.sampler = m_sampler;
@@ -996,7 +996,7 @@ void Compositing::updateDescriptorSets(VkImageView gBufferPositionView, VkImageV
 
 		VkDescriptorImageInfo ssaoDescriptorImageInfo;
 		ssaoDescriptorImageInfo.sampler = m_sampler;
-		ssaoDescriptorImageInfo.imageView = ssaoView;
+		ssaoDescriptorImageInfo.imageView = ssaoImageView;
 		ssaoDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkWriteDescriptorSet ssaoDescriptorWriteDescriptorSet = {};

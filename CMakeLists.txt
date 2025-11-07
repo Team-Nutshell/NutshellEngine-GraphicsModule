@@ -71,7 +71,8 @@ set(MODULE_SOURCES
 	src/gbuffer.cpp
 	src/particles.cpp
 	src/shadow_mapping.cpp
-	src/ssao.cpp)	
+	src/ssao.cpp
+	src/tone_mapping.cpp)
 set(MODULE_HEADERS
 	src/ntshengn_graphics_module.h
 	src/bloom.h
@@ -82,6 +83,7 @@ set(MODULE_HEADERS
 	src/particles.h
 	src/shadow_mapping.h
 	src/ssao.h
+	src/tone_mapping.h
 	src/common.h)
 
 set(SOURCES ${MODULE_SOURCES})

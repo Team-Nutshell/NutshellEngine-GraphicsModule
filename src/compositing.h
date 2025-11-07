@@ -21,7 +21,7 @@ public:
 		VkImageView gBufferDiffuseView,
 		VkImageView gBufferMaterialView,
 		VkImageView gBufferEmissiveView,
-		VkImageView ssaoView,
+		VkImageView ssaoImageView,
 		PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
 		PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
 		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
@@ -31,7 +31,7 @@ public:
 		uint32_t currentFrameInFlight,
 		const NtshEngn::Math::vec4& backgroundColor);
 
-	void onResize(uint32_t width, uint32_t height, VkImageView gBufferPositionView, VkImageView gBufferNormalView, VkImageView gBufferDiffuseView, VkImageView gBufferMaterialView, VkImageView gBufferEmissiveView, VkImageView ssaoView);
+	void onResize(uint32_t width, uint32_t height, VkImageView gBufferPositionView, VkImageView gBufferNormalView, VkImageView gBufferDiffuseView, VkImageView gBufferMaterialView, VkImageView gBufferEmissiveView, VkImageView ssaoImageView);
 
 	void shadowDescriptorSetNeedsUpdate(uint32_t frameInFlight);
 	void updateShadowDescriptorSets(uint32_t frameInFlight, const std::vector<VulkanImage> shadowMaps);

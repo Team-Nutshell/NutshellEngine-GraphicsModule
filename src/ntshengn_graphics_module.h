@@ -11,6 +11,7 @@
 #include "particles.h"
 #include "shadow_mapping.h"
 #include "ssao.h"
+#include "tone_mapping.h"
 #include <vector>
 #include <limits>
 #include <queue>
@@ -164,11 +165,6 @@ namespace NtshEngn {
 		// Vertex and index buffers creation
 		void createVertexAndIndexBuffers();
 
-		// Tone mapping resources
-		void createToneMappingResources();
-		void createToneMappingImage();
-		void updateToneMappingDescriptorSet();
-
 		// UI resources
 		void createUIResources();
 		void createUITextResources();
@@ -235,14 +231,7 @@ namespace NtshEngn {
 		Particles m_particles;
 		SSAO m_ssao;
 		ShadowMapping m_shadowMapping;
-
-		VulkanImage m_toneMappingImage;
-		VkSampler m_toneMappingSampler;
-		VkDescriptorSetLayout m_toneMappingDescriptorSetLayout;
-		VkDescriptorPool m_toneMappingDescriptorPool;
-		VkDescriptorSet m_toneMappingDescriptorSet;
-		VkPipeline m_toneMappingGraphicsPipeline;
-		VkPipelineLayout m_toneMappingGraphicsPipelineLayout;
+		ToneMapping m_toneMapping;
 
 		VkSampler m_uiNearestSampler;
 		VkSampler m_uiLinearSampler;
