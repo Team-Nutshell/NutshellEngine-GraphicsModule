@@ -85,14 +85,30 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 
 		const NtshEngn::Transform& entityTransform = m_ecs->getComponent<NtshEngn::Transform>(it.first);
 
-		FrustumCullingObject frustumCullingObject;
-		frustumCullingObject.position = NtshEngn::Math::vec4(entityTransform.position, 0.0f);
-		frustumCullingObject.rotation = NtshEngn::Math::rotate(entityTransform.rotation.x, NtshEngn::Math::vec3(1.0f, 0.0f, 0.0f)) *
+		NtshEngn::Math::mat4 rotation = NtshEngn::Math::rotate(entityTransform.rotation.x, NtshEngn::Math::vec3(1.0f, 0.0f, 0.0f)) *
 			NtshEngn::Math::rotate(entityTransform.rotation.y, NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f)) *
 			NtshEngn::Math::rotate(entityTransform.rotation.z, NtshEngn::Math::vec3(0.0f, 0.0f, 1.0f));
-		frustumCullingObject.scale = NtshEngn::Math::vec4(entityTransform.scale, 0.0f);
+
+		FrustumCullingObject frustumCullingObject;
 		frustumCullingObject.aabbMin = NtshEngn::Math::vec4(mesh.aabbMin, 0.0f);
 		frustumCullingObject.aabbMax = NtshEngn::Math::vec4(mesh.aabbMax, 0.0f);
+
+		float a;
+		float b;
+
+		for (uint32_t i = 0; i < 3; i++) {
+			for (uint32_t j = 0; j < 3; j++) {
+				a = rotation[j][i] * frustumCullingObject.aabbMin[j] * abs(entityTransform.scale[i]);
+				b = rotation[j][i] * frustumCullingObject.aabbMax[j] * abs(entityTransform.scale[i]);
+
+				frustumCullingObject.aabbMin[i] += (a < b) ? a : b;
+				frustumCullingObject.aabbMax[i] += (a < b) ? b : a;
+			}
+		}
+
+		frustumCullingObject.aabbMin += NtshEngn::Math::vec4(entityTransform.position, 0.0f);
+		frustumCullingObject.aabbMax += NtshEngn::Math::vec4(entityTransform.position, 0.0f);
+
 		frustumCullingObjects.push_back(frustumCullingObject);
 	}
 
@@ -360,9 +376,6 @@ void FrustumCulling::createComputePipeline() {
 		};
 
 		struct ObjectInfo {
-			vec3 position;
-			mat4 rotation;
-			vec3 scale;
 			vec3 aabbMin;
 			vec3 aabbMax;
 		};
@@ -446,25 +459,6 @@ void FrustumCulling::createComputePipeline() {
 
 			vec3 aabbMin = objects.info[objectIndex].aabbMin;
 			vec3 aabbMax = objects.info[objectIndex].aabbMax;
-
-			vec3 newAABBMin = objects.info[objectIndex].position;
-			vec3 newAABBMax = objects.info[objectIndex].position;
-
-			float a;
-			float b;
-
-			for (uint i = 0; i < 3; i++) {
-				for (uint j = 0; j < 3; j++) {
-					a = objects.info[objectIndex].rotation[j][i] * aabbMin[j] * abs(objects.info[objectIndex].scale[j]);
-					b = objects.info[objectIndex].rotation[j][i] * aabbMax[j] * abs(objects.info[objectIndex].scale[j]);
-
-					newAABBMin[i] += (a < b) ? a : b;
-					newAABBMax[i] += (a < b) ? b : a;
-				}
-			}
-
-			aabbMin = newAABBMin;
-			aabbMax = newAABBMax;
 
 			if (intersect(frustumCullingInfo, aabbMin, aabbMax)) {
 				uint drawIndex = atomicAdd(DrawIndirectBuffer(frustumCullingInfo.address).drawCount, 1);

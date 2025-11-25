@@ -10,9 +10,6 @@ struct InternalFrustumCullingInfo {
 };
 
 struct FrustumCullingObject {
-	NtshEngn::Math::vec4 position;
-	NtshEngn::Math::mat4 rotation;
-	NtshEngn::Math::vec4 scale;
 	NtshEngn::Math::vec4 aabbMin;
 	NtshEngn::Math::vec4 aabbMax;
 };
