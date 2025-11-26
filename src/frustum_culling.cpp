@@ -93,6 +93,9 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 		frustumCullingObject.aabbMin = NtshEngn::Math::vec4(mesh.aabbMin, 0.0f);
 		frustumCullingObject.aabbMax = NtshEngn::Math::vec4(mesh.aabbMax, 0.0f);
 
+		NtshEngn::Math::vec3 newAABBMin = entityTransform.position;
+		NtshEngn::Math::vec3 newAABBMax = entityTransform.position;
+
 		float a;
 		float b;
 
@@ -101,13 +104,13 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 				a = rotation[j][i] * frustumCullingObject.aabbMin[j] * abs(entityTransform.scale[i]);
 				b = rotation[j][i] * frustumCullingObject.aabbMax[j] * abs(entityTransform.scale[i]);
 
-				frustumCullingObject.aabbMin[i] += (a < b) ? a : b;
-				frustumCullingObject.aabbMax[i] += (a < b) ? b : a;
+				newAABBMin[i] += (a < b) ? a : b;
+				newAABBMax[i] += (a < b) ? b : a;
 			}
 		}
 
-		frustumCullingObject.aabbMin += NtshEngn::Math::vec4(entityTransform.position, 0.0f);
-		frustumCullingObject.aabbMax += NtshEngn::Math::vec4(entityTransform.position, 0.0f);
+		frustumCullingObject.aabbMin = NtshEngn::Math::vec4(newAABBMin, 0.0f);
+		frustumCullingObject.aabbMax = NtshEngn::Math::vec4(newAABBMax, 0.0f);
 
 		frustumCullingObjects.push_back(frustumCullingObject);
 	}
