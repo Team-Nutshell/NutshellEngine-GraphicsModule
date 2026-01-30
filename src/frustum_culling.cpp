@@ -101,8 +101,8 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 
 		for (uint32_t i = 0; i < 3; i++) {
 			for (uint32_t j = 0; j < 3; j++) {
-				a = rotation[j][i] * frustumCullingObject.aabbMin[j] * abs(entityTransform.scale[i]);
-				b = rotation[j][i] * frustumCullingObject.aabbMax[j] * abs(entityTransform.scale[i]);
+				a = rotation[j][i] * frustumCullingObject.aabbMin[j] * abs(entityTransform.scale[j]);
+				b = rotation[j][i] * frustumCullingObject.aabbMax[j] * abs(entityTransform.scale[j]);
 
 				newAABBMin[i] += (a < b) ? a : b;
 				newAABBMax[i] += (a < b) ? b : a;
