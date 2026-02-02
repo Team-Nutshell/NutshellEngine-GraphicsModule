@@ -291,13 +291,8 @@ void ToneMapping::createGraphicsPipeline(VkFormat drawImageFormat) {
 
 		layout(location = 0) out vec4 outColor;
 
-		vec3 sRGBToLinear(vec3 rgb) {
-			return mix(pow((rgb + 0.055) * (1.0 / 1.055), vec3(2.4)), rgb * (1.0 / 12.92), lessThanEqual(rgb, vec3(0.04045)));
-		}
-
 		void main() {
-			vec4 color = texture(imageSampler, uv);
-			outColor = vec4(sRGBToLinear(color.rgb), color.a);
+			outColor = texture(imageSampler, uv);
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
