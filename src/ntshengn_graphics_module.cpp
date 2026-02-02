@@ -3666,8 +3666,8 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 				vec3 worldNormalY = vec3(tangentNormalY.xy + normal.xz, abs(tangentNormalY.z) * normal.y).xzy;
 				vec3 worldNormalZ = vec3(tangentNormalZ.xy + normal.xy, abs(tangentNormalZ.z) * normal.z).xyz;
 
-				n = normalize((worldNormalX * triplanarWeights.x) + 
-					(worldNormalY * triplanarWeights.y) + 
+				n = normalize((worldNormalX * triplanarWeights.x) +
+					(worldNormalY * triplanarWeights.y) +
 					(worldNormalZ * triplanarWeights.z));
 
 				metalnessSample = (texture(textures[nonuniformEXT(material.metalnessTextureIndex)], triplanarUV.x).b * triplanarWeights.x) +
