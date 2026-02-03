@@ -777,8 +777,8 @@ void NtshEngn::GraphicsModule::update(float dt) {
 
 				vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_uiImageGraphicsPipeline);
 				vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_uiImageGraphicsPipelineLayout, 0, 1, &m_uiImageDescriptorSets[m_currentFrameInFlight], 0, nullptr);
-				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiImageGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4 * sizeof(Math::vec2), &uiImage.v0);
-				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiImageGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 4 * sizeof(Math::vec2), sizeof(Math::vec4) + sizeof(uint32_t), &uiImage.color);
+				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiImageGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, 5 * sizeof(Math::vec2), &uiImage.v0);
+				vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_uiImageGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 5 * sizeof(Math::vec2) + sizeof(Math::vec2), sizeof(Math::vec4) + sizeof(uint32_t), &uiImage.color);
 
 				vkCmdDraw(m_renderingCommandBuffers[m_currentFrameInFlight], 6, 1, 0, 0);
 
@@ -1638,7 +1638,7 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 	if (font.type == NtshEngn::FontType::SDF) { // SDF
 		fontType = 1;
 	}
-	m_fonts.push_back({ fontType, textureImage, textureImageAllocation, textureImageView, font.imageSamplerFilter, font.glyphs });
+	m_fonts.push_back({ fontType, textureImage, textureImageAllocation, textureImageView, font.imageSamplerFilter, font.height, font.glyphs });
 
 	// Mark descriptor sets for update
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
@@ -1691,29 +1691,107 @@ void NtshEngn::GraphicsModule::destroyParticles() {
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
-void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& text, const Math::vec2& position, const Math::vec2& scale, const Math::vec4& color) {
+void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& text, AnchorPoint anchorPoint, CoordinateType coordinateType, const Math::vec2& position, const Math::vec2& scale, const Math::vec4& color) {
 	NTSHENGN_ASSERT(fontID < m_fonts.size(), "FontID " + std::to_string(fontID) + " is superior than the number of loaded fonts (" + std::to_string(m_fonts.size()) + ").");
 
+	InternalFont& font = m_fonts[fontID];
+
+	Math::vec2 finalPosition;
+	if (coordinateType == CoordinateType::Pixel) {
+		finalPosition = position;
+	}
+	else {
+		finalPosition = Math::vec2(position.x * m_viewport.width, position.y * m_viewport.height);
+	}
+
+	Math::vec2 min = Math::vec2(std::numeric_limits<float>::max());
+	Math::vec2 max = Math::vec2(std::numeric_limits<float>::lowest());
+	const Math::mat3 scaleTransform = Math::scale(scale);
 	float positionAdvance = 0.0f;
+	float positionHeight = 0.0f;
 	std::vector<Math::vec2> positionsAndUVs;
 	for (const wchar_t& c : text) {
-		const Math::vec2 topLeft = position + m_fonts[fontID].glyphs[c].positionTopLeft + Math::vec2(positionAdvance, 0.0f);
-		const Math::vec2 bottomRight = position + m_fonts[fontID].glyphs[c].positionBottomRight + Math::vec2(positionAdvance, 0.0f);
-		positionsAndUVs.push_back(Math::vec2((topLeft.x / m_viewport.width) * scale.x * 2.0f - 1.0f, (topLeft.y / m_viewport.height) * scale.y * 2.0f - 1.0f));
-		positionsAndUVs.push_back(Math::vec2((bottomRight.x / m_viewport.width) * scale.x * 2.0f - 1.0f, (bottomRight.y / m_viewport.height) * scale.y * 2.0f - 1.0f));
-		positionsAndUVs.push_back(m_fonts[fontID].glyphs[c].uvTopLeft);
-		positionsAndUVs.push_back(m_fonts[fontID].glyphs[c].uvBottomRight);
+		if (c == '\n') {
+			positionAdvance = 0.0f;
+			positionHeight += font.height;
 
-		positionAdvance += m_fonts[fontID].glyphs[c].positionAdvance;
+			continue;
+		}
+
+		const FontGlyph& glyph = font.glyphs[c];
+		const Math::vec2 topLeft = Math::vec2(scaleTransform * Math::vec3(glyph.positionTopLeft + Math::vec2(positionAdvance, positionHeight), 1.0f));
+		const Math::vec2 bottomRight = Math::vec2(scaleTransform * Math::vec3(glyph.positionBottomRight + Math::vec2(positionAdvance, positionHeight), 1.0f));
+		positionsAndUVs.push_back(topLeft);
+		positionsAndUVs.push_back(bottomRight);
+		positionsAndUVs.push_back(glyph.uvTopLeft);
+		positionsAndUVs.push_back(glyph.uvBottomRight);
+
+		min.x = std::min(min.x, std::min(topLeft.x, bottomRight.x));
+		min.y = std::min(min.y, std::min(topLeft.y, bottomRight.y));
+		max.x = std::max(max.x, std::max(topLeft.x, bottomRight.x));
+		max.y = std::max(max.y, std::max(topLeft.y, bottomRight.y));
+
+		positionAdvance += glyph.positionAdvance;
+	}
+
+	const Math::vec2 middle = (min + max) / 2.0f;
+	Math::vec2 positionOffset;
+	if (anchorPoint == AnchorPoint::TopLeft) {
+		positionOffset.x = 0.0f;
+		positionOffset.y = -middle.y * 2.0f;
+	}
+	else if (anchorPoint == AnchorPoint::TopRight) {
+		positionOffset.x = -middle.x * 2.0f;
+		positionOffset.y = -middle.y * 2.0f;
+	}
+	else if (anchorPoint == AnchorPoint::BottomLeft) {
+		positionOffset.x = 0.0f;
+		positionOffset.y = 0.0f;
+	}
+	else if (anchorPoint == AnchorPoint::BottomRight) {
+		positionOffset.x = -middle.x * 2.0f;
+		positionOffset.y = 0.0f;
+	}
+	else if (anchorPoint == AnchorPoint::TopCenter) {
+		positionOffset.x = -middle.x;
+		positionOffset.y = -middle.y * 2.0f;
+	}
+	else if (anchorPoint == AnchorPoint::BottomCenter) {
+		positionOffset.x = -middle.x;
+		positionOffset.y = 0.0f;
+	}
+	else if (anchorPoint == AnchorPoint::LeftCenter) {
+		positionOffset.x = 0.0f;
+		positionOffset.y = -middle.y;
+	}
+	else if (anchorPoint == AnchorPoint::RightCenter) {
+		positionOffset.x = -middle.x * 2.0f;
+		positionOffset.y = -middle.y;
+	}
+	else {
+		positionOffset.x = -middle.x;
+		positionOffset.y = -middle.y;
+	}
+
+	Math::mat3 transform = Math::translate(positionOffset) * Math::translate(finalPosition);
+	for (size_t i = 0; i < positionsAndUVs.size(); i += 4) {
+		Math::vec2 topLeft = Math::vec2(transform * Math::vec3(positionsAndUVs[i + 0], 1.0f));
+		topLeft.x = (topLeft.x / m_viewport.width) * 2.0f - 1.0f;
+		topLeft.y = (topLeft.y / m_viewport.height) * 2.0f - 1.0f;
+		Math::vec2 bottomRight = Math::vec2(transform * Math::vec3(positionsAndUVs[i + 1], 1.0f));
+		bottomRight.x = (bottomRight.x / m_viewport.width) * 2.0f - 1.0f;
+		bottomRight.y = (bottomRight.y / m_viewport.height) * 2.0f - 1.0f;
+		positionsAndUVs[i + 0] = topLeft;
+		positionsAndUVs[i + 1] = bottomRight;
 	}
 
 	size_t offset = m_uiTextBufferOffset * sizeof(Math::vec2) * 4;
 	memcpy(reinterpret_cast<uint8_t*>(m_uiTextBuffers[m_currentFrameInFlight].address) + offset, positionsAndUVs.data(), sizeof(Math::vec2) * 4 * text.size());
 
 	InternalUIText uiText;
-	uiText.fontID = fontID;
-	uiText.fontType = m_fonts[fontID].type;
 	uiText.color = color;
+	uiText.fontID = fontID;
+	uiText.fontType = font.type;
 	uiText.charactersCount = static_cast<uint32_t>(text.size());
 	uiText.bufferOffset = m_uiTextBufferOffset;
 	m_uiTexts.push(uiText);
@@ -1723,19 +1801,41 @@ void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& tex
 	m_uiElements.push(UIElement::Text);
 }
 
-void NtshEngn::GraphicsModule::drawUILine(const Math::vec2& start, const Math::vec2& end, const Math::vec4& color) {
+void NtshEngn::GraphicsModule::drawUILine(CoordinateType coordinateType, const Math::vec2& start, const Math::vec2& end, const Math::vec4& color) {
+	Math::vec2 finalStart;
+	Math::vec2 finalEnd;
+	if (coordinateType == CoordinateType::Pixel) {
+		finalStart = start;
+		finalEnd = end;
+	}
+	else {
+		finalStart = Math::vec2(start.x * m_viewport.width, start.y * m_viewport.height);
+		finalEnd = Math::vec2(end.x * m_viewport.width, end.y * m_viewport.height);;
+	}
+
 	InternalUILine uiLine;
-	uiLine.positions = Math::vec4((start.x / m_viewport.width) * 2.0f - 1.0f, (start.y / m_viewport.height) * 2.0f - 1.0f, (end.x / m_viewport.width) * 2.0f - 1.0f, (end.y / m_viewport.height) * 2.0f - 1.0f);
+	uiLine.positions = Math::vec4((finalStart.x / m_viewport.width) * 2.0f - 1.0f, (finalStart.y / m_viewport.height) * 2.0f - 1.0f, (finalEnd.x / m_viewport.width) * 2.0f - 1.0f, (finalEnd.y / m_viewport.height) * 2.0f - 1.0f);
 	uiLine.color = color;
 	m_uiLines.push(uiLine);
 
 	m_uiElements.push(UIElement::Line);
 }
 
-void NtshEngn::GraphicsModule::drawUIRectangle(const Math::vec2& position, const Math::vec2& size, const Math::vec4& color) {
+void NtshEngn::GraphicsModule::drawUIRectangle(CoordinateType coordinateType, const Math::vec2& position, const Math::vec2& size, const Math::vec4& color) {
+	Math::vec2 finalPosition;
+	Math::vec2 finalSize;
+	if (coordinateType == CoordinateType::Pixel) {
+		finalPosition = position;
+		finalSize = size;
+	}
+	else {
+		finalPosition = Math::vec2(position.x * m_viewport.width, position.y * m_viewport.height);
+		finalSize = Math::vec2(size.x * m_viewport.width, size.y * m_viewport.height);
+	}
+
 	InternalUIRectangle uiRectangle;
-	const Math::vec2 topLeft = Math::vec2((position.x / m_viewport.width) * 2.0f - 1.0f, (position.y / m_viewport.height) * 2.0f - 1.0f);
-	const Math::vec2 bottomRight = Math::vec2(((position.x + size.x) / m_viewport.width) * 2.0f - 1.0f, ((position.y + size.y) / m_viewport.height) * 2.0f - 1.0f);
+	const Math::vec2 topLeft = Math::vec2((finalPosition.x / m_viewport.width) * 2.0f - 1.0f, (finalPosition.y / m_viewport.height) * 2.0f - 1.0f);
+	const Math::vec2 bottomRight = Math::vec2(((finalPosition.x + finalSize.x) / m_viewport.width) * 2.0f - 1.0f, ((finalPosition.y + finalSize.y) / m_viewport.height) * 2.0f - 1.0f);
 	uiRectangle.positions = Math::vec4(topLeft, bottomRight);
 	uiRectangle.color = color;
 	m_uiRectangles.push(uiRectangle);
@@ -1743,12 +1843,57 @@ void NtshEngn::GraphicsModule::drawUIRectangle(const Math::vec2& position, const
 	m_uiElements.push(UIElement::Rectangle);
 }
 
-void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter imageSamplerFilter, const Math::vec2& position, float rotation, const Math::vec2& scale, const Math::vec4& color) {
+void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter imageSamplerFilter, AnchorPoint anchorPoint, CoordinateType coordinateType, const Math::vec2& position, float rotation, const Math::vec2& scale, const Math::vec4& color) {
 	NTSHENGN_ASSERT(imageID < m_textureImages.size(), "ImageID " + std::to_string(imageID) + " is superior than the number of loaded images (" + std::to_string(m_textureImages.size()) + ").");
 
-	const Math::mat3 transform = Math::translate(position) * Math::rotate(rotation) * Math::scale(scale);
-	const float x = (m_textureSizes[imageID].x) / 2.0f;
-	const float y = (m_textureSizes[imageID].y) / 2.0f;
+	Math::vec2 finalPosition;
+	if (coordinateType == CoordinateType::Pixel) {
+		finalPosition = position;
+	}
+	else {
+		finalPosition = Math::vec2(position.x * m_viewport.width, position.y * m_viewport.height);
+	}
+
+	const Math::vec2 halfTextureSizes = m_textureSizes[imageID] / 2.0;
+	Math::vec2 offset;
+	if (anchorPoint == AnchorPoint::TopLeft) {
+		offset.x = halfTextureSizes.x;
+		offset.y = halfTextureSizes.y;
+	}
+	else if (anchorPoint == AnchorPoint::TopRight) {
+		offset.x = -halfTextureSizes.x;
+		offset.y = halfTextureSizes.y;
+	}
+	else if (anchorPoint == AnchorPoint::BottomLeft) {
+		offset.x = halfTextureSizes.x;
+		offset.y = -halfTextureSizes.y;
+	}
+	else if (anchorPoint == AnchorPoint::BottomRight) {
+		offset.x = -halfTextureSizes.x;
+		offset.y = -halfTextureSizes.y;
+	}
+	else if (anchorPoint == AnchorPoint::TopCenter) {
+		offset.x = 0.0f;
+		offset.y = halfTextureSizes.y;
+	}
+	else if (anchorPoint == AnchorPoint::BottomCenter) {
+		offset.x = 0.0f;
+		offset.y = -halfTextureSizes.y;
+	}
+	else if (anchorPoint == AnchorPoint::LeftCenter) {
+		offset.x = halfTextureSizes.x;
+		offset.y = 0.0f;
+	}
+	else if (anchorPoint == AnchorPoint::RightCenter) {
+		offset.x = -halfTextureSizes.x;
+		offset.y = 0.0f;
+	}
+	else {
+		offset.x = 0.0f;
+		offset.y = 0.0f;
+	}
+
+	const Math::mat3 transform = Math::translate(finalPosition) * Math::rotate(rotation) * Math::scale(Math::vec2(std::abs(scale.x), std::abs(scale.y))) * Math::translate(offset);
 
 	InternalUIImage uiImage;
 	bool foundUITexture = false;
@@ -1771,6 +1916,8 @@ void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter i
 		}
 	}
 
+	const float x = (m_textureSizes[imageID].x) / 2.0f;
+	const float y = (m_textureSizes[imageID].y) / 2.0f;
 	const Math::vec2 v0 = Math::vec2(transform * Math::vec3(x, -y, 1.0f));
 	const Math::vec2 v1 = Math::vec2(transform * Math::vec3(-x, -y, 1.0f));
 	const Math::vec2 v2 = Math::vec2(transform * Math::vec3(-x, y, 1.0f));
@@ -1780,6 +1927,8 @@ void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter i
 	uiImage.v1 = Math::vec2((v1.x / m_viewport.width) * 2.0f - 1.0f, (v1.y / m_viewport.height) * 2.0f - 1.0f);
 	uiImage.v2 = Math::vec2((v2.x / m_viewport.width) * 2.0f - 1.0f, (v2.y / m_viewport.height) * 2.0f - 1.0f);
 	uiImage.v3 = Math::vec2((v3.x / m_viewport.width) * 2.0f - 1.0f, (v3.y / m_viewport.height) * 2.0f - 1.0f);
+	uiImage.reverseUV.x = (scale.x >= 0.0f) ? 0.0f : 1.0f;
+	uiImage.reverseUV.y = (scale.y >= 0.0f) ? 0.0f : 1.0f;
 	uiImage.color = color;
 	m_uiImages.push(uiImage);
 
@@ -3590,6 +3739,7 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 			vec2 v1;
 			vec2 v2;
 			vec2 v3;
+			vec2 reverseUV;
 		} uTPI;
 
 		layout(location = 0) out vec2 outUv;
@@ -3597,19 +3747,19 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 		void main() {
 			if ((gl_VertexIndex == 0) || (gl_VertexIndex == 3)) {
 				gl_Position = vec4(uTPI.v0, 0.0, 1.0);
-				outUv = vec2(1.0, 0.0);
+				outUv = vec2(1.0 - uTPI.reverseUV.x, 0.0 + uTPI.reverseUV.y);
 			}
 			else if (gl_VertexIndex == 1) {
 				gl_Position = vec4(uTPI.v1, 0.0, 1.0);
-				outUv = vec2(0.0, 0.0);
+				outUv = vec2(0.0 + uTPI.reverseUV.x, 0.0 + uTPI.reverseUV.y);
 			}
 			else if ((gl_VertexIndex == 2) || (gl_VertexIndex == 4)) {
 				gl_Position = vec4(uTPI.v2, 0.0, 1.0);
-				outUv = vec2(0.0, 1.0);
+				outUv = vec2(0.0 + uTPI.reverseUV.x, 1.0 - uTPI.reverseUV.y);
 			}
 			else if (gl_VertexIndex == 5) {
 				gl_Position = vec4(uTPI.v3, 0.0, 1.0);
-				outUv = vec2(1.0, 1.0);
+				outUv = vec2(1.0 - uTPI.reverseUV.x, 1.0 - uTPI.reverseUV.y);
 			}
 		}
 	)GLSL";
@@ -3638,7 +3788,7 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 		#extension GL_EXT_nonuniform_qualifier : enable
 
 		layout(push_constant) uniform UITextureInfo {
-			layout(offset = 32) vec4 color;
+			layout(offset = 48) vec4 color;
 			uint uiTextureIndex;
 		} uTI;
 
@@ -3769,11 +3919,11 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 	VkPushConstantRange vertexPushConstantRange = {};
 	vertexPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	vertexPushConstantRange.offset = 0;
-	vertexPushConstantRange.size = 4 * sizeof(Math::vec2);
+	vertexPushConstantRange.size = 5 * sizeof(Math::vec2);
 
 	VkPushConstantRange fragmentPushConstantRange = {};
 	fragmentPushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragmentPushConstantRange.offset = 4 * sizeof(Math::vec2);
+	fragmentPushConstantRange.offset = 5 * sizeof(Math::vec2) + sizeof(Math::vec2);
 	fragmentPushConstantRange.size = sizeof(Math::vec4) + sizeof(uint32_t);
 
 	std::array<VkPushConstantRange, 2> pushConstantRanges = { vertexPushConstantRange, fragmentPushConstantRange };
