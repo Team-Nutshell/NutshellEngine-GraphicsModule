@@ -97,6 +97,8 @@ struct InternalFont {
 
 	NtshEngn::ImageSamplerFilter filter;
 
+	float height;
+
 	std::unordered_map<wchar_t, NtshEngn::FontGlyph> glyphs;
 };
 
