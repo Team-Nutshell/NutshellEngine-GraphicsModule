@@ -875,32 +875,38 @@ void NtshEngn::GraphicsModule::destroyParticles() {
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
-void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& text, const Math::vec2& position, const Math::vec2& scale, const Math::vec4& color) {
+void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& text, AnchorPoint anchorPoint, CoordinateType coordinateType, const Math::vec2& position, const Math::vec2& scale, const Math::vec4& color) {
 	NTSHENGN_UNUSED(fontID);
 	NTSHENGN_UNUSED(text);
+	NTSHENGN_UNUSED(anchorPoint);
+	NTSHENGN_UNUSED(coordinateType);
 	NTSHENGN_UNUSED(position);
 	NTSHENGN_UNUSED(scale);
 	NTSHENGN_UNUSED(color);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
-void NtshEngn::GraphicsModule::drawUILine(const Math::vec2& start, const Math::vec2& end, const Math::vec4& color) {
+void NtshEngn::GraphicsModule::drawUILine(CoordinateType coordinateType, const Math::vec2& start, const Math::vec2& end, const Math::vec4& color) {
+	NTSHENGN_UNUSED(coordinateType);
 	NTSHENGN_UNUSED(start);
 	NTSHENGN_UNUSED(end);
 	NTSHENGN_UNUSED(color);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
-void NtshEngn::GraphicsModule::drawUIRectangle(const Math::vec2& position, const Math::vec2& size, const Math::vec4& color) {
+void NtshEngn::GraphicsModule::drawUIRectangle(CoordinateType coordinateType, const Math::vec2& position, const Math::vec2& size, const Math::vec4& color) {
+	NTSHENGN_UNUSED(coordinateType);
 	NTSHENGN_UNUSED(position);
 	NTSHENGN_UNUSED(size);
 	NTSHENGN_UNUSED(color);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
-void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter imageSamplerFilter, const Math::vec2& position, float rotation, const Math::vec2& scale, const Math::vec4& color) {
+void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter imageSamplerFilter, AnchorPoint anchorPoint, CoordinateType coordinateType, const Math::vec2& position, float rotation, const Math::vec2& scale, const Math::vec4& color) {
 	NTSHENGN_UNUSED(imageID);
 	NTSHENGN_UNUSED(imageSamplerFilter);
+	NTSHENGN_UNUSED(anchorPoint);
+	NTSHENGN_UNUSED(coordinateType);
 	NTSHENGN_UNUSED(position);
 	NTSHENGN_UNUSED(rotation);
 	NTSHENGN_UNUSED(scale);
