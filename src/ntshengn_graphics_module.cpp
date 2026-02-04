@@ -2633,7 +2633,6 @@ void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& tex
 		positionOffset.y = -middle.y;
 	}
 
-
 	Math::mat3 transform = Math::translate(finalPosition) * Math::rotate(rotation) * Math::scale(scale) * Math::translate(positionOffset);
 	std::vector<Math::vec4> vertices(positionsAndUVs.size());
 	for (size_t i = 0; i < positionsAndUVs.size(); i += 4) {
