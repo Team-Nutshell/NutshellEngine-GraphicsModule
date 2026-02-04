@@ -396,6 +396,7 @@ void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& tex
 	NTSHENGN_UNUSED(anchorPoint);
 	NTSHENGN_UNUSED(coordinateType);
 	NTSHENGN_UNUSED(position);
+	NTSHENGN_UNUSED(rotation);
 	NTSHENGN_UNUSED(scale);
 	NTSHENGN_UNUSED(color);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
