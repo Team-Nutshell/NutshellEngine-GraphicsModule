@@ -875,7 +875,7 @@ void NtshEngn::GraphicsModule::destroyParticles() {
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
-void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& text, AnchorPoint anchorPoint, CoordinateType coordinateType, const Math::vec2& position, const Math::vec2& scale, const Math::vec4& color) {
+void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& text, AnchorPoint anchorPoint, CoordinateType coordinateType, const Math::vec2& position, float rotation, const Math::vec2& scale, const Math::vec4& color) {
 	NTSHENGN_UNUSED(fontID);
 	NTSHENGN_UNUSED(text);
 	NTSHENGN_UNUSED(anchorPoint);
