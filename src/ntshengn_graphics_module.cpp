@@ -2280,7 +2280,7 @@ void NtshEngn::GraphicsModule::destroyParticles() {
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
-void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& text, AnchorPoint anchorPoint, CoordinateType coordinateType, const Math::vec2& position, const Math::vec2& scale, const Math::vec4& color) {
+void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& text, AnchorPoint anchorPoint, CoordinateType coordinateType, const Math::vec2& position, float rotation, const Math::vec2& scale, const Math::vec4& color) {
 	NTSHENGN_ASSERT(fontID < m_fonts.size(), "FontID " + std::to_string(fontID) + " is superior than the number of loaded fonts (" + std::to_string(m_fonts.size()) + ").");
 
 	InternalFont& font = m_fonts[fontID];
@@ -2295,7 +2295,6 @@ void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& tex
 
 	Math::vec2 min = Math::vec2(std::numeric_limits<float>::max());
 	Math::vec2 max = Math::vec2(std::numeric_limits<float>::lowest());
-	const Math::mat3 scaleTransform = Math::scale(scale);
 	float positionAdvance = 0.0f;
 	float positionHeight = 0.0f;
 	std::vector<Math::vec2> positionsAndUVs;
@@ -2307,20 +2306,22 @@ void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& tex
 			continue;
 		}
 
-		const FontGlyph& glyph = font.glyphs[c];
-		const Math::vec2 topLeft = Math::vec2(scaleTransform * Math::vec3(glyph.positionTopLeft + Math::vec2(positionAdvance, positionHeight), 1.0f));
-		const Math::vec2 bottomRight = Math::vec2(scaleTransform * Math::vec3(glyph.positionBottomRight + Math::vec2(positionAdvance, positionHeight), 1.0f));
-		positionsAndUVs.push_back(topLeft);
-		positionsAndUVs.push_back(bottomRight);
-		positionsAndUVs.push_back(glyph.uvTopLeft);
-		positionsAndUVs.push_back(glyph.uvBottomRight);
+		if (font.glyphs.find(c) != font.glyphs.end()) {
+			const FontGlyph& glyph = font.glyphs[c];
+			const Math::vec2 topLeft = glyph.positionTopLeft + Math::vec2(positionAdvance, positionHeight);
+			const Math::vec2 bottomRight = glyph.positionBottomRight + Math::vec2(positionAdvance, positionHeight);
+			positionsAndUVs.push_back(topLeft);
+			positionsAndUVs.push_back(glyph.uvTopLeft);
+			positionsAndUVs.push_back(bottomRight);
+			positionsAndUVs.push_back(glyph.uvBottomRight);
 
-		min.x = std::min(min.x, std::min(topLeft.x, bottomRight.x));
-		min.y = std::min(min.y, std::min(topLeft.y, bottomRight.y));
-		max.x = std::max(max.x, std::max(topLeft.x, bottomRight.x));
-		max.y = std::max(max.y, std::max(topLeft.y, bottomRight.y));
+			min.x = std::min(min.x, std::min(topLeft.x, bottomRight.x));
+			min.y = std::min(min.y, std::min(topLeft.y, bottomRight.y));
+			max.x = std::max(max.x, std::max(topLeft.x, bottomRight.x));
+			max.y = std::max(max.y, std::max(topLeft.y, bottomRight.y));
 
-		positionAdvance += glyph.positionAdvance;
+			positionAdvance += glyph.positionAdvance;
+		}
 	}
 
 	const Math::vec2 middle = (min + max) / 2.0f;
@@ -2362,26 +2363,35 @@ void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& tex
 		positionOffset.y = -middle.y;
 	}
 
-	Math::mat3 transform = Math::translate(positionOffset) * Math::translate(finalPosition);
+	Math::mat3 transform = Math::translate(finalPosition) * Math::rotate(rotation) * Math::scale(scale) * Math::translate(positionOffset);
+	std::vector<Math::vec4> vertices(positionsAndUVs.size());
 	for (size_t i = 0; i < positionsAndUVs.size(); i += 4) {
-		Math::vec2 topLeft = Math::vec2(transform * Math::vec3(positionsAndUVs[i + 0], 1.0f));
-		topLeft.x = (topLeft.x / m_viewport.width) * 2.0f - 1.0f;
-		topLeft.y = (topLeft.y / m_viewport.height) * 2.0f - 1.0f;
-		Math::vec2 bottomRight = Math::vec2(transform * Math::vec3(positionsAndUVs[i + 1], 1.0f));
-		bottomRight.x = (bottomRight.x / m_viewport.width) * 2.0f - 1.0f;
-		bottomRight.y = (bottomRight.y / m_viewport.height) * 2.0f - 1.0f;
-		positionsAndUVs[i + 0] = topLeft;
-		positionsAndUVs[i + 1] = bottomRight;
+		const Math::vec2& topLeftPosition = positionsAndUVs[i + 0];
+		const Math::vec2& topLeftUV = positionsAndUVs[i + 1];
+		const Math::vec2& bottomRightPosition = positionsAndUVs[i + 2];
+		const Math::vec2& bottomRightUV = positionsAndUVs[i + 3];
+		vertices[i + 0] = Math::vec4(Math::vec2(transform * Math::vec3(bottomRightPosition.x, topLeftPosition.y, 1.0f)), Math::vec2(bottomRightUV.x, topLeftUV.y));
+		vertices[i + 0].x = (vertices[i + 0].x / m_viewport.width) * 2.0f - 1.0f;
+		vertices[i + 0].y = (vertices[i + 0].y / m_viewport.height) * 2.0f - 1.0f;
+		vertices[i + 1] = Math::vec4(Math::vec2(transform * Math::vec3(topLeftPosition.x, topLeftPosition.y, 1.0f)), Math::vec2(topLeftUV.x, topLeftUV.y));
+		vertices[i + 1].x = (vertices[i + 1].x / m_viewport.width) * 2.0f - 1.0f;
+		vertices[i + 1].y = (vertices[i + 1].y / m_viewport.height) * 2.0f - 1.0f;
+		vertices[i + 2] = Math::vec4(Math::vec2(transform * Math::vec3(topLeftPosition.x, bottomRightPosition.y, 1.0f)), Math::vec2(topLeftUV.x, bottomRightUV.y));
+		vertices[i + 2].x = (vertices[i + 2].x / m_viewport.width) * 2.0f - 1.0f;
+		vertices[i + 2].y = (vertices[i + 2].y / m_viewport.height) * 2.0f - 1.0f;
+		vertices[i + 3] = Math::vec4(Math::vec2(transform * Math::vec3(bottomRightPosition.x, bottomRightPosition.y, 1.0f)), Math::vec2(bottomRightUV.x, bottomRightUV.y));
+		vertices[i + 3].x = (vertices[i + 3].x / m_viewport.width) * 2.0f - 1.0f;
+		vertices[i + 3].y = (vertices[i + 3].y / m_viewport.height) * 2.0f - 1.0f;
 	}
 
-	size_t offset = m_uiTextBufferOffset * sizeof(Math::vec2) * 4;
-	memcpy(reinterpret_cast<uint8_t*>(m_uiTextBuffers[m_currentFrameInFlight].address) + offset, positionsAndUVs.data(), sizeof(Math::vec2) * 4 * text.size());
+	size_t offset = m_uiTextBufferOffset * sizeof(Math::vec4) * 4;
+	memcpy(reinterpret_cast<uint8_t*>(m_uiTextBuffers[m_currentFrameInFlight].address) + offset, vertices.data(), sizeof(Math::vec4) * vertices.size());
 
 	InternalUIText uiText;
 	uiText.color = color;
 	uiText.fontID = fontID;
 	uiText.fontType = font.type;
-	uiText.charactersCount = static_cast<uint32_t>(text.size());
+	uiText.charactersCount = static_cast<uint32_t>(vertices.size() / 4);
 	uiText.bufferOffset = m_uiTextBufferOffset;
 	m_uiTexts.push(uiText);
 
@@ -4582,7 +4592,7 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 	uiTextBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	uiTextBufferCreateInfo.pNext = nullptr;
 	uiTextBufferCreateInfo.flags = 0;
-	uiTextBufferCreateInfo.size = 32768;
+	uiTextBufferCreateInfo.size = 65536;
 	uiTextBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	uiTextBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	uiTextBufferCreateInfo.queueFamilyIndexCount = 1;
@@ -4646,10 +4656,10 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 		#version 460
 
 		struct CharacterInfo {
-			vec2 positionTopLeft;
-			vec2 positionBottomRight;
-			vec2 uvTopLeft;
-			vec2 uvBottomRight;
+			vec4 v0;
+			vec4 v1;
+			vec4 v2;
+			vec4 v3;
 		};
 
 		layout(std430, set = 0, binding = 0) restrict readonly buffer Text {
@@ -4666,20 +4676,20 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 			const uint charIndex = tBI.bufferOffset + uint(floor(gl_VertexIndex / 6));
 			const uint vertexID = uint(mod(float(gl_VertexIndex), 6.0));
 			if ((vertexID == 0) || (vertexID == 3)) {
-				gl_Position = vec4(text.char[charIndex].positionBottomRight.x, text.char[charIndex].positionTopLeft.y, 0.0, 1.0);
-				outUv = vec2(text.char[charIndex].uvBottomRight.x, text.char[charIndex].uvTopLeft.y);
+				gl_Position = vec4(text.char[charIndex].v0.xy, 0.0, 1.0);
+				outUv = text.char[charIndex].v0.zw;
 			}
 			else if (vertexID == 1) {
-				gl_Position = vec4(text.char[charIndex].positionTopLeft, 0.0, 1.0);
-				outUv = text.char[charIndex].uvTopLeft;
+				gl_Position = vec4(text.char[charIndex].v1.xy, 0.0, 1.0);
+				outUv = text.char[charIndex].v1.zw;
 			}
 			else if ((vertexID == 2) || (vertexID == 4)) {
-				gl_Position = vec4(text.char[charIndex].positionTopLeft.x, text.char[charIndex].positionBottomRight.y, 0.0, 1.0);
-				outUv = vec2(text.char[charIndex].uvTopLeft.x, text.char[charIndex].uvBottomRight.y);
+				gl_Position = vec4(text.char[charIndex].v2.xy, 0.0, 1.0);
+				outUv = text.char[charIndex].v2.zw;
 			}
 			else if (vertexID == 5) {
-				gl_Position = vec4(text.char[charIndex].positionBottomRight, 0.0, 1.0);
-				outUv = text.char[charIndex].uvBottomRight;
+				gl_Position = vec4(text.char[charIndex].v3.xy, 0.0, 1.0);
+				outUv = text.char[charIndex].v3.zw;
 			}
 		}
 	)GLSL";
@@ -4783,7 +4793,7 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 	rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
 	rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
 	rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
-	rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_NONE;
 	rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	rasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
 	rasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
