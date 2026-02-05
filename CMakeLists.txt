@@ -64,6 +64,7 @@ list(APPEND NTSHENGN_DEFINES NTSHENGN_CURRENT_MODULE_GRAPHICS)
 
 set(MODULE_SOURCES
 	src/ntshengn_graphics_module.cpp
+	src/animation_system.cpp
 	src/bloom.cpp
 	src/compositing.cpp
 	src/frustum_culling.cpp
@@ -75,6 +76,7 @@ set(MODULE_SOURCES
 	src/tone_mapping.cpp)
 set(MODULE_HEADERS
 	src/ntshengn_graphics_module.h
+	src/animation_system.h
 	src/bloom.h
 	src/compositing.h
 	src/frustum_culling.h

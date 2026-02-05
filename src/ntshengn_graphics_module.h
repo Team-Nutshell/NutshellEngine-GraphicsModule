@@ -3,6 +3,7 @@
 #include "../Common/utils/ntshengn_utils_block_suballocator.h"
 #include "../Common/utils/ntshengn_utils_id_pool.h"
 #include "common.h"
+#include "animation_system.h"
 #include "bloom.h"
 #include "compositing.h"
 #include "frustum_culling.h"
@@ -189,9 +190,6 @@ namespace NtshEngn {
 		// Add to textures
 		uint32_t addToTextures(const InternalTexture& texture);
 
-		// Find previous animation keyframe
-		uint32_t findPreviousAnimationKeyframe(float time, const std::vector<AnimationChannelKeyframe>& keyframes);
-
 	private:
 		VkInstance m_instance;
 #if defined(NTSHENGN_DEBUG)
@@ -223,6 +221,7 @@ namespace NtshEngn {
 
 		bool m_fxaaEnabled = false;
 
+		AnimationSystem m_animationSystem;
 		Bloom m_bloom;
 		Compositing m_compositing;
 		FrustumCulling m_frustumCulling;
@@ -322,8 +321,6 @@ namespace NtshEngn {
 		IDPool m_objectsIDPool;
 		BlockSuballocator m_freeJointTransformOffsets{ 4096 };
 		std::unordered_map<Entity, Material> m_lastKnownMaterial;
-
-		std::unordered_map<InternalObject*, PlayingAnimation> m_playingAnimations;
 
 		Entity m_mainCamera = NTSHENGN_ENTITY_UNKNOWN;
 

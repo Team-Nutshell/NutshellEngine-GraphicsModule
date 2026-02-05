@@ -530,6 +530,8 @@ void NtshEngn::GraphicsModule::init() {
 
 	glslang::InitializeProcess();
 
+	m_animationSystem.init(ecs);
+
 	m_frustumCulling.init(m_device,
 		m_graphicsComputeQueue,
 		m_graphicsComputeQueueFamilyIndex,
@@ -828,168 +830,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	}
 
 	// Update joint transforms buffer
-	for (auto& it : m_objects) {
-		const Renderable& objectRenderable = ecs->getComponent<Renderable>(it.first);
-
-		if (objectRenderable.mesh) {
-			const Skin& skin = objectRenderable.mesh->skin;
-
-			if (!skin.joints.empty()) {
-				std::vector<Math::mat4> jointTransformMatrices(skin.joints.size(), Math::mat4::identity());
-				std::vector<Math::mat4> parentJointTransformMatrices(skin.joints.size(), Math::mat4::identity());
-
-				if (m_playingAnimations.find(&it.second) != m_playingAnimations.end()) {
-					PlayingAnimation& playingAnimation = m_playingAnimations[&it.second];
-					const Animation& animation = objectRenderable.mesh->animations[m_playingAnimations[&it.second].animationIndex];
-
-					std::queue<std::pair<uint32_t, uint32_t>> jointsAndParents;
-					jointsAndParents.push({ skin.rootJoint, std::numeric_limits<uint32_t>::max() });
-					while (!jointsAndParents.empty()) {
-						uint32_t jointIndex = jointsAndParents.front().first;
-						Math::mat4 parentJointTransformMatrix;
-						if (jointsAndParents.front().second != std::numeric_limits<uint32_t>::max()) {
-							parentJointTransformMatrix = parentJointTransformMatrices[jointsAndParents.front().second];
-						}
-						else {
-							parentJointTransformMatrix = skin.baseMatrix;
-						}
-
-						if (animation.jointChannels.find(jointIndex) != animation.jointChannels.end()) {
-							const std::vector<AnimationChannel>& channels = animation.jointChannels.at(jointIndex);
-
-							Math::vec3 translation;
-							Math::quat rotation;
-							Math::vec3 scale;
-							Math::decomposeTransform(skin.joints[jointIndex].localTransform, translation, rotation, scale);
-							for (const AnimationChannel& channel : channels) {
-								// Find previous keyframe
-								uint32_t keyframe = findPreviousAnimationKeyframe(playingAnimation.time, channel.keyframes);
-
-								if (keyframe == std::numeric_limits<uint32_t>::max()) {
-									continue;
-								}
-
-								const AnimationChannelKeyframe& previousKeyframe = channel.keyframes[keyframe];
-
-								if (channel.interpolationType == AnimationChannelInterpolationType::Step) {
-									const Math::vec4 channelPrevious = previousKeyframe.value;
-
-									// Step interpolation
-									if (channel.transformType == AnimationChannelTransformType::Translation) {
-										translation = Math::vec3(channelPrevious);
-									}
-									else if (channel.transformType == AnimationChannelTransformType::Rotation) {
-										rotation = Math::quat(channelPrevious.x, channelPrevious.y, channelPrevious.z, channelPrevious.w);
-									}
-									else if (channel.transformType == AnimationChannelTransformType::Scale) {
-										scale = Math::vec3(channelPrevious);
-									}
-								}
-								else if (channel.interpolationType == AnimationChannelInterpolationType::Linear) {
-									// Linear interpolation
-									const Math::vec4& channelPrevious = previousKeyframe.value;
-
-									if ((keyframe + 1) >= channel.keyframes.size()) {
-										// Last keyframe
-										if (channel.transformType == AnimationChannelTransformType::Translation) {
-											translation = Math::vec3(channelPrevious);
-										}
-										else if (channel.transformType == AnimationChannelTransformType::Rotation) {
-											rotation = Math::quat(channelPrevious.x, channelPrevious.y, channelPrevious.z, channelPrevious.w);
-										}
-										else if (channel.transformType == AnimationChannelTransformType::Scale) {
-											scale = Math::vec3(channelPrevious);
-										}
-									}
-									else {
-										const AnimationChannelKeyframe& nextKeyframe = channel.keyframes[keyframe + 1];
-										const Math::vec4& channelNext = nextKeyframe.value;
-
-										const float timestampPrevious = previousKeyframe.timestamp;
-										const float timestampNext = nextKeyframe.timestamp;
-										const float interpolationValue = (playingAnimation.time - timestampPrevious) / (timestampNext - timestampPrevious);
-
-										if (channel.transformType == AnimationChannelTransformType::Translation) {
-											translation = Math::vec3(Math::lerp(channelPrevious.x, channelNext.x, interpolationValue),
-												Math::lerp(channelPrevious.y, channelNext.y, interpolationValue),
-												Math::lerp(channelPrevious.z, channelNext.z, interpolationValue));
-										}
-										else if (channel.transformType == AnimationChannelTransformType::Rotation) {
-											rotation = Math::normalize(Math::slerp(Math::quat(channelPrevious.x, channelPrevious.y, channelPrevious.z, channelPrevious.w),
-												Math::quat(channelNext.x, channelNext.y, channelNext.z, channelNext.w),
-												interpolationValue));
-										}
-										else if (channel.transformType == AnimationChannelTransformType::Scale) {
-											scale = Math::vec3(Math::lerp(channelPrevious.x, channelNext.x, interpolationValue),
-												Math::lerp(channelPrevious.y, channelNext.y, interpolationValue),
-												Math::lerp(channelPrevious.z, channelNext.z, interpolationValue));
-										}
-									}
-								}
-							}
-
-							const Math::mat4 jointTransformMatrix = Math::translate(translation) *
-								Math::quatToRotationMatrix(rotation) *
-								Math::scale(scale);
-
-							jointTransformMatrices[jointIndex] = parentJointTransformMatrix * jointTransformMatrix;
-							parentJointTransformMatrices[jointIndex] = jointTransformMatrices[jointIndex];
-							jointTransformMatrices[jointIndex] *= skin.joints[jointIndex].inverseBindMatrix;
-							jointTransformMatrices[jointIndex] = skin.inverseGlobalTransform * jointTransformMatrices[jointIndex];
-						}
-						else {
-							jointTransformMatrices[jointIndex] = parentJointTransformMatrix * skin.joints[jointIndex].localTransform;
-							parentJointTransformMatrices[jointIndex] = jointTransformMatrices[jointIndex];
-							jointTransformMatrices[jointIndex] *= skin.joints[jointIndex].inverseBindMatrix;
-							jointTransformMatrices[jointIndex] = skin.inverseGlobalTransform * jointTransformMatrices[jointIndex];
-						}
-
-						for (uint32_t jointChild : skin.joints[jointIndex].children) {
-							jointsAndParents.push({ jointChild, jointIndex });
-						}
-
-						jointsAndParents.pop();
-					}
-
-					if (m_playingAnimations[&it.second].isPlaying) {
-						playingAnimation.time += dt;
-					}
-
-					// End animation
-					if (playingAnimation.time >= animation.duration) {
-						m_playingAnimations.erase(&it.second);
-					}
-				}
-				else {
-					std::queue<std::pair<uint32_t, uint32_t>> jointsAndParents;
-					jointsAndParents.push({ skin.rootJoint, std::numeric_limits<uint32_t>::max() });
-					while (!jointsAndParents.empty()) {
-						uint32_t jointIndex = jointsAndParents.front().first;
-						Math::mat4 parentJointTransformMatrix;
-						if (jointsAndParents.front().second != std::numeric_limits<uint32_t>::max()) {
-							parentJointTransformMatrix = parentJointTransformMatrices[jointsAndParents.front().second];
-						}
-						else {
-							parentJointTransformMatrix = skin.baseMatrix;
-						}
-
-						jointTransformMatrices[jointIndex] = parentJointTransformMatrix * skin.joints[jointIndex].localTransform;
-						parentJointTransformMatrices[jointIndex] = jointTransformMatrices[jointIndex];
-						jointTransformMatrices[jointIndex] *= skin.joints[jointIndex].inverseBindMatrix;
-						jointTransformMatrices[jointIndex] = skin.inverseGlobalTransform * jointTransformMatrices[jointIndex];
-
-						for (uint32_t jointChild : skin.joints[jointIndex].children) {
-							jointsAndParents.push({ jointChild, jointIndex });
-						}
-
-						jointsAndParents.pop();
-					}
-				}
-
-				memcpy(reinterpret_cast<char*>(m_jointTransformBuffers[m_currentFrameInFlight].address) + (sizeof(Math::mat4) * it.second.jointTransformOffset), jointTransformMatrices.data(), sizeof(Math::mat4) * m_meshes[it.second.meshID].jointCount);
-			}
-		}
-	}
+	m_animationSystem.update(dt, m_objects, m_meshes, m_jointTransformBuffers[m_currentFrameInFlight]);
 
 	// Update materials buffer
 	memcpy(m_materialBuffers[m_currentFrameInFlight].address, m_materials.data(), m_materials.size() * sizeof(InternalMaterial));
@@ -2353,56 +2194,35 @@ void NtshEngn::GraphicsModule::setBackgroundColor(const Math::vec4& backgroundCo
 void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex) {
 	if (!ecs->hasComponent<Renderable>(entity)) {
 		NTSHENGN_MODULE_WARNING("Entity " + (ecs->entityHasName(entity) ? ("\"" + ecs->getEntityName(entity) + "\"") : std::to_string(entity)) + " does not have a Renderable component, when trying to play animation " + std::to_string(animationIndex) + ".");
+
 		return;
 	}
 
-	const Renderable& renderable = ecs->getComponent<Renderable>(entity);
+	const NtshEngn::Renderable& renderable = ecs->getComponent<Renderable>(entity);
 
 	if (animationIndex >= renderable.mesh->animations.size()) {
 		NTSHENGN_MODULE_WARNING("Animation " + std::to_string(animationIndex) + " does not exist for Entity " + (ecs->entityHasName(entity) ? ("\"" + ecs->getEntityName(entity) + "\"") : std::to_string(entity)) + "\'s mesh.");
+
 		return;
 	}
 
-	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
-		if (m_playingAnimations[&m_objects[entity]].animationIndex == animationIndex) {
-			m_playingAnimations[&m_objects[entity]].isPlaying = true;
-			return;
-		}
-	}
-
-	PlayingAnimation playingAnimation;
-	playingAnimation.animationIndex = animationIndex;
-	m_playingAnimations[&m_objects[entity]] = playingAnimation;
+	m_animationSystem.playAnimation(&m_objects[entity], animationIndex);
 }
 
 void NtshEngn::GraphicsModule::pauseAnimation(Entity entity) {
-	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
-		if (m_playingAnimations[&m_objects[entity]].isPlaying) {
-			m_playingAnimations[&m_objects[entity]].isPlaying = false;
-		}
-	}
+	m_animationSystem.pauseAnimation(&m_objects[entity]);
 }
 
 void NtshEngn::GraphicsModule::stopAnimation(Entity entity) {
-	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
-		m_playingAnimations.erase(&m_objects[entity]);
-	}
+	m_animationSystem.stopAnimation(&m_objects[entity]);
 }
 
 void NtshEngn::GraphicsModule::setAnimationCurrentTime(Entity entity, float time) {
-	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
-		m_playingAnimations[&m_objects[entity]].time = time;
-	}
+	m_animationSystem.setAnimationCurrentTime(&m_objects[entity], time);
 }
 
 bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animationIndex) {
-	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
-		if (m_playingAnimations[&m_objects[entity]].animationIndex == animationIndex) {
-			return m_playingAnimations[&m_objects[entity]].isPlaying;
-		}
-	}
-
-	return false;
+	return m_animationSystem.isAnimationPlaying(&m_objects[entity], animationIndex);
 }
 
 void NtshEngn::GraphicsModule::emitParticles(const ParticleEmitter& particleEmitter) {
@@ -4597,18 +4417,6 @@ uint32_t NtshEngn::GraphicsModule::addToTextures(const InternalTexture& texture)
 	}
 
 	return static_cast<uint32_t>(m_textures.size()) - 1;
-}
-
-uint32_t NtshEngn::GraphicsModule::findPreviousAnimationKeyframe(float time, const std::vector<AnimationChannelKeyframe>& keyframes) {
-	const std::vector<AnimationChannelKeyframe>::const_iterator previousKeyframe = std::lower_bound(keyframes.begin(), keyframes.end(), time, [](const AnimationChannelKeyframe& keyframe, float time) {
-		return keyframe.timestamp < time;
-		});
-
-	if (previousKeyframe != keyframes.end()) {
-		return static_cast<uint32_t>(std::distance(keyframes.begin(), previousKeyframe));
-	}
-
-	return std::numeric_limits<uint32_t>::max();
 }
 
 extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface* createModule() {
