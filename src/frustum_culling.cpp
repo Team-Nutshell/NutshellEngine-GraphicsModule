@@ -85,32 +85,48 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 
 		const NtshEngn::Transform& entityTransform = m_ecs->getComponent<NtshEngn::Transform>(it.first);
 
-		NtshEngn::Math::mat4 rotation = NtshEngn::Math::rotate(entityTransform.rotation.x, NtshEngn::Math::vec3(1.0f, 0.0f, 0.0f)) *
+		FrustumCullingObject frustumCullingObject;
+		frustumCullingObject.aabbMin = NtshEngn::Math::vec4(NtshEngn::Math::vec3(std::numeric_limits<float>::max()), 0.0f);
+		frustumCullingObject.aabbMax = NtshEngn::Math::vec4(NtshEngn::Math::vec3(std::numeric_limits<float>::lowest()), 0.0f);
+
+		NtshEngn::Math::mat4 rotationMatrix = NtshEngn::Math::rotate(entityTransform.rotation.x, NtshEngn::Math::vec3(1.0f, 0.0f, 0.0f)) *
 			NtshEngn::Math::rotate(entityTransform.rotation.y, NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f)) *
 			NtshEngn::Math::rotate(entityTransform.rotation.z, NtshEngn::Math::vec3(0.0f, 0.0f, 1.0f));
+		NtshEngn::Math::mat4 transform = NtshEngn::Math::translate(entityTransform.position) * rotationMatrix * NtshEngn::Math::scale(entityTransform.scale);
 
-		FrustumCullingObject frustumCullingObject;
-		frustumCullingObject.aabbMin = NtshEngn::Math::vec4(mesh.aabbMin, 0.0f);
-		frustumCullingObject.aabbMax = NtshEngn::Math::vec4(mesh.aabbMax, 0.0f);
+		std::array<NtshEngn::Math::vec3, 8> corners = { NtshEngn::Math::vec3(mesh.aabbMin.x, mesh.aabbMin.y, mesh.aabbMin.z),
+			NtshEngn::Math::vec3(mesh.aabbMax.x, mesh.aabbMin.y, mesh.aabbMin.z),
+			NtshEngn::Math::vec3(mesh.aabbMin.x, mesh.aabbMax.y, mesh.aabbMin.z),
+			NtshEngn::Math::vec3(mesh.aabbMax.x, mesh.aabbMax.y, mesh.aabbMin.z),
+			NtshEngn::Math::vec3(mesh.aabbMin.x, mesh.aabbMin.y, mesh.aabbMax.z),
+			NtshEngn::Math::vec3(mesh.aabbMax.x, mesh.aabbMin.y, mesh.aabbMax.z),
+			NtshEngn::Math::vec3(mesh.aabbMin.x, mesh.aabbMax.y, mesh.aabbMax.z),
+			NtshEngn::Math::vec3(mesh.aabbMax.x, mesh.aabbMax.y, mesh.aabbMax.z),
+		};
 
-		NtshEngn::Math::vec3 newAABBMin = entityTransform.position;
-		NtshEngn::Math::vec3 newAABBMax = entityTransform.position;
+		for (const NtshEngn::Math::vec3& corner : corners) {
+			NtshEngn::Math::vec3 transformedCorner = NtshEngn::Math::vec3(transform * NtshEngn::Math::vec4(corner, 1.0f));
 
-		float a;
-		float b;
+			if (transformedCorner.x < frustumCullingObject.aabbMin.x) {
+				frustumCullingObject.aabbMin.x = transformedCorner.x;
+			}
+			if (transformedCorner.y < frustumCullingObject.aabbMin.y) {
+				frustumCullingObject.aabbMin.y = transformedCorner.y;
+			}
+			if (transformedCorner.z < frustumCullingObject.aabbMin.z) {
+				frustumCullingObject.aabbMin.z = transformedCorner.z;
+			}
 
-		for (uint32_t i = 0; i < 3; i++) {
-			for (uint32_t j = 0; j < 3; j++) {
-				a = rotation[j][i] * frustumCullingObject.aabbMin[j] * abs(entityTransform.scale[j]);
-				b = rotation[j][i] * frustumCullingObject.aabbMax[j] * abs(entityTransform.scale[j]);
-
-				newAABBMin[i] += (a < b) ? a : b;
-				newAABBMax[i] += (a < b) ? b : a;
+			if (transformedCorner.x > frustumCullingObject.aabbMax.x) {
+				frustumCullingObject.aabbMax.x = transformedCorner.x;
+			}
+			if (transformedCorner.y > frustumCullingObject.aabbMax.y) {
+				frustumCullingObject.aabbMax.y = transformedCorner.y;
+			}
+			if (transformedCorner.z > frustumCullingObject.aabbMax.z) {
+				frustumCullingObject.aabbMax.z = transformedCorner.z;
 			}
 		}
-
-		frustumCullingObject.aabbMin = NtshEngn::Math::vec4(newAABBMin, 0.0f);
-		frustumCullingObject.aabbMax = NtshEngn::Math::vec4(newAABBMax, 0.0f);
 
 		frustumCullingObjects.push_back(frustumCullingObject);
 	}
