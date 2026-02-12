@@ -34,7 +34,7 @@ public:
 	void onResize(uint32_t width, uint32_t height, VkImageView gBufferPositionView, VkImageView gBufferNormalView, VkImageView gBufferDiffuseView, VkImageView gBufferMaterialView, VkImageView gBufferEmissiveView, VkImageView ssaoImageView);
 
 	void shadowDescriptorSetNeedsUpdate(uint32_t frameInFlight);
-	void updateShadowDescriptorSets(uint32_t frameInFlight, const std::vector<VulkanImage> shadowMaps);
+	void updateShadowDescriptorSets(uint32_t frameInFlight, const std::vector<VulkanImage>& shadowMaps);
 
 	VulkanImage& getImage();
 	VkFormat getImageFormat();

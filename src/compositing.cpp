@@ -1022,7 +1022,7 @@ void Compositing::updateDescriptorSets(VkImageView gBufferPositionView, VkImageV
 	}
 }
 
-void Compositing::updateShadowDescriptorSets(uint32_t frameInFlight, const std::vector<VulkanImage> shadowMaps) {
+void Compositing::updateShadowDescriptorSets(uint32_t frameInFlight, const std::vector<VulkanImage>& shadowMaps) {
 	if (!m_descriptorSetsShadowNeedUpdate[frameInFlight]) {
 		return;
 	}
