@@ -6591,9 +6591,9 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	textureSamplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 	textureSamplerCreateInfo.pNext = nullptr;
 	textureSamplerCreateInfo.flags = 0;
-	textureSamplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-	textureSamplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-	textureSamplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	textureSamplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+	textureSamplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+	textureSamplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
 	textureSamplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	textureSamplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	textureSamplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
