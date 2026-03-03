@@ -465,10 +465,6 @@ void Compositing::createGraphicsPipeline() {
 			return lc * brdf * LdotN;
 		}
 
-		vec3 sRGBToLinear(vec3 rgb) {
-			return mix(pow((rgb + 0.055) * (1.0 / 1.055), vec3(2.4)), rgb * (1.0 / 12.92), lessThanEqual(rgb, vec3(0.04045)));
-		}
-
 		struct LightInfo {
 			vec3 position;
 			vec3 direction;
@@ -544,19 +540,17 @@ void Compositing::createGraphicsPipeline() {
 		}
 
 		void main() {
-			vec4 diffuseSample = texture(gBufferDiffuseSampler, uv);
+			const vec4 diffuseSample = texture(gBufferDiffuseSampler, uv);
 			if (diffuseSample.a == 0.0f) {
 				discard;
 			}
-			diffuseSample.rgb = sRGBToLinear(diffuseSample.rgb);
 			const vec3 positionSample = texture(gBufferPositionSampler, uv).xyz;
 			const vec3 normalSample = texture(gBufferNormalSampler, uv).xyz;
 			const vec3 materialSample = texture(gBufferMaterialSampler, uv).xyz;
 			const float metalnessSample = materialSample.b;
 			const float roughnessSample = materialSample.g;
 			const float occlusionSample = materialSample.r;
-			vec3 emissiveSample = texture(gBufferEmissiveSampler, uv).rgb;
-			emissiveSample.rgb = sRGBToLinear(emissiveSample.rgb);
+			const vec3 emissiveSample = texture(gBufferEmissiveSampler, uv).rgb;
 
 			const float ssaoSample = texture(ssaoSampler, uv).r;
 
