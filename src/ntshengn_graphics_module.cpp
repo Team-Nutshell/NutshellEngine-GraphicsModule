@@ -165,6 +165,14 @@ void NtshEngn::GraphicsModule::init() {
 	VkPhysicalDeviceProperties2 physicalDeviceProperties2 = {};
 	physicalDeviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
 	physicalDeviceProperties2.pNext = &physicalDeviceAccelerationStructureProperties;
+	for (uint32_t i = 0; i < deviceCount; i++) {
+		vkGetPhysicalDeviceProperties2(physicalDevices[i], &physicalDeviceProperties2);
+		if (physicalDeviceProperties2.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+			m_physicalDevice = physicalDevices[i];
+			break;
+		}
+	}
+
 	vkGetPhysicalDeviceProperties2(m_physicalDevice, &physicalDeviceProperties2);
 
 	std::string physicalDeviceType;
