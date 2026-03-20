@@ -569,7 +569,7 @@ void Compositing::createGraphicsPipeline() {
 
 				uint cascadeIndex = 0;
 				for (uint j = 0; j < SHADOW_MAPPING_CASCADE_COUNT - 1; j++) {
-					if (viewPosition.z < shadows.info[i * SHADOW_MAPPING_CASCADE_COUNT + j].splitDepth) {
+					if (viewPosition.z < shadows.info[(i * SHADOW_MAPPING_CASCADE_COUNT) + j].splitDepth) {
 						cascadeIndex = j + 1;
 					}
 				}

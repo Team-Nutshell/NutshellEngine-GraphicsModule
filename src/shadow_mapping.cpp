@@ -1459,10 +1459,6 @@ void ShadowMapping::createDirectionalLightShadowGraphicsPipeline() {
 	std::string vertexShaderCode = R"GLSL(
 		#version 460
 
-		#define SHADOW_MAPPING_CASCADE_COUNT )GLSL";
-	vertexShaderCode += std::to_string(SHADOW_MAPPING_CASCADE_COUNT);
-	vertexShaderCode += R"GLSL(
-
 		struct PerDrawInfo {
 			uint objectID;
 		};
