@@ -3718,10 +3718,6 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 			return lc * brdf * LdotN;
 		}
 
-		vec3 sRGBToLinear(vec3 rgb) {
-			return mix(pow((rgb + 0.055) * (1.0 / 1.055), vec3(2.4)), rgb * (1.0 / 12.92), lessThanEqual(rgb, vec3(0.04045)));
-		}
-
 		struct MaterialInfo {
 			uint diffuseTextureIndex;
 			uint normalTextureIndex;
@@ -3852,9 +3848,6 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 					(texture(textures[nonuniformEXT(material.emissiveTextureIndex)], triplanarUV.y).rgb * triplanarWeights.y) +
 					(texture(textures[nonuniformEXT(material.emissiveTextureIndex)], triplanarUV.z).rgb * triplanarWeights.z);
 			}
-
-			diffuseSample.rgb = sRGBToLinear(diffuseSample.rgb);
-			emissiveSample.rgb = sRGBToLinear(emissiveSample.rgb);
 
 			if (diffuseSample.a < material.alphaCutoff) {
 				discard;
