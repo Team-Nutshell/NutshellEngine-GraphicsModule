@@ -1467,4 +1467,6 @@ void GBuffer::createFrustumCullingInfo() {
 	bufferDeviceAddressInfoKHR.pNext = nullptr;
 	bufferDeviceAddressInfoKHR.buffer = m_frustumCullingInfo.drawIndirectBuffer.handle;
 	m_frustumCullingInfo.drawIndirectBuffer.bufferDeviceAddress = m_vkGetBufferDeviceAddressKHR(m_device, &bufferDeviceAddressInfoKHR);
+
+	m_frustumCullingInfo.cameraType = FrustumCullingCameraType::Scene;
 }

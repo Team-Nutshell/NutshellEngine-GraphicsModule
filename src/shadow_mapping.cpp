@@ -167,6 +167,7 @@ void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane,
 			memcpy(reinterpret_cast<char*>(m_shadowSceneBuffers[currentFrameInFlight].address) + (((directionalLightIndex * SHADOW_MAPPING_CASCADE_COUNT) + cascadeIndex) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + sizeof(NtshEngn::Math::mat4), &m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].splitDepth, sizeof(NtshEngn::Math::vec4));
 
 			m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].frustumCullingInfo.viewProj = m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].viewProj;
+			m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].frustumCullingInfo.cameraType = FrustumCullingCameraType::Light;
 		}
 	}
 	for (size_t pointLightIndex = 0; pointLightIndex < m_pointLightEntities.size(); pointLightIndex++) {
@@ -183,6 +184,7 @@ void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane,
 			memcpy(reinterpret_cast<char*>(m_shadowSceneBuffers[currentFrameInFlight].address) + (((m_directionalLightEntities.size() * SHADOW_MAPPING_CASCADE_COUNT) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + (((pointLightIndex * 6) + faceIndex) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4)))), &m_pointLightShadowMaps[pointLightIndex].faces[faceIndex].viewProj, sizeof(NtshEngn::Math::mat4));
 
 			m_pointLightShadowMaps[pointLightIndex].faces[faceIndex].frustumCullingInfo.viewProj = m_pointLightShadowMaps[pointLightIndex].faces[faceIndex].viewProj;
+			m_pointLightShadowMaps[pointLightIndex].faces[faceIndex].frustumCullingInfo.cameraType = FrustumCullingCameraType::Light;
 		}
 	}
 	for (size_t spotLightIndex = 0; spotLightIndex < m_spotLightEntities.size(); spotLightIndex++) {
@@ -207,6 +209,7 @@ void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane,
 		memcpy(reinterpret_cast<char*>(m_shadowSceneBuffers[currentFrameInFlight].address) + (((m_directionalLightEntities.size() * SHADOW_MAPPING_CASCADE_COUNT) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + ((m_pointLightEntities.size() * 6) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + (spotLightIndex * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4)))), &m_spotLightShadowMaps[spotLightIndex].viewProj, sizeof(NtshEngn::Math::mat4));
 
 		m_spotLightShadowMaps[spotLightIndex].frustumCullingInfo.viewProj = m_spotLightShadowMaps[spotLightIndex].viewProj;
+		m_spotLightShadowMaps[spotLightIndex].frustumCullingInfo.cameraType = FrustumCullingCameraType::Light;
 	}
 }
 

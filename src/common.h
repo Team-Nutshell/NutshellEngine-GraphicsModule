@@ -166,9 +166,15 @@ struct BDAVulkanBuffer : public VulkanBuffer {
 	VkDeviceAddress bufferDeviceAddress;
 };
 
+enum class FrustumCullingCameraType {
+	Scene,
+	Light
+};
+
 struct FrustumCullingInfo {
 	NtshEngn::Math::mat4 viewProj;
 	BDAVulkanBuffer drawIndirectBuffer;
+	FrustumCullingCameraType cameraType;
 };
 
 struct Particle {

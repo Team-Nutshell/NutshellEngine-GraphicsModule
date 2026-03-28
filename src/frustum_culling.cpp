@@ -32,6 +32,10 @@ void FrustumCulling::destroy() {
 	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		m_frustumCullingObjectStateBuffers[i].destroy(m_allocator);
+	}
+
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		m_frustumCullingObjectBuffers[i].destroy(m_allocator);
 	}
 
@@ -131,6 +135,8 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 		frustumCullingObjects.push_back(frustumCullingObject);
 	}
 
+	std::vector<uint32_t> frustumCullingObjectStates(frustumCullingInfos.size() * frustumCullingObjects.size(), 0);
+
 	uint32_t drawIndirectCount = static_cast<uint32_t>(drawIndirectCommands.size());
 	memcpy(m_inDrawIndirectBuffers[currentFrameInFlight].address, &drawIndirectCount, sizeof(uint32_t));
 	memcpy(reinterpret_cast<char*>(m_inDrawIndirectBuffers[currentFrameInFlight].address) + sizeof(uint32_t), drawIndirectCommands.data(), sizeof(VkDrawIndexedIndirectCommand) * drawIndirectCommands.size());
@@ -139,7 +145,10 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 	uint32_t frustumCount = static_cast<uint32_t>(internalFrustumCullingInfos.size());
 	memcpy(m_frustumCullingInfoBuffers[currentFrameInFlight].address, &frustumCount, sizeof(uint32_t));
 	memcpy(reinterpret_cast<char*>(m_frustumCullingInfoBuffers[currentFrameInFlight].address) + (sizeof(uint32_t) * 4), internalFrustumCullingInfos.data(), sizeof(InternalFrustumCullingInfo) * internalFrustumCullingInfos.size());
+
 	memcpy(m_frustumCullingObjectBuffers[currentFrameInFlight].address, frustumCullingObjects.data(), sizeof(FrustumCullingObject) * frustumCullingObjects.size());
+
+	memcpy(m_frustumCullingObjectStateBuffers[currentFrameInFlight].address, frustumCullingObjectStates.data(), sizeof(uint32_t) * frustumCullingObjectStates.size());
 
 	std::vector<VkBufferMemoryBarrier2> beforeFillBufferMemoryBarriers;
 	for (size_t i = 0; i < frustumCullingInfos.size(); i++) {
@@ -336,6 +345,16 @@ void FrustumCulling::createBuffers() {
 		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_frustumCullingObjectBuffers[i].handle, &m_frustumCullingObjectBuffers[i].allocation, &allocationInfo));
 		m_frustumCullingObjectBuffers[i].address = allocationInfo.pMappedData;
 	}
+
+	// Create frustum culling object state buffers
+	m_frustumCullingObjectStateBuffers.resize(m_framesInFlight);
+	bufferCreateInfo.size = sizeof(uint32_t) * NTSHENGN_MAX_ENTITIES * 100;
+	bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		NTSHENGN_VK_CHECK(vmaCreateBuffer(m_allocator, &bufferCreateInfo, &bufferAllocationCreateInfo, &m_frustumCullingObjectStateBuffers[i].handle, &m_frustumCullingObjectStateBuffers[i].allocation, &allocationInfo));
+		m_frustumCullingObjectStateBuffers[i].address = allocationInfo.pMappedData;
+	}
 }
 
 void FrustumCulling::createDescriptorSetLayout() {
@@ -353,21 +372,28 @@ void FrustumCulling::createDescriptorSetLayout() {
 	frustumCullingObjectDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 	frustumCullingObjectDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
+	VkDescriptorSetLayoutBinding frustumCullingObjectStateDescriptorSetLayoutBinding = {};
+	frustumCullingObjectStateDescriptorSetLayoutBinding.binding = 2;
+	frustumCullingObjectStateDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	frustumCullingObjectStateDescriptorSetLayoutBinding.descriptorCount = 1;
+	frustumCullingObjectStateDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+	frustumCullingObjectStateDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
 	VkDescriptorSetLayoutBinding inDrawIndirectDescriptorSetLayoutBinding = {};
-	inDrawIndirectDescriptorSetLayoutBinding.binding = 2;
+	inDrawIndirectDescriptorSetLayoutBinding.binding = 3;
 	inDrawIndirectDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	inDrawIndirectDescriptorSetLayoutBinding.descriptorCount = 1;
 	inDrawIndirectDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 	inDrawIndirectDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding inPerDrawDescriptorSetLayoutBinding = {};
-	inPerDrawDescriptorSetLayoutBinding.binding = 3;
+	inPerDrawDescriptorSetLayoutBinding.binding = 4;
 	inPerDrawDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	inPerDrawDescriptorSetLayoutBinding.descriptorCount = 1;
 	inPerDrawDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 	inPerDrawDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
-	std::array<VkDescriptorSetLayoutBinding, 4> descriptorSetLayoutBindings = { frustumDescriptorSetLayoutBinding, frustumCullingObjectDescriptorSetLayoutBinding, inDrawIndirectDescriptorSetLayoutBinding, inPerDrawDescriptorSetLayoutBinding };
+	std::array<VkDescriptorSetLayoutBinding, 5> descriptorSetLayoutBindings = { frustumDescriptorSetLayoutBinding, frustumCullingObjectDescriptorSetLayoutBinding, frustumCullingObjectStateDescriptorSetLayoutBinding, inDrawIndirectDescriptorSetLayoutBinding, inPerDrawDescriptorSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
 	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	descriptorSetLayoutCreateInfo.pNext = nullptr;
@@ -385,8 +411,16 @@ void FrustumCulling::createComputePipeline() {
 
 		#define DRAW_INDIRECT_MAX_ENTITIES_SIZE )GLSL";
 	computeShaderCode += std::to_string(DRAW_INDIRECT_MAX_ENTITIES_SIZE);
-	computeShaderCode +=  R"GLSL(
-
+	computeShaderCode += R"GLSL(
+		#define FRUSTUM_CULLING_STATE_NORMAL )GLSL";
+	computeShaderCode += std::to_string(FRUSTUM_CULLING_STATE_NORMAL);
+	computeShaderCode += R"GLSL(
+		#define FRUSTUM_CULLING_STATE_ALWAYS_PASS )GLSL";
+	computeShaderCode += std::to_string(FRUSTUM_CULLING_STATE_ALWAYS_PASS);
+	computeShaderCode += R"GLSL(
+		#define FRUSTUM_CULLING_STATE_ALWAYS_FAIL )GLSL";
+	computeShaderCode += std::to_string(FRUSTUM_CULLING_STATE_ALWAYS_FAIL);
+	computeShaderCode += R"GLSL(
 		layout(local_size_x = 8, local_size_y = 8) in;
 
 		struct FrustumCullingInfo {
@@ -408,6 +442,10 @@ void FrustumCulling::createComputePipeline() {
 			ObjectInfo info[];
 		} objects;
 
+		layout(set = 0, binding = 2) restrict readonly buffer ObjectStates {
+			uint states[];
+		} objectStates;
+
 		struct DrawIndirect {
 			uint indexCount;
 			uint instanceCount;
@@ -416,7 +454,7 @@ void FrustumCulling::createComputePipeline() {
 			uint firstInstance;
 		};
 
-		layout(set = 0, binding = 2) restrict readonly buffer InDrawIndirect {
+		layout(set = 0, binding = 3) restrict readonly buffer InDrawIndirect {
 			uint drawCount;
 			DrawIndirect commands[];
 		} inDrawIndirect;
@@ -425,7 +463,7 @@ void FrustumCulling::createComputePipeline() {
 			uint objectID;
 		};
 
-		layout(set = 0, binding = 3) restrict readonly buffer InPerDraw {
+		layout(set = 0, binding = 4) restrict readonly buffer InPerDraw {
 			PerDrawInfo info[];
 		} inPerDraw;
 
@@ -475,6 +513,23 @@ void FrustumCulling::createComputePipeline() {
 			}
 
 			FrustumCullingInfo frustumCullingInfo = frustumCulling.info[frustumIndex];
+
+			uint objectState = objectStates.states[(inDrawIndirect.drawCount * frustumIndex) + objectIndex];
+			if (objectState == FRUSTUM_CULLING_STATE_ALWAYS_PASS) {
+				uint drawIndex = atomicAdd(DrawIndirectBuffer(frustumCullingInfo.address).drawCount, 1);
+
+				DrawIndirectBuffer(frustumCullingInfo.address).commands[drawIndex].indexCount = inDrawIndirect.commands[objectIndex].indexCount;
+				DrawIndirectBuffer(frustumCullingInfo.address).commands[drawIndex].instanceCount = inDrawIndirect.commands[objectIndex].instanceCount;
+				DrawIndirectBuffer(frustumCullingInfo.address).commands[drawIndex].firstIndex = inDrawIndirect.commands[objectIndex].firstIndex;
+				DrawIndirectBuffer(frustumCullingInfo.address).commands[drawIndex].vertexOffset = inDrawIndirect.commands[objectIndex].vertexOffset;
+				DrawIndirectBuffer(frustumCullingInfo.address).commands[drawIndex].firstInstance = inDrawIndirect.commands[objectIndex].firstInstance;
+				PerDrawBuffer(frustumCullingInfo.address + DRAW_INDIRECT_MAX_ENTITIES_SIZE).info[drawIndex].objectID = inPerDraw.info[objectIndex].objectID;
+
+				return;
+			}
+			else if (objectState == FRUSTUM_CULLING_STATE_ALWAYS_FAIL) {
+				return;
+			}
 
 			vec3 aabbMin = objects.info[objectIndex].aabbMin;
 			vec3 aabbMax = objects.info[objectIndex].aabbMax;
@@ -544,6 +599,10 @@ void FrustumCulling::createDescriptorSets() {
 	frustumCullingObjectDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	frustumCullingObjectDescriptorPoolSize.descriptorCount = m_framesInFlight;
 
+	VkDescriptorPoolSize frustumCullingObjectStateDescriptorPoolSize = {};
+	frustumCullingObjectStateDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	frustumCullingObjectStateDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
 	VkDescriptorPoolSize inDrawIndirectDescriptorPoolSize = {};
 	inDrawIndirectDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	inDrawIndirectDescriptorPoolSize.descriptorCount = m_framesInFlight;
@@ -552,7 +611,7 @@ void FrustumCulling::createDescriptorSets() {
 	inPerDrawDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	inPerDrawDescriptorPoolSize.descriptorCount = m_framesInFlight;
 
-	std::array<VkDescriptorPoolSize, 4> descriptorPoolSizes = { frustumDescriptorPoolSize, frustumCullingObjectDescriptorPoolSize, inDrawIndirectDescriptorPoolSize, inPerDrawDescriptorPoolSize };
+	std::array<VkDescriptorPoolSize, 5> descriptorPoolSizes = { frustumDescriptorPoolSize, frustumCullingObjectDescriptorPoolSize, frustumCullingObjectStateDescriptorPoolSize, inDrawIndirectDescriptorPoolSize, inPerDrawDescriptorPoolSize };
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.pNext = nullptr;
@@ -614,6 +673,24 @@ void FrustumCulling::createDescriptorSets() {
 		frustumCullingObjectDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(frustumCullingObjectDescriptorWriteDescriptorSet);
 
+		VkDescriptorBufferInfo frustumCullingObjectStateDescriptorBufferInfo;
+		frustumCullingObjectStateDescriptorBufferInfo.buffer = m_frustumCullingObjectStateBuffers[i].handle;
+		frustumCullingObjectStateDescriptorBufferInfo.offset = 0;
+		frustumCullingObjectStateDescriptorBufferInfo.range = sizeof(uint32_t) * NTSHENGN_MAX_ENTITIES * 100;
+
+		VkWriteDescriptorSet frustumCullingObjectStateDescriptorWriteDescriptorSet = {};
+		frustumCullingObjectStateDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		frustumCullingObjectStateDescriptorWriteDescriptorSet.pNext = nullptr;
+		frustumCullingObjectStateDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		frustumCullingObjectStateDescriptorWriteDescriptorSet.dstBinding = 2;
+		frustumCullingObjectStateDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		frustumCullingObjectStateDescriptorWriteDescriptorSet.descriptorCount = 1;
+		frustumCullingObjectStateDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		frustumCullingObjectStateDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		frustumCullingObjectStateDescriptorWriteDescriptorSet.pBufferInfo = &frustumCullingObjectStateDescriptorBufferInfo;
+		frustumCullingObjectStateDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(frustumCullingObjectStateDescriptorWriteDescriptorSet);
+
 		VkDescriptorBufferInfo inDrawIndirectDescriptorBufferInfo;
 		inDrawIndirectDescriptorBufferInfo.buffer = m_inDrawIndirectBuffers[i].handle;
 		inDrawIndirectDescriptorBufferInfo.offset = 0;
@@ -623,7 +700,7 @@ void FrustumCulling::createDescriptorSets() {
 		inDrawIndirectDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		inDrawIndirectDescriptorWriteDescriptorSet.pNext = nullptr;
 		inDrawIndirectDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		inDrawIndirectDescriptorWriteDescriptorSet.dstBinding = 2;
+		inDrawIndirectDescriptorWriteDescriptorSet.dstBinding = 3;
 		inDrawIndirectDescriptorWriteDescriptorSet.dstArrayElement = 0;
 		inDrawIndirectDescriptorWriteDescriptorSet.descriptorCount = 1;
 		inDrawIndirectDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -641,7 +718,7 @@ void FrustumCulling::createDescriptorSets() {
 		inPerDrawDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		inPerDrawDescriptorWriteDescriptorSet.pNext = nullptr;
 		inPerDrawDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		inPerDrawDescriptorWriteDescriptorSet.dstBinding = 3;
+		inPerDrawDescriptorWriteDescriptorSet.dstBinding = 4;
 		inPerDrawDescriptorWriteDescriptorSet.dstArrayElement = 0;
 		inPerDrawDescriptorWriteDescriptorSet.descriptorCount = 1;
 		inPerDrawDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;

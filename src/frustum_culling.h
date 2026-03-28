@@ -1,6 +1,10 @@
 #pragma once
 #include "common.h"
 
+#define FRUSTUM_CULLING_STATE_NORMAL 0
+#define FRUSTUM_CULLING_STATE_ALWAYS_PASS 1
+#define FRUSTUM_CULLING_STATE_ALWAYS_FAIL 2
+
 typedef std::array<NtshEngn::Math::vec4, 6> Frustum;
 
 struct InternalFrustumCullingInfo {
@@ -47,6 +51,7 @@ private:
 	std::vector<HostVisibleVulkanBuffer> m_inPerDrawBuffers;
 	std::vector<HostVisibleVulkanBuffer> m_frustumCullingInfoBuffers;
 	std::vector<HostVisibleVulkanBuffer> m_frustumCullingObjectBuffers;
+	std::vector<HostVisibleVulkanBuffer> m_frustumCullingObjectStateBuffers;
 
 	VkDescriptorSetLayout m_descriptorSetLayout;
 
