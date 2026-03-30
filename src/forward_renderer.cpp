@@ -1,6 +1,6 @@
 #include "forward_renderer.h"
 
-void ForwardRenderer::init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VkViewport viewport, VkRect2D scissor, uint32_t framesInFlight, const std::vector<HostVisibleVulkanBuffer>& cameraBuffers, const std::vector<HostVisibleVulkanBuffer>& lightBuffers, const std::vector<HostVisibleVulkanBuffer>& objectBuffers, VulkanBuffer meshBuffer, const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers, const std::vector<HostVisibleVulkanBuffer>& materialBuffers, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
+void ForwardRenderer::init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VkViewport viewport, VkRect2D scissor, uint32_t framesInFlight, const std::vector<HostVisibleVulkanBuffer>& cameraBuffers, const std::vector<HostVisibleVulkanBuffer>& lightBuffers, const std::vector<HostVisibleVulkanBuffer>& objectBuffers, VulkanBuffer meshBuffer, const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers, const std::vector<HostVisibleVulkanBuffer>& materialBuffers, const std::vector<HostVisibleVulkanBuffer>& shadowSceneBuffers, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
 	m_device = device;
 	m_graphicsQueue = graphicsQueue;
 	m_graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
@@ -12,7 +12,7 @@ void ForwardRenderer::init(VkDevice device, VkQueue graphicsQueue, uint32_t grap
 	m_vkCmdPipelineBarrier2KHR = vkCmdPipelineBarrier2KHR;
 
 	createDescriptorSetLayout();
-	createDescriptorSets(cameraBuffers, objectBuffers, lightBuffers, meshBuffer, jointTransformBuffers, materialBuffers);
+	createDescriptorSets(cameraBuffers, objectBuffers, lightBuffers, meshBuffer, jointTransformBuffers, materialBuffers, shadowSceneBuffers);
 }
 
 void ForwardRenderer::destroy() {
@@ -190,6 +190,37 @@ void ForwardRenderer::updateDescriptorSets(uint32_t frameInFlight, const std::ve
 	m_descriptorSetsNeedUpdate[frameInFlight] = false;
 }
 
+void ForwardRenderer::shadowDescriptorSetNeedsUpdate(uint32_t frameInFlight) {
+	m_descriptorSetsShadowNeedUpdate[frameInFlight] = true;
+}
+
+void ForwardRenderer::updateShadowDescriptorSets(uint32_t frameInFlight, const std::vector<VulkanImage>& shadowMaps, VkSampler shadowMapSampler) {
+	if (!m_descriptorSetsShadowNeedUpdate[frameInFlight]) {
+		return;
+	}
+
+	std::vector<VkDescriptorImageInfo> shadowMapImageDescriptorImageInfos(shadowMaps.size());
+	for (uint32_t i = 0; i < shadowMaps.size(); i++) {
+		shadowMapImageDescriptorImageInfos[i].sampler = shadowMapSampler;
+		shadowMapImageDescriptorImageInfos[i].imageView = shadowMaps[i].view;
+		shadowMapImageDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	}
+
+	VkWriteDescriptorSet shadowMapImageDescriptorWriteDescriptorSet = {};
+	shadowMapImageDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	shadowMapImageDescriptorWriteDescriptorSet.pNext = nullptr;
+	shadowMapImageDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[frameInFlight];
+	shadowMapImageDescriptorWriteDescriptorSet.dstBinding = 8;
+	shadowMapImageDescriptorWriteDescriptorSet.dstArrayElement = 0;
+	shadowMapImageDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(shadowMapImageDescriptorImageInfos.size());
+	shadowMapImageDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	shadowMapImageDescriptorWriteDescriptorSet.pImageInfo = shadowMapImageDescriptorImageInfos.data();
+	shadowMapImageDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
+	shadowMapImageDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+
+	vkUpdateDescriptorSets(m_device, 1, &shadowMapImageDescriptorWriteDescriptorSet, 0, nullptr);
+}
+
 bool ForwardRenderer::createGraphicsPipelineFromFragmentShader(const std::string& fragmentShader) {
 	if (fragmentShader.empty()) {
 		return false;
@@ -310,6 +341,8 @@ bool ForwardRenderer::createGraphicsPipelineFromFragmentShader(const std::string
 		#version 460
 		#extension GL_EXT_nonuniform_qualifier : enable
 
+		#define SHADOW_MAPPING_CASCADE_COUNT 3
+
 		#define NtshEngn_position position
 		#define NtshEngn_normal TBN[2]
 		#define NtshEngn_tangent TBN[0]
@@ -329,10 +362,13 @@ bool ForwardRenderer::createGraphicsPipelineFromFragmentShader(const std::string
 		#define NtshEngn_useTriplanarMapping materials.info[materialID].useTriplanarMapping
 		#define NtshEngn_directionalLightCount lights.count.x
 		#define NtshEngn_directionalLight(i) lights.info[i]
+		#define NtshEngn_directionalLightShadows(i, p) directionalLightShadows(i, p)
 		#define NtshEngn_pointLightCount lights.count.y
 		#define NtshEngn_pointLight(i) lights.info[lights.count.x + i]
+		#define NtshEngn_pointLightShadows(i, p) pointLightShadows(i, p)
 		#define NtshEngn_spotLightCount lights.count.z
 		#define NtshEngn_spotLight(i) lights.info[lights.count.x + lights.count.y + i]
+		#define NtshEngn_spotLightShadows(i, p) spotLightShadows(i, p)
 		#define NtshEngn_ambientLightCount lights.count.w
 		#define NtshEngn_ambientLight(i) lights.info[lights.count.x + lights.count.y + lights.count.z + i]
 		#define NtshEngn_time pC.cameraPositionAndTime.w
@@ -340,6 +376,13 @@ bool ForwardRenderer::createGraphicsPipelineFromFragmentShader(const std::string
 		#define NtshEngn_useReversedDepth true
 		#define NtshEngn_outColor outColor
 		#define NtshEngn_outDepth gl_FragDepth
+
+		const mat4 shadowOffset = mat4(
+			0.5, 0.0, 0.0, 0.0,
+			0.0, 0.5, 0.0, 0.0,
+			0.0, 0.0, 1.0, 0.0,
+			0.5, 0.5, 0.0, 1.0
+		);
 
 		struct MaterialInfo {
 			uint diffuseTextureIndex;
@@ -364,6 +407,17 @@ bool ForwardRenderer::createGraphicsPipelineFromFragmentShader(const std::string
 			float distance;
 		};
 
+		struct ShadowInfo {
+			mat4 viewProj;
+			float splitDepth;
+		};
+
+		layout(set = 0, binding = 0) uniform Camera {
+			mat4 view;
+			mat4 projection;
+			vec3 position;
+		} camera;
+
 		layout(set = 0, binding = 4) restrict readonly buffer Materials {
 			MaterialInfo info[];
 		} materials;
@@ -375,6 +429,13 @@ bool ForwardRenderer::createGraphicsPipelineFromFragmentShader(const std::string
 
 		layout(set = 0, binding = 6) uniform sampler2D textures[];
 
+		layout(set = 0, binding = 7) restrict readonly buffer Shadows {
+			ShadowInfo info[];
+		} shadows;
+
+		layout(set = 0, binding = 8) uniform sampler2DArray shadowMaps[];
+		layout(set = 0, binding = 8) uniform samplerCube shadowCubeMaps[];
+
 		layout(push_constant) uniform PushConstants {
 			layout(offset = 16) vec4 cameraPositionAndTime;
 		} pC;
@@ -385,6 +446,68 @@ bool ForwardRenderer::createGraphicsPipelineFromFragmentShader(const std::string
 		layout(location = 3) in mat3 TBN;
 
 		layout(location = 0) out vec4 outColor;
+
+		float shadowValue(uint lightIndex, uint layerIndex, vec4 shadowCoord, float bias) {
+			float shadow = 0.0;
+			if ((shadowCoord.z < -1.0) || (shadowCoord.z > 1.0)) {
+				return 1.0;
+			}
+
+			const vec2 texelSize = 0.75 * (1.0 / vec2(textureSize(shadowMaps[nonuniformEXT(lightIndex)], 0).xy));
+			for (int x = -1; x <= 1; x++) {
+				for (int y = -1; y <= 1; y++) {
+					const float depth = texture(shadowMaps[nonuniformEXT(lightIndex)], vec3(shadowCoord.xy + (vec2(x, y) * texelSize), layerIndex)).r;
+					if (depth >= (shadowCoord.z - bias)) {
+						shadow += 1.0;
+					}
+				}
+			}
+
+			return shadow / 9.0;
+		}
+
+		float shadowCubeValue(uint lightIndex, vec3 direction, float bias) {
+			const float lengthDirection = length(direction);
+			const float depth = texture(shadowCubeMaps[nonuniformEXT(lightIndex)], direction).r;
+			if ((depth * 50.0) >= (lengthDirection - bias)) {
+				return 1.0;
+			}
+
+			return 0.0;
+		}
+
+		float directionalLightShadows(uint lightIndex, vec3 position) {
+			const uint shadowIndex = lightIndex * SHADOW_MAPPING_CASCADE_COUNT;
+			const vec3 viewPosition = vec3(camera.view * vec4(position, 1.0));
+
+			uint cascadeIndex = 0;
+			for (uint i = 0; i < SHADOW_MAPPING_CASCADE_COUNT - 1; i++) {
+				if (viewPosition.z < shadows.info[shadowIndex + i].splitDepth) {
+					cascadeIndex = i + 1;
+				}
+			}
+
+			const vec4 shadowCoord = (shadowOffset * shadows.info[shadowIndex + cascadeIndex].viewProj) * vec4(position, 1.0);
+
+			return shadowValue(lightIndex, cascadeIndex, shadowCoord / shadowCoord.w, 0.05);
+		}
+
+		float pointLightShadows(uint lightIndex, vec3 position) {
+			uint globalLightIndex = lights.count.x + lightIndex;
+
+			const vec3 lightDirection = position - lights.info[globalLightIndex].position;
+
+			return shadowCubeValue(globalLightIndex, lightDirection, 0.05);
+		}
+
+		float spotLightShadows(uint lightIndex, vec3 position) {
+			const uint globalLightIndex = lights.count.x + lights.count.y + lightIndex;
+			const uint shadowIndex = (lights.count.x * SHADOW_MAPPING_CASCADE_COUNT) + (lights.count.y * 6) + lightIndex;
+
+			const vec4 shadowCoord = (shadowOffset * shadows.info[shadowIndex].viewProj) * vec4(position, 1.0);
+
+			return shadowValue(globalLightIndex, 0, shadowCoord / shadowCoord.w, 0.00005);
+		}
 
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderPrefixCode + fragmentShader, ShaderType::Fragment);
@@ -610,7 +733,7 @@ void ForwardRenderer::createDescriptorSetLayout() {
 	cameraDescriptorSetLayoutBinding.binding = 0;
 	cameraDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	cameraDescriptorSetLayoutBinding.descriptorCount = 1;
-	cameraDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	cameraDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 	cameraDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding objectsDescriptorSetLayoutBinding = {};
@@ -655,14 +778,28 @@ void ForwardRenderer::createDescriptorSetLayout() {
 	texturesDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	texturesDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
-	std::array<VkDescriptorBindingFlags, 7> descriptorBindingFlags = { 0, 0, 0, 0, 0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
+	VkDescriptorSetLayoutBinding shadowSceneDescriptorSetLayoutBinding = {};
+	shadowSceneDescriptorSetLayoutBinding.binding = 7;
+	shadowSceneDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	shadowSceneDescriptorSetLayoutBinding.descriptorCount = 1;
+	shadowSceneDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	shadowSceneDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding shadowMapsDescriptorSetLayoutBinding = {};
+	shadowMapsDescriptorSetLayoutBinding.binding = 8;
+	shadowMapsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	shadowMapsDescriptorSetLayoutBinding.descriptorCount = 131072;
+	shadowMapsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	shadowMapsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	std::array<VkDescriptorBindingFlags, 9> descriptorBindingFlags = { 0, 0, 0, 0, 0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
 	VkDescriptorSetLayoutBindingFlagsCreateInfo descriptorSetLayoutBindingFlagsCreateInfo = {};
 	descriptorSetLayoutBindingFlagsCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
 	descriptorSetLayoutBindingFlagsCreateInfo.pNext = nullptr;
 	descriptorSetLayoutBindingFlagsCreateInfo.bindingCount = static_cast<uint32_t>(descriptorBindingFlags.size());
 	descriptorSetLayoutBindingFlagsCreateInfo.pBindingFlags = descriptorBindingFlags.data();
 
-	std::array<VkDescriptorSetLayoutBinding, 7> descriptorSetLayoutBindings = { cameraDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding, meshesDescriptorSetLayoutBinding, jointTransformsDescriptorSetLayoutBinding, materialsDescriptorSetLayoutBinding, lightsDescriptorSetLayoutBinding, texturesDescriptorSetLayoutBinding };
+	std::array<VkDescriptorSetLayoutBinding, 9> descriptorSetLayoutBindings = { cameraDescriptorSetLayoutBinding, objectsDescriptorSetLayoutBinding, meshesDescriptorSetLayoutBinding, jointTransformsDescriptorSetLayoutBinding, materialsDescriptorSetLayoutBinding, lightsDescriptorSetLayoutBinding, texturesDescriptorSetLayoutBinding, shadowSceneDescriptorSetLayoutBinding, shadowMapsDescriptorSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
 	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	descriptorSetLayoutCreateInfo.pNext = &descriptorSetLayoutBindingFlagsCreateInfo;
@@ -672,7 +809,7 @@ void ForwardRenderer::createDescriptorSetLayout() {
 	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_descriptorSetLayout));
 }
 
-void ForwardRenderer::createDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& cameraBuffers, const std::vector<HostVisibleVulkanBuffer>& objectBuffers, const std::vector<HostVisibleVulkanBuffer>& lightBuffers, VulkanBuffer meshBuffer, const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers, const std::vector<HostVisibleVulkanBuffer>& materialBuffers) {
+void ForwardRenderer::createDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& cameraBuffers, const std::vector<HostVisibleVulkanBuffer>& objectBuffers, const std::vector<HostVisibleVulkanBuffer>& lightBuffers, VulkanBuffer meshBuffer, const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers, const std::vector<HostVisibleVulkanBuffer>& materialBuffers, const std::vector<HostVisibleVulkanBuffer>& shadowSceneBuffers) {
 	// Create descriptor pool
 	VkDescriptorPoolSize cameraDescriptorPoolSize = {};
 	cameraDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -702,7 +839,15 @@ void ForwardRenderer::createDescriptorSets(const std::vector<HostVisibleVulkanBu
 	texturesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	texturesDescriptorPoolSize.descriptorCount = 131072 * m_framesInFlight;
 
-	std::array<VkDescriptorPoolSize, 7> descriptorPoolSizes = { cameraDescriptorPoolSize, objectsDescriptorPoolSize, meshesDescriptorPoolSize, jointTransformsDescriptorPoolSize, materialsDescriptorPoolSize, lightsDescriptorPoolSize, texturesDescriptorPoolSize };
+	VkDescriptorPoolSize shadowSceneDescriptorPoolSize = {};
+	shadowSceneDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	shadowSceneDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	VkDescriptorPoolSize shadowMapsDescriptorPoolSize = {};
+	shadowMapsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	shadowMapsDescriptorPoolSize.descriptorCount = 131072 * m_framesInFlight;
+
+	std::array<VkDescriptorPoolSize, 9> descriptorPoolSizes = { cameraDescriptorPoolSize, objectsDescriptorPoolSize, meshesDescriptorPoolSize, jointTransformsDescriptorPoolSize, materialsDescriptorPoolSize, lightsDescriptorPoolSize, texturesDescriptorPoolSize, shadowSceneDescriptorPoolSize, shadowMapsDescriptorPoolSize };
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.pNext = nullptr;
@@ -836,11 +981,31 @@ void ForwardRenderer::createDescriptorSets(const std::vector<HostVisibleVulkanBu
 		lightsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(lightsDescriptorWriteDescriptorSet);
 
+		VkDescriptorBufferInfo shadowSceneDescriptorBufferInfo;
+		shadowSceneDescriptorBufferInfo.buffer = shadowSceneBuffers[i].handle;
+		shadowSceneDescriptorBufferInfo.offset = 0;
+		shadowSceneDescriptorBufferInfo.range = 65536;
+
+		VkWriteDescriptorSet shadowSceneDescriptorWriteDescriptorSet = {};
+		shadowSceneDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		shadowSceneDescriptorWriteDescriptorSet.pNext = nullptr;
+		shadowSceneDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		shadowSceneDescriptorWriteDescriptorSet.dstBinding = 7;
+		shadowSceneDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		shadowSceneDescriptorWriteDescriptorSet.descriptorCount = 1;
+		shadowSceneDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		shadowSceneDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		shadowSceneDescriptorWriteDescriptorSet.pBufferInfo = &shadowSceneDescriptorBufferInfo;
+		shadowSceneDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		writeDescriptorSets.push_back(shadowSceneDescriptorWriteDescriptorSet);
+
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 	}
 
 	m_descriptorSetsNeedUpdate.resize(m_framesInFlight);
+	m_descriptorSetsShadowNeedUpdate.resize(m_framesInFlight);
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		m_descriptorSetsNeedUpdate[i] = false;
+		m_descriptorSetsShadowNeedUpdate[i] = false;
 	}
 }

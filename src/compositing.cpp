@@ -806,15 +806,15 @@ void Compositing::createDescriptorSets(const std::vector<HostVisibleVulkanBuffer
 	gBufferImagesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	gBufferImagesDescriptorPoolSize.descriptorCount = 5 * m_framesInFlight;
 
-	VkDescriptorPoolSize cascadeSceneDescriptorPoolSize = {};
-	cascadeSceneDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	cascadeSceneDescriptorPoolSize.descriptorCount = m_framesInFlight;
+	VkDescriptorPoolSize shadowSceneDescriptorPoolSize = {};
+	shadowSceneDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	shadowSceneDescriptorPoolSize.descriptorCount = m_framesInFlight;
 
 	VkDescriptorPoolSize shadowMapsDescriptorPoolSize = {};
 	shadowMapsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	shadowMapsDescriptorPoolSize.descriptorCount = 131072 * m_framesInFlight;
 
-	std::array<VkDescriptorPoolSize, 5> descriptorPoolSizes = { cameraDescriptorPoolSize, lightsDescriptorPoolSize, gBufferImagesDescriptorPoolSize, cascadeSceneDescriptorPoolSize, shadowMapsDescriptorPoolSize };
+	std::array<VkDescriptorPoolSize, 5> descriptorPoolSizes = { cameraDescriptorPoolSize, lightsDescriptorPoolSize, gBufferImagesDescriptorPoolSize, shadowSceneDescriptorPoolSize, shadowMapsDescriptorPoolSize };
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.pNext = nullptr;

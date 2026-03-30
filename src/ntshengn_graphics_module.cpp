@@ -548,7 +548,7 @@ void NtshEngn::GraphicsModule::init() {
 
 	m_compositing.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_allocator, m_initializationCommandPool, m_initializationCommandBuffer, m_initializationFence, m_viewport, m_scissor, m_framesInFlight, m_cameraBuffers, m_lightBuffers, m_shadowMapping.getShadowSceneBuffers(), m_gBuffer.getPosition().view, m_gBuffer.getNormal().view, m_gBuffer.getDiffuse().view, m_gBuffer.getMaterial().view, m_gBuffer.getEmissive().view, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdPipelineBarrier2KHR);
 
-	m_forwardRenderer.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_viewport, m_scissor, m_framesInFlight, m_cameraBuffers, m_lightBuffers, m_objectBuffers, m_meshBuffer, m_jointTransformBuffers, m_materialBuffers, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdPipelineBarrier2KHR);
+	m_forwardRenderer.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_viewport, m_scissor, m_framesInFlight, m_cameraBuffers, m_lightBuffers, m_objectBuffers, m_meshBuffer, m_jointTransformBuffers, m_materialBuffers, m_shadowMapping.getShadowSceneBuffers(), m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdPipelineBarrier2KHR);
 
 	m_particles.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_allocator, m_compositing.getImageFormat(), m_initializationCommandPool, m_initializationCommandBuffer, m_initializationFence, m_viewport, m_scissor, m_framesInFlight, m_cameraBuffers, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdPipelineBarrier2KHR);
 
@@ -794,6 +794,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	m_shadowMapping.updateDescriptorSets(m_currentFrameInFlight, m_textures, m_textureImageViews, m_textureSamplers);
 	m_compositing.updateShadowDescriptorSets(m_currentFrameInFlight, m_shadowMapping.getShadowMapImages(), m_shadowMapping.getShadowMapSampler());
 	m_forwardRenderer.updateDescriptorSets(m_currentFrameInFlight, m_textures, m_textureImageViews, m_textureSamplers);
+	m_forwardRenderer.updateShadowDescriptorSets(m_currentFrameInFlight, m_shadowMapping.getShadowMapImages(), m_shadowMapping.getShadowMapSampler());
 	m_particles.updateGraphicsDescriptorSets(m_currentFrameInFlight, m_textureImageViews);
 	updateUITextDescriptorSet(m_currentFrameInFlight);
 	updateUIImageDescriptorSet(m_currentFrameInFlight);
@@ -2376,24 +2377,24 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 	else if (componentID == ecs->getComponentID<Light>()) {
 		const Light& light = ecs->getComponent<Light>(entity);
 
-		bool compositingShadowDescriptorSetsNeedUpdate = false;
+		bool shadowDescriptorSetsNeedUpdate = false;
 		switch (light.type) {
 		case LightType::Directional:
 			m_lights.directionalLights.push_back(entity);
 			m_shadowMapping.createDirectionalLightShadowMap(entity);
-			compositingShadowDescriptorSetsNeedUpdate = true;
+			shadowDescriptorSetsNeedUpdate = true;
 			break;
 
 		case LightType::Point:
 			m_lights.pointLights.push_back(entity);
 			m_shadowMapping.createPointLightShadowMap(entity);
-			compositingShadowDescriptorSetsNeedUpdate = true;
+			shadowDescriptorSetsNeedUpdate = true;
 			break;
 
 		case LightType::Spot:
 			m_lights.spotLights.push_back(entity);
 			m_shadowMapping.createSpotLightShadowMap(entity);
-			compositingShadowDescriptorSetsNeedUpdate = true;
+			shadowDescriptorSetsNeedUpdate = true;
 			break;
 
 		case LightType::Ambient:
@@ -2403,13 +2404,14 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		default: // Arbitrarily consider it a directional light
 			m_lights.directionalLights.push_back(entity);
 			m_shadowMapping.createDirectionalLightShadowMap(entity);
-			compositingShadowDescriptorSetsNeedUpdate = true;
+			shadowDescriptorSetsNeedUpdate = true;
 			break;
 		}
 
-		if (compositingShadowDescriptorSetsNeedUpdate) {
+		if (shadowDescriptorSetsNeedUpdate) {
 			for (uint32_t i = 0; i < m_framesInFlight; i++) {
 				m_compositing.shadowDescriptorSetNeedsUpdate(i);
+				m_forwardRenderer.shadowDescriptorSetNeedsUpdate(i);
 			}
 		}
 	}
@@ -2437,24 +2439,24 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 	else if (componentID == ecs->getComponentID<Light>()) {
 		const Light& light = ecs->getComponent<Light>(entity);
 
-		bool compositingShadowDescriptorSetsNeedUpdate = false;
+		bool shadowDescriptorSetsNeedUpdate = false;
 		switch (light.type) {
 		case LightType::Directional:
 			m_lights.directionalLights.erase(std::remove(m_lights.directionalLights.begin(), m_lights.directionalLights.end(), entity));
 			m_shadowMapping.destroyDirectionalLightShadowMap(entity);
-			compositingShadowDescriptorSetsNeedUpdate = true;
+			shadowDescriptorSetsNeedUpdate = true;
 			break;
 
 		case LightType::Point:
 			m_lights.pointLights.erase(std::remove(m_lights.pointLights.begin(), m_lights.pointLights.end(), entity));
 			m_shadowMapping.destroyPointLightShadowMap(entity);
-			compositingShadowDescriptorSetsNeedUpdate = true;
+			shadowDescriptorSetsNeedUpdate = true;
 			break;
 
 		case LightType::Spot:
 			m_lights.spotLights.erase(std::remove(m_lights.spotLights.begin(), m_lights.spotLights.end(), entity));
 			m_shadowMapping.destroySpotLightShadowMap(entity);
-			compositingShadowDescriptorSetsNeedUpdate = true;
+			shadowDescriptorSetsNeedUpdate = true;
 			break;
 
 		case LightType::Ambient:
@@ -2464,13 +2466,14 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 		default: // Arbitrarily consider it a directional light
 			m_lights.directionalLights.erase(std::remove(m_lights.directionalLights.begin(), m_lights.directionalLights.end(), entity));
 			m_shadowMapping.destroyDirectionalLightShadowMap(entity);
-			compositingShadowDescriptorSetsNeedUpdate = true;
+			shadowDescriptorSetsNeedUpdate = true;
 			break;
 		}
 
-		if (compositingShadowDescriptorSetsNeedUpdate) {
+		if (shadowDescriptorSetsNeedUpdate) {
 			for (uint32_t i = 0; i < m_framesInFlight; i++) {
 				m_compositing.shadowDescriptorSetNeedsUpdate(i);
+				m_forwardRenderer.shadowDescriptorSetNeedsUpdate(i);
 			}
 		}
 	}
