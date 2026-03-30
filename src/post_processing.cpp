@@ -1,6 +1,6 @@
-#include "tone_mapping.h"
+#include "post_processing.h"
 
-void ToneMapping::init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VmaAllocator allocator, VkCommandPool initializationCommandPool, VkCommandBuffer initializationCommandBuffer, VkFence initializationFence, VkFormat drawImageFormat, VkViewport viewport, VkRect2D scissor, VkImageView colorImageView, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
+void PostProcessing::init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VmaAllocator allocator, VkCommandPool initializationCommandPool, VkCommandBuffer initializationCommandBuffer, VkFence initializationFence, VkViewport viewport, VkRect2D scissor, uint32_t framesInFlight, VkImageView colorImageView, VkImageView bloomImageView, VkImageView ssaoImageView, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
 	m_device = device;
 	m_graphicsQueue = graphicsQueue;
 	m_graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
@@ -10,19 +10,25 @@ void ToneMapping::init(VkDevice device, VkQueue graphicsQueue, uint32_t graphics
 	m_initializationFence = initializationFence;
 	m_viewport = viewport;
 	m_scissor = scissor;
+	m_framesInFlight = framesInFlight;
 	m_vkCmdBeginRenderingKHR = vkCmdBeginRenderingKHR;
 	m_vkCmdEndRenderingKHR = vkCmdEndRenderingKHR;
 	m_vkCmdPipelineBarrier2KHR = vkCmdPipelineBarrier2KHR;
 
-	createImage(m_scissor.extent.width, m_scissor.extent.height, drawImageFormat);
+	createImage(m_scissor.extent.width, m_scissor.extent.height);
 	createDescriptorSetLayout();
-	createGraphicsPipeline(drawImageFormat);
-	createSampler();
-	createDescriptorSet();
-	updateDescriptorSet(colorImageView);
+	createGraphicsPipeline();
+	createSamplers();
+	createDescriptorSets();
+	updateDescriptorSets(colorImageView, bloomImageView, ssaoImageView);
+
+	m_descriptorSetsShadowNeedUpdate.resize(m_framesInFlight);
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		m_descriptorSetsShadowNeedUpdate[i] = false;
+	}
 }
 
-void ToneMapping::destroy() {
+void PostProcessing::destroy() {
 	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
 
 	vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
@@ -30,38 +36,73 @@ void ToneMapping::destroy() {
 
 	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
 
-	vkDestroySampler(m_device, m_sampler, nullptr);
+	vkDestroySampler(m_device, m_linearSampler, nullptr);
+	vkDestroySampler(m_device, m_nearestSampler, nullptr);
 
 	m_image.destroy(m_device, m_allocator);
 }
 
-void ToneMapping::draw(VkCommandBuffer commandBuffer) {
-	VkRenderingAttachmentInfo toneMappingAttachmentInfo = {};
-	toneMappingAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	toneMappingAttachmentInfo.pNext = nullptr;
-	toneMappingAttachmentInfo.imageView = m_image.view;
-	toneMappingAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	toneMappingAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
-	toneMappingAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
-	toneMappingAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	toneMappingAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	toneMappingAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	toneMappingAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
+void PostProcessing::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight) {
+	// Synchronization before rendering
+	VkImageMemoryBarrier2 beforeImageMemoryBarrier = {};
+	beforeImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	beforeImageMemoryBarrier.pNext = nullptr;
+	beforeImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	beforeImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+	beforeImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	beforeImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	beforeImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	beforeImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	beforeImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	beforeImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	beforeImageMemoryBarrier.image = m_image.handle;
+	beforeImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	beforeImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	beforeImageMemoryBarrier.subresourceRange.levelCount = 1;
+	beforeImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	beforeImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	VkRenderingInfo toneMappingRenderingInfo = {};
-	toneMappingRenderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-	toneMappingRenderingInfo.pNext = nullptr;
-	toneMappingRenderingInfo.flags = 0;
-	toneMappingRenderingInfo.renderArea = m_scissor;
-	toneMappingRenderingInfo.layerCount = 1;
-	toneMappingRenderingInfo.viewMask = 0;
-	toneMappingRenderingInfo.colorAttachmentCount = 1;
-	toneMappingRenderingInfo.pColorAttachments = &toneMappingAttachmentInfo;
-	toneMappingRenderingInfo.pDepthAttachment = nullptr;
-	toneMappingRenderingInfo.pStencilAttachment = nullptr;
-	m_vkCmdBeginRenderingKHR(commandBuffer, &toneMappingRenderingInfo);
+	VkDependencyInfo beforeDependencyInfo = {};
+	beforeDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	beforeDependencyInfo.pNext = nullptr;
+	beforeDependencyInfo.dependencyFlags = 0;
+	beforeDependencyInfo.memoryBarrierCount = 0;
+	beforeDependencyInfo.pMemoryBarriers = nullptr;
+	beforeDependencyInfo.bufferMemoryBarrierCount = 0;
+	beforeDependencyInfo.pBufferMemoryBarriers = nullptr;
+	beforeDependencyInfo.imageMemoryBarrierCount = 1;
+	beforeDependencyInfo.pImageMemoryBarriers = &beforeImageMemoryBarrier;
+	m_vkCmdPipelineBarrier2KHR(commandBuffer, &beforeDependencyInfo);
 
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipelineLayout, 0, 1, &m_descriptorSet, 0, nullptr);
+	VkRenderingAttachmentInfo renderingAttachmentInfo = {};
+	renderingAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	renderingAttachmentInfo.pNext = nullptr;
+	renderingAttachmentInfo.imageView = m_image.view;
+	renderingAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	renderingAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+	renderingAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
+	renderingAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	renderingAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	renderingAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	renderingAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	VkRenderingInfo renderingInfo = {};
+	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	renderingInfo.pNext = nullptr;
+	renderingInfo.flags = 0;
+	renderingInfo.renderArea = m_scissor;
+	renderingInfo.layerCount = 1;
+	renderingInfo.viewMask = 0;
+	renderingInfo.colorAttachmentCount = 1;
+	renderingInfo.pColorAttachments = &renderingAttachmentInfo;
+	renderingInfo.pDepthAttachment = nullptr;
+	renderingInfo.pStencilAttachment = nullptr;
+	m_vkCmdBeginRenderingKHR(commandBuffer, &renderingInfo);
+
+	// Bind descriptor set 0
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipelineLayout, 0, 1, &m_descriptorSets[currentFrameInFlight], 0, nullptr);
+
+	// Bind graphics pipeline
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 	vkCmdSetViewport(commandBuffer, 0, 1, &m_viewport);
 	vkCmdSetScissor(commandBuffer, 0, 1, &m_scissor);
@@ -70,7 +111,7 @@ void ToneMapping::draw(VkCommandBuffer commandBuffer) {
 
 	m_vkCmdEndRenderingKHR(commandBuffer);
 
-	// Tone mapping layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+	// Synchronization before tonemapping
 	VkImageMemoryBarrier2 imageMemoryBarrier = {};
 	imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	imageMemoryBarrier.pNext = nullptr;
@@ -102,34 +143,36 @@ void ToneMapping::draw(VkCommandBuffer commandBuffer) {
 	m_vkCmdPipelineBarrier2KHR(commandBuffer, &dependencyInfo);
 }
 
-void ToneMapping::onResize(uint32_t width, uint32_t height, VkFormat drawImageFormat, VkImageView colorImageView) {
+void PostProcessing::onResize(uint32_t width, uint32_t height, VkImageView colorImageView, VkImageView bloomImageView, VkImageView ssaoImageView) {
 	m_viewport.width = static_cast<float>(width);
 	m_viewport.height = static_cast<float>(height);
 	m_scissor.extent.width = width;
 	m_scissor.extent.height = height;
 
 	m_image.destroy(m_device, m_allocator);
-	createImage(width, height, drawImageFormat);
+	createImage(width, height);
 
-	updateDescriptorSet(colorImageView);
+	updateDescriptorSets(colorImageView, bloomImageView, ssaoImageView);
 }
 
-VulkanImage& ToneMapping::getImage() {
+VulkanImage& PostProcessing::getImage() {
 	return m_image;
 }
 
-void ToneMapping::createImage(uint32_t width, uint32_t height, VkFormat drawImageFormat) {
+void PostProcessing::createImage(uint32_t width, uint32_t height) {
 	VkExtent3D imageExtent;
 	imageExtent.width = width;
 	imageExtent.height = height;
 	imageExtent.depth = 1;
+
+	m_imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 
 	VkImageCreateInfo imageCreateInfo = {};
 	imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imageCreateInfo.pNext = nullptr;
 	imageCreateInfo.flags = 0;
 	imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-	imageCreateInfo.format = drawImageFormat;
+	imageCreateInfo.format = m_imageFormat;
 	imageCreateInfo.extent.width = imageExtent.width;
 	imageCreateInfo.extent.height = imageExtent.height;
 	imageCreateInfo.extent.depth = 1;
@@ -149,23 +192,23 @@ void ToneMapping::createImage(uint32_t width, uint32_t height, VkFormat drawImag
 
 	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &imageCreateInfo, &imageAllocationCreateInfo, &m_image.handle, &m_image.allocation, nullptr));
 
-	VkImageViewCreateInfo imageViewCreateInfo = {};
-	imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	imageViewCreateInfo.pNext = nullptr;
-	imageViewCreateInfo.flags = 0;
-	imageViewCreateInfo.image = m_image.handle;
-	imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	imageViewCreateInfo.format = drawImageFormat;
-	imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
-	imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
-	imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
-	imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
-	imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-	imageViewCreateInfo.subresourceRange.levelCount = 1;
-	imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-	imageViewCreateInfo.subresourceRange.layerCount = 1;
-	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &imageViewCreateInfo, nullptr, &m_image.view));
+	VkImageViewCreateInfo compositingImageViewCreateInfo = {};
+	compositingImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	compositingImageViewCreateInfo.pNext = nullptr;
+	compositingImageViewCreateInfo.flags = 0;
+	compositingImageViewCreateInfo.image = m_image.handle;
+	compositingImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	compositingImageViewCreateInfo.format = m_imageFormat;
+	compositingImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+	compositingImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+	compositingImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+	compositingImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+	compositingImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	compositingImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+	compositingImageViewCreateInfo.subresourceRange.levelCount = 1;
+	compositingImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+	compositingImageViewCreateInfo.subresourceRange.layerCount = 1;
+	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &compositingImageViewCreateInfo, nullptr, &m_image.view));
 
 	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
 	VkCommandPool commandPool;
@@ -243,30 +286,45 @@ void ToneMapping::createImage(uint32_t width, uint32_t height, VkFormat drawImag
 	vkDestroyCommandPool(m_device, commandPool, nullptr);
 }
 
-void ToneMapping::createDescriptorSetLayout() {
-	VkDescriptorSetLayoutBinding colorImageDescriptorSetLayoutBinding = {};
-	colorImageDescriptorSetLayoutBinding.binding = 0;
-	colorImageDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	colorImageDescriptorSetLayoutBinding.descriptorCount = 1;
-	colorImageDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-	colorImageDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+void PostProcessing::createDescriptorSetLayout() {
+	VkDescriptorSetLayoutBinding colorDescriptorSetLayoutBinding = {};
+	colorDescriptorSetLayoutBinding.binding = 0;
+	colorDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	colorDescriptorSetLayoutBinding.descriptorCount = 1;
+	colorDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	colorDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
+	VkDescriptorSetLayoutBinding bloomDescriptorSetLayoutBinding = {};
+	bloomDescriptorSetLayoutBinding.binding = 1;
+	bloomDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	bloomDescriptorSetLayoutBinding.descriptorCount = 1;
+	bloomDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	bloomDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding ssaoDescriptorSetLayoutBinding = {};
+	ssaoDescriptorSetLayoutBinding.binding = 2;
+	ssaoDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	ssaoDescriptorSetLayoutBinding.descriptorCount = 1;
+	ssaoDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	ssaoDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	std::array<VkDescriptorSetLayoutBinding, 3> descriptorSetLayoutBindings = { colorDescriptorSetLayoutBinding, bloomDescriptorSetLayoutBinding, ssaoDescriptorSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
 	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	descriptorSetLayoutCreateInfo.pNext = nullptr;
 	descriptorSetLayoutCreateInfo.flags = 0;
-	descriptorSetLayoutCreateInfo.bindingCount = 1;
-	descriptorSetLayoutCreateInfo.pBindings = &colorImageDescriptorSetLayoutBinding;
+	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size());
+	descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
 	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_descriptorSetLayout));
 }
 
-void ToneMapping::createGraphicsPipeline(VkFormat drawImageFormat) {
+void PostProcessing::createGraphicsPipeline() {
 	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
 	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
 	pipelineRenderingCreateInfo.pNext = nullptr;
 	pipelineRenderingCreateInfo.viewMask = 0;
 	pipelineRenderingCreateInfo.colorAttachmentCount = 1;
-	pipelineRenderingCreateInfo.pColorAttachmentFormats = &drawImageFormat;
+	pipelineRenderingCreateInfo.pColorAttachmentFormats = &m_imageFormat;
 	pipelineRenderingCreateInfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
 	pipelineRenderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 
@@ -300,17 +358,26 @@ void ToneMapping::createGraphicsPipeline(VkFormat drawImageFormat) {
 	vertexShaderStageCreateInfo.pName = "main";
 	vertexShaderStageCreateInfo.pSpecializationInfo = nullptr;
 
-	const std::string fragmentShaderCode = R"GLSL(
+	std::string fragmentShaderCode = R"GLSL(
 		#version 460
 
-		layout(set = 0, binding = 0) uniform sampler2D imageSampler;
+		layout(set = 0, binding = 0) uniform sampler2D colorSampler;
+		layout(set = 0, binding = 1) uniform sampler2D bloomSampler;
+		layout(set = 0, binding = 2) uniform sampler2D ssaoSampler;
 
 		layout(location = 0) in vec2 uv;
 
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			outColor = texture(imageSampler, uv);
+			outColor = texture(colorSampler, uv);
+
+			outColor *= texture(ssaoSampler, uv).r;
+
+			vec4 bloom = textureLod(bloomSampler, uv, 1.5) +
+				textureLod(bloomSampler, uv, 3.5) +
+				textureLod(bloomSampler, uv, 4.5);
+			outColor += (bloom / 3.0);
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
@@ -463,7 +530,7 @@ void ToneMapping::createGraphicsPipeline(VkFormat drawImageFormat) {
 	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
 }
 
-void ToneMapping::createSampler() {
+void PostProcessing::createSamplers() {
 	VkSamplerCreateInfo samplerCreateInfo = {};
 	samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 	samplerCreateInfo.pNext = nullptr;
@@ -483,51 +550,106 @@ void ToneMapping::createSampler() {
 	samplerCreateInfo.maxLod = 0.0f;
 	samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
 	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_sampler));
+	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_nearestSampler));
+
+	samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+	samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+	samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
+	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_linearSampler));
 }
 
-void ToneMapping::createDescriptorSet() {
+void PostProcessing::createDescriptorSets() {
 	// Create descriptor pool
 	VkDescriptorPoolSize colorImageDescriptorPoolSize = {};
 	colorImageDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	colorImageDescriptorPoolSize.descriptorCount = 1;
+	colorImageDescriptorPoolSize.descriptorCount = m_framesInFlight;
 
+	VkDescriptorPoolSize bloomImageDescriptorPoolSize = {};
+	bloomImageDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	bloomImageDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	VkDescriptorPoolSize ssaoImageDescriptorPoolSize = {};
+	ssaoImageDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	ssaoImageDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	std::array<VkDescriptorPoolSize, 3> descriptorPoolSizes = { colorImageDescriptorPoolSize, bloomImageDescriptorPoolSize, ssaoImageDescriptorPoolSize };
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.pNext = nullptr;
 	descriptorPoolCreateInfo.flags = 0;
-	descriptorPoolCreateInfo.maxSets = 1;
-	descriptorPoolCreateInfo.poolSizeCount = 1;
-	descriptorPoolCreateInfo.pPoolSizes = &colorImageDescriptorPoolSize;
+	descriptorPoolCreateInfo.maxSets = m_framesInFlight;
+	descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(descriptorPoolSizes.size());
+	descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes.data();
 	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool));
 
 	// Allocate descriptor set
+	m_descriptorSets.resize(m_framesInFlight);
 	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
 	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	descriptorSetAllocateInfo.pNext = nullptr;
 	descriptorSetAllocateInfo.descriptorPool = m_descriptorPool;
 	descriptorSetAllocateInfo.descriptorSetCount = 1;
 	descriptorSetAllocateInfo.pSetLayouts = &m_descriptorSetLayout;
-	NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_descriptorSet));
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_descriptorSets[i]));
+	}
 }
 
-void ToneMapping::updateDescriptorSet(VkImageView colorImageView) {
-	VkDescriptorImageInfo colorImageDescriptorImageInfo;
-	colorImageDescriptorImageInfo.sampler = m_sampler;
-	colorImageDescriptorImageInfo.imageView = colorImageView;
-	colorImageDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+void PostProcessing::updateDescriptorSets(VkImageView colorImageView, VkImageView bloomImageView, VkImageView ssaoImageView) {
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		VkDescriptorImageInfo colorImageDescriptorImageInfo;
+		colorImageDescriptorImageInfo.sampler = m_nearestSampler;
+		colorImageDescriptorImageInfo.imageView = colorImageView;
+		colorImageDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-	VkWriteDescriptorSet colorImageDescriptorWriteDescriptorSet = {};
-	colorImageDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	colorImageDescriptorWriteDescriptorSet.pNext = nullptr;
-	colorImageDescriptorWriteDescriptorSet.dstSet = m_descriptorSet;
-	colorImageDescriptorWriteDescriptorSet.dstBinding = 0;
-	colorImageDescriptorWriteDescriptorSet.dstArrayElement = 0;
-	colorImageDescriptorWriteDescriptorSet.descriptorCount = 1;
-	colorImageDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	colorImageDescriptorWriteDescriptorSet.pImageInfo = &colorImageDescriptorImageInfo;
-	colorImageDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
-	colorImageDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+		VkWriteDescriptorSet colorImageDescriptorWriteDescriptorSet = {};
+		colorImageDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		colorImageDescriptorWriteDescriptorSet.pNext = nullptr;
+		colorImageDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		colorImageDescriptorWriteDescriptorSet.dstBinding = 0;
+		colorImageDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		colorImageDescriptorWriteDescriptorSet.descriptorCount = 1;
+		colorImageDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		colorImageDescriptorWriteDescriptorSet.pImageInfo = &colorImageDescriptorImageInfo;
+		colorImageDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
+		colorImageDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
-	vkUpdateDescriptorSets(m_device, 1, &colorImageDescriptorWriteDescriptorSet, 0, nullptr);
+		VkDescriptorImageInfo bloomImageDescriptorImageInfo;
+		bloomImageDescriptorImageInfo.sampler = m_linearSampler;
+		bloomImageDescriptorImageInfo.imageView = bloomImageView;
+		bloomImageDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		VkWriteDescriptorSet bloomImageDescriptorWriteDescriptorSet = {};
+		bloomImageDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		bloomImageDescriptorWriteDescriptorSet.pNext = nullptr;
+		bloomImageDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		bloomImageDescriptorWriteDescriptorSet.dstBinding = 1;
+		bloomImageDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		bloomImageDescriptorWriteDescriptorSet.descriptorCount = 1;
+		bloomImageDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		bloomImageDescriptorWriteDescriptorSet.pImageInfo = &bloomImageDescriptorImageInfo;
+		bloomImageDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
+		bloomImageDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+
+		VkDescriptorImageInfo ssaoImageDescriptorImageInfo;
+		ssaoImageDescriptorImageInfo.sampler = m_nearestSampler;
+		ssaoImageDescriptorImageInfo.imageView = ssaoImageView;
+		ssaoImageDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		VkWriteDescriptorSet ssaoImageDescriptorWriteDescriptorSet = {};
+		ssaoImageDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		ssaoImageDescriptorWriteDescriptorSet.pNext = nullptr;
+		ssaoImageDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
+		ssaoImageDescriptorWriteDescriptorSet.dstBinding = 2;
+		ssaoImageDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		ssaoImageDescriptorWriteDescriptorSet.descriptorCount = 1;
+		ssaoImageDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		ssaoImageDescriptorWriteDescriptorSet.pImageInfo = &ssaoImageDescriptorImageInfo;
+		ssaoImageDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
+		ssaoImageDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+
+		std::array<VkWriteDescriptorSet, 3> writeDescriptorSets = { colorImageDescriptorWriteDescriptorSet, bloomImageDescriptorWriteDescriptorSet, ssaoImageDescriptorWriteDescriptorSet };
+		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+	}
 }

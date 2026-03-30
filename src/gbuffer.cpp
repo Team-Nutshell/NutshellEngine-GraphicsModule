@@ -1,25 +1,6 @@
 #include "gbuffer.h"
 
-void GBuffer::init(VkDevice device,
-	VkQueue graphicsQueue,
-	uint32_t graphicsQueueFamilyIndex,
-	VmaAllocator allocator,
-	VkCommandPool initializationCommandPool,
-	VkCommandBuffer initializationCommandBuffer,
-	VkFence initializationFence,
-	VkViewport viewport,
-	VkRect2D scissor,
-	uint32_t framesInFlight,
-	const std::vector<HostVisibleVulkanBuffer>& cameraBuffers,
-	const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
-	VulkanBuffer meshBuffer,
-	const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers,
-	const std::vector<HostVisibleVulkanBuffer>& materialBuffers,
-	PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
-	PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
-	PFN_vkCmdDrawIndexedIndirectCountKHR vkCmdDrawIndexedIndirectCountKHR,
-	PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR,
-	PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR) {
+void GBuffer::init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VmaAllocator allocator, VkCommandPool initializationCommandPool, VkCommandBuffer initializationCommandBuffer, VkFence initializationFence, VkViewport viewport, VkRect2D scissor, uint32_t framesInFlight, const std::vector<HostVisibleVulkanBuffer>& cameraBuffers, const std::vector<HostVisibleVulkanBuffer>& objectBuffers, VulkanBuffer meshBuffer, const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers, const std::vector<HostVisibleVulkanBuffer>& materialBuffers, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdDrawIndexedIndirectCountKHR vkCmdDrawIndexedIndirectCountKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR, PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR) {
 	m_device = device;
 	m_graphicsQueue = graphicsQueue;
 	m_graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
@@ -62,11 +43,7 @@ void GBuffer::destroy() {
 	m_frustumCullingInfo.drawIndirectBuffer.destroy(m_allocator);
 }
 
-void GBuffer::draw(VkCommandBuffer commandBuffer,
-	uint32_t currentFrameInFlight,
-	uint32_t drawIndirectCount,
-	VulkanBuffer vertexBuffer,
-	VulkanBuffer indexBuffer) {
+void GBuffer::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight, uint32_t drawIndirectCount, VulkanBuffer vertexBuffer, VulkanBuffer indexBuffer) {
 	// G-Buffer layout transition
 	VkImageMemoryBarrier2 positionFragmentToColorAttachmentImageMemoryBarrier = {};
 	positionFragmentToColorAttachmentImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -161,8 +138,8 @@ void GBuffer::draw(VkCommandBuffer commandBuffer,
 	VkImageMemoryBarrier2 depthImageMemoryBarrier = {};
 	depthImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	depthImageMemoryBarrier.pNext = nullptr;
-	depthImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
-	depthImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	depthImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT; // Read from SSAO
+	depthImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
 	depthImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
 	depthImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 	depthImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -385,25 +362,25 @@ void GBuffer::draw(VkCommandBuffer commandBuffer,
 	emissiveColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	emissiveColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	VkImageMemoryBarrier2 depthBeforeParticleImageMemoryBarrier = {};
-	depthBeforeParticleImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-	depthBeforeParticleImageMemoryBarrier.pNext = nullptr;
-	depthBeforeParticleImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
-	depthBeforeParticleImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-	depthBeforeParticleImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
-	depthBeforeParticleImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-	depthBeforeParticleImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	depthBeforeParticleImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	depthBeforeParticleImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	depthBeforeParticleImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	depthBeforeParticleImageMemoryBarrier.image = m_depth.handle;
-	depthBeforeParticleImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-	depthBeforeParticleImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
-	depthBeforeParticleImageMemoryBarrier.subresourceRange.levelCount = 1;
-	depthBeforeParticleImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-	depthBeforeParticleImageMemoryBarrier.subresourceRange.layerCount = 1;
+	VkImageMemoryBarrier2 depthBeforeForwardRendererImageMemoryBarrier = {};
+	depthBeforeForwardRendererImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	depthBeforeForwardRendererImageMemoryBarrier.pNext = nullptr;
+	depthBeforeForwardRendererImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+	depthBeforeForwardRendererImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	depthBeforeForwardRendererImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+	depthBeforeForwardRendererImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	depthBeforeForwardRendererImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	depthBeforeForwardRendererImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	depthBeforeForwardRendererImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	depthBeforeForwardRendererImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	depthBeforeForwardRendererImageMemoryBarrier.image = m_depth.handle;
+	depthBeforeForwardRendererImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	depthBeforeForwardRendererImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	depthBeforeForwardRendererImageMemoryBarrier.subresourceRange.levelCount = 1;
+	depthBeforeForwardRendererImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	depthBeforeForwardRendererImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	std::array<VkImageMemoryBarrier2, 6> afterRenderImageMemoryBarriers = { positionColorAttachmentToFragmentImageMemoryBarrier, normalColorAttachmentToFragmentImageMemoryBarrier, diffuseColorAttachmentToFragmentImageMemoryBarrier, materialColorAttachmentToFragmentImageMemoryBarrier, emissiveColorAttachmentToFragmentImageMemoryBarrier, depthBeforeParticleImageMemoryBarrier };
+	std::array<VkImageMemoryBarrier2, 6> afterRenderImageMemoryBarriers = { positionColorAttachmentToFragmentImageMemoryBarrier, normalColorAttachmentToFragmentImageMemoryBarrier, diffuseColorAttachmentToFragmentImageMemoryBarrier, materialColorAttachmentToFragmentImageMemoryBarrier, emissiveColorAttachmentToFragmentImageMemoryBarrier, depthBeforeForwardRendererImageMemoryBarrier };
 	VkDependencyInfo afterRenderDependencyInfo = {};
 	afterRenderDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	afterRenderDependencyInfo.pNext = nullptr;
@@ -421,10 +398,7 @@ void GBuffer::descriptorSetNeedsUpdate(uint32_t frameInFlight) {
 	m_descriptorSetsNeedUpdate[frameInFlight] = true;
 }
 
-void GBuffer::updateDescriptorSets(uint32_t frameInFlight,
-	const std::vector<InternalTexture>& textures,
-	const std::vector<VkImageView>& textureImageViews,
-	const std::unordered_map<std::string, VkSampler>& textureSamplers) {
+void GBuffer::updateDescriptorSets(uint32_t frameInFlight, const std::vector<InternalTexture>& textures, const std::vector<VkImageView>& textureImageViews, const std::unordered_map<std::string, VkSampler>& textureSamplers) {
 	if (!m_descriptorSetsNeedUpdate[frameInFlight]) {
 		return;
 	}
@@ -531,7 +505,7 @@ void GBuffer::createImages(uint32_t width, uint32_t height) {
 	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &gBufferCreateInfo, &gBufferAllocationCreateInfo, &m_emissive.handle, &m_emissive.allocation, nullptr));
 
 	gBufferCreateInfo.format = VK_FORMAT_D32_SFLOAT;
-	gBufferCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	gBufferCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &gBufferCreateInfo, &gBufferAllocationCreateInfo, &m_depth.handle, &m_depth.allocation, nullptr));
 
 	VkImageViewCreateInfo gBufferViewCreateInfo = {};

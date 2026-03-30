@@ -2,13 +2,7 @@
 #include <array>
 #include <mutex>
 
-void FrustumCulling::init(VkDevice device,
-	VkQueue computeQueue,
-	uint32_t computeQueueFamilyIndex,
-	VmaAllocator allocator,
-	uint32_t framesInFlight,
-	PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR,
-	NtshEngn::ECSInterface* ecs) {
+void FrustumCulling::init(VkDevice device, VkQueue computeQueue, uint32_t computeQueueFamilyIndex, VmaAllocator allocator, uint32_t framesInFlight, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR, NtshEngn::ECSInterface* ecs) {
 	m_device = device;
 	m_computeQueue = computeQueue;
 	m_computeQueueFamilyIndex = computeQueueFamilyIndex;
@@ -52,11 +46,7 @@ void FrustumCulling::destroy() {
 	}
 }
 
-uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
-	uint32_t currentFrameInFlight,
-	const std::vector<FrustumCullingInfo>& frustumCullingInfos,
-	const std::unordered_map<NtshEngn::Entity, InternalObject>& objects,
-	const std::vector<InternalMesh>& meshes) {
+uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight, const std::vector<FrustumCullingInfo>& frustumCullingInfos, const std::unordered_map<NtshEngn::Entity, InternalObject>& objects, const std::vector<InternalMesh>& meshes) {
 	std::vector<VkDrawIndexedIndirectCommand> drawIndirectCommands;
 	std::vector<uint32_t> perDraw;
 
@@ -65,7 +55,6 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 		InternalFrustumCullingInfo internalFrustumCullingInfo;
 		internalFrustumCullingInfo.frustum = calculateFrustumPlanes(frustumCullingInfos[i].viewProj);
 		internalFrustumCullingInfo.bufferAddress = frustumCullingInfos[i].drawIndirectBuffer.bufferDeviceAddress;
-
 		internalFrustumCullingInfos.push_back(internalFrustumCullingInfo);
 	}
 
@@ -135,7 +124,32 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 		frustumCullingObjects.push_back(frustumCullingObject);
 	}
 
+	m_customGraphicsPipelineObjectsAfterCulling.clear();
 	std::vector<uint32_t> frustumCullingObjectStates(frustumCullingInfos.size() * frustumCullingObjects.size(), 0);
+	for (size_t i = 0; i < frustumCullingInfos.size(); i++) {
+		uint32_t objectIndex = 0;
+		if (frustumCullingInfos[i].cameraType == FrustumCullingCameraType::Scene) {
+			for (auto& it : objects) {
+				const InternalObject& object = it.second;
+				if (object.meshID == 0) {
+					objectIndex++;
+					continue;
+				}
+
+				// Exclude objects with custom graphics pipelines from GPU frustum culling
+				if (!object.graphicsPipelineKey.empty()) {
+					frustumCullingObjectStates[(i * frustumCullingObjects.size()) + objectIndex] = FRUSTUM_CULLING_STATE_ALWAYS_FAIL;
+
+					// CPU frustum culling
+					if (intersect(internalFrustumCullingInfos[i].frustum, frustumCullingObjects[objectIndex])) {
+						m_customGraphicsPipelineObjectsAfterCulling.push_back(object);
+					}
+				}
+
+				objectIndex++;
+			}
+		}
+	}
 
 	uint32_t drawIndirectCount = static_cast<uint32_t>(drawIndirectCommands.size());
 	memcpy(m_inDrawIndirectBuffers[currentFrameInFlight].address, &drawIndirectCount, sizeof(uint32_t));
@@ -289,6 +303,37 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer,
 	m_vkCmdPipelineBarrier2KHR(commandBuffer, &indirectDrawDependencyInfo);
 
 	return drawIndirectCount;
+}
+
+bool FrustumCulling::intersect(const Frustum& frustum, const FrustumCullingObject& object) {
+	const NtshEngn::Math::vec3 mmm = NtshEngn::Math::vec3(object.aabbMin.x, object.aabbMin.y, object.aabbMin.z);
+	const NtshEngn::Math::vec3 Mmm = NtshEngn::Math::vec3(object.aabbMax.x, object.aabbMin.y, object.aabbMin.z);
+	const NtshEngn::Math::vec3 mMm = NtshEngn::Math::vec3(object.aabbMin.x, object.aabbMax.y, object.aabbMin.z);
+	const NtshEngn::Math::vec3 MMm = NtshEngn::Math::vec3(object.aabbMax.x, object.aabbMax.y, object.aabbMin.z);
+	const NtshEngn::Math::vec3 mmM = NtshEngn::Math::vec3(object.aabbMin.x, object.aabbMin.y, object.aabbMax.z);
+	const NtshEngn::Math::vec3 MmM = NtshEngn::Math::vec3(object.aabbMax.x, object.aabbMin.y, object.aabbMax.z);
+	const NtshEngn::Math::vec3 mMM = NtshEngn::Math::vec3(object.aabbMin.x, object.aabbMax.y, object.aabbMax.z);
+	const NtshEngn::Math::vec3 MMM = NtshEngn::Math::vec3(object.aabbMax.x, object.aabbMax.y, object.aabbMax.z);
+	bool intersect = true;
+	for (uint32_t i = 0; i < 6; i++) {
+		if (((dot(NtshEngn::Math::vec3(frustum[i]), mmm) + frustum[i].w) <= 0.0f)
+			&& ((dot(NtshEngn::Math::vec3(frustum[i]), Mmm) + frustum[i].w) <= 0.0f)
+			&& ((dot(NtshEngn::Math::vec3(frustum[i]), mMm) + frustum[i].w) <= 0.0f)
+			&& ((dot(NtshEngn::Math::vec3(frustum[i]), MMm) + frustum[i].w) <= 0.0f)
+			&& ((dot(NtshEngn::Math::vec3(frustum[i]), mmM) + frustum[i].w) <= 0.0f)
+			&& ((dot(NtshEngn::Math::vec3(frustum[i]), MmM) + frustum[i].w) <= 0.0f)
+			&& ((dot(NtshEngn::Math::vec3(frustum[i]), mMM) + frustum[i].w) <= 0.0f)
+			&& ((dot(NtshEngn::Math::vec3(frustum[i]), MMM) + frustum[i].w) <= 0.0f)) {
+			intersect = false;
+			break;
+		}
+	}
+
+	return intersect;
+}
+
+const std::vector<InternalObject>& FrustumCulling::getCustomGraphicsPipelineObjectsAfterCulling() {
+	return m_customGraphicsPipelineObjectsAfterCulling;
 }
 
 void FrustumCulling::createBuffers() {

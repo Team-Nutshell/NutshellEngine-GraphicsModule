@@ -1,27 +1,6 @@
 #include "compositing.h"
 
-void Compositing::init(VkDevice device,
-	VkQueue graphicsQueue,
-	uint32_t graphicsQueueFamilyIndex,
-	VmaAllocator allocator,
-	VkCommandPool initializationCommandPool,
-	VkCommandBuffer initializationCommandBuffer,
-	VkFence initializationFence,
-	VkViewport viewport,
-	VkRect2D scissor,
-	uint32_t framesInFlight,
-	const std::vector<HostVisibleVulkanBuffer>& cameraBuffers,
-	const std::vector<HostVisibleVulkanBuffer>& lightBuffers,
-	const std::vector<HostVisibleVulkanBuffer>& shadowSceneBuffers,
-	VkImageView gBufferPositionView,
-	VkImageView gBufferNormalView,
-	VkImageView gBufferDiffuseView,
-	VkImageView gBufferMaterialView,
-	VkImageView gBufferEmissiveView,
-	VkImageView ssaoImageView,
-	PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
-	PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
-	PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
+void Compositing::init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VmaAllocator allocator, VkCommandPool initializationCommandPool, VkCommandBuffer initializationCommandBuffer, VkFence initializationFence, VkViewport viewport, VkRect2D scissor, uint32_t framesInFlight, const std::vector<HostVisibleVulkanBuffer>& cameraBuffers, const std::vector<HostVisibleVulkanBuffer>& lightBuffers, const std::vector<HostVisibleVulkanBuffer>& shadowSceneBuffers, VkImageView gBufferPositionView, VkImageView gBufferNormalView, VkImageView gBufferDiffuseView, VkImageView gBufferMaterialView, VkImageView gBufferEmissiveView, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
 	m_device = device;
 	m_graphicsQueue = graphicsQueue;
 	m_graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
@@ -39,9 +18,9 @@ void Compositing::init(VkDevice device,
 	createImage(m_scissor.extent.width, m_scissor.extent.height);
 	createDescriptorSetLayout();
 	createGraphicsPipeline();
-	createSamplers();
+	createSampler();
 	createDescriptorSets(cameraBuffers, lightBuffers, shadowSceneBuffers);
-	updateDescriptorSets(gBufferPositionView, gBufferNormalView, gBufferDiffuseView, gBufferMaterialView, gBufferEmissiveView, ssaoImageView);
+	updateDescriptorSets(gBufferPositionView, gBufferNormalView, gBufferDiffuseView, gBufferMaterialView, gBufferEmissiveView);
 
 	m_descriptorSetsShadowNeedUpdate.resize(m_framesInFlight);
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
@@ -57,39 +36,36 @@ void Compositing::destroy() {
 
 	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
 
-	vkDestroySampler(m_device, m_shadowSampler, nullptr);
 	vkDestroySampler(m_device, m_sampler, nullptr);
 
 	m_image.destroy(m_device, m_allocator);
 }
 
-void Compositing::draw(VkCommandBuffer commandBuffer,
-	uint32_t currentFrameInFlight,
-	const NtshEngn::Math::vec4& backgroundColor) {
-	VkRenderingAttachmentInfo compositingAttachmentInfo = {};
-	compositingAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	compositingAttachmentInfo.pNext = nullptr;
-	compositingAttachmentInfo.imageView = m_image.view;
-	compositingAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	compositingAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
-	compositingAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
-	compositingAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	compositingAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	compositingAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	compositingAttachmentInfo.clearValue.color = { backgroundColor.x, backgroundColor.y, backgroundColor.z, backgroundColor.w };
+void Compositing::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight, const NtshEngn::Math::vec4& backgroundColor) {
+	VkRenderingAttachmentInfo renderingAttachmentInfo = {};
+	renderingAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	renderingAttachmentInfo.pNext = nullptr;
+	renderingAttachmentInfo.imageView = m_image.view;
+	renderingAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	renderingAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+	renderingAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
+	renderingAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	renderingAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	renderingAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	renderingAttachmentInfo.clearValue.color = { backgroundColor.x, backgroundColor.y, backgroundColor.z, backgroundColor.w };
 
-	VkRenderingInfo compositingRenderingInfo = {};
-	compositingRenderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-	compositingRenderingInfo.pNext = nullptr;
-	compositingRenderingInfo.flags = 0;
-	compositingRenderingInfo.renderArea = m_scissor;
-	compositingRenderingInfo.layerCount = 1;
-	compositingRenderingInfo.viewMask = 0;
-	compositingRenderingInfo.colorAttachmentCount = 1;
-	compositingRenderingInfo.pColorAttachments = &compositingAttachmentInfo;
-	compositingRenderingInfo.pDepthAttachment = nullptr;
-	compositingRenderingInfo.pStencilAttachment = nullptr;
-	m_vkCmdBeginRenderingKHR(commandBuffer, &compositingRenderingInfo);
+	VkRenderingInfo renderingInfo = {};
+	renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	renderingInfo.pNext = nullptr;
+	renderingInfo.flags = 0;
+	renderingInfo.renderArea = m_scissor;
+	renderingInfo.layerCount = 1;
+	renderingInfo.viewMask = 0;
+	renderingInfo.colorAttachmentCount = 1;
+	renderingInfo.pColorAttachments = &renderingAttachmentInfo;
+	renderingInfo.pDepthAttachment = nullptr;
+	renderingInfo.pStencilAttachment = nullptr;
+	m_vkCmdBeginRenderingKHR(commandBuffer, &renderingInfo);
 
 	// Bind descriptor set 0
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipelineLayout, 0, 1, &m_descriptorSets[currentFrameInFlight], 0, nullptr);
@@ -102,9 +78,40 @@ void Compositing::draw(VkCommandBuffer commandBuffer,
 	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
 	m_vkCmdEndRenderingKHR(commandBuffer);
+
+	// Synchronization before forward renderer
+	VkImageMemoryBarrier2 imageMemoryBarrier = {};
+	imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	imageMemoryBarrier.pNext = nullptr;
+	imageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	imageMemoryBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	imageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	imageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	imageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	imageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	imageMemoryBarrier.image = m_image.handle;
+	imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	imageMemoryBarrier.subresourceRange.levelCount = 1;
+	imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	imageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	VkDependencyInfo dependencyInfo = {};
+	dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	dependencyInfo.pNext = nullptr;
+	dependencyInfo.dependencyFlags = 0;
+	dependencyInfo.memoryBarrierCount = 0;
+	dependencyInfo.pMemoryBarriers = nullptr;
+	dependencyInfo.bufferMemoryBarrierCount = 0;
+	dependencyInfo.pBufferMemoryBarriers = nullptr;
+	dependencyInfo.imageMemoryBarrierCount = 1;
+	dependencyInfo.pImageMemoryBarriers = &imageMemoryBarrier;
+	m_vkCmdPipelineBarrier2KHR(commandBuffer, &dependencyInfo);
 }
 
-void Compositing::onResize(uint32_t width, uint32_t height, VkImageView gBufferPositionView, VkImageView gBufferNormalView, VkImageView gBufferDiffuseView, VkImageView gBufferMaterialView, VkImageView gBufferEmissiveView, VkImageView ssaoView) {
+void Compositing::onResize(uint32_t width, uint32_t height, VkImageView gBufferPositionView, VkImageView gBufferNormalView, VkImageView gBufferDiffuseView, VkImageView gBufferMaterialView, VkImageView gBufferEmissiveView) {
 	m_viewport.width = static_cast<float>(width);
 	m_viewport.height = static_cast<float>(height);
 	m_scissor.extent.width = width;
@@ -113,7 +120,7 @@ void Compositing::onResize(uint32_t width, uint32_t height, VkImageView gBufferP
 	m_image.destroy(m_device, m_allocator);
 	createImage(width, height);
 
-	updateDescriptorSets(gBufferPositionView, gBufferNormalView, gBufferDiffuseView, gBufferMaterialView, gBufferEmissiveView, ssaoView);
+	updateDescriptorSets(gBufferPositionView, gBufferNormalView, gBufferDiffuseView, gBufferMaterialView, gBufferEmissiveView);
 }
 
 void Compositing::shadowDescriptorSetNeedsUpdate(uint32_t frameInFlight) {
@@ -305,41 +312,34 @@ void Compositing::createDescriptorSetLayout() {
 	gBufferEmissiveDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	gBufferEmissiveDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
-	VkDescriptorSetLayoutBinding ssaoDescriptorSetLayoutBinding = {};
-	ssaoDescriptorSetLayoutBinding.binding = 7;
-	ssaoDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	ssaoDescriptorSetLayoutBinding.descriptorCount = 1;
-	ssaoDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-	ssaoDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
-	VkDescriptorSetLayoutBinding cascadeSceneDescriptorSetLayoutBinding = {};
-	cascadeSceneDescriptorSetLayoutBinding.binding = 8;
-	cascadeSceneDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	cascadeSceneDescriptorSetLayoutBinding.descriptorCount = 1;
-	cascadeSceneDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-	cascadeSceneDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+	VkDescriptorSetLayoutBinding shadowSceneDescriptorSetLayoutBinding = {};
+	shadowSceneDescriptorSetLayoutBinding.binding = 7;
+	shadowSceneDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	shadowSceneDescriptorSetLayoutBinding.descriptorCount = 1;
+	shadowSceneDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	shadowSceneDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding shadowMapsDescriptorSetLayoutBinding = {};
-	shadowMapsDescriptorSetLayoutBinding.binding = 9;
+	shadowMapsDescriptorSetLayoutBinding.binding = 8;
 	shadowMapsDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	shadowMapsDescriptorSetLayoutBinding.descriptorCount = 131072;
 	shadowMapsDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	shadowMapsDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
-	std::array<VkDescriptorBindingFlags, 10> descriptorBindingFlags = { 0, 0, 0, 0, 0, 0, 0, 0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
+	std::array<VkDescriptorBindingFlags, 9> descriptorBindingFlags = { 0, 0, 0, 0, 0, 0, 0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT };
 	VkDescriptorSetLayoutBindingFlagsCreateInfo descriptorSetLayoutBindingFlagsCreateInfo = {};
 	descriptorSetLayoutBindingFlagsCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
 	descriptorSetLayoutBindingFlagsCreateInfo.pNext = nullptr;
 	descriptorSetLayoutBindingFlagsCreateInfo.bindingCount = static_cast<uint32_t>(descriptorBindingFlags.size());
 	descriptorSetLayoutBindingFlagsCreateInfo.pBindingFlags = descriptorBindingFlags.data();
 
-	std::array<VkDescriptorSetLayoutBinding, 10> compositingDescriptorSetLayoutBindings = { cameraDescriptorSetLayoutBinding, lightsDescriptorSetLayoutBinding, gBufferPositionDescriptorSetLayoutBinding, gBufferNormalDescriptorSetLayoutBinding, gBufferDiffuseDescriptorSetLayoutBinding, gBufferMaterialDescriptorSetLayoutBinding, gBufferEmissiveDescriptorSetLayoutBinding, ssaoDescriptorSetLayoutBinding, cascadeSceneDescriptorSetLayoutBinding, shadowMapsDescriptorSetLayoutBinding };
+	std::array<VkDescriptorSetLayoutBinding, 9> descriptorSetLayoutBindings = { cameraDescriptorSetLayoutBinding, lightsDescriptorSetLayoutBinding, gBufferPositionDescriptorSetLayoutBinding, gBufferNormalDescriptorSetLayoutBinding, gBufferDiffuseDescriptorSetLayoutBinding, gBufferMaterialDescriptorSetLayoutBinding, gBufferEmissiveDescriptorSetLayoutBinding, shadowSceneDescriptorSetLayoutBinding, shadowMapsDescriptorSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
 	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	descriptorSetLayoutCreateInfo.pNext = &descriptorSetLayoutBindingFlagsCreateInfo;
 	descriptorSetLayoutCreateInfo.flags = 0;
-	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(compositingDescriptorSetLayoutBindings.size());
-	descriptorSetLayoutCreateInfo.pBindings = compositingDescriptorSetLayoutBindings.data();
+	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size());
+	descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
 	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_descriptorSetLayout));
 }
 
@@ -496,14 +496,12 @@ void Compositing::createGraphicsPipeline() {
 		layout(set = 0, binding = 5) uniform sampler2D gBufferMaterialSampler;
 		layout(set = 0, binding = 6) uniform sampler2D gBufferEmissiveSampler;
 
-		layout(set = 0, binding = 7) uniform sampler2D ssaoSampler;
-
-		layout(set = 0, binding = 8) restrict readonly buffer Shadows {
+		layout(set = 0, binding = 7) restrict readonly buffer Shadows {
 			ShadowInfo info[];
 		} shadows;
 
-		layout(set = 0, binding = 9) uniform sampler2DArray shadowMaps[];
-		layout(set = 0, binding = 9) uniform samplerCube shadowCubeMaps[];
+		layout(set = 0, binding = 8) uniform sampler2DArray shadowMaps[];
+		layout(set = 0, binding = 8) uniform samplerCube shadowCubeMaps[];
 
 		layout(location = 0) in vec2 uv;
 
@@ -551,8 +549,6 @@ void Compositing::createGraphicsPipeline() {
 			const float roughnessSample = materialSample.g;
 			const float occlusionSample = materialSample.r;
 			const vec3 emissiveSample = texture(gBufferEmissiveSampler, uv).rgb;
-
-			const float ssaoSample = texture(ssaoSampler, uv).r;
 
 			const vec3 position = positionSample;
 			const vec3 viewPosition = vec3(camera.view * vec4(position, 1.0));
@@ -618,7 +614,6 @@ void Compositing::createGraphicsPipeline() {
 			}
 
 			color *= occlusionSample;
-			color *= ssaoSample;
 			color += emissiveSample;
 
 			outColor = vec4(color, 1.0);
@@ -774,7 +769,7 @@ void Compositing::createGraphicsPipeline() {
 	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
 }
 
-void Compositing::createSamplers() {
+void Compositing::createSampler() {
 	VkSamplerCreateInfo samplerCreateInfo = {};
 	samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 	samplerCreateInfo.pNext = nullptr;
@@ -795,10 +790,6 @@ void Compositing::createSamplers() {
 	samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
 	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
 	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_sampler));
-
-	samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-	samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_shadowSampler));
 }
 
 void Compositing::createDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& cameraBuffers, const std::vector<HostVisibleVulkanBuffer>& lightBuffers, const std::vector<HostVisibleVulkanBuffer>& shadowSceneBuffers) {
@@ -815,10 +806,6 @@ void Compositing::createDescriptorSets(const std::vector<HostVisibleVulkanBuffer
 	gBufferImagesDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	gBufferImagesDescriptorPoolSize.descriptorCount = 5 * m_framesInFlight;
 
-	VkDescriptorPoolSize ssaoDescriptorPoolSize = {};
-	ssaoDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	ssaoDescriptorPoolSize.descriptorCount = m_framesInFlight;
-
 	VkDescriptorPoolSize cascadeSceneDescriptorPoolSize = {};
 	cascadeSceneDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	cascadeSceneDescriptorPoolSize.descriptorCount = m_framesInFlight;
@@ -827,7 +814,7 @@ void Compositing::createDescriptorSets(const std::vector<HostVisibleVulkanBuffer
 	shadowMapsDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	shadowMapsDescriptorPoolSize.descriptorCount = 131072 * m_framesInFlight;
 
-	std::array<VkDescriptorPoolSize, 6> descriptorPoolSizes = { cameraDescriptorPoolSize, lightsDescriptorPoolSize, gBufferImagesDescriptorPoolSize, ssaoDescriptorPoolSize, cascadeSceneDescriptorPoolSize, shadowMapsDescriptorPoolSize };
+	std::array<VkDescriptorPoolSize, 5> descriptorPoolSizes = { cameraDescriptorPoolSize, lightsDescriptorPoolSize, gBufferImagesDescriptorPoolSize, cascadeSceneDescriptorPoolSize, shadowMapsDescriptorPoolSize };
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.pNext = nullptr;
@@ -893,7 +880,7 @@ void Compositing::createDescriptorSets(const std::vector<HostVisibleVulkanBuffer
 		shadowSceneDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		shadowSceneDescriptorWriteDescriptorSet.pNext = nullptr;
 		shadowSceneDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		shadowSceneDescriptorWriteDescriptorSet.dstBinding = 8;
+		shadowSceneDescriptorWriteDescriptorSet.dstBinding = 7;
 		shadowSceneDescriptorWriteDescriptorSet.dstArrayElement = 0;
 		shadowSceneDescriptorWriteDescriptorSet.descriptorCount = 1;
 		shadowSceneDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -907,7 +894,7 @@ void Compositing::createDescriptorSets(const std::vector<HostVisibleVulkanBuffer
 	}
 }
 
-void Compositing::updateDescriptorSets(VkImageView gBufferPositionView, VkImageView gBufferNormalView, VkImageView gBufferDiffuseView, VkImageView gBufferMaterialView, VkImageView gBufferEmissiveView, VkImageView ssaoImageView) {
+void Compositing::updateDescriptorSets(VkImageView gBufferPositionView, VkImageView gBufferNormalView, VkImageView gBufferDiffuseView, VkImageView gBufferMaterialView, VkImageView gBufferEmissiveView) {
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		VkDescriptorImageInfo gBufferPositionImageDescriptorImageInfo;
 		gBufferPositionImageDescriptorImageInfo.sampler = m_sampler;
@@ -994,36 +981,19 @@ void Compositing::updateDescriptorSets(VkImageView gBufferPositionView, VkImageV
 		gBufferEmissiveImageDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
 		gBufferEmissiveImageDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
-		VkDescriptorImageInfo ssaoDescriptorImageInfo;
-		ssaoDescriptorImageInfo.sampler = m_sampler;
-		ssaoDescriptorImageInfo.imageView = ssaoImageView;
-		ssaoDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-		VkWriteDescriptorSet ssaoDescriptorWriteDescriptorSet = {};
-		ssaoDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		ssaoDescriptorWriteDescriptorSet.pNext = nullptr;
-		ssaoDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		ssaoDescriptorWriteDescriptorSet.dstBinding = 7;
-		ssaoDescriptorWriteDescriptorSet.dstArrayElement = 0;
-		ssaoDescriptorWriteDescriptorSet.descriptorCount = 1;
-		ssaoDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		ssaoDescriptorWriteDescriptorSet.pImageInfo = &ssaoDescriptorImageInfo;
-		ssaoDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
-		ssaoDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
-
-		std::array<VkWriteDescriptorSet, 6> writeDescriptorSets = { gBufferPositionImageDescriptorWriteDescriptorSet, gBufferNormalImageDescriptorWriteDescriptorSet, gBufferDiffuseImageDescriptorWriteDescriptorSet, gBufferMaterialImageDescriptorWriteDescriptorSet, gBufferEmissiveImageDescriptorWriteDescriptorSet, ssaoDescriptorWriteDescriptorSet };
+		std::array<VkWriteDescriptorSet, 5> writeDescriptorSets = { gBufferPositionImageDescriptorWriteDescriptorSet, gBufferNormalImageDescriptorWriteDescriptorSet, gBufferDiffuseImageDescriptorWriteDescriptorSet, gBufferMaterialImageDescriptorWriteDescriptorSet, gBufferEmissiveImageDescriptorWriteDescriptorSet };
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 	}
 }
 
-void Compositing::updateShadowDescriptorSets(uint32_t frameInFlight, const std::vector<VulkanImage>& shadowMaps) {
+void Compositing::updateShadowDescriptorSets(uint32_t frameInFlight, const std::vector<VulkanImage>& shadowMaps, VkSampler shadowMapSampler) {
 	if (!m_descriptorSetsShadowNeedUpdate[frameInFlight]) {
 		return;
 	}
 
 	std::vector<VkDescriptorImageInfo> shadowMapImageDescriptorImageInfos(shadowMaps.size());
 	for (uint32_t i = 0; i < shadowMaps.size(); i++) {
-		shadowMapImageDescriptorImageInfos[i].sampler = m_shadowSampler;
+		shadowMapImageDescriptorImageInfos[i].sampler = shadowMapSampler;
 		shadowMapImageDescriptorImageInfos[i].imageView = shadowMaps[i].view;
 		shadowMapImageDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
@@ -1032,7 +1002,7 @@ void Compositing::updateShadowDescriptorSets(uint32_t frameInFlight, const std::
 	shadowMapImageDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	shadowMapImageDescriptorWriteDescriptorSet.pNext = nullptr;
 	shadowMapImageDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[frameInFlight];
-	shadowMapImageDescriptorWriteDescriptorSet.dstBinding = 9;
+	shadowMapImageDescriptorWriteDescriptorSet.dstBinding = 8;
 	shadowMapImageDescriptorWriteDescriptorSet.dstArrayElement = 0;
 	shadowMapImageDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(shadowMapImageDescriptorImageInfos.size());
 	shadowMapImageDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;

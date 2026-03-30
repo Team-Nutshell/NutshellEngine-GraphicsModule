@@ -67,10 +67,12 @@ set(MODULE_SOURCES
 	src/animation_system.cpp
 	src/bloom.cpp
 	src/compositing.cpp
+	src/forward_renderer.cpp
 	src/frustum_culling.cpp
 	src/fxaa.cpp
 	src/gbuffer.cpp
 	src/particles.cpp
+	src/post_processing.cpp
 	src/shadow_mapping.cpp
 	src/ssao.cpp
 	src/tone_mapping.cpp)
@@ -79,10 +81,12 @@ set(MODULE_HEADERS
 	src/animation_system.h
 	src/bloom.h
 	src/compositing.h
+	src/forward_renderer.h
 	src/frustum_culling.h
 	src/fxaa.h
 	src/gbuffer.h
 	src/particles.h
+	src/post_processing.h
 	src/shadow_mapping.h
 	src/ssao.h
 	src/tone_mapping.h

@@ -3,15 +3,7 @@
 
 class FXAA {
 public:
-	void init(VkDevice device,
-		uint32_t graphicsQueueFamilyIndex,
-		VkImageView colorImageView,
-		VkFormat drawImageFormat,
-		VkViewport viewport,
-		VkRect2D scissor,
-		PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
-		PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
-		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
+	void init(VkDevice device, uint32_t graphicsQueueFamilyIndex, VkImageView colorImageView, VkFormat drawImageFormat, VkViewport viewport, VkRect2D scissor, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
 	void destroy();
 
 	void draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView drawImageView, bool enabled);

@@ -3,27 +3,12 @@
 
 class ToneMapping {
 public:
-	void init(VkDevice device,
-		VkQueue graphicsQueue,
-		uint32_t graphicsQueueFamilyIndex,
-		VmaAllocator allocator,
-		VkCommandPool initializationCommandPool,
-		VkCommandBuffer initializationCommandBuffer,
-		VkFence initializationFence,
-		VkFormat drawImageFormat,
-		VkViewport viewport,
-		VkRect2D scissor,
-		VkImageView compositingImageView,
-		PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
-		PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
-		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
+	void init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VmaAllocator allocator, VkCommandPool initializationCommandPool, VkCommandBuffer initializationCommandBuffer, VkFence initializationFence, VkFormat drawImageFormat, VkViewport viewport, VkRect2D scissor, VkImageView colorImageView, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
 	void destroy();
 
 	void draw(VkCommandBuffer commandBuffer);
 
-	void onResize(uint32_t width, uint32_t height, VkFormat drawImageFormat, VkImageView compositingImageView);
-
-	void updateShadowDescriptorSets(uint32_t frameInFlight, const std::vector<VulkanImage> shadowMaps);
+	void onResize(uint32_t width, uint32_t height, VkFormat drawImageFormat, VkImageView colorImageView);
 
 	VulkanImage& getImage();
 
@@ -38,7 +23,7 @@ private:
 
 	void createDescriptorSet();
 
-	void updateDescriptorSet(VkImageView compositingImageView);
+	void updateDescriptorSet(VkImageView colorImageView);
 
 private:
 	VulkanImage m_image;

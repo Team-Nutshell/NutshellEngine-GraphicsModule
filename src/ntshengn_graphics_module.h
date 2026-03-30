@@ -6,10 +6,12 @@
 #include "animation_system.h"
 #include "bloom.h"
 #include "compositing.h"
+#include "forward_renderer.h"
 #include "frustum_culling.h"
 #include "fxaa.h"
 #include "gbuffer.h"
 #include "particles.h"
+#include "post_processing.h"
 #include "shadow_mapping.h"
 #include "ssao.h"
 #include "tone_mapping.h"
@@ -224,10 +226,12 @@ namespace NtshEngn {
 		AnimationSystem m_animationSystem;
 		Bloom m_bloom;
 		Compositing m_compositing;
+		ForwardRenderer m_forwardRenderer;
 		FrustumCulling m_frustumCulling;
 		FXAA m_fxaa;
 		GBuffer m_gBuffer;
 		Particles m_particles;
+		PostProcessing m_postProcessing;
 		SSAO m_ssao;
 		ShadowMapping m_shadowMapping;
 		ToneMapping m_toneMapping;

@@ -29,7 +29,6 @@
 
 #define SSAO_SAMPLE_COUNT 64
 
-#define BLOOM_ENABLE 1
 #define BLOOM_DOWNSCALE 4
 
 #define DRAW_INDIRECT_MAX_ENTITIES_SIZE (sizeof(uint32_t) * 4) + (sizeof(VkDrawIndexedIndirectCommand) * NTSHENGN_MAX_ENTITIES)
@@ -104,6 +103,8 @@ struct InternalFont {
 
 struct InternalObject {
 	uint32_t index;
+
+	std::string graphicsPipelineKey;
 
 	NtshEngn::MeshID meshID = 0;
 	uint32_t jointTransformOffset = 0;

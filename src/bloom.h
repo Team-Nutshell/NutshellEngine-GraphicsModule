@@ -5,25 +5,14 @@
 
 class Bloom {
 public:
-	void init(VkDevice device,
-		VkQueue graphicsQueue,
-		uint32_t graphicsQueueFamilyIndex,
-		VmaAllocator allocator,
-		VkImageView drawImageView,
-		VkFormat drawImageFormat,
-		VkCommandPool initializationCommandPool,
-		VkCommandBuffer initializationCommandBuffer,
-		VkFence initializationFence,
-		VkViewport viewport,
-		VkRect2D scissor,
-		PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
-		PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
-		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
+	void init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VmaAllocator allocator, VkImageView drawImageView, VkCommandPool initializationCommandPool, VkCommandBuffer initializationCommandBuffer, VkFence initializationFence, VkViewport viewport, VkRect2D scissor, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
 	void destroy();
 
-	void draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView drawImageView);
+	void draw(VkCommandBuffer commandBuffer);
 
 	void onResize(uint32_t width, uint32_t height, VkImageView drawImageView);
+
+	VulkanImage& getImage();
 
 private:
 	void createImages(uint32_t width, uint32_t height);
@@ -32,17 +21,14 @@ private:
 	void createDescriptorSetLayouts();
 	void createResizeThresholdDescriptorSetLayout();
 	void createBlurDescriptorSetLayout();
-	void createBloomDescriptorSetLayout();
 
-	void createGraphicsPipelines(VkFormat drawImageFormat);
-	void createResizeThresholdGraphicsPipeline(VkFormat drawImageFormat);
-	void createBlurGraphicsPipeline(VkFormat drawImageFormat);
-	void createBloomGraphicsPipeline(VkFormat drawImageFormat);
+	void createGraphicsPipelines();
+	void createResizeThresholdGraphicsPipeline();
+	void createBlurGraphicsPipeline();
 
 	void createDescriptorSets();
 	void createResizeThresholdDescriptorSet();
 	void createBlurDescriptorSets();
-	void createBloomDescriptorSet();
 
 	void updateDescriptorSets(VkImageView drawImageView);
 
@@ -54,16 +40,11 @@ private:
 
 	VkDescriptorSetLayout m_blurDescriptorSetLayout;
 
-	VkDescriptorSetLayout m_bloomDescriptorSetLayout;
-
 	VkPipeline m_resizeThresholdGraphicsPipeline;
 	VkPipelineLayout m_resizeThresholdGraphicsPipelineLayout;
 
 	VkPipeline m_blurGraphicsPipeline;
 	VkPipelineLayout m_blurGraphicsPipelineLayout;
-
-	VkPipeline m_bloomGraphicsPipeline;
-	VkPipelineLayout m_bloomGraphicsPipelineLayout;
 
 	VkDescriptorPool m_resizeThresholdDescriptorPool;
 	VkDescriptorSet m_resizeThresholdDescriptorSet;
@@ -71,9 +52,6 @@ private:
 	VkDescriptorPool m_blurDescriptorPool;
 	std::vector<VkDescriptorSet> m_blurDescriptorSets;
 	std::vector<VkDescriptorSet> m_blurBackDescriptorSets;
-
-	VkDescriptorPool m_bloomDescriptorPool;
-	VkDescriptorSet m_bloomDescriptorSet;
 
 	VkSampler m_nearestSampler;
 	VkSampler m_linearSampler;

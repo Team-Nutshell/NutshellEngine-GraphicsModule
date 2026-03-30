@@ -1,21 +1,7 @@
 #include "particles.h"
 #include <random>
 
-void Particles::init(VkDevice device,
-	VkQueue graphicsComputeQueue,
-	uint32_t graphicsComputeQueueFamilyIndex,
-	VmaAllocator allocator,
-	VkFormat drawImageFormat,
-	VkCommandPool initializationCommandPool,
-	VkCommandBuffer initializationCommandBuffer,
-	VkFence initializationFence,
-	VkViewport viewport,
-	VkRect2D scissor,
-	uint32_t framesInFlight,
-	const std::vector<HostVisibleVulkanBuffer>& cameraBuffers,
-	PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
-	PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
-	PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
+void Particles::init(VkDevice device, VkQueue graphicsComputeQueue, uint32_t graphicsComputeQueueFamilyIndex, VmaAllocator allocator, VkFormat drawImageFormat, VkCommandPool initializationCommandPool, VkCommandBuffer initializationCommandBuffer, VkFence initializationFence, VkViewport viewport, VkRect2D scissor, uint32_t framesInFlight, const std::vector<HostVisibleVulkanBuffer>& cameraBuffers, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
 	m_device = device;
 	m_graphicsComputeQueue = graphicsComputeQueue;
 	m_graphicsComputeQueueFamilyIndex = graphicsComputeQueueFamilyIndex;

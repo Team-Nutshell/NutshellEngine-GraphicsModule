@@ -2,20 +2,7 @@
 #include <algorithm>
 #include <cmath>
 
-void Bloom::init(VkDevice device,
-	VkQueue graphicsQueue,
-	uint32_t graphicsQueueFamilyIndex,
-	VmaAllocator allocator,
-	VkImageView drawImageView,
-	VkFormat drawImageFormat,
-	VkCommandPool initializationCommandPool,
-	VkCommandBuffer initializationCommandBuffer,
-	VkFence initializationFence,
-	VkViewport viewport,
-	VkRect2D scissor,
-	PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
-	PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
-	PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
+void Bloom::init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VmaAllocator allocator, VkImageView drawImageView, VkCommandPool initializationCommandPool, VkCommandBuffer initializationCommandBuffer, VkFence initializationFence, VkViewport viewport, VkRect2D scissor, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
 	m_device = device;
 	m_graphicsQueue = graphicsQueue;
 	m_graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
@@ -62,24 +49,20 @@ void Bloom::init(VkDevice device,
 
 	createImages(m_downscaledScissor.extent.width, m_downscaledScissor.extent.height);
 	createDescriptorSetLayouts();
-	createGraphicsPipelines(drawImageFormat);
+	createGraphicsPipelines();
 	createDescriptorSets();
 	updateDescriptorSets(drawImageView);
 }
 
 void Bloom::destroy() {
-	vkDestroyDescriptorPool(m_device, m_bloomDescriptorPool, nullptr);
 	vkDestroyDescriptorPool(m_device, m_blurDescriptorPool, nullptr);
 	vkDestroyDescriptorPool(m_device, m_resizeThresholdDescriptorPool, nullptr);
 
-	vkDestroyPipeline(m_device, m_bloomGraphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(m_device, m_bloomGraphicsPipelineLayout, nullptr);
 	vkDestroyPipeline(m_device, m_blurGraphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(m_device, m_blurGraphicsPipelineLayout, nullptr);
 	vkDestroyPipeline(m_device, m_resizeThresholdGraphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(m_device, m_resizeThresholdGraphicsPipelineLayout, nullptr);
 
-	vkDestroyDescriptorSetLayout(m_device, m_bloomDescriptorSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(m_device, m_blurDescriptorSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(m_device, m_resizeThresholdDescriptorSetLayout, nullptr);
 
@@ -89,7 +72,7 @@ void Bloom::destroy() {
 	destroyImages();
 }
 
-void Bloom::draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView drawImageView) {
+void Bloom::draw(VkCommandBuffer commandBuffer) {
 	VkImageMemoryBarrier2 bloomImageMemoryBarrier = {};
 	bloomImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	bloomImageMemoryBarrier.pNext = nullptr;
@@ -173,25 +156,6 @@ void Bloom::draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView d
 	resizeThresholdBloomImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	resizeThresholdBloomImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	VkImageMemoryBarrier2 resizeThresholdDrawImageMemoryBarrier = {};
-	resizeThresholdDrawImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-	resizeThresholdDrawImageMemoryBarrier.pNext = nullptr;
-	resizeThresholdDrawImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-	resizeThresholdDrawImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
-	resizeThresholdDrawImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-	resizeThresholdDrawImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-	resizeThresholdDrawImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	resizeThresholdDrawImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	resizeThresholdDrawImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	resizeThresholdDrawImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	resizeThresholdDrawImageMemoryBarrier.image = drawImage;
-	resizeThresholdDrawImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	resizeThresholdDrawImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
-	resizeThresholdDrawImageMemoryBarrier.subresourceRange.levelCount = 1;
-	resizeThresholdDrawImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-	resizeThresholdDrawImageMemoryBarrier.subresourceRange.layerCount = 1;
-
-	std::array<VkImageMemoryBarrier2, 2> resizeThresholdImageMemoryBarriers = { resizeThresholdBloomImageMemoryBarrier, resizeThresholdDrawImageMemoryBarrier };
 	VkDependencyInfo resizeThresholdDependencyInfo = {};
 	resizeThresholdDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	resizeThresholdDependencyInfo.pNext = nullptr;
@@ -200,8 +164,8 @@ void Bloom::draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView d
 	resizeThresholdDependencyInfo.pMemoryBarriers = nullptr;
 	resizeThresholdDependencyInfo.bufferMemoryBarrierCount = 0;
 	resizeThresholdDependencyInfo.pBufferMemoryBarriers = nullptr;
-	resizeThresholdDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(resizeThresholdImageMemoryBarriers.size());
-	resizeThresholdDependencyInfo.pImageMemoryBarriers = resizeThresholdImageMemoryBarriers.data();
+	resizeThresholdDependencyInfo.imageMemoryBarrierCount = 1;
+	resizeThresholdDependencyInfo.pImageMemoryBarriers = &resizeThresholdBloomImageMemoryBarrier;
 	m_vkCmdPipelineBarrier2KHR(commandBuffer, &resizeThresholdDependencyInfo);
 
 	// Blur
@@ -400,72 +364,6 @@ void Bloom::draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView d
 		blurVerticalDependencyInfo.pImageMemoryBarriers = blurVerticalImageMemoryBarriers.data();
 		m_vkCmdPipelineBarrier2KHR(commandBuffer, &blurVerticalDependencyInfo);
 	}
-
-	// Bloom
-	VkRenderingAttachmentInfo drawImageAttachmentInfo = {};
-	drawImageAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-	drawImageAttachmentInfo.pNext = nullptr;
-	drawImageAttachmentInfo.imageView = drawImageView;
-	drawImageAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	drawImageAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
-	drawImageAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
-	drawImageAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	drawImageAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-	drawImageAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	drawImageAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
-
-	VkRenderingInfo bloomRenderingInfo = {};
-	bloomRenderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-	bloomRenderingInfo.pNext = nullptr;
-	bloomRenderingInfo.flags = 0;
-	bloomRenderingInfo.renderArea = m_scissor;
-	bloomRenderingInfo.layerCount = 1;
-	bloomRenderingInfo.viewMask = 0;
-	bloomRenderingInfo.colorAttachmentCount = 1;
-	bloomRenderingInfo.pColorAttachments = &drawImageAttachmentInfo;
-	bloomRenderingInfo.pDepthAttachment = nullptr;
-	bloomRenderingInfo.pStencilAttachment = nullptr;
-	m_vkCmdBeginRenderingKHR(commandBuffer, &bloomRenderingInfo);
-
-	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_bloomGraphicsPipelineLayout, 0, 1, &m_bloomDescriptorSet, 0, nullptr);
-	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_bloomGraphicsPipeline);
-	vkCmdSetViewport(commandBuffer, 0, 1, &m_viewport);
-	vkCmdSetScissor(commandBuffer, 0, 1, &m_scissor);
-
-	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
-
-	m_vkCmdEndRenderingKHR(commandBuffer);
-
-	// Compositing layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-	VkImageMemoryBarrier2 compositingColorAttachmentToFragmentImageMemoryBarrier = {};
-	compositingColorAttachmentToFragmentImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-	compositingColorAttachmentToFragmentImageMemoryBarrier.pNext = nullptr;
-	compositingColorAttachmentToFragmentImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-	compositingColorAttachmentToFragmentImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-	compositingColorAttachmentToFragmentImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-	compositingColorAttachmentToFragmentImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
-	compositingColorAttachmentToFragmentImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	compositingColorAttachmentToFragmentImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	compositingColorAttachmentToFragmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	compositingColorAttachmentToFragmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
-	compositingColorAttachmentToFragmentImageMemoryBarrier.image = drawImage;
-	compositingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	compositingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
-	compositingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.levelCount = 1;
-	compositingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-	compositingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.layerCount = 1;
-
-	VkDependencyInfo compositingDependencyInfo = {};
-	compositingDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-	compositingDependencyInfo.pNext = nullptr;
-	compositingDependencyInfo.dependencyFlags = 0;
-	compositingDependencyInfo.memoryBarrierCount = 0;
-	compositingDependencyInfo.pMemoryBarriers = nullptr;
-	compositingDependencyInfo.bufferMemoryBarrierCount = 0;
-	compositingDependencyInfo.pBufferMemoryBarriers = nullptr;
-	compositingDependencyInfo.imageMemoryBarrierCount = 1;
-	compositingDependencyInfo.pImageMemoryBarriers = &compositingColorAttachmentToFragmentImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(commandBuffer, &compositingDependencyInfo);
 }
 
 void Bloom::onResize(uint32_t width, uint32_t height, VkImageView drawImageView) {
@@ -486,6 +384,10 @@ void Bloom::onResize(uint32_t width, uint32_t height, VkImageView drawImageView)
 	createBlurDescriptorSets();
 
 	updateDescriptorSets(drawImageView);
+}
+
+VulkanImage& Bloom::getImage() {
+	return m_bloomImage;
 }
 
 void Bloom::createImages(uint32_t width, uint32_t height) {
@@ -639,7 +541,6 @@ void Bloom::destroyImages() {
 void Bloom::createDescriptorSetLayouts() {
 	createResizeThresholdDescriptorSetLayout();
 	createBlurDescriptorSetLayout();
-	createBloomDescriptorSetLayout();
 }
 
 void Bloom::createResizeThresholdDescriptorSetLayout() {
@@ -676,36 +577,19 @@ void Bloom::createBlurDescriptorSetLayout() {
 	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_blurDescriptorSetLayout));
 }
 
-void Bloom::createBloomDescriptorSetLayout() {
-	VkDescriptorSetLayoutBinding bloomImageDescriptorSetLayoutBinding = {};
-	bloomImageDescriptorSetLayoutBinding.binding = 0;
-	bloomImageDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	bloomImageDescriptorSetLayoutBinding.descriptorCount = 1;
-	bloomImageDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-	bloomImageDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
-	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
-	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	descriptorSetLayoutCreateInfo.pNext = nullptr;
-	descriptorSetLayoutCreateInfo.flags = 0;
-	descriptorSetLayoutCreateInfo.bindingCount = 1;
-	descriptorSetLayoutCreateInfo.pBindings = &bloomImageDescriptorSetLayoutBinding;
-	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_bloomDescriptorSetLayout));
+void Bloom::createGraphicsPipelines() {
+	createResizeThresholdGraphicsPipeline();
+	createBlurGraphicsPipeline();
 }
 
-void Bloom::createGraphicsPipelines(VkFormat drawImageFormat) {
-	createResizeThresholdGraphicsPipeline(drawImageFormat);
-	createBlurGraphicsPipeline(drawImageFormat);
-	createBloomGraphicsPipeline(drawImageFormat);
-}
-
-void Bloom::createResizeThresholdGraphicsPipeline(VkFormat drawImageFormat) {
+void Bloom::createResizeThresholdGraphicsPipeline() {
+	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
 	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
 	pipelineRenderingCreateInfo.pNext = nullptr;
 	pipelineRenderingCreateInfo.viewMask = 0;
 	pipelineRenderingCreateInfo.colorAttachmentCount = 1;
-	pipelineRenderingCreateInfo.pColorAttachmentFormats = &drawImageFormat;
+	pipelineRenderingCreateInfo.pColorAttachmentFormats = &pipelineRenderingColorFormat;
 	pipelineRenderingCreateInfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
 	pipelineRenderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 
@@ -910,13 +794,14 @@ void Bloom::createResizeThresholdGraphicsPipeline(VkFormat drawImageFormat) {
 	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
 }
 
-void Bloom::createBlurGraphicsPipeline(VkFormat drawImageFormat) {
+void Bloom::createBlurGraphicsPipeline() {
+	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
 	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
 	pipelineRenderingCreateInfo.pNext = nullptr;
 	pipelineRenderingCreateInfo.viewMask = 0;
 	pipelineRenderingCreateInfo.colorAttachmentCount = 1;
-	pipelineRenderingCreateInfo.pColorAttachmentFormats = &drawImageFormat;
+	pipelineRenderingCreateInfo.pColorAttachmentFormats = &pipelineRenderingColorFormat;
 	pipelineRenderingCreateInfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
 	pipelineRenderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 
@@ -1179,216 +1064,9 @@ void Bloom::createBlurGraphicsPipeline(VkFormat drawImageFormat) {
 	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
 }
 
-void Bloom::createBloomGraphicsPipeline(VkFormat drawImageFormat) {
-	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
-	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-	pipelineRenderingCreateInfo.pNext = nullptr;
-	pipelineRenderingCreateInfo.viewMask = 0;
-	pipelineRenderingCreateInfo.colorAttachmentCount = 1;
-	pipelineRenderingCreateInfo.pColorAttachmentFormats = &drawImageFormat;
-	pipelineRenderingCreateInfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
-	pipelineRenderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
-
-	const std::string vertexShaderCode = R"GLSL(
-		#version 460
-
-		layout(location = 0) out vec2 outUv;
-
-		void main() {
-			outUv = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2);
-			gl_Position = vec4(outUv * 2.0 + -1.0, 0.0, 1.0);
-		}
-	)GLSL";
-	const std::vector<uint32_t> vertexShaderSpv = compileShader(vertexShaderCode, ShaderType::Vertex);
-
-	VkShaderModule vertexShaderModule;
-	VkShaderModuleCreateInfo vertexShaderModuleCreateInfo = {};
-	vertexShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	vertexShaderModuleCreateInfo.pNext = nullptr;
-	vertexShaderModuleCreateInfo.flags = 0;
-	vertexShaderModuleCreateInfo.codeSize = vertexShaderSpv.size() * sizeof(uint32_t);
-	vertexShaderModuleCreateInfo.pCode = vertexShaderSpv.data();
-	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &vertexShaderModuleCreateInfo, nullptr, &vertexShaderModule));
-
-	VkPipelineShaderStageCreateInfo vertexShaderStageCreateInfo = {};
-	vertexShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	vertexShaderStageCreateInfo.pNext = nullptr;
-	vertexShaderStageCreateInfo.flags = 0;
-	vertexShaderStageCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-	vertexShaderStageCreateInfo.module = vertexShaderModule;
-	vertexShaderStageCreateInfo.pName = "main";
-	vertexShaderStageCreateInfo.pSpecializationInfo = nullptr;
-
-	const std::string fragmentShaderCode = R"GLSL(
-		#version 460
-
-		layout(set = 0, binding = 0) uniform sampler2D bloomSampler;
-
-		layout(location = 0) in vec2 uv;
-
-		layout(location = 0) out vec4 outColor;
-
-		void main() {
-			outColor = textureLod(bloomSampler, uv, 1.5) +
-				textureLod(bloomSampler, uv, 3.5) +
-				textureLod(bloomSampler, uv, 4.5);
-			outColor /= 3.0;
-		}
-	)GLSL";
-	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
-
-	VkShaderModule fragmentShaderModule;
-	VkShaderModuleCreateInfo fragmentShaderModuleCreateInfo = {};
-	fragmentShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	fragmentShaderModuleCreateInfo.pNext = nullptr;
-	fragmentShaderModuleCreateInfo.flags = 0;
-	fragmentShaderModuleCreateInfo.codeSize = fragmentShaderSpv.size() * sizeof(uint32_t);
-	fragmentShaderModuleCreateInfo.pCode = fragmentShaderSpv.data();
-	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &fragmentShaderModuleCreateInfo, nullptr, &fragmentShaderModule));
-
-	VkPipelineShaderStageCreateInfo fragmentShaderStageCreateInfo = {};
-	fragmentShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	fragmentShaderStageCreateInfo.pNext = nullptr;
-	fragmentShaderStageCreateInfo.flags = 0;
-	fragmentShaderStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragmentShaderStageCreateInfo.module = fragmentShaderModule;
-	fragmentShaderStageCreateInfo.pName = "main";
-	fragmentShaderStageCreateInfo.pSpecializationInfo = nullptr;
-
-	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStageCreateInfos = { vertexShaderStageCreateInfo, fragmentShaderStageCreateInfo };
-
-	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
-	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexInputStateCreateInfo.pNext = nullptr;
-	vertexInputStateCreateInfo.flags = 0;
-	vertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
-	vertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr;
-	vertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
-	vertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr;
-
-	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo = {};
-	inputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	inputAssemblyStateCreateInfo.pNext = nullptr;
-	inputAssemblyStateCreateInfo.flags = 0;
-	inputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-	inputAssemblyStateCreateInfo.primitiveRestartEnable = VK_FALSE;
-
-	VkPipelineViewportStateCreateInfo viewportStateCreateInfo = {};
-	viewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-	viewportStateCreateInfo.pNext = nullptr;
-	viewportStateCreateInfo.flags = 0;
-	viewportStateCreateInfo.viewportCount = 1;
-	viewportStateCreateInfo.pViewports = &m_viewport;
-	viewportStateCreateInfo.scissorCount = 1;
-	viewportStateCreateInfo.pScissors = &m_scissor;
-
-	VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo = {};
-	rasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-	rasterizationStateCreateInfo.pNext = nullptr;
-	rasterizationStateCreateInfo.flags = 0;
-	rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
-	rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
-	rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
-	rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-	rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
-	rasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
-	rasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
-	rasterizationStateCreateInfo.depthBiasClamp = 0.0f;
-	rasterizationStateCreateInfo.depthBiasSlopeFactor = 0.0f;
-	rasterizationStateCreateInfo.lineWidth = 1.0f;
-
-	VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo = {};
-	multisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	multisampleStateCreateInfo.pNext = nullptr;
-	multisampleStateCreateInfo.flags = 0;
-	multisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-	multisampleStateCreateInfo.sampleShadingEnable = VK_FALSE;
-	multisampleStateCreateInfo.minSampleShading = 0.0f;
-	multisampleStateCreateInfo.pSampleMask = nullptr;
-	multisampleStateCreateInfo.alphaToCoverageEnable = VK_FALSE;
-	multisampleStateCreateInfo.alphaToOneEnable = VK_FALSE;
-
-	VkPipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo = {};
-	depthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-	depthStencilStateCreateInfo.pNext = nullptr;
-	depthStencilStateCreateInfo.flags = 0;
-	depthStencilStateCreateInfo.depthTestEnable = VK_FALSE;
-	depthStencilStateCreateInfo.depthWriteEnable = VK_FALSE;
-	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_NEVER;
-	depthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
-	depthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
-	depthStencilStateCreateInfo.front = {};
-	depthStencilStateCreateInfo.back = {};
-	depthStencilStateCreateInfo.minDepthBounds = 0.0f;
-	depthStencilStateCreateInfo.maxDepthBounds = 1.0f;
-
-	VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
-	colorBlendAttachmentState.blendEnable = VK_TRUE;
-	colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-	colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-	colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
-	colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-	colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
-	colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-
-	VkPipelineColorBlendStateCreateInfo colorBlendStateCreateInfo = {};
-	colorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	colorBlendStateCreateInfo.pNext = nullptr;
-	colorBlendStateCreateInfo.flags = 0;
-	colorBlendStateCreateInfo.logicOpEnable = VK_FALSE;
-	colorBlendStateCreateInfo.logicOp = VK_LOGIC_OP_COPY;
-	colorBlendStateCreateInfo.attachmentCount = 1;
-	colorBlendStateCreateInfo.pAttachments = &colorBlendAttachmentState;
-
-	std::array<VkDynamicState, 2> dynamicStates = { VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_VIEWPORT };
-	VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = {};
-	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	dynamicStateCreateInfo.pNext = nullptr;
-	dynamicStateCreateInfo.flags = 0;
-	dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
-	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
-
-	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
-	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutCreateInfo.pNext = nullptr;
-	pipelineLayoutCreateInfo.flags = 0;
-	pipelineLayoutCreateInfo.setLayoutCount = 1;
-	pipelineLayoutCreateInfo.pSetLayouts = &m_bloomDescriptorSetLayout;
-	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
-	pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
-	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_bloomGraphicsPipelineLayout));
-
-	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};
-	graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	graphicsPipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
-	graphicsPipelineCreateInfo.flags = 0;
-	graphicsPipelineCreateInfo.stageCount = 2;
-	graphicsPipelineCreateInfo.pStages = shaderStageCreateInfos.data();
-	graphicsPipelineCreateInfo.pVertexInputState = &vertexInputStateCreateInfo;
-	graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;
-	graphicsPipelineCreateInfo.pTessellationState = nullptr;
-	graphicsPipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
-	graphicsPipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
-	graphicsPipelineCreateInfo.pMultisampleState = &multisampleStateCreateInfo;
-	graphicsPipelineCreateInfo.pDepthStencilState = &depthStencilStateCreateInfo;
-	graphicsPipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
-	graphicsPipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
-	graphicsPipelineCreateInfo.layout = m_bloomGraphicsPipelineLayout;
-	graphicsPipelineCreateInfo.renderPass = VK_NULL_HANDLE;
-	graphicsPipelineCreateInfo.subpass = 0;
-	graphicsPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
-	graphicsPipelineCreateInfo.basePipelineIndex = 0;
-	NTSHENGN_VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_bloomGraphicsPipeline));
-
-	vkDestroyShaderModule(m_device, vertexShaderModule, nullptr);
-	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
-}
-
 void Bloom::createDescriptorSets() {
 	createResizeThresholdDescriptorSet();
 	createBlurDescriptorSets();
-	createBloomDescriptorSet();
 }
 
 void Bloom::createResizeThresholdDescriptorSet() {
@@ -1444,31 +1122,6 @@ void Bloom::createBlurDescriptorSets() {
 		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_blurDescriptorSets[mipLevel]));
 		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_blurBackDescriptorSets[mipLevel]));
 	}
-}
-
-void Bloom::createBloomDescriptorSet() {
-	// Create descriptor pool
-	VkDescriptorPoolSize bloomImageDescriptorPoolSize = {};
-	bloomImageDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	bloomImageDescriptorPoolSize.descriptorCount = 1;
-
-	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
-	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	descriptorPoolCreateInfo.pNext = nullptr;
-	descriptorPoolCreateInfo.flags = 0;
-	descriptorPoolCreateInfo.maxSets = 1;
-	descriptorPoolCreateInfo.poolSizeCount = 1;
-	descriptorPoolCreateInfo.pPoolSizes = &bloomImageDescriptorPoolSize;
-	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_bloomDescriptorPool));
-
-	// Allocate descriptor set
-	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
-	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	descriptorSetAllocateInfo.pNext = nullptr;
-	descriptorSetAllocateInfo.descriptorPool = m_bloomDescriptorPool;
-	descriptorSetAllocateInfo.descriptorSetCount = 1;
-	descriptorSetAllocateInfo.pSetLayouts = &m_bloomDescriptorSetLayout;
-	NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_bloomDescriptorSet));
 }
 
 void Bloom::updateDescriptorSets(VkImageView drawImageView) {
@@ -1529,24 +1182,6 @@ void Bloom::updateDescriptorSets(VkImageView drawImageView) {
 		blurMipImageDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 		writeDescriptorSets.push_back(blurMipImageDescriptorWriteDescriptorSet);
 	}
-
-	VkDescriptorImageInfo bloomImageDescriptorImageInfo;
-	bloomImageDescriptorImageInfo.sampler = m_linearSampler;
-	bloomImageDescriptorImageInfo.imageView = m_bloomImage.view;
-	bloomImageDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-	VkWriteDescriptorSet bloomImageDescriptorWriteDescriptorSet = {};
-	bloomImageDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	bloomImageDescriptorWriteDescriptorSet.pNext = nullptr;
-	bloomImageDescriptorWriteDescriptorSet.dstSet = m_bloomDescriptorSet;
-	bloomImageDescriptorWriteDescriptorSet.dstBinding = 0;
-	bloomImageDescriptorWriteDescriptorSet.dstArrayElement = 0;
-	bloomImageDescriptorWriteDescriptorSet.descriptorCount = 1;
-	bloomImageDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	bloomImageDescriptorWriteDescriptorSet.pImageInfo = &bloomImageDescriptorImageInfo;
-	bloomImageDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
-	bloomImageDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
-	writeDescriptorSets.push_back(bloomImageDescriptorWriteDescriptorSet);
 
 	vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 }

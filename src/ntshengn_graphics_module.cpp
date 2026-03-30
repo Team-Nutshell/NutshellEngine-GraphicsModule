@@ -540,151 +540,27 @@ void NtshEngn::GraphicsModule::init() {
 
 	m_animationSystem.init(ecs);
 
-	m_frustumCulling.init(m_device,
-		m_graphicsComputeQueue,
-		m_graphicsComputeQueueFamilyIndex,
-		m_allocator,
-		m_framesInFlight,
-		m_vkCmdPipelineBarrier2KHR,
-		ecs);
+	m_frustumCulling.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_allocator, m_framesInFlight, m_vkCmdPipelineBarrier2KHR, ecs);
 
-	m_gBuffer.init(m_device,
-		m_graphicsComputeQueue,
-		m_graphicsComputeQueueFamilyIndex,
-		m_allocator,
-		m_initializationCommandPool,
-		m_initializationCommandBuffer,
-		m_initializationFence,
-		m_viewport,
-		m_scissor,
-		m_framesInFlight,
-		m_cameraBuffers,
-		m_objectBuffers,
-		m_meshBuffer,
-		m_jointTransformBuffers,
-		m_materialBuffers,
-		m_vkCmdBeginRenderingKHR,
-		m_vkCmdEndRenderingKHR,
-		m_vkCmdDrawIndexedIndirectCountKHR,
-		m_vkCmdPipelineBarrier2KHR,
-		m_vkGetBufferDeviceAddressKHR);
+	m_gBuffer.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_allocator, m_initializationCommandPool, m_initializationCommandBuffer, m_initializationFence, m_viewport, m_scissor, m_framesInFlight, m_cameraBuffers, m_objectBuffers, m_meshBuffer, m_jointTransformBuffers, m_materialBuffers, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdDrawIndexedIndirectCountKHR, m_vkCmdPipelineBarrier2KHR, m_vkGetBufferDeviceAddressKHR);
 
-	m_ssao.init(m_device,
-		m_graphicsComputeQueue,
-		m_graphicsComputeQueueFamilyIndex,
-		m_allocator,
-		m_initializationCommandPool,
-		m_initializationCommandBuffer,
-		m_initializationFence,
-		m_gBuffer.getPosition().view,
-		m_gBuffer.getNormal().view,
-		m_viewport,
-		m_scissor,
-		m_framesInFlight,
-		m_cameraBuffers,
-		m_vkCmdBeginRenderingKHR,
-		m_vkCmdEndRenderingKHR,
-		m_vkCmdPipelineBarrier2KHR);
+	m_shadowMapping.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_allocator, m_initializationCommandPool, m_initializationCommandBuffer, m_initializationFence, m_framesInFlight, m_objectBuffers, m_meshBuffer, m_jointTransformBuffers, m_materialBuffers, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdDrawIndexedIndirectCountKHR, m_vkCmdPipelineBarrier2KHR, m_vkGetBufferDeviceAddressKHR, ecs);
 
-	m_shadowMapping.init(m_device,
-		m_graphicsComputeQueue,
-		m_graphicsComputeQueueFamilyIndex,
-		m_allocator,
-		m_initializationCommandPool,
-		m_initializationCommandBuffer,
-		m_initializationFence,
-		m_framesInFlight,
-		m_objectBuffers,
-		m_meshBuffer,
-		m_jointTransformBuffers,
-		m_materialBuffers,
-		m_vkCmdBeginRenderingKHR,
-		m_vkCmdEndRenderingKHR,
-		m_vkCmdDrawIndexedIndirectCountKHR,
-		m_vkCmdPipelineBarrier2KHR,
-		m_vkGetBufferDeviceAddressKHR,
-		ecs);
+	m_compositing.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_allocator, m_initializationCommandPool, m_initializationCommandBuffer, m_initializationFence, m_viewport, m_scissor, m_framesInFlight, m_cameraBuffers, m_lightBuffers, m_shadowMapping.getShadowSceneBuffers(), m_gBuffer.getPosition().view, m_gBuffer.getNormal().view, m_gBuffer.getDiffuse().view, m_gBuffer.getMaterial().view, m_gBuffer.getEmissive().view, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdPipelineBarrier2KHR);
 
-	m_compositing.init(m_device,
-		m_graphicsComputeQueue,
-		m_graphicsComputeQueueFamilyIndex,
-		m_allocator,
-		m_initializationCommandPool,
-		m_initializationCommandBuffer,
-		m_initializationFence,
-		m_viewport,
-		m_scissor,
-		m_framesInFlight,
-		m_cameraBuffers,
-		m_lightBuffers,
-		m_shadowMapping.getShadowSceneBuffers(),
-		m_gBuffer.getPosition().view,
-		m_gBuffer.getNormal().view,
-		m_gBuffer.getDiffuse().view,
-		m_gBuffer.getMaterial().view,
-		m_gBuffer.getEmissive().view,
-		m_ssao.getImage().view,
-		m_vkCmdBeginRenderingKHR,
-		m_vkCmdEndRenderingKHR,
-		m_vkCmdPipelineBarrier2KHR);
+	m_forwardRenderer.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_viewport, m_scissor, m_framesInFlight, m_cameraBuffers, m_lightBuffers, m_objectBuffers, m_meshBuffer, m_jointTransformBuffers, m_materialBuffers, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdPipelineBarrier2KHR);
 
-	m_particles.init(m_device,
-		m_graphicsComputeQueue,
-		m_graphicsComputeQueueFamilyIndex,
-		m_allocator,
-		m_compositing.getImageFormat(),
-		m_initializationCommandPool,
-		m_initializationCommandBuffer,
-		m_initializationFence,
-		m_viewport,
-		m_scissor,
-		m_framesInFlight,
-		m_cameraBuffers,
-		m_vkCmdBeginRenderingKHR,
-		m_vkCmdEndRenderingKHR,
-		m_vkCmdPipelineBarrier2KHR);
+	m_particles.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_allocator, m_compositing.getImageFormat(), m_initializationCommandPool, m_initializationCommandBuffer, m_initializationFence, m_viewport, m_scissor, m_framesInFlight, m_cameraBuffers, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdPipelineBarrier2KHR);
 
-#if BLOOM_ENABLE == 1
-	m_bloom.init(m_device,
-		m_graphicsComputeQueue,
-		m_graphicsComputeQueueFamilyIndex,
-		m_allocator,
-		m_compositing.getImage().view,
-		m_compositing.getImageFormat(),
-		m_initializationCommandPool,
-		m_initializationCommandBuffer,
-		m_initializationFence,
-		m_viewport,
-		m_scissor,
-		m_vkCmdBeginRenderingKHR,
-		m_vkCmdEndRenderingKHR,
-		m_vkCmdPipelineBarrier2KHR);
-#endif
+	m_bloom.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_allocator, m_compositing.getImage().view, m_initializationCommandPool, m_initializationCommandBuffer, m_initializationFence, m_viewport, m_scissor, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdPipelineBarrier2KHR);
 
-	m_toneMapping.init(m_device,
-		m_graphicsComputeQueue,
-		m_graphicsComputeQueueFamilyIndex,
-		m_allocator,
-		m_initializationCommandPool,
-		m_initializationCommandBuffer,
-		m_initializationFence,
-		m_drawImageFormat,
-		m_viewport,
-		m_scissor,
-		m_compositing.getImage().view,
-		m_vkCmdBeginRenderingKHR,
-		m_vkCmdEndRenderingKHR,
-		m_vkCmdPipelineBarrier2KHR);
+	m_ssao.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_allocator, m_initializationCommandPool, m_initializationCommandBuffer, m_initializationFence, m_gBuffer.getDepth().view, m_viewport, m_scissor, m_framesInFlight, m_cameraBuffers, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdPipelineBarrier2KHR);
 
-	m_fxaa.init(m_device,
-		m_graphicsComputeQueueFamilyIndex,
-		m_toneMapping.getImage().view,
-		m_drawImageFormat,
-		m_viewport,
-		m_scissor,
-		m_vkCmdBeginRenderingKHR,
-		m_vkCmdEndRenderingKHR,
-		m_vkCmdPipelineBarrier2KHR);
+	m_postProcessing.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_allocator, m_initializationCommandPool, m_initializationCommandBuffer, m_initializationFence, m_viewport, m_scissor, m_framesInFlight, m_compositing.getImage().view, m_bloom.getImage().view, m_ssao.getImage().view, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdPipelineBarrier2KHR);
+
+	m_toneMapping.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_allocator, m_initializationCommandPool, m_initializationCommandBuffer, m_initializationFence, m_drawImageFormat, m_viewport, m_scissor, m_postProcessing.getImage().view, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdPipelineBarrier2KHR);
+
+	m_fxaa.init(m_device, m_graphicsComputeQueueFamilyIndex, m_toneMapping.getImage().view, m_drawImageFormat, m_viewport, m_scissor, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdPipelineBarrier2KHR);
 
 	createUIResources();
 
@@ -777,6 +653,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	// Update camera buffer
 	float cameraNearPlane = 0.0f;
 	float cameraFarPlane = 0.0f;
+	Math::vec4 cameraPositionAsVec4;
 	Math::mat4 cameraView = Math::mat4::identity();
 	Math::mat4 cameraProjection = Math::mat4::identity();
 	Math::mat4 cameraProjectionNonReversed = Math::mat4::identity();
@@ -806,7 +683,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 			cameraProjectionNonReversed[1][1] *= -1.0f;
 		}
 		std::array<Math::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
-		Math::vec4 cameraPositionAsVec4 = { cameraTransform.position, 0.0f };
+		cameraPositionAsVec4 = { cameraTransform.position, 0.0f };
 
 		memcpy(m_cameraBuffers[m_currentFrameInFlight].address, cameraMatrices.data(), sizeof(Math::mat4) * 2);
 		memcpy(reinterpret_cast<char*>(m_cameraBuffers[m_currentFrameInFlight].address) + sizeof(Math::mat4) * 2, cameraPositionAsVec4.data(), sizeof(Math::vec4));
@@ -915,18 +792,11 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	// Update descriptor sets if needed
 	m_gBuffer.updateDescriptorSets(m_currentFrameInFlight, m_textures, m_textureImageViews, m_textureSamplers);
 	m_shadowMapping.updateDescriptorSets(m_currentFrameInFlight, m_textures, m_textureImageViews, m_textureSamplers);
-	m_compositing.updateShadowDescriptorSets(m_currentFrameInFlight, m_shadowMapping.getShadowMapImages());
+	m_compositing.updateShadowDescriptorSets(m_currentFrameInFlight, m_shadowMapping.getShadowMapImages(), m_shadowMapping.getShadowMapSampler());
+	m_forwardRenderer.updateDescriptorSets(m_currentFrameInFlight, m_textures, m_textureImageViews, m_textureSamplers);
 	m_particles.updateGraphicsDescriptorSets(m_currentFrameInFlight, m_textureImageViews);
-	if (m_uiTextDescriptorSetsNeedUpdate[m_currentFrameInFlight]) {
-		updateUITextDescriptorSet(m_currentFrameInFlight);
-
-		m_uiTextDescriptorSetsNeedUpdate[m_currentFrameInFlight] = false;
-	}
-	if (m_uiImageDescriptorSetsNeedUpdate[m_currentFrameInFlight]) {
-		updateUIImageDescriptorSet(m_currentFrameInFlight);
-
-		m_uiImageDescriptorSetsNeedUpdate[m_currentFrameInFlight] = false;
-	}
+	updateUITextDescriptorSet(m_currentFrameInFlight);
+	updateUIImageDescriptorSet(m_currentFrameInFlight);
 
 	std::vector<FrustumCullingInfo> frustumCullingInfos;
 
@@ -1024,72 +894,25 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	// Frustum culling
 	uint32_t drawCount = 0;
 	if (m_mainCamera != NTSHENGN_ENTITY_UNKNOWN) {
-		drawCount = m_frustumCulling.cull(m_renderingCommandBuffers[m_currentFrameInFlight],
-			m_currentFrameInFlight,
-			frustumCullingInfos,
-			m_objects,
-			m_meshes
-		);
+		drawCount = m_frustumCulling.cull(m_renderingCommandBuffers[m_currentFrameInFlight], m_currentFrameInFlight, frustumCullingInfos, m_objects, m_meshes);
 	}
 
 	// Draw G-Buffer
-	m_gBuffer.draw(m_renderingCommandBuffers[m_currentFrameInFlight],
-		m_currentFrameInFlight,
-		drawCount,
-		m_vertexBuffer,
-		m_indexBuffer
-	);
-
-	// Draw SSAO
-	m_ssao.draw(m_renderingCommandBuffers[m_currentFrameInFlight], m_currentFrameInFlight);
+	m_gBuffer.draw(m_renderingCommandBuffers[m_currentFrameInFlight], m_currentFrameInFlight, drawCount, m_vertexBuffer, m_indexBuffer);
 
 	// Draw shadow mapping
-	m_shadowMapping.draw(m_renderingCommandBuffers[m_currentFrameInFlight],
-		m_currentFrameInFlight,
-		drawCount,
-		m_vertexBuffer,
-		m_indexBuffer
-	);
+	m_shadowMapping.draw(m_renderingCommandBuffers[m_currentFrameInFlight], m_currentFrameInFlight, drawCount, m_vertexBuffer, m_indexBuffer);
 
 	// Compositing
-	m_compositing.draw(m_renderingCommandBuffers[m_currentFrameInFlight],
-		m_currentFrameInFlight,
-		m_backgroundColor);
+	m_compositing.draw(m_renderingCommandBuffers[m_currentFrameInFlight], m_currentFrameInFlight, m_backgroundColor);
 
-	// Compositing synchronization before particles
-	VkImageMemoryBarrier2 compositingBeforeParticlesImageMemoryBarrier = {};
-	compositingBeforeParticlesImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-	compositingBeforeParticlesImageMemoryBarrier.pNext = nullptr;
-	compositingBeforeParticlesImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-	compositingBeforeParticlesImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-	compositingBeforeParticlesImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-	compositingBeforeParticlesImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-	compositingBeforeParticlesImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	compositingBeforeParticlesImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	compositingBeforeParticlesImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
-	compositingBeforeParticlesImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
-	compositingBeforeParticlesImageMemoryBarrier.image = m_compositing.getImage().handle;
-	compositingBeforeParticlesImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	compositingBeforeParticlesImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
-	compositingBeforeParticlesImageMemoryBarrier.subresourceRange.levelCount = 1;
-	compositingBeforeParticlesImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-	compositingBeforeParticlesImageMemoryBarrier.subresourceRange.layerCount = 1;
+	// Draw with forward renderer
+	m_forwardRenderer.draw(dt, m_renderingCommandBuffers[m_currentFrameInFlight], m_currentFrameInFlight, m_frustumCulling.getCustomGraphicsPipelineObjectsAfterCulling(), m_meshes, Math::vec3(cameraPositionAsVec4), m_compositing.getImage(), m_gBuffer.getDepth());
 
-	VkDependencyInfo compositingBeforeParticlesDependencyInfo = {};
-	compositingBeforeParticlesDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-	compositingBeforeParticlesDependencyInfo.pNext = nullptr;
-	compositingBeforeParticlesDependencyInfo.dependencyFlags = 0;
-	compositingBeforeParticlesDependencyInfo.memoryBarrierCount = 0;
-	compositingBeforeParticlesDependencyInfo.pMemoryBarriers = nullptr;
-	compositingBeforeParticlesDependencyInfo.bufferMemoryBarrierCount = 0;
-	compositingBeforeParticlesDependencyInfo.pBufferMemoryBarriers = nullptr;
-	compositingBeforeParticlesDependencyInfo.imageMemoryBarrierCount = 1;
-	compositingBeforeParticlesDependencyInfo.pImageMemoryBarriers = &compositingBeforeParticlesImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &compositingBeforeParticlesDependencyInfo);
-
+	// Draw particles
 	m_particles.draw(m_renderingCommandBuffers[m_currentFrameInFlight], m_compositing.getImage().handle, m_compositing.getImage().view, m_gBuffer.getDepth().handle, m_gBuffer.getDepth().view, m_currentFrameInFlight, dt);
 
-	// Compositing synchronization after particles
+	// Compositing and depth synchronization after particles
 	VkImageMemoryBarrier2 compositingAfterParticlesImageMemoryBarrier = {};
 	compositingAfterParticlesImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	compositingAfterParticlesImageMemoryBarrier.pNext = nullptr;
@@ -1108,56 +931,48 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	compositingAfterParticlesImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	compositingAfterParticlesImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	VkDependencyInfo compositingAfterParticlesDependencyInfo = {};
-	compositingAfterParticlesDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-	compositingAfterParticlesDependencyInfo.pNext = nullptr;
-	compositingAfterParticlesDependencyInfo.dependencyFlags = 0;
-	compositingAfterParticlesDependencyInfo.memoryBarrierCount = 0;
-	compositingAfterParticlesDependencyInfo.pMemoryBarriers = nullptr;
-	compositingAfterParticlesDependencyInfo.bufferMemoryBarrierCount = 0;
-	compositingAfterParticlesDependencyInfo.pBufferMemoryBarriers = nullptr;
-	compositingAfterParticlesDependencyInfo.imageMemoryBarrierCount = 1;
-	compositingAfterParticlesDependencyInfo.pImageMemoryBarriers = &compositingAfterParticlesImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &compositingAfterParticlesDependencyInfo);
+	VkImageMemoryBarrier2 depthAfterParticlesImageMemoryBarrier = {};
+	depthAfterParticlesImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	depthAfterParticlesImageMemoryBarrier.pNext = nullptr;
+	depthAfterParticlesImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+	depthAfterParticlesImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	depthAfterParticlesImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	depthAfterParticlesImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+	depthAfterParticlesImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	depthAfterParticlesImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	depthAfterParticlesImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	depthAfterParticlesImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
+	depthAfterParticlesImageMemoryBarrier.image = m_gBuffer.getDepth().handle;
+	depthAfterParticlesImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	depthAfterParticlesImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	depthAfterParticlesImageMemoryBarrier.subresourceRange.levelCount = 1;
+	depthAfterParticlesImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	depthAfterParticlesImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-#if BLOOM_ENABLE == 1
+	std::array<VkImageMemoryBarrier2, 2> compositingAndDepthAfterParticlesImageBarriers = { compositingAfterParticlesImageMemoryBarrier, depthAfterParticlesImageMemoryBarrier };
+	VkDependencyInfo compositingAndDepthAfterParticlesDependencyInfo = {};
+	compositingAndDepthAfterParticlesDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	compositingAndDepthAfterParticlesDependencyInfo.pNext = nullptr;
+	compositingAndDepthAfterParticlesDependencyInfo.dependencyFlags = 0;
+	compositingAndDepthAfterParticlesDependencyInfo.memoryBarrierCount = 0;
+	compositingAndDepthAfterParticlesDependencyInfo.pMemoryBarriers = nullptr;
+	compositingAndDepthAfterParticlesDependencyInfo.bufferMemoryBarrierCount = 0;
+	compositingAndDepthAfterParticlesDependencyInfo.pBufferMemoryBarriers = nullptr;
+	compositingAndDepthAfterParticlesDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(compositingAndDepthAfterParticlesImageBarriers.size());
+	compositingAndDepthAfterParticlesDependencyInfo.pImageMemoryBarriers = compositingAndDepthAfterParticlesImageBarriers.data();
+	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &compositingAndDepthAfterParticlesDependencyInfo);
+
 	// Bloom
-	m_bloom.draw(m_renderingCommandBuffers[m_currentFrameInFlight], m_compositing.getImage().handle, m_compositing.getImage().view);
-#endif
+	m_bloom.draw(m_renderingCommandBuffers[m_currentFrameInFlight]);
+
+	// Draw SSAO
+	m_ssao.draw(m_renderingCommandBuffers[m_currentFrameInFlight], m_currentFrameInFlight);
+
+	// Post processing
+	m_postProcessing.draw(m_renderingCommandBuffers[m_currentFrameInFlight], m_currentFrameInFlight);
 
 	// Tone mapping
 	m_toneMapping.draw(m_renderingCommandBuffers[m_currentFrameInFlight]);
-
-	// Tone mapping layout transition VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-	VkImageMemoryBarrier2 toneMappingColorAttachmentToFragmentImageMemoryBarrier = {};
-	toneMappingColorAttachmentToFragmentImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-	toneMappingColorAttachmentToFragmentImageMemoryBarrier.pNext = nullptr;
-	toneMappingColorAttachmentToFragmentImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-	toneMappingColorAttachmentToFragmentImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-	toneMappingColorAttachmentToFragmentImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-	toneMappingColorAttachmentToFragmentImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
-	toneMappingColorAttachmentToFragmentImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	toneMappingColorAttachmentToFragmentImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	toneMappingColorAttachmentToFragmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
-	toneMappingColorAttachmentToFragmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
-	toneMappingColorAttachmentToFragmentImageMemoryBarrier.image = m_toneMapping.getImage().handle;
-	toneMappingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	toneMappingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
-	toneMappingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.levelCount = 1;
-	toneMappingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-	toneMappingColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.layerCount = 1;
-
-	VkDependencyInfo toneMappingDependencyInfo = {};
-	toneMappingDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-	toneMappingDependencyInfo.pNext = nullptr;
-	toneMappingDependencyInfo.dependencyFlags = 0;
-	toneMappingDependencyInfo.memoryBarrierCount = 0;
-	toneMappingDependencyInfo.pMemoryBarriers = nullptr;
-	toneMappingDependencyInfo.bufferMemoryBarrierCount = 0;
-	toneMappingDependencyInfo.pBufferMemoryBarriers = nullptr;
-	toneMappingDependencyInfo.imageMemoryBarrierCount = 1;
-	toneMappingDependencyInfo.pImageMemoryBarriers = &toneMappingColorAttachmentToFragmentImageMemoryBarrier;
-	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &toneMappingDependencyInfo);
 
 	// FXAA
 	m_fxaa.draw(m_renderingCommandBuffers[m_currentFrameInFlight], (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage.handle, (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImage.view, m_fxaaEnabled);
@@ -1410,22 +1225,26 @@ void NtshEngn::GraphicsModule::destroy() {
 	// Destroy tone mapping resources
 	m_toneMapping.destroy();
 
-#if BLOOM_ENABLE == 1
+	// Destroy post processing
+	m_postProcessing.destroy();
+
+	// Destroy SSAO
+	m_ssao.destroy();
+
 	// Destroy bloom
 	m_bloom.destroy();
-#endif
 
 	// Destroy particles
 	m_particles.destroy();
+
+	// Destroy forward renderer
+	m_forwardRenderer.destroy();
 
 	// Destroy compositing resources
 	m_compositing.destroy();
 
 	// Destroy shadow mapping
 	m_shadowMapping.destroy();
-
-	// Destroy SSAO
-	m_ssao.destroy();
 
 	// Destroy G-Buffer
 	m_gBuffer.destroy();
@@ -1993,6 +1812,7 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		m_gBuffer.descriptorSetNeedsUpdate(i);
 		m_shadowMapping.descriptorSetNeedsUpdate(i);
+		m_forwardRenderer.descriptorSetNeedsUpdate(i);
 	}
 
 	return static_cast<ImageID>(m_textureImages.size() - 1);
@@ -3241,6 +3061,10 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 }
 
 void NtshEngn::GraphicsModule::updateUITextDescriptorSet(uint32_t frameInFlight) {
+	if (!m_uiTextDescriptorSetsNeedUpdate[frameInFlight]) {
+		return;
+	}
+
 	std::vector<VkDescriptorImageInfo> fontsDescriptorImageInfos(m_fonts.size());
 	for (size_t i = 0; i < m_fonts.size(); i++) {
 		fontsDescriptorImageInfos[i].sampler = (m_fonts[i].filter == ImageSamplerFilter::Nearest) ? m_uiNearestSampler : m_uiLinearSampler;
@@ -3261,6 +3085,8 @@ void NtshEngn::GraphicsModule::updateUITextDescriptorSet(uint32_t frameInFlight)
 	fontsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
 	vkUpdateDescriptorSets(m_device, 1, &fontsDescriptorWriteDescriptorSet, 0, nullptr);
+
+	m_uiTextDescriptorSetsNeedUpdate[frameInFlight] = false;
 }
 
 void NtshEngn::GraphicsModule::createUILineResources() {
@@ -4017,6 +3843,10 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 }
 
 void NtshEngn::GraphicsModule::updateUIImageDescriptorSet(uint32_t frameInFlight) {
+	if (!m_uiImageDescriptorSetsNeedUpdate[frameInFlight]) {
+		return;
+	}
+
 	std::vector<VkDescriptorImageInfo> uiTexturesDescriptorImageInfos(m_uiTextures.size());
 	for (size_t i = 0; i < m_uiTextures.size(); i++) {
 		uiTexturesDescriptorImageInfos[i].sampler = (m_uiTextures[i].second == ImageSamplerFilter::Nearest) ? m_uiNearestSampler : m_uiLinearSampler;
@@ -4037,6 +3867,8 @@ void NtshEngn::GraphicsModule::updateUIImageDescriptorSet(uint32_t frameInFlight
 	uiTexturesDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
 	vkUpdateDescriptorSets(m_device, 1, &uiTexturesDescriptorWriteDescriptorSet, 0, nullptr);
+
+	m_uiImageDescriptorSetsNeedUpdate[frameInFlight] = true;
 }
 
 void NtshEngn::GraphicsModule::createDefaultResources() {
@@ -4163,22 +3995,26 @@ void NtshEngn::GraphicsModule::resize() {
 		// Resize G-Buffer
 		m_gBuffer.onResize(width, height);
 
-		// Resize SSAO
-		m_ssao.onResize(width, height, m_gBuffer.getPosition().view, m_gBuffer.getNormal().view);
-
 		// Resize compositing
-		m_compositing.onResize(width, height, m_gBuffer.getPosition().view, m_gBuffer.getNormal().view, m_gBuffer.getDiffuse().view, m_gBuffer.getMaterial().view, m_gBuffer.getEmissive().view, m_ssao.getImage().view);
+		m_compositing.onResize(width, height, m_gBuffer.getPosition().view, m_gBuffer.getNormal().view, m_gBuffer.getDiffuse().view, m_gBuffer.getMaterial().view, m_gBuffer.getEmissive().view);
+
+		// Resize forward rendering
+		m_forwardRenderer.onResize(width, height);
 
 		// Resize particles
 		m_particles.onResize(width, height);
 
-#if BLOOM_ENABLE == 1
 		// Resize bloom
 		m_bloom.onResize(width, height, m_compositing.getImage().view);
-#endif
+
+		// Resize SSAO
+		m_ssao.onResize(width, height, m_gBuffer.getDepth().view);
+
+		// Resize post processing
+		m_postProcessing.onResize(width, height, m_compositing.getImage().view, m_bloom.getImage().view, m_ssao.getImage().view);
 
 		// Resize tone mapping
-		m_toneMapping.onResize(width, height, m_drawImageFormat, m_compositing.getImage().view);
+		m_toneMapping.onResize(width, height, m_drawImageFormat, m_postProcessing.getImage().view);
 
 		// Resize FXAA
 		m_fxaa.onResize(width, height, m_toneMapping.getImage().view);
@@ -4356,6 +4192,12 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		material.offsetUV = renderable.material.offsetUV;
 	}
 
+	if (!renderable.fragmentShader.empty()) {
+		if (m_forwardRenderer.createGraphicsPipelineFromFragmentShader(renderable.fragmentShader)) {
+			object.graphicsPipelineKey = renderable.fragmentShader;
+		}
+	}
+
 	m_lastKnownMaterial[entity] = renderable.material;
 }
 
@@ -4422,6 +4264,7 @@ uint32_t NtshEngn::GraphicsModule::addToTextures(const InternalTexture& texture)
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		m_gBuffer.descriptorSetNeedsUpdate(i);
 		m_shadowMapping.descriptorSetNeedsUpdate(i);
+		m_forwardRenderer.descriptorSetNeedsUpdate(i);
 	}
 
 	return static_cast<uint32_t>(m_textures.size()) - 1;

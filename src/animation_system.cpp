@@ -5,10 +5,7 @@ void AnimationSystem::init(NtshEngn::ECSInterface* ecs) {
 	m_ecs = ecs;
 }
 
-void AnimationSystem::update(float dt,
-	std::unordered_map<NtshEngn::Entity, InternalObject>& objects,
-	std::vector<InternalMesh>& meshes,
-	HostVisibleVulkanBuffer& jointTransformBuffer) {
+void AnimationSystem::update(float dt, std::unordered_map<NtshEngn::Entity, InternalObject>& objects, std::vector<InternalMesh>& meshes, HostVisibleVulkanBuffer& jointTransformBuffer) {
 	for (auto& it : objects) {
 		const NtshEngn::Renderable& objectRenderable = m_ecs->getComponent<NtshEngn::Renderable>(it.first);
 

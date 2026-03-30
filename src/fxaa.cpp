@@ -1,14 +1,6 @@
 #include "fxaa.h"
 
-void FXAA::init(VkDevice device,
-	uint32_t graphicsQueueFamilyIndex,
-	VkImageView colorImageView,
-	VkFormat drawImageFormat,
-	VkViewport viewport,
-	VkRect2D scissor,
-	PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
-	PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
-	PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
+void FXAA::init(VkDevice device, uint32_t graphicsQueueFamilyIndex, VkImageView colorImageView, VkFormat drawImageFormat, VkViewport viewport, VkRect2D scissor, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
 	m_device = device;
 	m_graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
 	m_viewport = viewport;

@@ -1,21 +1,6 @@
 #include "ssao.h"
 
-void SSAO::init(VkDevice device,
-	VkQueue graphicsQueue,
-	uint32_t graphicsQueueFamilyIndex,
-	VmaAllocator allocator,
-	VkCommandPool initializationCommandPool,
-	VkCommandBuffer initializationCommandBuffer,
-	VkFence initializationFence,
-	VkImageView positionImageView,
-	VkImageView normalImageView,
-	VkViewport viewport,
-	VkRect2D scissor,
-	uint32_t framesInFlight,
-	const std::vector<HostVisibleVulkanBuffer>& cameraBuffers,
-	PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
-	PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
-	PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
+void SSAO::init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VmaAllocator allocator, VkCommandPool initializationCommandPool, VkCommandBuffer initializationCommandBuffer, VkFence initializationFence, VkImageView depthImageView, VkViewport viewport, VkRect2D scissor, uint32_t framesInFlight, const std::vector<HostVisibleVulkanBuffer>& cameraBuffers, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
 	m_device = device;
 	m_graphicsQueue = graphicsQueue;
 	m_graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
@@ -35,7 +20,7 @@ void SSAO::init(VkDevice device,
 	createDescriptorSetLayouts();
 	createGraphicsPipelines();
 	createDescriptorSets(cameraBuffers);
-	updateDescriptorSets(positionImageView, normalImageView);
+	updateDescriptorSets(depthImageView);
 }
 
 void SSAO::destroy() {
@@ -49,8 +34,13 @@ void SSAO::destroy() {
 	vkDestroyPipelineLayout(m_device, m_ssaoGraphicsPipelineLayout, nullptr);
 	vkDestroyDescriptorSetLayout(m_device, m_ssaoDescriptorSetLayout, nullptr);
 
+	vkDestroyDescriptorPool(m_device, m_positionAndNormalFromDepthDescriptorPool, nullptr);
+	vkDestroyPipeline(m_device, m_positionAndNormalFromDepthGraphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(m_device, m_positionAndNormalFromDepthGraphicsPipelineLayout, nullptr);
+	vkDestroyDescriptorSetLayout(m_device, m_positionAndNormalFromDepthDescriptorSetLayout, nullptr);
+
 	vkDestroySampler(m_device, m_repeatSampler, nullptr);
-	vkDestroySampler(m_device, m_nearestSampler, nullptr);
+	vkDestroySampler(m_device, m_linearSampler, nullptr);
 
 	m_randomSampleBuffer.destroy(m_allocator);
 	m_randomImage.destroy(m_device, m_allocator);
@@ -59,6 +49,42 @@ void SSAO::destroy() {
 
 void SSAO::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight) {
 	// Layout transitions
+	VkImageMemoryBarrier2 positionFragmentToColorAttachmentImageMemoryBarrier = {};
+	positionFragmentToColorAttachmentImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	positionFragmentToColorAttachmentImageMemoryBarrier.pNext = nullptr;
+	positionFragmentToColorAttachmentImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	positionFragmentToColorAttachmentImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+	positionFragmentToColorAttachmentImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	positionFragmentToColorAttachmentImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	positionFragmentToColorAttachmentImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	positionFragmentToColorAttachmentImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	positionFragmentToColorAttachmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	positionFragmentToColorAttachmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	positionFragmentToColorAttachmentImageMemoryBarrier.image = m_positionFromDepthImage.handle;
+	positionFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	positionFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	positionFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.levelCount = 1;
+	positionFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	positionFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	VkImageMemoryBarrier2 normalFragmentToColorAttachmentImageMemoryBarrier = {};
+	normalFragmentToColorAttachmentImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	normalFragmentToColorAttachmentImageMemoryBarrier.pNext = nullptr;
+	normalFragmentToColorAttachmentImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	normalFragmentToColorAttachmentImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+	normalFragmentToColorAttachmentImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	normalFragmentToColorAttachmentImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	normalFragmentToColorAttachmentImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	normalFragmentToColorAttachmentImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	normalFragmentToColorAttachmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	normalFragmentToColorAttachmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	normalFragmentToColorAttachmentImageMemoryBarrier.image = m_normalFromDepthImage.handle;
+	normalFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	normalFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	normalFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.levelCount = 1;
+	normalFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	normalFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.layerCount = 1;
+
 	VkImageMemoryBarrier2 ssaoFragmentToColorAttachmentImageMemoryBarrier = {};
 	ssaoFragmentToColorAttachmentImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	ssaoFragmentToColorAttachmentImageMemoryBarrier.pNext = nullptr;
@@ -95,7 +121,7 @@ void SSAO::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight) {
 	ssaoBlurFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	ssaoBlurFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	std::array<VkImageMemoryBarrier2, 2> beforeRenderImageMemoryBarriers = { ssaoFragmentToColorAttachmentImageMemoryBarrier, ssaoBlurFragmentToColorAttachmentImageMemoryBarrier };
+	std::array<VkImageMemoryBarrier2, 4> beforeRenderImageMemoryBarriers = { positionFragmentToColorAttachmentImageMemoryBarrier, normalFragmentToColorAttachmentImageMemoryBarrier, ssaoFragmentToColorAttachmentImageMemoryBarrier, ssaoBlurFragmentToColorAttachmentImageMemoryBarrier };
 	VkDependencyInfo beforeRenderDependencyInfo = {};
 	beforeRenderDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	beforeRenderDependencyInfo.pNext = nullptr;
@@ -107,6 +133,103 @@ void SSAO::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight) {
 	beforeRenderDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(beforeRenderImageMemoryBarriers.size());
 	beforeRenderDependencyInfo.pImageMemoryBarriers = beforeRenderImageMemoryBarriers.data();
 	m_vkCmdPipelineBarrier2KHR(commandBuffer, &beforeRenderDependencyInfo);
+
+	// Position and normal from depth
+	VkRenderingAttachmentInfo positionAttachmentInfo = {};
+	positionAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	positionAttachmentInfo.pNext = nullptr;
+	positionAttachmentInfo.imageView = m_positionFromDepthImage.view;
+	positionAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	positionAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+	positionAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
+	positionAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	positionAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	positionAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	positionAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	VkRenderingAttachmentInfo normalAttachmentInfo = {};
+	normalAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+	normalAttachmentInfo.pNext = nullptr;
+	normalAttachmentInfo.imageView = m_normalFromDepthImage.view;
+	normalAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	normalAttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
+	normalAttachmentInfo.resolveImageView = VK_NULL_HANDLE;
+	normalAttachmentInfo.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	normalAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	normalAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	normalAttachmentInfo.clearValue.color = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	std::array<VkRenderingAttachmentInfo, 2> positionAndNormalFromDepthAttachmentInfos = { positionAttachmentInfo, normalAttachmentInfo };
+	VkRenderingInfo positionAndNormalFromDepthRenderingInfo = {};
+	positionAndNormalFromDepthRenderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+	positionAndNormalFromDepthRenderingInfo.pNext = nullptr;
+	positionAndNormalFromDepthRenderingInfo.flags = 0;
+	positionAndNormalFromDepthRenderingInfo.renderArea = m_scissor;
+	positionAndNormalFromDepthRenderingInfo.layerCount = 1;
+	positionAndNormalFromDepthRenderingInfo.viewMask = 0;
+	positionAndNormalFromDepthRenderingInfo.colorAttachmentCount = static_cast<uint32_t>(positionAndNormalFromDepthAttachmentInfos.size());
+	positionAndNormalFromDepthRenderingInfo.pColorAttachments = positionAndNormalFromDepthAttachmentInfos.data();
+	positionAndNormalFromDepthRenderingInfo.pDepthAttachment = nullptr;
+	positionAndNormalFromDepthRenderingInfo.pStencilAttachment = nullptr;
+	m_vkCmdBeginRenderingKHR(commandBuffer, &positionAndNormalFromDepthRenderingInfo);
+
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_positionAndNormalFromDepthGraphicsPipelineLayout, 0, 1, &m_positionAndNormalFromDepthDescriptorSets[currentFrameInFlight], 0, nullptr);
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_positionAndNormalFromDepthGraphicsPipeline);
+	vkCmdSetViewport(commandBuffer, 0, 1, &m_viewport);
+	vkCmdSetScissor(commandBuffer, 0, 1, &m_scissor);
+
+	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+
+	m_vkCmdEndRenderingKHR(commandBuffer);
+
+	VkImageMemoryBarrier2 positionColorAttachmenToFragmentImageMemoryBarrier = {};
+	positionColorAttachmenToFragmentImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	positionColorAttachmenToFragmentImageMemoryBarrier.pNext = nullptr;
+	positionColorAttachmenToFragmentImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	positionColorAttachmenToFragmentImageMemoryBarrier.srcAccessMask =  VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	positionColorAttachmenToFragmentImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	positionColorAttachmenToFragmentImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+	positionColorAttachmenToFragmentImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	positionColorAttachmenToFragmentImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	positionColorAttachmenToFragmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	positionColorAttachmenToFragmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	positionColorAttachmenToFragmentImageMemoryBarrier.image = m_positionFromDepthImage.handle;
+	positionColorAttachmenToFragmentImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	positionColorAttachmenToFragmentImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	positionColorAttachmenToFragmentImageMemoryBarrier.subresourceRange.levelCount = 1;
+	positionColorAttachmenToFragmentImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	positionColorAttachmenToFragmentImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	VkImageMemoryBarrier2 normalColorAttachmentToFragmentImageMemoryBarrier = {};
+	normalColorAttachmentToFragmentImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	normalColorAttachmentToFragmentImageMemoryBarrier.pNext = nullptr;
+	normalColorAttachmentToFragmentImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	normalColorAttachmentToFragmentImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	normalColorAttachmentToFragmentImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	normalColorAttachmentToFragmentImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+	normalColorAttachmentToFragmentImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	normalColorAttachmentToFragmentImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	normalColorAttachmentToFragmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	normalColorAttachmentToFragmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
+	normalColorAttachmentToFragmentImageMemoryBarrier.image = m_normalFromDepthImage.handle;
+	normalColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	normalColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	normalColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.levelCount = 1;
+	normalColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	normalColorAttachmentToFragmentImageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	std::array<VkImageMemoryBarrier2, 2> positionAndNormalFromDepthImageMemoryBarriers = { positionColorAttachmenToFragmentImageMemoryBarrier, normalColorAttachmentToFragmentImageMemoryBarrier };
+	VkDependencyInfo positionAndNormalFromDepthDependencyInfo = {};
+	positionAndNormalFromDepthDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	positionAndNormalFromDepthDependencyInfo.pNext = nullptr;
+	positionAndNormalFromDepthDependencyInfo.dependencyFlags = 0;
+	positionAndNormalFromDepthDependencyInfo.memoryBarrierCount = 0;
+	positionAndNormalFromDepthDependencyInfo.pMemoryBarriers = nullptr;
+	positionAndNormalFromDepthDependencyInfo.bufferMemoryBarrierCount = 0;
+	positionAndNormalFromDepthDependencyInfo.pBufferMemoryBarriers = nullptr;
+	positionAndNormalFromDepthDependencyInfo.imageMemoryBarrierCount = static_cast<uint32_t>(positionAndNormalFromDepthImageMemoryBarriers.size());
+	positionAndNormalFromDepthDependencyInfo.pImageMemoryBarriers = positionAndNormalFromDepthImageMemoryBarriers.data();
+	m_vkCmdPipelineBarrier2KHR(commandBuffer, &positionAndNormalFromDepthDependencyInfo);
 
 	// SSAO
 	VkRenderingAttachmentInfo ssaoAttachmentInfo = {};
@@ -239,10 +362,7 @@ void SSAO::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight) {
 	m_vkCmdPipelineBarrier2KHR(commandBuffer, &ssaoBlurColorAttachmentToFragmentDependencyInfo);
 }
 
-void SSAO::onResize(uint32_t width,
-	uint32_t height,
-	VkImageView positionImageView,
-	VkImageView normalImageView) {
+void SSAO::onResize(uint32_t width, uint32_t height, VkImageView depthImageView) {
 	m_viewport.width = static_cast<float>(width);
 	m_viewport.height = static_cast<float>(height);
 	m_scissor.extent.width = width;
@@ -251,7 +371,7 @@ void SSAO::onResize(uint32_t width,
 	destroySSAOImages();
 	createSSAOImages(width, height);
 
-	updateDescriptorSets(positionImageView, normalImageView);
+	updateDescriptorSets(depthImageView);
 }
 
 VulkanImage& SSAO::getImage() {
@@ -539,6 +659,55 @@ void SSAO::createImagesAndBuffer(uint32_t width, uint32_t height) {
 }
 
 void SSAO::createSSAOImages(uint32_t width, uint32_t height) {
+	// Position and normal from depth
+	VkImageCreateInfo positionAndNormalFromDepthImageCreateInfo = {};
+	positionAndNormalFromDepthImageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	positionAndNormalFromDepthImageCreateInfo.pNext = nullptr;
+	positionAndNormalFromDepthImageCreateInfo.flags = 0;
+	positionAndNormalFromDepthImageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	positionAndNormalFromDepthImageCreateInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	positionAndNormalFromDepthImageCreateInfo.extent.width = width;
+	positionAndNormalFromDepthImageCreateInfo.extent.height = height;
+	positionAndNormalFromDepthImageCreateInfo.extent.depth = 1;
+	positionAndNormalFromDepthImageCreateInfo.mipLevels = 1;
+	positionAndNormalFromDepthImageCreateInfo.arrayLayers = 1;
+	positionAndNormalFromDepthImageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	positionAndNormalFromDepthImageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	positionAndNormalFromDepthImageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	positionAndNormalFromDepthImageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	positionAndNormalFromDepthImageCreateInfo.queueFamilyIndexCount = 1;
+	positionAndNormalFromDepthImageCreateInfo.pQueueFamilyIndices = &m_graphicsQueueFamilyIndex;
+	positionAndNormalFromDepthImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+	VmaAllocationCreateInfo positionAndNormalFromDepthImageAllocationCreateInfo = {};
+	positionAndNormalFromDepthImageAllocationCreateInfo.flags = 0;
+	positionAndNormalFromDepthImageAllocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &positionAndNormalFromDepthImageCreateInfo, &positionAndNormalFromDepthImageAllocationCreateInfo, &m_positionFromDepthImage.handle, &m_positionFromDepthImage.allocation, nullptr));
+	NTSHENGN_VK_CHECK(vmaCreateImage(m_allocator, &positionAndNormalFromDepthImageCreateInfo, &positionAndNormalFromDepthImageAllocationCreateInfo, &m_normalFromDepthImage.handle, &m_normalFromDepthImage.allocation, nullptr));
+
+	VkImageViewCreateInfo positionAndNormalFromDepthImageViewCreateInfo = {};
+	positionAndNormalFromDepthImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	positionAndNormalFromDepthImageViewCreateInfo.pNext = nullptr;
+	positionAndNormalFromDepthImageViewCreateInfo.flags = 0;
+	positionAndNormalFromDepthImageViewCreateInfo.image = m_positionFromDepthImage.handle;
+	positionAndNormalFromDepthImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	positionAndNormalFromDepthImageViewCreateInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	positionAndNormalFromDepthImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+	positionAndNormalFromDepthImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+	positionAndNormalFromDepthImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+	positionAndNormalFromDepthImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+	positionAndNormalFromDepthImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	positionAndNormalFromDepthImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+	positionAndNormalFromDepthImageViewCreateInfo.subresourceRange.levelCount = 1;
+	positionAndNormalFromDepthImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+	positionAndNormalFromDepthImageViewCreateInfo.subresourceRange.layerCount = 1;
+	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &positionAndNormalFromDepthImageViewCreateInfo, nullptr, &m_positionFromDepthImage.view));
+
+	positionAndNormalFromDepthImageViewCreateInfo.image = m_normalFromDepthImage.handle;
+	NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &positionAndNormalFromDepthImageViewCreateInfo, nullptr, &m_normalFromDepthImage.view));
+
+	// SSAO and SSAO Blur
 	VkImageCreateInfo ssaoImageCreateInfo = {};
 	ssaoImageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	ssaoImageCreateInfo.pNext = nullptr;
@@ -590,6 +759,8 @@ void SSAO::createSSAOImages(uint32_t width, uint32_t height) {
 void SSAO::destroySSAOImages() {
 	m_ssaoBlurImage.destroy(m_device, m_allocator);
 	m_ssaoImage.destroy(m_device, m_allocator);
+	m_normalFromDepthImage.destroy(m_device, m_allocator);
+	m_positionFromDepthImage.destroy(m_device, m_allocator);
 }
 
 void SSAO::createImageSamplers() {
@@ -597,8 +768,8 @@ void SSAO::createImageSamplers() {
 	samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 	samplerCreateInfo.pNext = nullptr;
 	samplerCreateInfo.flags = 0;
-	samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
-	samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+	samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+	samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 	samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
 	samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -612,7 +783,7 @@ void SSAO::createImageSamplers() {
 	samplerCreateInfo.maxLod = 0.0f;
 	samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
 	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_nearestSampler));
+	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_linearSampler));
 
 	samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -621,6 +792,31 @@ void SSAO::createImageSamplers() {
 }
 
 void SSAO::createDescriptorSetLayouts() {
+	// Position and normal from depth
+	VkDescriptorSetLayoutBinding depthDescriptorSetLayoutBinding = {};
+	depthDescriptorSetLayoutBinding.binding = 0;
+	depthDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	depthDescriptorSetLayoutBinding.descriptorCount = 1;
+	depthDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	depthDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding cameraBufferDescriptorSetLayoutBinding = {};
+	cameraBufferDescriptorSetLayoutBinding.binding = 1;
+	cameraBufferDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	cameraBufferDescriptorSetLayoutBinding.descriptorCount = 1;
+	cameraBufferDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	cameraBufferDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
+
+	std::array<VkDescriptorSetLayoutBinding, 2> positionAndNormalFromDepthDescriptorSetLayoutBindings = { depthDescriptorSetLayoutBinding, cameraBufferDescriptorSetLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptorSetLayoutCreateInfo.pNext = nullptr;
+	descriptorSetLayoutCreateInfo.flags = 0;
+	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(positionAndNormalFromDepthDescriptorSetLayoutBindings.size());
+	descriptorSetLayoutCreateInfo.pBindings = positionAndNormalFromDepthDescriptorSetLayoutBindings.data();
+	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_positionAndNormalFromDepthDescriptorSetLayout));
+
+	// SSAO
 	VkDescriptorSetLayoutBinding positionDescriptorSetLayoutBinding = {};
 	positionDescriptorSetLayoutBinding.binding = 0;
 	positionDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -649,22 +845,14 @@ void SSAO::createDescriptorSetLayouts() {
 	randomSampleBufferDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	randomSampleBufferDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
-	VkDescriptorSetLayoutBinding cameraBufferDescriptorSetLayoutBinding = {};
 	cameraBufferDescriptorSetLayoutBinding.binding = 4;
-	cameraBufferDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	cameraBufferDescriptorSetLayoutBinding.descriptorCount = 1;
-	cameraBufferDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-	cameraBufferDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	std::array<VkDescriptorSetLayoutBinding, 5> descriptorSetLayoutBindings = { positionDescriptorSetLayoutBinding, normalDescriptorSetLayoutBinding, randomImageDescriptorSetLayoutBinding, randomSampleBufferDescriptorSetLayoutBinding, cameraBufferDescriptorSetLayoutBinding };
-	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
-	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	descriptorSetLayoutCreateInfo.pNext = nullptr;
-	descriptorSetLayoutCreateInfo.flags = 0;
 	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size());
 	descriptorSetLayoutCreateInfo.pBindings = descriptorSetLayoutBindings.data();
 	NTSHENGN_VK_CHECK(vkCreateDescriptorSetLayout(m_device, &descriptorSetLayoutCreateInfo, nullptr, &m_ssaoDescriptorSetLayout));
 
+	// SSAO Blur
 	VkDescriptorSetLayoutBinding ssaoDescriptorSetLayoutBinding = {};
 	ssaoDescriptorSetLayoutBinding.binding = 0;
 	ssaoDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -678,8 +866,234 @@ void SSAO::createDescriptorSetLayouts() {
 }
 
 void SSAO::createGraphicsPipelines() {
+	createPositionAndNormalFromDepthGraphicsPipeline();
 	createSSAOGraphicsPipeline();
 	createSSAOBlurGraphicsPipeline();
+}
+
+void SSAO::createPositionAndNormalFromDepthGraphicsPipeline() {
+	std::array<VkFormat, 2> pipelineRenderingFormats = { VK_FORMAT_R32G32B32A32_SFLOAT, VK_FORMAT_R32G32B32A32_SFLOAT };
+	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
+	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+	pipelineRenderingCreateInfo.pNext = nullptr;
+	pipelineRenderingCreateInfo.viewMask = 0;
+	pipelineRenderingCreateInfo.colorAttachmentCount = static_cast<uint32_t>(pipelineRenderingFormats.size());
+	pipelineRenderingCreateInfo.pColorAttachmentFormats = pipelineRenderingFormats.data();
+	pipelineRenderingCreateInfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+	pipelineRenderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+
+	const std::string vertexShaderCode = R"GLSL(
+		#version 460
+
+		layout(location = 0) out vec2 outUv;
+
+		void main() {
+			outUv = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2);
+			gl_Position = vec4(outUv * 2.0 + -1.0, 0.0, 1.0);
+		}
+	)GLSL";
+	const std::vector<uint32_t> vertexShaderSpv = compileShader(vertexShaderCode, ShaderType::Vertex);
+
+	VkShaderModule vertexShaderModule;
+	VkShaderModuleCreateInfo vertexShaderModuleCreateInfo = {};
+	vertexShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	vertexShaderModuleCreateInfo.pNext = nullptr;
+	vertexShaderModuleCreateInfo.flags = 0;
+	vertexShaderModuleCreateInfo.codeSize = vertexShaderSpv.size() * sizeof(uint32_t);
+	vertexShaderModuleCreateInfo.pCode = vertexShaderSpv.data();
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &vertexShaderModuleCreateInfo, nullptr, &vertexShaderModule));
+
+	VkPipelineShaderStageCreateInfo vertexShaderStageCreateInfo = {};
+	vertexShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vertexShaderStageCreateInfo.pNext = nullptr;
+	vertexShaderStageCreateInfo.flags = 0;
+	vertexShaderStageCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	vertexShaderStageCreateInfo.module = vertexShaderModule;
+	vertexShaderStageCreateInfo.pName = "main";
+	vertexShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	std::string fragmentShaderCode = R"GLSL(
+		#version 460
+
+		#define SSAO_SAMPLE_COUNT )GLSL";
+	fragmentShaderCode += std::to_string(SSAO_SAMPLE_COUNT);
+	fragmentShaderCode += R"GLSL(
+		
+		layout(set = 0, binding = 0) uniform sampler2D depthSampler;
+
+		layout(set = 0, binding = 1) uniform Camera {
+			mat4 view;
+			mat4 projection;
+			vec3 position;
+		} camera;
+
+		layout(location = 0) in vec2 uv;
+
+		layout(location = 0) out vec4 outPosition;
+		layout(location = 1) out vec4 outNormal;
+
+		vec3 depthToPosition(float depth) {
+			vec4 clipSpace = vec4(uv * 2.0 - 1.0, depth, 1.0);
+			vec4 viewSpace = inverse(camera.projection) * clipSpace;
+
+			return (viewSpace.xyz / viewSpace.w);
+		}
+
+		void main() {
+			float depth = texture(depthSampler, uv).r;
+			outPosition = vec4(depthToPosition(depth), 0.0);
+			outNormal = vec4(normalize(cross(dFdx(outPosition.xyz), dFdy(outPosition.xyz))), 0.0);
+		}
+	)GLSL";
+	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
+
+	VkShaderModule fragmentShaderModule;
+	VkShaderModuleCreateInfo fragmentShaderModuleCreateInfo = {};
+	fragmentShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	fragmentShaderModuleCreateInfo.pNext = nullptr;
+	fragmentShaderModuleCreateInfo.flags = 0;
+	fragmentShaderModuleCreateInfo.codeSize = fragmentShaderSpv.size() * sizeof(uint32_t);
+	fragmentShaderModuleCreateInfo.pCode = fragmentShaderSpv.data();
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &fragmentShaderModuleCreateInfo, nullptr, &fragmentShaderModule));
+
+	VkPipelineShaderStageCreateInfo fragmentShaderStageCreateInfo = {};
+	fragmentShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fragmentShaderStageCreateInfo.pNext = nullptr;
+	fragmentShaderStageCreateInfo.flags = 0;
+	fragmentShaderStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragmentShaderStageCreateInfo.module = fragmentShaderModule;
+	fragmentShaderStageCreateInfo.pName = "main";
+	fragmentShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStageCreateInfos = { vertexShaderStageCreateInfo, fragmentShaderStageCreateInfo };
+
+	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
+	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInputStateCreateInfo.pNext = nullptr;
+	vertexInputStateCreateInfo.flags = 0;
+	vertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
+	vertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr;
+	vertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
+	vertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr;
+
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo = {};
+	inputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	inputAssemblyStateCreateInfo.pNext = nullptr;
+	inputAssemblyStateCreateInfo.flags = 0;
+	inputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	inputAssemblyStateCreateInfo.primitiveRestartEnable = VK_FALSE;
+
+	VkPipelineViewportStateCreateInfo viewportStateCreateInfo = {};
+	viewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewportStateCreateInfo.pNext = nullptr;
+	viewportStateCreateInfo.flags = 0;
+	viewportStateCreateInfo.viewportCount = 1;
+	viewportStateCreateInfo.pViewports = &m_viewport;
+	viewportStateCreateInfo.scissorCount = 1;
+	viewportStateCreateInfo.pScissors = &m_scissor;
+
+	VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo = {};
+	rasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizationStateCreateInfo.pNext = nullptr;
+	rasterizationStateCreateInfo.flags = 0;
+	rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
+	rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
+	rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
+	rasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
+	rasterizationStateCreateInfo.depthBiasClamp = 0.0f;
+	rasterizationStateCreateInfo.depthBiasSlopeFactor = 0.0f;
+	rasterizationStateCreateInfo.lineWidth = 1.0f;
+
+	VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo = {};
+	multisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampleStateCreateInfo.pNext = nullptr;
+	multisampleStateCreateInfo.flags = 0;
+	multisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	multisampleStateCreateInfo.sampleShadingEnable = VK_FALSE;
+	multisampleStateCreateInfo.minSampleShading = 0.0f;
+	multisampleStateCreateInfo.pSampleMask = nullptr;
+	multisampleStateCreateInfo.alphaToCoverageEnable = VK_FALSE;
+	multisampleStateCreateInfo.alphaToOneEnable = VK_FALSE;
+
+	VkPipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo = {};
+	depthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencilStateCreateInfo.pNext = nullptr;
+	depthStencilStateCreateInfo.flags = 0;
+	depthStencilStateCreateInfo.depthTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.depthWriteEnable = VK_FALSE;
+	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_NEVER;
+	depthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.front = {};
+	depthStencilStateCreateInfo.back = {};
+	depthStencilStateCreateInfo.minDepthBounds = 0.0f;
+	depthStencilStateCreateInfo.maxDepthBounds = 1.0f;
+
+	VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
+	colorBlendAttachmentState.blendEnable = VK_FALSE;
+	colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+	std::array<VkPipelineColorBlendAttachmentState, 2> colorBlendAttachmentStates = { colorBlendAttachmentState, colorBlendAttachmentState };
+	VkPipelineColorBlendStateCreateInfo colorBlendStateCreateInfo = {};
+	colorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	colorBlendStateCreateInfo.pNext = nullptr;
+	colorBlendStateCreateInfo.flags = 0;
+	colorBlendStateCreateInfo.logicOpEnable = VK_FALSE;
+	colorBlendStateCreateInfo.logicOp = VK_LOGIC_OP_COPY;
+	colorBlendStateCreateInfo.attachmentCount = static_cast<uint32_t>(colorBlendAttachmentStates.size());
+	colorBlendStateCreateInfo.pAttachments = colorBlendAttachmentStates.data();
+
+	std::array<VkDynamicState, 2> dynamicStates = { VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_VIEWPORT };
+	VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = {};
+	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynamicStateCreateInfo.pNext = nullptr;
+	dynamicStateCreateInfo.flags = 0;
+	dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
+
+	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
+	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutCreateInfo.pNext = nullptr;
+	pipelineLayoutCreateInfo.flags = 0;
+	pipelineLayoutCreateInfo.setLayoutCount = 1;
+	pipelineLayoutCreateInfo.pSetLayouts = &m_positionAndNormalFromDepthDescriptorSetLayout;
+	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
+	pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
+	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_positionAndNormalFromDepthGraphicsPipelineLayout));
+
+	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};
+	graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	graphicsPipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
+	graphicsPipelineCreateInfo.flags = 0;
+	graphicsPipelineCreateInfo.stageCount = 2;
+	graphicsPipelineCreateInfo.pStages = shaderStageCreateInfos.data();
+	graphicsPipelineCreateInfo.pVertexInputState = &vertexInputStateCreateInfo;
+	graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;
+	graphicsPipelineCreateInfo.pTessellationState = nullptr;
+	graphicsPipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
+	graphicsPipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
+	graphicsPipelineCreateInfo.pMultisampleState = &multisampleStateCreateInfo;
+	graphicsPipelineCreateInfo.pDepthStencilState = &depthStencilStateCreateInfo;
+	graphicsPipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
+	graphicsPipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
+	graphicsPipelineCreateInfo.layout = m_positionAndNormalFromDepthGraphicsPipelineLayout;
+	graphicsPipelineCreateInfo.renderPass = VK_NULL_HANDLE;
+	graphicsPipelineCreateInfo.subpass = 0;
+	graphicsPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+	graphicsPipelineCreateInfo.basePipelineIndex = 0;
+	NTSHENGN_VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &m_positionAndNormalFromDepthGraphicsPipeline));
+
+	vkDestroyShaderModule(m_device, vertexShaderModule, nullptr);
+	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
 }
 
 void SSAO::createSSAOGraphicsPipeline() {
@@ -755,9 +1169,7 @@ void SSAO::createSSAOGraphicsPipeline() {
 			float bias = 0.025;
 
 			vec3 position = texture(positionSampler, uv).xyz;
-			position = vec3(camera.view * vec4(position, 1.0));
-			vec3 normal = texture(normalSampler, uv).xyz;
-			normal = normalize(vec3(camera.view * vec4(normal, 0.0)));
+			vec3 normal = -texture(normalSampler, uv).xyz;
 			vec3 random = texture(randomSampler, uv * randomScale).xyz;
 
 			vec3 tangent = normalize(random - (normal * dot(random, normal)));
@@ -775,22 +1187,17 @@ void SSAO::createSSAOGraphicsPipeline() {
 
 				vec4 offset = vec4(samplePos, 1.0);
 				offset = camera.projection * offset;
-				offset.xyz /= offset.w;
-				offset.xyz = offset.xyz * 0.5 + 0.5;
+				offset.xy /= offset.w;
+				offset.xy = offset.xy * 0.5 + 0.5;
 				
-				vec4 depthPosition = texture(positionSampler, offset.xy);
-				if (depthPosition.w == 1.0) {
-					float depth = (camera.view * depthPosition).z;
+				float depth = texture(positionSampler, offset.xy).z;
 
-					float rangeCheck = smoothstep(0.0, 1.0, radius / abs(position.z - depth));
-					occlusion += ((depth >= (samplePos.z + bias)) ? 1.0 : 0.0) * rangeCheck;
-				}
+				float rangeCheck = smoothstep(0.0, 1.0, radius / abs(position.z - depth));
+				occlusion += ((depth >= (samplePos.z + bias)) ? 1.0 : 0.0) * rangeCheck;
 
 				samplesUsed++;
 			}
-			occlusion = 1.0 - (occlusion / samplesUsed);
-
-			outColor = occlusion;
+			outColor = 1.0 - (occlusion / samplesUsed);
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
@@ -1158,8 +1565,65 @@ void SSAO::createSSAOBlurGraphicsPipeline() {
 }
 
 void SSAO::createDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& cameraBuffers) {
+	createPositionAndNormalFromDepthDescriptorSets(cameraBuffers);
 	createSSAODescriptorSets(cameraBuffers);
 	createSSAOBlurDescriptorSet();
+}
+
+void SSAO::createPositionAndNormalFromDepthDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& cameraBuffers) {
+	// Create descriptor pool
+	VkDescriptorPoolSize depthDescriptorPoolSize = {};
+	depthDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	depthDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	VkDescriptorPoolSize cameraDescriptorPoolSize = {};
+	cameraDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	cameraDescriptorPoolSize.descriptorCount = m_framesInFlight;
+
+	std::array<VkDescriptorPoolSize, 2> descriptorPoolSizes = { depthDescriptorPoolSize, cameraDescriptorPoolSize };
+	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
+	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	descriptorPoolCreateInfo.pNext = nullptr;
+	descriptorPoolCreateInfo.flags = 0;
+	descriptorPoolCreateInfo.maxSets = m_framesInFlight;
+	descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(descriptorPoolSizes.size());
+	descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes.data();
+	NTSHENGN_VK_CHECK(vkCreateDescriptorPool(m_device, &descriptorPoolCreateInfo, nullptr, &m_positionAndNormalFromDepthDescriptorPool));
+
+	// Allocate descriptor set
+	m_positionAndNormalFromDepthDescriptorSets.resize(m_framesInFlight);
+	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
+	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	descriptorSetAllocateInfo.pNext = nullptr;
+	descriptorSetAllocateInfo.descriptorPool = m_positionAndNormalFromDepthDescriptorPool;
+	descriptorSetAllocateInfo.descriptorSetCount = 1;
+	descriptorSetAllocateInfo.pSetLayouts = &m_positionAndNormalFromDepthDescriptorSetLayout;
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_positionAndNormalFromDepthDescriptorSets[i]));
+	}
+
+	// Update descriptor set
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
+		cameraDescriptorBufferInfo.buffer = cameraBuffers[i].handle;
+		cameraDescriptorBufferInfo.offset = 0;
+		cameraDescriptorBufferInfo.range = sizeof(NtshEngn::Math::mat4) * 2 + sizeof(NtshEngn::Math::vec4);
+
+		VkWriteDescriptorSet cameraDescriptorWriteDescriptorSet = {};
+		cameraDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		cameraDescriptorWriteDescriptorSet.pNext = nullptr;
+		cameraDescriptorWriteDescriptorSet.dstSet = m_positionAndNormalFromDepthDescriptorSets[i];
+		cameraDescriptorWriteDescriptorSet.dstBinding = 1;
+		cameraDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		cameraDescriptorWriteDescriptorSet.descriptorCount = 1;
+		cameraDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		cameraDescriptorWriteDescriptorSet.pImageInfo = nullptr;
+		cameraDescriptorWriteDescriptorSet.pBufferInfo = &cameraDescriptorBufferInfo;
+		cameraDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+
+		std::array<VkWriteDescriptorSet, 1> writeDescriptorSets = { cameraDescriptorWriteDescriptorSet };
+		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+	}
 }
 
 void SSAO::createSSAODescriptorSets(const std::vector<HostVisibleVulkanBuffer>& cameraBuffers) {
@@ -1289,16 +1753,41 @@ void SSAO::createSSAOBlurDescriptorSet() {
 	NTSHENGN_VK_CHECK(vkAllocateDescriptorSets(m_device, &descriptorSetAllocateInfo, &m_ssaoBlurDescriptorSet));
 }
 
-void SSAO::updateDescriptorSets(VkImageView positionImageView, VkImageView normalImageView) {
-	updateSSAODescriptorSet(positionImageView, normalImageView);
+void SSAO::updateDescriptorSets(VkImageView depthImageView) {
+	updatePositionAndNormalFromDepthDescriptorSet(depthImageView);
+	updateSSAODescriptorSet();
 	updateSSAOBlurDescriptorSet();
 }
 
-void SSAO::updateSSAODescriptorSet(VkImageView positionImageView, VkImageView normalImageView) {
+void SSAO::updatePositionAndNormalFromDepthDescriptorSet(VkImageView depthImageView) {
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		VkDescriptorImageInfo depthDescriptorImageInfo;
+		depthDescriptorImageInfo.sampler = m_linearSampler;
+		depthDescriptorImageInfo.imageView = depthImageView;
+		depthDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		VkWriteDescriptorSet depthDescriptorWriteDescriptorSet = {};
+		depthDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		depthDescriptorWriteDescriptorSet.pNext = nullptr;
+		depthDescriptorWriteDescriptorSet.dstSet = m_positionAndNormalFromDepthDescriptorSets[i];
+		depthDescriptorWriteDescriptorSet.dstBinding = 0;
+		depthDescriptorWriteDescriptorSet.dstArrayElement = 0;
+		depthDescriptorWriteDescriptorSet.descriptorCount = 1;
+		depthDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		depthDescriptorWriteDescriptorSet.pImageInfo = &depthDescriptorImageInfo;
+		depthDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
+		depthDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+
+		std::array<VkWriteDescriptorSet, 1> writeDescriptorSets = { depthDescriptorWriteDescriptorSet };
+		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+	}
+}
+
+void SSAO::updateSSAODescriptorSet() {
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		VkDescriptorImageInfo positionDescriptorImageInfo;
-		positionDescriptorImageInfo.sampler = m_nearestSampler;
-		positionDescriptorImageInfo.imageView = positionImageView;
+		positionDescriptorImageInfo.sampler = m_linearSampler;
+		positionDescriptorImageInfo.imageView = m_positionFromDepthImage.view;
 		positionDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkWriteDescriptorSet positionDescriptorWriteDescriptorSet = {};
@@ -1314,8 +1803,8 @@ void SSAO::updateSSAODescriptorSet(VkImageView positionImageView, VkImageView no
 		positionDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
 		VkDescriptorImageInfo normalDescriptorImageInfo;
-		normalDescriptorImageInfo.sampler = m_nearestSampler;
-		normalDescriptorImageInfo.imageView = normalImageView;
+		normalDescriptorImageInfo.sampler = m_linearSampler;
+		normalDescriptorImageInfo.imageView = m_normalFromDepthImage.view;
 		normalDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkWriteDescriptorSet normalDescriptorWriteDescriptorSet = {};
@@ -1337,7 +1826,7 @@ void SSAO::updateSSAODescriptorSet(VkImageView positionImageView, VkImageView no
 
 void SSAO::updateSSAOBlurDescriptorSet() {
 	VkDescriptorImageInfo ssaoDescriptorImageInfo;
-	ssaoDescriptorImageInfo.sampler = m_nearestSampler;
+	ssaoDescriptorImageInfo.sampler = m_linearSampler;
 	ssaoDescriptorImageInfo.imageView = m_ssaoImage.view;
 	ssaoDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 

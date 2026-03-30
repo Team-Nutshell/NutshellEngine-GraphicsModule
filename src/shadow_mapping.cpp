@@ -2,24 +2,7 @@
 #include <array>
 #include <cmath>
 
-void ShadowMapping::init(VkDevice device,
-	VkQueue graphicsQueue,
-	uint32_t graphicsQueueFamilyIndex,
-	VmaAllocator allocator,
-	VkCommandPool initializationCommandPool,
-	VkCommandBuffer initializationCommandBuffer,
-	VkFence initializationFence,
-	uint32_t framesInFlight,
-	const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
-	VulkanBuffer meshBuffer,
-	const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers,
-	const std::vector<HostVisibleVulkanBuffer>& materialBuffers,
-	PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
-	PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
-	PFN_vkCmdDrawIndexedIndirectCountKHR vkCmdDrawIndexedIndirectCountKHR,
-	PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR,
-	PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR,
-	NtshEngn::ECSInterface* ecs) {
+void ShadowMapping::init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VmaAllocator allocator, VkCommandPool initializationCommandPool, VkCommandBuffer initializationCommandBuffer, VkFence initializationFence, uint32_t framesInFlight, const std::vector<HostVisibleVulkanBuffer>& objectBuffers, VulkanBuffer meshBuffer, const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers, const std::vector<HostVisibleVulkanBuffer>& materialBuffers, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdDrawIndexedIndirectCountKHR vkCmdDrawIndexedIndirectCountKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR, PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR, NtshEngn::ECSInterface* ecs) {
 	m_device = device;
 	m_graphicsQueue = graphicsQueue;
 	m_graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
@@ -50,6 +33,7 @@ void ShadowMapping::init(VkDevice device,
 	createImageAndBuffers();
 	createDescriptorSetLayout();
 	createGraphicsPipelines();
+	createShadowMapSampler();
 	createDescriptorSets(objectBuffers, meshBuffer, jointTransformBuffers, materialBuffers);
 }
 
@@ -167,7 +151,6 @@ void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane,
 			memcpy(reinterpret_cast<char*>(m_shadowSceneBuffers[currentFrameInFlight].address) + (((directionalLightIndex * SHADOW_MAPPING_CASCADE_COUNT) + cascadeIndex) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + sizeof(NtshEngn::Math::mat4), &m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].splitDepth, sizeof(NtshEngn::Math::vec4));
 
 			m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].frustumCullingInfo.viewProj = m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].viewProj;
-			m_directionalLightShadowMaps[directionalLightIndex].cascades[cascadeIndex].frustumCullingInfo.cameraType = FrustumCullingCameraType::Light;
 		}
 	}
 	for (size_t pointLightIndex = 0; pointLightIndex < m_pointLightEntities.size(); pointLightIndex++) {
@@ -184,7 +167,6 @@ void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane,
 			memcpy(reinterpret_cast<char*>(m_shadowSceneBuffers[currentFrameInFlight].address) + (((m_directionalLightEntities.size() * SHADOW_MAPPING_CASCADE_COUNT) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + (((pointLightIndex * 6) + faceIndex) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4)))), &m_pointLightShadowMaps[pointLightIndex].faces[faceIndex].viewProj, sizeof(NtshEngn::Math::mat4));
 
 			m_pointLightShadowMaps[pointLightIndex].faces[faceIndex].frustumCullingInfo.viewProj = m_pointLightShadowMaps[pointLightIndex].faces[faceIndex].viewProj;
-			m_pointLightShadowMaps[pointLightIndex].faces[faceIndex].frustumCullingInfo.cameraType = FrustumCullingCameraType::Light;
 		}
 	}
 	for (size_t spotLightIndex = 0; spotLightIndex < m_spotLightEntities.size(); spotLightIndex++) {
@@ -209,7 +191,6 @@ void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane,
 		memcpy(reinterpret_cast<char*>(m_shadowSceneBuffers[currentFrameInFlight].address) + (((m_directionalLightEntities.size() * SHADOW_MAPPING_CASCADE_COUNT) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + ((m_pointLightEntities.size() * 6) * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4))) + (spotLightIndex * (sizeof(NtshEngn::Math::mat4) + sizeof(NtshEngn::Math::vec4)))), &m_spotLightShadowMaps[spotLightIndex].viewProj, sizeof(NtshEngn::Math::mat4));
 
 		m_spotLightShadowMaps[spotLightIndex].frustumCullingInfo.viewProj = m_spotLightShadowMaps[spotLightIndex].viewProj;
-		m_spotLightShadowMaps[spotLightIndex].frustumCullingInfo.cameraType = FrustumCullingCameraType::Light;
 	}
 }
 
@@ -227,6 +208,8 @@ void ShadowMapping::destroy() {
 
 	vkDestroyDescriptorSetLayout(m_device, m_descriptorSet1Layout, nullptr);
 	vkDestroyDescriptorSetLayout(m_device, m_descriptorSet0Layout, nullptr);
+
+	vkDestroySampler(m_device, m_shadowMapSampler, nullptr);
 
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		m_shadowSceneBuffers[i].destroy(m_allocator);
@@ -255,11 +238,7 @@ void ShadowMapping::destroy() {
 	m_dummyShadowMap.destroy(m_device, m_allocator);
 }
 
-void ShadowMapping::draw(VkCommandBuffer commandBuffer,
-	uint32_t currentFrameInFlight,
-	uint32_t drawIndirectCount,
-	VulkanBuffer& vertexBuffer,
-	VulkanBuffer& indexBuffer) {
+void ShadowMapping::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight, uint32_t drawIndirectCount, VulkanBuffer& vertexBuffer, VulkanBuffer& indexBuffer) {
 	// Shadow mapping layout transition
 	VkImageMemoryBarrier2 undefinedToDepthStencilAttachmentImageMemoryBarrier = {};
 	undefinedToDepthStencilAttachmentImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -644,6 +623,8 @@ void ShadowMapping::createDirectionalLightShadowMap(NtshEngn::Entity entity) {
 		bufferDeviceAddressInfoKHR.pNext = nullptr;
 		bufferDeviceAddressInfoKHR.buffer = directionalLightShadowMap.cascades[cascadeIndex].frustumCullingInfo.drawIndirectBuffer.handle;
 		directionalLightShadowMap.cascades[cascadeIndex].frustumCullingInfo.drawIndirectBuffer.bufferDeviceAddress = m_vkGetBufferDeviceAddressKHR(m_device, &bufferDeviceAddressInfoKHR);
+
+		directionalLightShadowMap.cascades[cascadeIndex].frustumCullingInfo.cameraType = FrustumCullingCameraType::Light;
 	}
 
 	// Create descriptor pools
@@ -871,6 +852,8 @@ void ShadowMapping::createPointLightShadowMap(NtshEngn::Entity entity) {
 		bufferDeviceAddressInfoKHR.pNext = nullptr;
 		bufferDeviceAddressInfoKHR.buffer = pointLightShadowMap.faces[faceIndex].frustumCullingInfo.drawIndirectBuffer.handle;
 		pointLightShadowMap.faces[faceIndex].frustumCullingInfo.drawIndirectBuffer.bufferDeviceAddress = m_vkGetBufferDeviceAddressKHR(m_device, &bufferDeviceAddressInfoKHR);
+
+		pointLightShadowMap.faces[faceIndex].frustumCullingInfo.cameraType = FrustumCullingCameraType::Light;
 	}
 
 	// Create descriptor pools
@@ -1073,6 +1056,8 @@ void ShadowMapping::createSpotLightShadowMap(NtshEngn::Entity entity) {
 	bufferDeviceAddressInfoKHR.buffer = spotLightShadowMap.frustumCullingInfo.drawIndirectBuffer.handle;
 	spotLightShadowMap.frustumCullingInfo.drawIndirectBuffer.bufferDeviceAddress = m_vkGetBufferDeviceAddressKHR(m_device, &bufferDeviceAddressInfoKHR);
 
+	spotLightShadowMap.frustumCullingInfo.cameraType = FrustumCullingCameraType::Light;
+
 	// Create descriptor pools
 	VkDescriptorPoolSize outPerDrawDescriptorPoolSize = {};
 	outPerDrawDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -1229,6 +1214,10 @@ std::vector<FrustumCullingInfo> ShadowMapping::getFrustumCullingInfos() {
 	}
 
 	return frustumCullingInfos;
+}
+
+VkSampler ShadowMapping::getShadowMapSampler() {
+	return m_shadowMapSampler;
 }
 
 void ShadowMapping::createImageAndBuffers() {
@@ -2557,6 +2546,29 @@ void ShadowMapping::createSpotLightShadowGraphicsPipeline() {
 
 	vkDestroyShaderModule(m_device, vertexShaderModule, nullptr);
 	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
+}
+
+void ShadowMapping::createShadowMapSampler() {
+	VkSamplerCreateInfo samplerCreateInfo = {};
+	samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerCreateInfo.pNext = nullptr;
+	samplerCreateInfo.flags = 0;
+	samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+	samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+	samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+	samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerCreateInfo.mipLodBias = 0.0f;
+	samplerCreateInfo.anisotropyEnable = VK_FALSE;
+	samplerCreateInfo.maxAnisotropy = 0.0f;
+	samplerCreateInfo.compareEnable = VK_FALSE;
+	samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
+	samplerCreateInfo.minLod = 0.0f;
+	samplerCreateInfo.maxLod = 0.0f;
+	samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_shadowMapSampler));
 }
 
 void ShadowMapping::createDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& objectBuffers,

@@ -3,40 +3,14 @@
 
 class GBuffer {
 public:
-	void init(VkDevice device,
-		VkQueue graphicsQueue,
-		uint32_t graphicsQueueFamilyIndex,
-		VmaAllocator allocator,
-		VkCommandPool initializationCommandPool,
-		VkCommandBuffer initializationCommandBuffer,
-		VkFence initializationFence,
-		VkViewport viewport,
-		VkRect2D scissor,
-		uint32_t framesInFlight,
-		const std::vector<HostVisibleVulkanBuffer>& cameraBuffers,
-		const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
-		VulkanBuffer meshBuffer,
-		const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers,
-		const std::vector<HostVisibleVulkanBuffer>& materialBuffers,
-		PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
-		PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
-		PFN_vkCmdDrawIndexedIndirectCountKHR vkCmdDrawIndexedIndirectCountKHR,
-		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR,
-		PFN_vkGetBufferDeviceAddressKHR m_vkGetBufferDeviceAddressKHR);
+	void init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VmaAllocator allocator, VkCommandPool initializationCommandPool, VkCommandBuffer initializationCommandBuffer, VkFence initializationFence, VkViewport viewport, VkRect2D scissor, uint32_t framesInFlight, const std::vector<HostVisibleVulkanBuffer>& cameraBuffers, const std::vector<HostVisibleVulkanBuffer>& objectBuffers, VulkanBuffer meshBuffer, const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers, const std::vector<HostVisibleVulkanBuffer>& materialBuffers, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdDrawIndexedIndirectCountKHR vkCmdDrawIndexedIndirectCountKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR, PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR);
 	void update(const NtshEngn::Math::mat4& cameraViewProj);
 	void destroy();
 
-	void draw(VkCommandBuffer commandBuffer,
-		uint32_t currentFrameInFlight,
-		uint32_t drawIndirectCount,
-		VulkanBuffer vertexBuffer,
-		VulkanBuffer indexBuffer);
+	void draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight, uint32_t drawIndirectCount, VulkanBuffer vertexBuffer, VulkanBuffer indexBuffer);
 
 	void descriptorSetNeedsUpdate(uint32_t frameInFlight);
-	void updateDescriptorSets(uint32_t frameInFlight,
-		const std::vector<InternalTexture>& textures,
-		const std::vector<VkImageView>& textureImageViews,
-		const std::unordered_map<std::string, VkSampler>& textureSamplers);
+	void updateDescriptorSets(uint32_t frameInFlight, const std::vector<InternalTexture>& textures, const std::vector<VkImageView>& textureImageViews, const std::unordered_map<std::string, VkSampler>& textureSamplers);
 
 	void onResize(uint32_t width, uint32_t height);
 
@@ -57,11 +31,7 @@ private:
 
 	void createGraphicsPipeline();
 
-	void createDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& cameraBuffers,
-		const std::vector<HostVisibleVulkanBuffer>& objectBuffers,
-		VulkanBuffer meshBuffer,
-		const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers,
-		const std::vector<HostVisibleVulkanBuffer>& materialBuffers);
+	void createDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& cameraBuffers, const std::vector<HostVisibleVulkanBuffer>& objectBuffers, VulkanBuffer meshBuffer, const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers, const std::vector<HostVisibleVulkanBuffer>& materialBuffers);
 
 	void createFrustumCullingInfo();
 

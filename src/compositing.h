@@ -3,38 +3,15 @@
 
 class Compositing {
 public:
-	void init(VkDevice device,
-		VkQueue graphicsQueue,
-		uint32_t graphicsQueueFamilyIndex,
-		VmaAllocator allocator,
-		VkCommandPool initializationCommandPool,
-		VkCommandBuffer initializationCommandBuffer,
-		VkFence initializationFence,
-		VkViewport viewport,
-		VkRect2D scissor,
-		uint32_t framesInFlight,
-		const std::vector<HostVisibleVulkanBuffer>& cameraBuffers,
-		const std::vector<HostVisibleVulkanBuffer>& lightBuffers,
-		const std::vector<HostVisibleVulkanBuffer>& shadowSceneBuffers,
-		VkImageView gBufferPositionView,
-		VkImageView gBufferNormalView,
-		VkImageView gBufferDiffuseView,
-		VkImageView gBufferMaterialView,
-		VkImageView gBufferEmissiveView,
-		VkImageView ssaoImageView,
-		PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR,
-		PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR,
-		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
+	void init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VmaAllocator allocator, VkCommandPool initializationCommandPool, VkCommandBuffer initializationCommandBuffer, VkFence initializationFence, VkViewport viewport, VkRect2D scissor, uint32_t framesInFlight, const std::vector<HostVisibleVulkanBuffer>& cameraBuffers, const std::vector<HostVisibleVulkanBuffer>& lightBuffers, const std::vector<HostVisibleVulkanBuffer>& shadowSceneBuffers, VkImageView gBufferPositionView, VkImageView gBufferNormalView, VkImageView gBufferDiffuseView, VkImageView gBufferMaterialView, VkImageView gBufferEmissiveView, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
 	void destroy();
 
-	void draw(VkCommandBuffer commandBuffer,
-		uint32_t currentFrameInFlight,
-		const NtshEngn::Math::vec4& backgroundColor);
+	void draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight, const NtshEngn::Math::vec4& backgroundColor);
 
-	void onResize(uint32_t width, uint32_t height, VkImageView gBufferPositionView, VkImageView gBufferNormalView, VkImageView gBufferDiffuseView, VkImageView gBufferMaterialView, VkImageView gBufferEmissiveView, VkImageView ssaoImageView);
+	void onResize(uint32_t width, uint32_t height, VkImageView gBufferPositionView, VkImageView gBufferNormalView, VkImageView gBufferDiffuseView, VkImageView gBufferMaterialView, VkImageView gBufferEmissiveView);
 
 	void shadowDescriptorSetNeedsUpdate(uint32_t frameInFlight);
-	void updateShadowDescriptorSets(uint32_t frameInFlight, const std::vector<VulkanImage>& shadowMaps);
+	void updateShadowDescriptorSets(uint32_t frameInFlight, const std::vector<VulkanImage>& shadowMaps, VkSampler shadowMapSampler);
 
 	VulkanImage& getImage();
 	VkFormat getImageFormat();
@@ -46,17 +23,16 @@ private:
 
 	void createGraphicsPipeline();
 
-	void createSamplers();
+	void createSampler();
 
 	void createDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& cameraBuffers, const std::vector<HostVisibleVulkanBuffer>& lightBuffers, const std::vector<HostVisibleVulkanBuffer>& shadowSceneBuffers);
 
-	void updateDescriptorSets(VkImageView gBufferPositionView, VkImageView gBufferNormalView, VkImageView gBufferDiffuseView, VkImageView gBufferMaterialView, VkImageView gBufferEmissiveView, VkImageView ssaoView);
+	void updateDescriptorSets(VkImageView gBufferPositionView, VkImageView gBufferNormalView, VkImageView gBufferDiffuseView, VkImageView gBufferMaterialView, VkImageView gBufferEmissiveView);
 
 private:
 	VulkanImage m_image;
 	VkFormat m_imageFormat;
 	VkSampler m_sampler;
-	VkSampler m_shadowSampler;
 	VkDescriptorSetLayout m_descriptorSetLayout;
 	VkDescriptorPool m_descriptorPool;
 	std::vector<VkDescriptorSet> m_descriptorSets;

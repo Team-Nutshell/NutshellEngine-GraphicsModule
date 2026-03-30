@@ -20,20 +20,14 @@ struct FrustumCullingObject {
 
 class FrustumCulling {
 public:
-	void init(VkDevice device,
-		VkQueue computeQueue,
-		uint32_t computeQueueFamilyIndex,
-		VmaAllocator allocator,
-		uint32_t framesInFlight,
-		PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR,
-		NtshEngn::ECSInterface* ecs);
+	void init(VkDevice device, VkQueue computeQueue, uint32_t computeQueueFamilyIndex, VmaAllocator allocator, uint32_t framesInFlight, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR, NtshEngn::ECSInterface* ecs);
 	void destroy();
 
-	uint32_t cull(VkCommandBuffer commandBuffer,
-		uint32_t currentFrameInFlight,
-		const std::vector<FrustumCullingInfo>& frustumCullingInfos,
-		const std::unordered_map<NtshEngn::Entity, InternalObject>& objects,
-		const std::vector<InternalMesh>& meshes);
+	uint32_t cull(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight, const std::vector<FrustumCullingInfo>& frustumCullingInfos, const std::unordered_map<NtshEngn::Entity, InternalObject>& objects, const std::vector<InternalMesh>& meshes);
+
+	bool intersect(const Frustum& frustum, const FrustumCullingObject& object);
+
+	const std::vector<InternalObject>& getCustomGraphicsPipelineObjectsAfterCulling();
 
 private:
 	void createBuffers();
@@ -52,6 +46,8 @@ private:
 	std::vector<HostVisibleVulkanBuffer> m_frustumCullingInfoBuffers;
 	std::vector<HostVisibleVulkanBuffer> m_frustumCullingObjectBuffers;
 	std::vector<HostVisibleVulkanBuffer> m_frustumCullingObjectStateBuffers;
+
+	std::vector<InternalObject> m_customGraphicsPipelineObjectsAfterCulling;
 
 	VkDescriptorSetLayout m_descriptorSetLayout;
 

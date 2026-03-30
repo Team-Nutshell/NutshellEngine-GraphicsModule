@@ -5,10 +5,7 @@ class AnimationSystem {
 public:
 	void init(NtshEngn::ECSInterface* ecs);
 
-	void update(float dt,
-		std::unordered_map<NtshEngn::Entity, InternalObject>& objects,
-		std::vector<InternalMesh>& meshes,
-		HostVisibleVulkanBuffer& jointTransformBuffer);
+	void update(float dt, std::unordered_map<NtshEngn::Entity, InternalObject>& objects, std::vector<InternalMesh>& meshes, HostVisibleVulkanBuffer& jointTransformBuffer);
 
 	void playAnimation(InternalObject* object, uint32_t animationIndex);
 	void pauseAnimation(InternalObject* object);
