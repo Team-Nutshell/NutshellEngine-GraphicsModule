@@ -7127,10 +7127,13 @@ void NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const st
 		#define NtshEngn_useTriplanarMapping materials.info[materialID].useTriplanarMapping
 		#define NtshEngn_directionalLightCount lights.count.x
 		#define NtshEngn_directionalLight(i) lights.info[i]
+        #define NtshEngn_directionalLightShadows(i, p) 1.0
 		#define NtshEngn_pointLightCount lights.count.y
 		#define NtshEngn_pointLight(i) lights.info[lights.count.x + i]
+        #define NtshEngn_pointLightShadows(i, p) 1.0
 		#define NtshEngn_spotLightCount lights.count.z
 		#define NtshEngn_spotLight(i) lights.info[lights.count.x + lights.count.y + i]
+        #define NtshEngn_spotLightShadows(i, p) 1.0
 		#define NtshEngn_ambientLightCount lights.count.w
 		#define NtshEngn_ambientLight(i) lights.info[lights.count.x + lights.count.y + lights.count.z + i]
 		#define NtshEngn_time pC.cameraPositionAndTime.w
