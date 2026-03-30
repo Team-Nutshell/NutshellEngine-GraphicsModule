@@ -148,6 +148,8 @@ struct InternalFont {
 struct InternalObject {
 	uint32_t index;
 
+	std::string graphicsPipelineKey;
+
 	NtshEngn::MeshID meshID = 0;
 	uint32_t jointTransformOffset = 0;
 	uint32_t materialIndex = 0;
@@ -334,6 +336,9 @@ namespace NtshEngn {
 		// Create sampler
 		std::string createSampler(const ImageSampler& sampler);
 
+		// Create graphics pipeline from fragment shader
+		void createGraphicsPipelineFromFragmentShader(const std::string& fragmentShader);
+
 		// Add to textures
 		uint32_t addToTextures(const InternalTexture& texture);
 
@@ -509,6 +514,10 @@ namespace NtshEngn {
 
 		std::unordered_map<InternalObject*, PlayingAnimation> m_playingAnimations;
 
+		VkShaderModule m_customVertexShaderModule = VK_NULL_HANDLE;
+		VkPipelineLayout m_customGraphicsPipelineLayout = VK_NULL_HANDLE;
+		std::unordered_map<std::string, VkPipeline> m_customGraphicsPipelines;
+
 		Entity m_mainCamera = NTSHENGN_ENTITY_UNKNOWN;
 
 		InternalLights m_lights;
@@ -530,6 +539,8 @@ namespace NtshEngn {
 		std::queue<InternalUIRectangle> m_uiRectangles;
 
 		std::queue<InternalUIImage> m_uiImages;
+
+		float m_time = 0.0f;
 
 		const std::unordered_map<ImageSamplerFilter, VkFilter> m_filterMap{ { ImageSamplerFilter::Linear, VK_FILTER_LINEAR },
 			{ ImageSamplerFilter::Nearest, VK_FILTER_NEAREST },

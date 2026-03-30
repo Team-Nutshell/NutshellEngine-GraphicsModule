@@ -578,6 +578,8 @@ void NtshEngn::GraphicsModule::init() {
 }
 
 void NtshEngn::GraphicsModule::update(float dt) {
+	m_time += dt;
+
 	if (windowModule && (!windowModule->isWindowOpen(windowModule->getMainWindowID()) || ((windowModule->getWindowWidth(windowModule->getMainWindowID()) == 0) || (windowModule->getWindowHeight(windowModule->getMainWindowID()) == 0)))) {
 		// Do not update if the main window got closed or the window size is 0
 		return;
@@ -613,6 +615,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	}
 
 	// Update camera buffer
+	Math::vec4 cameraPositionAndTime;
 	if (m_mainCamera != NTSHENGN_ENTITY_UNKNOWN) {
 		const Camera& camera = ecs->getComponent<Camera>(m_mainCamera);
 		const Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
@@ -636,7 +639,10 @@ void NtshEngn::GraphicsModule::update(float dt) {
 
 		memcpy(m_cameraBuffers[m_currentFrameInFlight].address, cameraMatrices.data(), sizeof(Math::mat4) * 2);
 		memcpy(reinterpret_cast<char*>(m_cameraBuffers[m_currentFrameInFlight].address) + sizeof(Math::mat4) * 2, cameraPositionAsVec4.data(), sizeof(Math::vec4));
+
+		cameraPositionAndTime = Math::vec4(cameraTransform.position, 0.0f);
 	}
+	cameraPositionAndTime.w = m_time;
 
 	// Update objects buffer
 	for (auto& it : m_objects) {
@@ -1224,9 +1230,6 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	vkCmdBindVertexBuffers(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_vertexBuffer, &vertexBufferOffset);
 	vkCmdBindIndexBuffer(m_renderingCommandBuffers[m_currentFrameInFlight], m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-	// Bind descriptor set 0
-	vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipelineLayout, 0, 1, &m_descriptorSets[m_currentFrameInFlight], 0, nullptr);
-
 	// Begin rendering
 	VkRenderingAttachmentInfo renderingColorAttachmentInfo = {};
 	renderingColorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -1265,14 +1268,31 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	renderingInfo.pStencilAttachment = nullptr;
 	m_vkCmdBeginRenderingKHR(m_renderingCommandBuffers[m_currentFrameInFlight], &renderingInfo);
 
-	// Bind graphics pipeline
-	vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 	vkCmdSetViewport(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_viewport);
 	vkCmdSetScissor(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_scissor);
 
 	for (auto& it : m_objects) {
+		// Bind graphics pipeline
+		VkPipelineLayout currentLayout;
+		if (!it.second.graphicsPipelineKey.empty() && (m_customGraphicsPipelines.find(it.second.graphicsPipelineKey) != m_customGraphicsPipelines.end())) {
+			vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_customGraphicsPipelines[it.second.graphicsPipelineKey]);
+			currentLayout = m_customGraphicsPipelineLayout;
+		}
+		else {
+			vkCmdBindPipeline(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+			currentLayout = m_graphicsPipelineLayout;
+		}
+
+		// Bind descriptor set 0
+		vkCmdBindDescriptorSets(m_renderingCommandBuffers[m_currentFrameInFlight], VK_PIPELINE_BIND_POINT_GRAPHICS, currentLayout, 0, 1, &m_descriptorSets[m_currentFrameInFlight], 0, nullptr);
+
 		// Object index as push constant
-		vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_graphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &it.second.index);
+		vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], currentLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &it.second.index);
+		
+		// Additional data for custom fragment shaders
+		if (currentLayout != m_graphicsPipelineLayout) {
+			vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], currentLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec4), sizeof(Math::vec4), &cameraPositionAndTime);
+		}
 
 		// Draw
 		vkCmdDrawIndexed(m_renderingCommandBuffers[m_currentFrameInFlight], m_meshes[it.second.meshID].indexCount, 1, m_meshes[it.second.meshID].firstIndex, m_meshes[it.second.meshID].vertexOffset, 0);
@@ -1552,6 +1572,17 @@ void NtshEngn::GraphicsModule::update(float dt) {
 
 void NtshEngn::GraphicsModule::destroy() {
 	NTSHENGN_VK_CHECK(vkQueueWaitIdle(m_graphicsComputeQueue));
+
+	// Destroy custom graphics pipelines
+	for (const std::pair<std::string, VkPipeline>& customGraphicsPipeline : m_customGraphicsPipelines) {
+		vkDestroyPipeline(m_device, customGraphicsPipeline.second, nullptr);
+	}
+	if (m_customGraphicsPipelineLayout != VK_NULL_HANDLE) {
+		vkDestroyPipelineLayout(m_device, m_customGraphicsPipelineLayout, nullptr);
+	}
+	if (m_customVertexShaderModule != VK_NULL_HANDLE) {
+		vkDestroyShaderModule(m_device, m_customVertexShaderModule, nullptr);
+	}
 
 	// Destroy sync objects
 	for (uint32_t i = 0; i < m_imageCount; i++) {
@@ -3652,6 +3683,13 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 			vec2 z;
 		};
 
+		const mat4 ditheringThreshold = mat4(
+			1.0 / 17.0, 13.0 / 17.0, 4.0 / 17.0, 16.0 / 17.0,
+			9.0 / 17.0, 5.0 / 17.0, 12.0 / 17.0, 8.0 / 17.0,
+			3.0 / 17.0, 15.0 / 17.0, 2.0 / 17.0, 14.0 / 17.0,
+			11.0 / 17.0, 7.0 / 17.0, 10.0 / 17.0, 6.0 / 17.0
+		);
+
 		// BRDF
 		float distribution(float NdotH, float roughness) {
 			const float a = roughness * roughness;
@@ -3849,7 +3887,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 					(texture(textures[nonuniformEXT(material.emissiveTextureIndex)], triplanarUV.z).rgb * triplanarWeights.z);
 			}
 
-			if (diffuseSample.a < material.alphaCutoff) {
+			if ((diffuseSample.a < material.alphaCutoff) || (diffuseSample.a < ditheringThreshold[int(mod(gl_FragCoord.x, 4.0))][int(mod(gl_FragCoord.y, 4.0))])) {
 				discard;
 			}
 
@@ -6894,6 +6932,11 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		material.offsetUV = renderable.material.offsetUV;
 	}
 
+	if (!renderable.fragmentShader.empty()) {
+		createGraphicsPipelineFromFragmentShader(renderable.fragmentShader);
+		object.graphicsPipelineKey = renderable.fragmentShader;
+	}
+
 	m_lastKnownMaterial[entity] = renderable.material;
 }
 
@@ -6943,6 +6986,419 @@ std::string NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler)
 	m_textureSamplers[samplerKey] = newSampler;
 
 	return samplerKey;
+}
+
+void NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const std::string& fragmentShader) {
+	if (fragmentShader.empty()) {
+		return;
+	}
+
+	if (m_customGraphicsPipelines.find(fragmentShader) != m_customGraphicsPipelines.end()) {
+		return;
+	}
+
+	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+	VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
+	pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+	pipelineRenderingCreateInfo.pNext = nullptr;
+	pipelineRenderingCreateInfo.viewMask = 0;
+	pipelineRenderingCreateInfo.colorAttachmentCount = 1;
+	pipelineRenderingCreateInfo.pColorAttachmentFormats = &pipelineRenderingColorFormat;
+	pipelineRenderingCreateInfo.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
+	pipelineRenderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+
+	if (m_customVertexShaderModule == VK_NULL_HANDLE) {
+		const std::string vertexShaderCode = R"GLSL(
+		#version 460
+
+		struct ObjectInfo {
+			mat4 model;
+			mat4 transposeInverseModel;
+			uint meshID;
+			uint jointTransformOffset;
+			uint materialID;
+		};
+
+		struct MeshInfo {
+			uint hasSkin;
+		};
+
+		layout(set = 0, binding = 0) uniform Camera {
+			mat4 view;
+			mat4 projection;
+			vec3 position;
+		} camera;
+
+		layout(std430, set = 0, binding = 1) restrict readonly buffer Objects {
+			ObjectInfo info[];
+		} objects;
+
+		layout(std430, set = 0, binding = 2) restrict readonly buffer Meshes {
+			MeshInfo info[];
+		} meshes;
+
+		layout(set = 0, binding = 3) restrict readonly buffer JointTransforms {
+			mat4 matrix[];
+		} jointTransforms;
+
+		layout(push_constant) uniform ObjectID {
+			uint objectID;
+		} oID;
+
+		layout(location = 0) in vec3 position;
+		layout(location = 1) in vec3 normal;
+		layout(location = 2) in vec2 uv;
+		layout(location = 3) in vec3 color;
+		layout(location = 4) in vec4 tangent;
+		layout(location = 5) in uvec4 joints;
+		layout(location = 6) in vec4 weights;
+
+		layout(location = 0) out vec3 outPosition;
+		layout(location = 1) out vec2 outUV;
+		layout(location = 2) out flat uint outMaterialID;
+		layout(location = 3) out mat3 outTBN;
+
+		void main() {
+			mat4 skinMatrix = mat4(1.0);
+			if (meshes.info[objects.info[oID.objectID].meshID].hasSkin == 1) {
+				uint jointTransformOffset = objects.info[oID.objectID].jointTransformOffset;
+
+				skinMatrix = (weights.x * jointTransforms.matrix[jointTransformOffset + joints.x]) +
+					(weights.y * jointTransforms.matrix[jointTransformOffset + joints.y]) +
+					(weights.z * jointTransforms.matrix[jointTransformOffset + joints.z]) +
+					(weights.w * jointTransforms.matrix[jointTransformOffset + joints.w]);
+			}
+			outPosition = vec3(objects.info[oID.objectID].model * skinMatrix * vec4(position, 1.0));
+			outUV = uv;
+			outMaterialID = objects.info[oID.objectID].materialID;
+
+			vec3 skinnedNormal = vec3(transpose(inverse(skinMatrix)) * vec4(normal, 0.0));
+			vec3 skinnedTangent = vec3(skinMatrix * vec4(tangent.xyz, 0.0));
+
+			vec3 bitangent = cross(skinnedNormal, skinnedTangent) * tangent.w;
+			vec3 T = vec3(objects.info[oID.objectID].transposeInverseModel * vec4(skinnedTangent, 0.0));
+			vec3 B = vec3(objects.info[oID.objectID].transposeInverseModel * vec4(bitangent, 0.0));
+			vec3 N = vec3(objects.info[oID.objectID].transposeInverseModel * vec4(skinnedNormal, 0.0));
+			outTBN = mat3(T, B, N);
+
+			gl_Position = camera.projection * camera.view * vec4(outPosition, 1.0);
+		}
+	)GLSL";
+		const std::vector<uint32_t> vertexShaderSpv = compileShader(vertexShaderCode, ShaderType::Vertex);
+
+		VkShaderModuleCreateInfo vertexShaderModuleCreateInfo = {};
+		vertexShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		vertexShaderModuleCreateInfo.pNext = nullptr;
+		vertexShaderModuleCreateInfo.flags = 0;
+		vertexShaderModuleCreateInfo.codeSize = vertexShaderSpv.size() * sizeof(uint32_t);
+		vertexShaderModuleCreateInfo.pCode = vertexShaderSpv.data();
+		NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &vertexShaderModuleCreateInfo, nullptr, &m_customVertexShaderModule));
+	}
+
+	VkPipelineShaderStageCreateInfo vertexShaderStageCreateInfo = {};
+	vertexShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vertexShaderStageCreateInfo.pNext = nullptr;
+	vertexShaderStageCreateInfo.flags = 0;
+	vertexShaderStageCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	vertexShaderStageCreateInfo.module = m_customVertexShaderModule;
+	vertexShaderStageCreateInfo.pName = "main";
+	vertexShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	const std::string fragmentShaderPrefixCode = R"GLSL(
+		#version 460
+		#extension GL_EXT_nonuniform_qualifier : enable
+
+		#define NtshEngn_position position
+		#define NtshEngn_normal TBN[2]
+		#define NtshEngn_tangent TBN[0]
+		#define NtshEngn_bitangent TBN[1]
+		#define NtshEngn_uv uv
+		#define NtshEngn_tbn TBN
+		#define NtshEngn_diffuseTexture textures[nonuniformEXT(materials.info[materialID].diffuseTextureIndex)]
+		#define NtshEngn_normalTexture textures[nonuniformEXT(materials.info[materialID].normalTextureIndex)]
+		#define NtshEngn_metalnessTexture textures[nonuniformEXT(materials.info[materialID].metalnessTextureIndex)]
+		#define NtshEngn_roughnessTexture textures[nonuniformEXT(materials.info[materialID].roughnessTextureIndex)]
+		#define NtshEngn_occlusionTexture textures[nonuniformEXT(materials.info[materialID].occlusionTextureIndex)]
+		#define NtshEngn_emissiveTexture textures[nonuniformEXT(materials.info[materialID].emissiveTextureIndex)]
+		#define NtshEngn_emissiveFactor materials.info[materialID].emissiveFactor
+		#define NtshEngn_alphaCutoff materials.info[materialID].alphaCutoff
+		#define NtshEngn_scaleUV materials.info[materialID].scaleUV
+		#define NtshEngn_offsetUV materials.info[materialID].offsetUV
+		#define NtshEngn_useTriplanarMapping materials.info[materialID].useTriplanarMapping
+		#define NtshEngn_directionalLightCount lights.count.x
+		#define NtshEngn_directionalLight(i) lights.info[i]
+		#define NtshEngn_pointLightCount lights.count.y
+		#define NtshEngn_pointLight(i) lights.info[lights.count.x + i]
+		#define NtshEngn_spotLightCount lights.count.z
+		#define NtshEngn_spotLight(i) lights.info[lights.count.x + lights.count.y + i]
+		#define NtshEngn_ambientLightCount lights.count.w
+		#define NtshEngn_ambientLight(i) lights.info[lights.count.x + lights.count.y + lights.count.z + i]
+		#define NtshEngn_time pC.cameraPositionAndTime.w
+		#define NtshEngn_cameraPosition pC.cameraPositionAndTime.xyz
+		#define NtshEngn_useReversedDepth false
+		#define NtshEngn_outColor outColor
+		#define NtshEngn_outDepth gl_FragDepth
+
+		struct MaterialInfo {
+			uint diffuseTextureIndex;
+			uint normalTextureIndex;
+			uint metalnessTextureIndex;
+			uint roughnessTextureIndex;
+			uint occlusionTextureIndex;
+			uint emissiveTextureIndex;
+			float emissiveFactor;
+			float alphaCutoff;
+			vec2 scaleUV;
+			vec2 offsetUV;
+			uint useTriplanarMapping;
+		};
+
+		struct LightInfo {
+			vec3 position;
+			vec3 direction;
+			vec3 color;
+			float intensity;
+			vec2 cutoff;
+			float distance;
+		};
+
+		layout(set = 0, binding = 4) restrict readonly buffer Materials {
+			MaterialInfo info[];
+		} materials;
+
+		layout(set = 0, binding = 5) restrict readonly buffer Lights {
+			uvec4 count;
+			LightInfo info[];
+		} lights;
+
+		layout(set = 0, binding = 6) uniform sampler2D textures[];
+
+		layout(push_constant) uniform PushConstants {
+			layout(offset = 16) vec4 cameraPositionAndTime;
+		} pC;
+
+		layout(location = 0) in vec3 position;
+		layout(location = 1) in vec2 uv;
+		layout(location = 2) in flat uint materialID;
+		layout(location = 3) in mat3 TBN;
+
+		layout(location = 0) out vec4 outColor;
+
+	)GLSL";
+	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderPrefixCode + fragmentShader, ShaderType::Fragment);
+	if (fragmentShaderSpv.empty()) {
+		return;
+	}
+
+	VkShaderModule fragmentShaderModule;
+	VkShaderModuleCreateInfo fragmentShaderModuleCreateInfo = {};
+	fragmentShaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	fragmentShaderModuleCreateInfo.pNext = nullptr;
+	fragmentShaderModuleCreateInfo.flags = 0;
+	fragmentShaderModuleCreateInfo.codeSize = fragmentShaderSpv.size() * sizeof(uint32_t);
+	fragmentShaderModuleCreateInfo.pCode = fragmentShaderSpv.data();
+	NTSHENGN_VK_CHECK(vkCreateShaderModule(m_device, &fragmentShaderModuleCreateInfo, nullptr, &fragmentShaderModule));
+
+	VkPipelineShaderStageCreateInfo fragmentShaderStageCreateInfo = {};
+	fragmentShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fragmentShaderStageCreateInfo.pNext = nullptr;
+	fragmentShaderStageCreateInfo.flags = 0;
+	fragmentShaderStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragmentShaderStageCreateInfo.module = fragmentShaderModule;
+	fragmentShaderStageCreateInfo.pName = "main";
+	fragmentShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStageCreateInfos = { vertexShaderStageCreateInfo, fragmentShaderStageCreateInfo };
+
+	VkVertexInputBindingDescription vertexInputBindingDescription = {};
+	vertexInputBindingDescription.binding = 0;
+	vertexInputBindingDescription.stride = sizeof(Vertex);
+	vertexInputBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+	VkVertexInputAttributeDescription vertexPositionInputAttributeDescription = {};
+	vertexPositionInputAttributeDescription.location = 0;
+	vertexPositionInputAttributeDescription.binding = 0;
+	vertexPositionInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
+	vertexPositionInputAttributeDescription.offset = 0;
+
+	VkVertexInputAttributeDescription vertexNormalInputAttributeDescription = {};
+	vertexNormalInputAttributeDescription.location = 1;
+	vertexNormalInputAttributeDescription.binding = 0;
+	vertexNormalInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
+	vertexNormalInputAttributeDescription.offset = offsetof(Vertex, normal);
+
+	VkVertexInputAttributeDescription vertexUVInputAttributeDescription = {};
+	vertexUVInputAttributeDescription.location = 2;
+	vertexUVInputAttributeDescription.binding = 0;
+	vertexUVInputAttributeDescription.format = VK_FORMAT_R32G32_SFLOAT;
+	vertexUVInputAttributeDescription.offset = offsetof(Vertex, uv);
+
+	VkVertexInputAttributeDescription vertexColorInputAttributeDescription = {};
+	vertexColorInputAttributeDescription.location = 3;
+	vertexColorInputAttributeDescription.binding = 0;
+	vertexColorInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
+	vertexColorInputAttributeDescription.offset = offsetof(Vertex, color);
+
+	VkVertexInputAttributeDescription vertexTangentInputAttributeDescription = {};
+	vertexTangentInputAttributeDescription.location = 4;
+	vertexTangentInputAttributeDescription.binding = 0;
+	vertexTangentInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	vertexTangentInputAttributeDescription.offset = offsetof(Vertex, tangent);
+
+	VkVertexInputAttributeDescription vertexJointsInputAttributeDescription = {};
+	vertexJointsInputAttributeDescription.location = 5;
+	vertexJointsInputAttributeDescription.binding = 0;
+	vertexJointsInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_UINT;
+	vertexJointsInputAttributeDescription.offset = offsetof(Vertex, joints);
+
+	VkVertexInputAttributeDescription vertexWeightsInputAttributeDescription = {};
+	vertexWeightsInputAttributeDescription.location = 6;
+	vertexWeightsInputAttributeDescription.binding = 0;
+	vertexWeightsInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	vertexWeightsInputAttributeDescription.offset = offsetof(Vertex, weights);
+
+	std::array<VkVertexInputAttributeDescription, 7> vertexInputAttributeDescriptions = { vertexPositionInputAttributeDescription, vertexNormalInputAttributeDescription, vertexUVInputAttributeDescription, vertexColorInputAttributeDescription, vertexTangentInputAttributeDescription, vertexJointsInputAttributeDescription, vertexWeightsInputAttributeDescription };
+	VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo = {};
+	vertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInputStateCreateInfo.pNext = nullptr;
+	vertexInputStateCreateInfo.flags = 0;
+	vertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
+	vertexInputStateCreateInfo.pVertexBindingDescriptions = &vertexInputBindingDescription;
+	vertexInputStateCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributeDescriptions.size());
+	vertexInputStateCreateInfo.pVertexAttributeDescriptions = vertexInputAttributeDescriptions.data();
+
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCreateInfo = {};
+	inputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	inputAssemblyStateCreateInfo.pNext = nullptr;
+	inputAssemblyStateCreateInfo.flags = 0;
+	inputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	inputAssemblyStateCreateInfo.primitiveRestartEnable = VK_FALSE;
+
+	VkPipelineViewportStateCreateInfo viewportStateCreateInfo = {};
+	viewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewportStateCreateInfo.pNext = nullptr;
+	viewportStateCreateInfo.flags = 0;
+	viewportStateCreateInfo.viewportCount = 1;
+	viewportStateCreateInfo.pViewports = &m_viewport;
+	viewportStateCreateInfo.scissorCount = 1;
+	viewportStateCreateInfo.pScissors = &m_scissor;
+
+	VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo = {};
+	rasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizationStateCreateInfo.pNext = nullptr;
+	rasterizationStateCreateInfo.flags = 0;
+	rasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
+	rasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
+	rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	rasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;
+	rasterizationStateCreateInfo.depthBiasConstantFactor = 0.0f;
+	rasterizationStateCreateInfo.depthBiasClamp = 0.0f;
+	rasterizationStateCreateInfo.depthBiasSlopeFactor = 0.0f;
+	rasterizationStateCreateInfo.lineWidth = 1.0f;
+
+	VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo = {};
+	multisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampleStateCreateInfo.pNext = nullptr;
+	multisampleStateCreateInfo.flags = 0;
+	multisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	multisampleStateCreateInfo.sampleShadingEnable = VK_FALSE;
+	multisampleStateCreateInfo.minSampleShading = 0.0f;
+	multisampleStateCreateInfo.pSampleMask = nullptr;
+	multisampleStateCreateInfo.alphaToCoverageEnable = VK_FALSE;
+	multisampleStateCreateInfo.alphaToOneEnable = VK_FALSE;
+
+	VkPipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo = {};
+	depthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencilStateCreateInfo.pNext = nullptr;
+	depthStencilStateCreateInfo.flags = 0;
+	depthStencilStateCreateInfo.depthTestEnable = VK_TRUE;
+	depthStencilStateCreateInfo.depthWriteEnable = VK_TRUE;
+	depthStencilStateCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS;
+	depthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
+	depthStencilStateCreateInfo.front = {};
+	depthStencilStateCreateInfo.back = {};
+	depthStencilStateCreateInfo.minDepthBounds = 0.0f;
+	depthStencilStateCreateInfo.maxDepthBounds = 1.0f;
+
+	VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {};
+	colorBlendAttachmentState.blendEnable = VK_FALSE;
+	colorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+	VkPipelineColorBlendStateCreateInfo colorBlendStateCreateInfo = {};
+	colorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	colorBlendStateCreateInfo.pNext = nullptr;
+	colorBlendStateCreateInfo.flags = 0;
+	colorBlendStateCreateInfo.logicOpEnable = VK_FALSE;
+	colorBlendStateCreateInfo.logicOp = VK_LOGIC_OP_COPY;
+	colorBlendStateCreateInfo.attachmentCount = 1;
+	colorBlendStateCreateInfo.pAttachments = &colorBlendAttachmentState;
+
+	std::array<VkDynamicState, 2> dynamicStates = { VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_VIEWPORT };
+	VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = {};
+	dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynamicStateCreateInfo.pNext = nullptr;
+	dynamicStateCreateInfo.flags = 0;
+	dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
+
+	if (m_customGraphicsPipelineLayout == VK_NULL_HANDLE) {
+		VkPushConstantRange vertexPushConstantRange = {};
+		vertexPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		vertexPushConstantRange.offset = 0;
+		vertexPushConstantRange.size = sizeof(uint32_t);
+
+		VkPushConstantRange fragmentPushConstantRange = {};
+		fragmentPushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		fragmentPushConstantRange.offset = sizeof(Math::vec4);
+		fragmentPushConstantRange.size = sizeof(Math::vec4) + sizeof(float);
+
+		std::array<VkPushConstantRange, 2> pushConstantRanges = { vertexPushConstantRange, fragmentPushConstantRange };
+		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
+		pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		pipelineLayoutCreateInfo.pNext = nullptr;
+		pipelineLayoutCreateInfo.flags = 0;
+		pipelineLayoutCreateInfo.setLayoutCount = 1;
+		pipelineLayoutCreateInfo.pSetLayouts = &m_descriptorSetLayout;
+		pipelineLayoutCreateInfo.pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size());
+		pipelineLayoutCreateInfo.pPushConstantRanges = pushConstantRanges.data();
+		NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_customGraphicsPipelineLayout));
+	}
+
+	VkPipeline customGraphicsPipeline;
+	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};
+	graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	graphicsPipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
+	graphicsPipelineCreateInfo.flags = 0;
+	graphicsPipelineCreateInfo.stageCount = 2;
+	graphicsPipelineCreateInfo.pStages = shaderStageCreateInfos.data();
+	graphicsPipelineCreateInfo.pVertexInputState = &vertexInputStateCreateInfo;
+	graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyStateCreateInfo;
+	graphicsPipelineCreateInfo.pTessellationState = nullptr;
+	graphicsPipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
+	graphicsPipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
+	graphicsPipelineCreateInfo.pMultisampleState = &multisampleStateCreateInfo;
+	graphicsPipelineCreateInfo.pDepthStencilState = &depthStencilStateCreateInfo;
+	graphicsPipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
+	graphicsPipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
+	graphicsPipelineCreateInfo.layout = m_customGraphicsPipelineLayout;
+	graphicsPipelineCreateInfo.renderPass = VK_NULL_HANDLE;
+	graphicsPipelineCreateInfo.subpass = 0;
+	graphicsPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+	graphicsPipelineCreateInfo.basePipelineIndex = 0;
+	NTSHENGN_VK_CHECK(vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &customGraphicsPipeline));
+
+	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
+
+	m_customGraphicsPipelines[fragmentShader] = customGraphicsPipeline;
 }
 
 uint32_t NtshEngn::GraphicsModule::addToTextures(const InternalTexture& texture) {
