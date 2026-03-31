@@ -3724,7 +3724,7 @@ void NtshEngn::GraphicsModule::createRayTracingPipeline() {
 			vec3 position;
 			vec3 normal;
 			vec2 uv;
-			vec3 color;
+			vec4 color;
 			vec4 tangent;
 			vec4 joints;
 			vec4 weights;
