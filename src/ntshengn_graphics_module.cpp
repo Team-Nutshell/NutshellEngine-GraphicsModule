@@ -7055,8 +7055,9 @@ void NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const st
 
 		layout(location = 0) out vec3 outPosition;
 		layout(location = 1) out vec2 outUV;
-		layout(location = 2) out flat uint outMaterialID;
-		layout(location = 3) out mat3 outTBN;
+		layout(location = 2) out vec3 outColor;
+		layout(location = 3) out flat uint outMaterialID;
+		layout(location = 4) out mat3 outTBN;
 
 		void main() {
 			mat4 skinMatrix = mat4(1.0);
@@ -7070,6 +7071,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const st
 			}
 			outPosition = vec3(objects.info[oID.objectID].model * skinMatrix * vec4(position, 1.0));
 			outUV = uv;
+			outColor = color;
 			outMaterialID = objects.info[oID.objectID].materialID;
 
 			vec3 skinnedNormal = vec3(transpose(inverse(skinMatrix)) * vec4(normal, 0.0));
@@ -7113,6 +7115,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const st
 		#define NtshEngn_tangent TBN[0]
 		#define NtshEngn_bitangent TBN[1]
 		#define NtshEngn_uv uv
+		#define NtshEngn_color color
 		#define NtshEngn_tbn TBN
 		#define NtshEngn_diffuseTexture textures[nonuniformEXT(materials.info[materialID].diffuseTextureIndex)]
 		#define NtshEngn_normalTexture textures[nonuniformEXT(materials.info[materialID].normalTextureIndex)]
@@ -7182,8 +7185,9 @@ void NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const st
 
 		layout(location = 0) in vec3 position;
 		layout(location = 1) in vec2 uv;
-		layout(location = 2) in flat uint materialID;
-		layout(location = 3) in mat3 TBN;
+		layout(location = 2) in vec3 color;
+		layout(location = 3) in flat uint materialID;
+		layout(location = 4) in mat3 TBN;
 
 		layout(location = 0) out vec4 outColor;
 
