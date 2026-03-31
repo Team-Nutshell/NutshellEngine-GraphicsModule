@@ -493,7 +493,7 @@ bool ForwardRenderer::createGraphicsPipelineFromFragmentShader(const std::string
 
 			const vec4 shadowCoord = (shadowOffset * shadows.info[shadowIndex + cascadeIndex].viewProj) * vec4(position, 1.0);
 
-			return shadowValue(lightIndex, cascadeIndex, shadowCoord / shadowCoord.w, 0.05);
+			return shadowValue(lightIndex, cascadeIndex, shadowCoord / shadowCoord.w, 0.00005);
 		}
 
 		float pointLightShadows(uint lightIndex, vec3 position) {
