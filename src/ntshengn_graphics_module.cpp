@@ -3613,7 +3613,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 		layout(location = 0) in vec3 position;
 		layout(location = 1) in vec3 normal;
 		layout(location = 2) in vec2 uv;
-		layout(location = 3) in vec3 color;
+		layout(location = 3) in vec4 color;
 		layout(location = 4) in vec4 tangent;
 		layout(location = 5) in uvec4 joints;
 		layout(location = 6) in vec4 weights;
@@ -3993,7 +3993,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 	VkVertexInputAttributeDescription vertexColorInputAttributeDescription = {};
 	vertexColorInputAttributeDescription.location = 3;
 	vertexColorInputAttributeDescription.binding = 0;
-	vertexColorInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
+	vertexColorInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
 	vertexColorInputAttributeDescription.offset = offsetof(Vertex, color);
 
 	VkVertexInputAttributeDescription vertexTangentInputAttributeDescription = {};
@@ -7048,14 +7048,14 @@ void NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const st
 		layout(location = 0) in vec3 position;
 		layout(location = 1) in vec3 normal;
 		layout(location = 2) in vec2 uv;
-		layout(location = 3) in vec3 color;
+		layout(location = 3) in vec4 color;
 		layout(location = 4) in vec4 tangent;
 		layout(location = 5) in uvec4 joints;
 		layout(location = 6) in vec4 weights;
 
 		layout(location = 0) out vec3 outPosition;
 		layout(location = 1) out vec2 outUV;
-		layout(location = 2) out vec3 outColor;
+		layout(location = 2) out vec4 outColor;
 		layout(location = 3) out flat uint outMaterialID;
 		layout(location = 4) out mat3 outTBN;
 
@@ -7185,7 +7185,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const st
 
 		layout(location = 0) in vec3 position;
 		layout(location = 1) in vec2 uv;
-		layout(location = 2) in vec3 color;
+		layout(location = 2) in vec4 color;
 		layout(location = 3) in flat uint materialID;
 		layout(location = 4) in mat3 TBN;
 
@@ -7243,7 +7243,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const st
 	VkVertexInputAttributeDescription vertexColorInputAttributeDescription = {};
 	vertexColorInputAttributeDescription.location = 3;
 	vertexColorInputAttributeDescription.binding = 0;
-	vertexColorInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
+	vertexColorInputAttributeDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
 	vertexColorInputAttributeDescription.offset = offsetof(Vertex, color);
 
 	VkVertexInputAttributeDescription vertexTangentInputAttributeDescription = {};
