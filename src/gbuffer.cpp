@@ -1394,7 +1394,7 @@ void GBuffer::createDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& c
 		VkDescriptorBufferInfo materialsDescriptorBufferInfo;
 		materialsDescriptorBufferInfo.buffer = materialBuffers[i].handle;
 		materialsDescriptorBufferInfo.offset = 0;
-		materialsDescriptorBufferInfo.range = 32768;
+		materialsDescriptorBufferInfo.range = sizeof(InternalMaterial) * NTSHENGN_MAX_ENTITIES;
 
 		VkWriteDescriptorSet materialsDescriptorWriteDescriptorSet = {};
 		materialsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

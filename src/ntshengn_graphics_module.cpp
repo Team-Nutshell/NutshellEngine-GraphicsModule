@@ -508,7 +508,7 @@ void NtshEngn::GraphicsModule::init() {
 	materialBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	materialBufferCreateInfo.pNext = nullptr;
 	materialBufferCreateInfo.flags = 0;
-	materialBufferCreateInfo.size = 32768;
+	materialBufferCreateInfo.size = sizeof(InternalMaterial) * NTSHENGN_MAX_ENTITIES;
 	materialBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	materialBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	materialBufferCreateInfo.queueFamilyIndexCount = 1;
