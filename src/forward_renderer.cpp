@@ -898,7 +898,7 @@ void ForwardRenderer::createDescriptorSets(const std::vector<HostVisibleVulkanBu
 		VkDescriptorBufferInfo objectsDescriptorBufferInfo;
 		objectsDescriptorBufferInfo.buffer = objectBuffers[i].handle;
 		objectsDescriptorBufferInfo.offset = 0;
-		objectsDescriptorBufferInfo.range = 32768;
+		objectsDescriptorBufferInfo.range = ((sizeof(NtshEngn::Math::mat4) * 2) + sizeof(NtshEngn::Math::vec4)) * NTSHENGN_MAX_ENTITIES;
 
 		VkWriteDescriptorSet objectsDescriptorWriteDescriptorSet = {};
 		objectsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
