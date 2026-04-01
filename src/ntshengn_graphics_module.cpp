@@ -4201,6 +4201,10 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		}
 	}
 
+	object.isVisible = renderable.isVisible;
+
+	object.castsShadows = renderable.castsShadows;
+
 	m_lastKnownMaterial[entity] = renderable.material;
 }
 

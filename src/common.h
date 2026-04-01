@@ -105,6 +105,8 @@ struct InternalObject {
 	uint32_t index;
 
 	std::string graphicsPipelineKey;
+	bool isVisible = true;
+	bool castsShadows = true;
 
 	NtshEngn::MeshID meshID = 0;
 	uint32_t jointTransformOffset = 0;

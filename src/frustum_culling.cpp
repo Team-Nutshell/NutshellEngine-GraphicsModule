@@ -131,19 +131,28 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer, uint32_t currentFra
 		if (frustumCullingInfos[i].cameraType == FrustumCullingCameraType::Scene) {
 			for (auto& it : objects) {
 				const InternalObject& object = it.second;
-				if (object.meshID == 0) {
-					objectIndex++;
-					continue;
-				}
 
-				// Exclude objects with custom graphics pipelines from GPU frustum culling
-				if (!object.graphicsPipelineKey.empty()) {
+				if (!object.isVisible) { 
+					frustumCullingObjectStates[(i * frustumCullingObjects.size()) + objectIndex] = FRUSTUM_CULLING_STATE_ALWAYS_FAIL;
+				}
+				else if (!object.graphicsPipelineKey.empty()) { // Exclude objects with custom graphics pipelines from GPU frustum culling
 					frustumCullingObjectStates[(i * frustumCullingObjects.size()) + objectIndex] = FRUSTUM_CULLING_STATE_ALWAYS_FAIL;
 
 					// CPU frustum culling
 					if (intersect(internalFrustumCullingInfos[i].frustum, frustumCullingObjects[objectIndex])) {
 						m_customGraphicsPipelineObjectsAfterCulling.push_back(object);
 					}
+				}
+
+				objectIndex++;
+			}
+		}
+		else if (frustumCullingInfos[i].cameraType == FrustumCullingCameraType::Light) {
+			for (auto& it : objects) {
+				const InternalObject& object = it.second;
+
+				if (!object.castsShadows) {
+					frustumCullingObjectStates[(i * frustumCullingObjects.size()) + objectIndex] = FRUSTUM_CULLING_STATE_ALWAYS_FAIL;
 				}
 
 				objectIndex++;
