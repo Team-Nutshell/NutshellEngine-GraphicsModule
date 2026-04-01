@@ -150,6 +150,8 @@ struct InternalObject {
 
 	std::string graphicsPipelineKey;
 
+	bool isVisible = true;
+
 	NtshEngn::MeshID meshID = 0;
 	uint32_t jointTransformOffset = 0;
 	uint32_t materialIndex = 0;

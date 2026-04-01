@@ -1272,6 +1272,10 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	vkCmdSetScissor(m_renderingCommandBuffers[m_currentFrameInFlight], 0, 1, &m_scissor);
 
 	for (auto& it : m_objects) {
+		if (!it.second.isVisible) {
+			continue;
+		}
+
 		// Bind graphics pipeline
 		VkPipelineLayout currentLayout;
 		if (!it.second.graphicsPipelineKey.empty() && (m_customGraphicsPipelines.find(it.second.graphicsPipelineKey) != m_customGraphicsPipelines.end())) {
@@ -6936,6 +6940,8 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		createGraphicsPipelineFromFragmentShader(renderable.fragmentShader);
 		object.graphicsPipelineKey = renderable.fragmentShader;
 	}
+
+	object.isVisible = renderable.isVisible;
 
 	m_lastKnownMaterial[entity] = renderable.material;
 }
