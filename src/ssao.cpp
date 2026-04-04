@@ -942,7 +942,7 @@ void SSAO::createPositionAndNormalFromDepthGraphicsPipeline() {
 		void main() {
 			float depth = texture(depthSampler, uv).r;
 			outPosition = vec4(depthToPosition(depth), 0.0);
-			outNormal = vec4(normalize(cross(dFdx(outPosition.xyz), dFdy(outPosition.xyz))), 0.0);
+			outNormal = vec4(-normalize(cross(dFdx(outPosition.xyz), dFdy(outPosition.xyz))), 0.0);
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
@@ -1169,7 +1169,7 @@ void SSAO::createSSAOGraphicsPipeline() {
 			float bias = 0.025;
 
 			vec3 position = texture(positionSampler, uv).xyz;
-			vec3 normal = -texture(normalSampler, uv).xyz;
+			vec3 normal = texture(normalSampler, uv).xyz;
 			vec3 random = texture(randomSampler, uv * randomScale).xyz;
 
 			vec3 tangent = normalize(random - (normal * dot(random, normal)));
