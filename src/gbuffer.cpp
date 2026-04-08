@@ -1322,7 +1322,7 @@ void GBuffer::createDescriptorSets(const std::vector<HostVisibleVulkanBuffer>& c
 		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
 		cameraDescriptorBufferInfo.buffer = cameraBuffers[i].handle;
 		cameraDescriptorBufferInfo.offset = 0;
-		cameraDescriptorBufferInfo.range = sizeof(NtshEngn::Math::mat4) * 2 + sizeof(NtshEngn::Math::vec4);
+		cameraDescriptorBufferInfo.range = (sizeof(NtshEngn::Math::mat4) * 2) + sizeof(NtshEngn::Math::vec4);
 
 		VkWriteDescriptorSet cameraDescriptorWriteDescriptorSet = {};
 		cameraDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
