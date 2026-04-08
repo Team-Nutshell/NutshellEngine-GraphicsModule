@@ -92,6 +92,7 @@ void ForwardRenderer::draw(float dt, VkCommandBuffer commandBuffer, uint32_t cur
 
 		// Additional data for custom fragment shaders
 		vkCmdPushConstants(commandBuffer, m_customGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(NtshEngn::Math::vec4), sizeof(NtshEngn::Math::vec4), &cameraPositionAndTime);
+		vkCmdPushConstants(commandBuffer, m_customGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(NtshEngn::Math::vec4) + sizeof(NtshEngn::Math::vec4), sizeof(uint32_t) * 2, &m_scissor.extent.width);
 
 		// Draw
 		vkCmdDrawIndexed(commandBuffer, meshes[object.meshID].indexCount, 1, meshes[object.meshID].firstIndex, meshes[object.meshID].vertexOffset, 0);
@@ -376,6 +377,8 @@ bool ForwardRenderer::createGraphicsPipelineFromFragmentShader(const std::string
 		#define NtshEngn_ambientLight(i) lights.info[lights.count.x + lights.count.y + lights.count.z + i]
 		#define NtshEngn_time pC.cameraPositionAndTime.w
 		#define NtshEngn_cameraPosition pC.cameraPositionAndTime.xyz
+		#define NtshEngn_width pC.widthAndHeight.x
+		#define NtshEngn_height pC.widthAndHeight.y
 		#define NtshEngn_useReversedDepth true
 		#define NtshEngn_outColor outColor
 		#define NtshEngn_outDepth gl_FragDepth
@@ -441,6 +444,7 @@ bool ForwardRenderer::createGraphicsPipelineFromFragmentShader(const std::string
 
 		layout(push_constant) uniform PushConstants {
 			layout(offset = 16) vec4 cameraPositionAndTime;
+			uvec2 widthAndHeight;
 		} pC;
 
 		layout(location = 0) in vec3 position;
@@ -688,7 +692,7 @@ bool ForwardRenderer::createGraphicsPipelineFromFragmentShader(const std::string
 		VkPushConstantRange fragmentPushConstantRange = {};
 		fragmentPushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 		fragmentPushConstantRange.offset = sizeof(NtshEngn::Math::vec4);
-		fragmentPushConstantRange.size = sizeof(NtshEngn::Math::vec4) + sizeof(float);
+		fragmentPushConstantRange.size = sizeof(NtshEngn::Math::vec4) + (sizeof(uint32_t) * 2);
 
 		std::array<VkPushConstantRange, 2> pushConstantRanges = { vertexPushConstantRange, fragmentPushConstantRange };
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
@@ -880,7 +884,7 @@ void ForwardRenderer::createDescriptorSets(const std::vector<HostVisibleVulkanBu
 		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
 		cameraDescriptorBufferInfo.buffer = cameraBuffers[i].handle;
 		cameraDescriptorBufferInfo.offset = 0;
-		cameraDescriptorBufferInfo.range = sizeof(NtshEngn::Math::mat4) * 2 + sizeof(NtshEngn::Math::vec4);
+		cameraDescriptorBufferInfo.range = (sizeof(NtshEngn::Math::mat4) * 2) + sizeof(NtshEngn::Math::vec4);
 
 		VkWriteDescriptorSet cameraDescriptorWriteDescriptorSet = {};
 		cameraDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
