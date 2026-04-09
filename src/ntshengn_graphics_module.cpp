@@ -2020,7 +2020,7 @@ void NtshEngn::GraphicsModule::setBackgroundColor(const Math::vec4& backgroundCo
 	m_backgroundColor = backgroundColor;
 }
 
-void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex) {
+void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex, bool looping) {
 	if (!ecs->hasComponent<Renderable>(entity)) {
 		NTSHENGN_MODULE_WARNING("Entity " + (ecs->entityHasName(entity) ? ("\"" + ecs->getEntityName(entity) + "\"") : std::to_string(entity)) + " does not have a Renderable component, when trying to play animation " + std::to_string(animationIndex) + ".");
 
@@ -2035,7 +2035,11 @@ void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIn
 		return;
 	}
 
-	m_animationSystem.playAnimation(&m_objects[entity], animationIndex);
+	m_animationSystem.playAnimation(&m_objects[entity], animationIndex, looping);
+}
+
+void NtshEngn::GraphicsModule::resumeAnimation(Entity entity) {
+	m_animationSystem.resumeAnimation(&m_objects[entity]);
 }
 
 void NtshEngn::GraphicsModule::pauseAnimation(Entity entity) {
@@ -2047,11 +2051,23 @@ void NtshEngn::GraphicsModule::stopAnimation(Entity entity) {
 }
 
 void NtshEngn::GraphicsModule::setAnimationCurrentTime(Entity entity, float time) {
-	m_animationSystem.setAnimationCurrentTime(&m_objects[entity], time);
+	m_animationSystem.setAnimationCurrentTime(&m_objects[entity], ecs->getComponent<NtshEngn::Renderable>(entity).mesh, time);
+}
+
+float NtshEngn::GraphicsModule::getAnimationCurrentTime(Entity entity) {
+	return m_animationSystem.getAnimationCurrentTime(&m_objects[entity]);
 }
 
 bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animationIndex) {
 	return m_animationSystem.isAnimationPlaying(&m_objects[entity], animationIndex);
+}
+
+void NtshEngn::GraphicsModule::setAnimationSpeed(Entity entity, float speed) {
+	m_animationSystem.setAnimationSpeed(&m_objects[entity], speed);
+}
+
+float NtshEngn::GraphicsModule::getAnimationSpeed(Entity entity) {
+	return m_animationSystem.getAnimationSpeed(&m_objects[entity]);
 }
 
 void NtshEngn::GraphicsModule::emitParticles(const ParticleEmitter& particleEmitter) {

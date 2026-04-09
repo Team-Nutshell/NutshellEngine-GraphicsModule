@@ -116,7 +116,9 @@ struct InternalObject {
 struct PlayingAnimation {
 	uint32_t animationIndex;
 	float time = 0.0f;
-	bool isPlaying = true;
+	float speed = 1.0f;
+	bool playing = true;
+	bool looping = false;
 };
 
 struct InternalLight {

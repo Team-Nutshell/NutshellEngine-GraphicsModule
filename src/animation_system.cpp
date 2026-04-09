@@ -21,7 +21,9 @@ void AnimationSystem::update(float dt, std::unordered_map<NtshEngn::Entity, Inte
 					const NtshEngn::Animation& animation = objectRenderable.mesh->animations[m_playingAnimations[&it.second].animationIndex];
 
 					std::queue<std::pair<uint32_t, uint32_t>> jointsAndParents;
-					jointsAndParents.push({ skin.rootJoint, std::numeric_limits<uint32_t>::max() });
+					for (size_t i = 0; i < skin.rootJoints.size(); i++) {
+						jointsAndParents.push({ static_cast<uint32_t>(skin.rootJoints[i]), std::numeric_limits<uint32_t>::max() });
+					}
 					while (!jointsAndParents.empty()) {
 						uint32_t jointIndex = jointsAndParents.front().first;
 						NtshEngn::Math::mat4 parentJointTransformMatrix;
@@ -129,18 +131,31 @@ void AnimationSystem::update(float dt, std::unordered_map<NtshEngn::Entity, Inte
 						jointsAndParents.pop();
 					}
 
-					if (m_playingAnimations[&it.second].isPlaying) {
-						playingAnimation.time += dt;
+					if (m_playingAnimations[&it.second].playing) {
+						playingAnimation.time += dt * playingAnimation.speed;
 					}
 
 					// End animation
 					if (playingAnimation.time >= animation.duration) {
-						m_playingAnimations.erase(&it.second);
+						if (playingAnimation.looping) {
+							playingAnimation.time = std::fmod(playingAnimation.time, animation.duration);
+						}
+						else {
+							m_playingAnimations.erase(&it.second);
+						}
+					}
+					if (playingAnimation.time < 0.0f) {
+						while (std::abs(playingAnimation.time) > animation.duration) {
+							playingAnimation.time = animation.duration + playingAnimation.time;
+						}
+						playingAnimation.time = animation.duration + playingAnimation.time;
 					}
 				}
 				else {
 					std::queue<std::pair<uint32_t, uint32_t>> jointsAndParents;
-					jointsAndParents.push({ skin.rootJoint, std::numeric_limits<uint32_t>::max() });
+					for (size_t i = 0; i < skin.rootJoints.size(); i++) {
+						jointsAndParents.push({ static_cast<uint32_t>(skin.rootJoints[i]), std::numeric_limits<uint32_t>::max() });
+					}
 					while (!jointsAndParents.empty()) {
 						uint32_t jointIndex = jointsAndParents.front().first;
 						NtshEngn::Math::mat4 parentJointTransformMatrix;
@@ -170,25 +185,24 @@ void AnimationSystem::update(float dt, std::unordered_map<NtshEngn::Entity, Inte
 	}
 }
 
-void AnimationSystem::playAnimation(InternalObject* object, uint32_t animationIndex) {
-	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
-		if (m_playingAnimations[object].animationIndex == animationIndex) {
-			m_playingAnimations[object].isPlaying = true;
-
-			return;
-		}
-	}
-
+void AnimationSystem::playAnimation(InternalObject* object, uint32_t animationIndex, bool looping) {
 	PlayingAnimation playingAnimation;
 	playingAnimation.animationIndex = animationIndex;
+	playingAnimation.looping = looping;
 	m_playingAnimations[object] = playingAnimation;
+}
+
+void AnimationSystem::resumeAnimation(InternalObject* object) {
+	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
+		PlayingAnimation& playingAnimation = m_playingAnimations[object];
+		playingAnimation.playing = true;
+	}
 }
 
 void AnimationSystem::pauseAnimation(InternalObject* object) {
 	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
-		if (m_playingAnimations[object].isPlaying) {
-			m_playingAnimations[object].isPlaying = false;
-		}
+		PlayingAnimation& playingAnimation = m_playingAnimations[object];
+		playingAnimation.playing = false;
 	}
 }
 
@@ -198,20 +212,52 @@ void AnimationSystem::stopAnimation(InternalObject* object) {
 	}
 }
 
-void AnimationSystem::setAnimationCurrentTime(InternalObject* object, float time) {
-	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
-		m_playingAnimations[object].time = time;
-	}
-}
-
 bool AnimationSystem::isAnimationPlaying(InternalObject* object, uint32_t animationIndex) {
 	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
-		if (m_playingAnimations[object].animationIndex == animationIndex) {
-			return m_playingAnimations[object].isPlaying;
+		const PlayingAnimation& playingAnimation = m_playingAnimations[object];
+		if (playingAnimation.animationIndex == animationIndex) {
+			return playingAnimation.playing;
 		}
 	}
 
 	return false;
+}
+
+void AnimationSystem::setAnimationCurrentTime(InternalObject* object, NtshEngn::Mesh* mesh, float newTime) {
+	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
+		PlayingAnimation& playingAnimation = m_playingAnimations[object];
+		if (playingAnimation.looping) {
+			playingAnimation.time = std::fmod(newTime, mesh->animations[playingAnimation.animationIndex].duration);
+		}
+		else {
+			m_playingAnimations[object].time = newTime;
+		}
+	}
+}
+
+float AnimationSystem::getAnimationCurrentTime(InternalObject* object) {
+	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
+		const PlayingAnimation& playingAnimation = m_playingAnimations[object];
+		return playingAnimation.time;
+	}
+
+	return 0.0f;
+}
+
+void AnimationSystem::setAnimationSpeed(InternalObject* object, float newSpeed) {
+	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
+		PlayingAnimation& playingAnimation = m_playingAnimations[object];
+		playingAnimation.speed = newSpeed;
+	}
+}
+
+float AnimationSystem::getAnimationSpeed(InternalObject* object) {
+	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
+		const PlayingAnimation& playingAnimation = m_playingAnimations[object];
+		return playingAnimation.speed;
+	}
+
+	return 0.0f;
 }
 
 uint32_t AnimationSystem::findPreviousAnimationKeyframe(float time, const std::vector<NtshEngn::AnimationChannelKeyframe>& keyframes) {
@@ -219,9 +265,15 @@ uint32_t AnimationSystem::findPreviousAnimationKeyframe(float time, const std::v
 		return keyframe.timestamp < time;
 		});
 
+	uint32_t previousKeyframeIndex = std::numeric_limits<uint32_t>::max();
+
 	if (previousKeyframe != keyframes.end()) {
-		return static_cast<uint32_t>(std::distance(keyframes.begin(), previousKeyframe));
+		previousKeyframeIndex = static_cast<uint32_t>(std::distance(keyframes.begin(), previousKeyframe));
 	}
 
-	return std::numeric_limits<uint32_t>::max();
+	if (previousKeyframeIndex != 0) {
+		previousKeyframeIndex--;
+	}
+
+	return previousKeyframeIndex;
 }
