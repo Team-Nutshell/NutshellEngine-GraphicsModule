@@ -1311,6 +1311,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		// Additional data for custom fragment shaders
 		if (currentLayout != m_graphicsPipelineLayout) {
 			vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], currentLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec4), sizeof(Math::vec4), &cameraPositionAndTime);
+			vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_customGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(NtshEngn::Math::vec4) + sizeof(NtshEngn::Math::vec4), sizeof(uint32_t) * 2, &m_scissor.extent.width);
 		}
 
 		// Draw
@@ -4258,7 +4259,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		VkDescriptorBufferInfo cameraDescriptorBufferInfo;
 		cameraDescriptorBufferInfo.buffer = m_cameraBuffers[i].handle;
 		cameraDescriptorBufferInfo.offset = 0;
-		cameraDescriptorBufferInfo.range = sizeof(Math::mat4) * 2 + sizeof(Math::vec4);
+		cameraDescriptorBufferInfo.range = (sizeof(Math::mat4) * 2) + sizeof(Math::vec4);
 
 		VkWriteDescriptorSet cameraDescriptorWriteDescriptorSet = {};
 		cameraDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -7194,6 +7195,8 @@ void NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const st
 		#define NtshEngn_ambientLight(i) lights.info[lights.count.x + lights.count.y + lights.count.z + i]
 		#define NtshEngn_time pC.cameraPositionAndTime.w
 		#define NtshEngn_cameraPosition pC.cameraPositionAndTime.xyz
+		#define NtshEngn_width pC.widthAndHeight.x
+		#define NtshEngn_height pC.widthAndHeight.y
 		#define NtshEngn_useReversedDepth false
 		#define NtshEngn_outColor outColor
 		#define NtshEngn_outDepth gl_FragDepth
@@ -7234,6 +7237,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const st
 
 		layout(push_constant) uniform PushConstants {
 			layout(offset = 16) vec4 cameraPositionAndTime;
+			uvec2 widthAndHeight;
 		} pC;
 
 		layout(location = 0) in vec3 position;
@@ -7419,7 +7423,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const st
 		VkPushConstantRange fragmentPushConstantRange = {};
 		fragmentPushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 		fragmentPushConstantRange.offset = sizeof(Math::vec4);
-		fragmentPushConstantRange.size = sizeof(Math::vec4) + sizeof(float);
+		fragmentPushConstantRange.size = sizeof(NtshEngn::Math::vec4) + (sizeof(uint32_t) * 2);
 
 		std::array<VkPushConstantRange, 2> pushConstantRanges = { vertexPushConstantRange, fragmentPushConstantRange };
 		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
