@@ -2249,9 +2249,15 @@ void NtshEngn::GraphicsModule::setBackgroundColor(const Math::vec4& backgroundCo
 	m_backgroundColor = backgroundColor;
 }
 
-void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex) {
+void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex, bool looping) {
 	NTSHENGN_UNUSED(entity);
 	NTSHENGN_UNUSED(animationIndex);
+	NTSHENGN_UNUSED(looping);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
+}
+
+void NtshEngn::GraphicsModule::resumeAnimation(Entity entity) {
+	NTSHENGN_UNUSED(entity);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
@@ -2265,18 +2271,38 @@ void NtshEngn::GraphicsModule::stopAnimation(Entity entity) {
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
-void NtshEngn::GraphicsModule::setAnimationCurrentTime(Entity entity, float time) {
-	NTSHENGN_UNUSED(entity);
-	NTSHENGN_UNUSED(time);
-	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
-}
-
 bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animationIndex) {
 	NTSHENGN_UNUSED(entity);
 	NTSHENGN_UNUSED(animationIndex);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 
 	return false;
+}
+
+void NtshEngn::GraphicsModule::setAnimationCurrentTime(Entity entity, float newTime) {
+	NTSHENGN_UNUSED(entity);
+	NTSHENGN_UNUSED(newTime);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
+}
+
+float NtshEngn::GraphicsModule::getAnimationCurrentTime(Entity entity) {
+	NTSHENGN_UNUSED(entity);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
+
+	return 0.0f;
+}
+
+void NtshEngn::GraphicsModule::setAnimationSpeed(Entity entity, float newSpeed) {
+	NTSHENGN_UNUSED(entity);
+	NTSHENGN_UNUSED(newSpeed);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
+}
+
+float NtshEngn::GraphicsModule::getAnimationSpeed(Entity entity) {
+	NTSHENGN_UNUSED(entity);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
+
+	return 0.0f;
 }
 
 void NtshEngn::GraphicsModule::emitParticles(const ParticleEmitter& particleEmitter) {
