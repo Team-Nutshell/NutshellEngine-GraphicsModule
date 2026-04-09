@@ -685,7 +685,9 @@ void NtshEngn::GraphicsModule::update(float dt) {
 					const Animation& animation = objectRenderable.mesh->animations[m_playingAnimations[&it.second].animationIndex];
 
 					std::queue<std::pair<uint32_t, uint32_t>> jointsAndParents;
-					jointsAndParents.push({ skin.rootJoint, std::numeric_limits<uint32_t>::max() });
+					for (size_t i = 0; i < skin.rootJoints.size(); i++) {
+						jointsAndParents.push({ static_cast<uint32_t>(skin.rootJoints[i]), std::numeric_limits<uint32_t>::max() });
+					}
 					while (!jointsAndParents.empty()) {
 						uint32_t jointIndex = jointsAndParents.front().first;
 						Math::mat4 parentJointTransformMatrix;
@@ -793,18 +795,31 @@ void NtshEngn::GraphicsModule::update(float dt) {
 						jointsAndParents.pop();
 					}
 
-					if (m_playingAnimations[&it.second].isPlaying) {
-						playingAnimation.time += dt;
+					if (m_playingAnimations[&it.second].playing) {
+						playingAnimation.time += dt * playingAnimation.speed;
 					}
 
 					// End animation
 					if (playingAnimation.time >= animation.duration) {
-						m_playingAnimations.erase(&it.second);
+						if (playingAnimation.looping) {
+							playingAnimation.time = std::fmod(playingAnimation.time, animation.duration);
+						}
+						else {
+							m_playingAnimations.erase(&it.second);
+						}
+					}
+					if (playingAnimation.time < 0.0f) {
+						while (std::abs(playingAnimation.time) > animation.duration) {
+							playingAnimation.time = animation.duration + playingAnimation.time;
+						}
+						playingAnimation.time = animation.duration + playingAnimation.time;
 					}
 				}
 				else {
 					std::queue<std::pair<uint32_t, uint32_t>> jointsAndParents;
-					jointsAndParents.push({ skin.rootJoint, std::numeric_limits<uint32_t>::max() });
+					for (size_t i = 0; i < skin.rootJoints.size(); i++) {
+						jointsAndParents.push({ static_cast<uint32_t>(skin.rootJoints[i]), std::numeric_limits<uint32_t>::max() });
+					}
 					while (!jointsAndParents.empty()) {
 						uint32_t jointIndex = jointsAndParents.front().first;
 						Math::mat4 parentJointTransformMatrix;
@@ -2458,7 +2473,7 @@ void NtshEngn::GraphicsModule::setBackgroundColor(const Math::vec4& backgroundCo
 	m_backgroundColor = backgroundColor;
 }
 
-void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex) {
+void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex, bool looping) {
 	if (!ecs->hasComponent<Renderable>(entity)) {
 		NTSHENGN_MODULE_WARNING("Entity " + (ecs->entityHasName(entity) ? ("\"" + ecs->getEntityName(entity) + "\"") : std::to_string(entity)) + " does not have a Renderable component, when trying to play animation " + std::to_string(animationIndex) + ".");
 		return;
@@ -2471,23 +2486,23 @@ void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIn
 		return;
 	}
 
-	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
-		if (m_playingAnimations[&m_objects[entity]].animationIndex == animationIndex) {
-			m_playingAnimations[&m_objects[entity]].isPlaying = true;
-			return;
-		}
-	}
-
 	PlayingAnimation playingAnimation;
 	playingAnimation.animationIndex = animationIndex;
+	playingAnimation.looping = looping;
 	m_playingAnimations[&m_objects[entity]] = playingAnimation;
+}
+
+void NtshEngn::GraphicsModule::resumeAnimation(Entity entity) {
+	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
+		PlayingAnimation& playingAnimation = m_playingAnimations[&m_objects[entity]];
+		playingAnimation.playing = true;
+	}
 }
 
 void NtshEngn::GraphicsModule::pauseAnimation(Entity entity) {
 	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
-		if (m_playingAnimations[&m_objects[entity]].isPlaying) {
-			m_playingAnimations[&m_objects[entity]].isPlaying = false;
-		}
+		PlayingAnimation& playingAnimation = m_playingAnimations[&m_objects[entity]];
+		playingAnimation.playing = false;
 	}
 }
 
@@ -2497,20 +2512,52 @@ void NtshEngn::GraphicsModule::stopAnimation(Entity entity) {
 	}
 }
 
-void NtshEngn::GraphicsModule::setAnimationCurrentTime(Entity entity, float time) {
-	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
-		m_playingAnimations[&m_objects[entity]].time = time;
-	}
-}
-
 bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animationIndex) {
 	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
-		if (m_playingAnimations[&m_objects[entity]].animationIndex == animationIndex) {
-			return m_playingAnimations[&m_objects[entity]].isPlaying;
+		const PlayingAnimation& playingAnimation = m_playingAnimations[&m_objects[entity]];
+		if (playingAnimation.animationIndex == animationIndex) {
+			return playingAnimation.playing;
 		}
 	}
 
 	return false;
+}
+
+void NtshEngn::GraphicsModule::setAnimationCurrentTime(Entity entity, float newTime) {
+	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
+		PlayingAnimation& playingAnimation = m_playingAnimations[&m_objects[entity]];
+		if (playingAnimation.looping) {
+			playingAnimation.time = std::fmod(newTime, ecs->getComponent<Renderable>(entity).mesh->animations[playingAnimation.animationIndex].duration);
+		}
+		else {
+			m_playingAnimations[&m_objects[entity]].time = newTime;
+		}
+	}
+}
+
+float NtshEngn::GraphicsModule::getAnimationCurrentTime(Entity entity) {
+	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
+		const PlayingAnimation& playingAnimation = m_playingAnimations[&m_objects[entity]];
+		return playingAnimation.time;
+	}
+
+	return 0.0f;
+}
+
+void NtshEngn::GraphicsModule::setAnimationSpeed(Entity entity, float newSpeed) {
+	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
+		PlayingAnimation& playingAnimation = m_playingAnimations[&m_objects[entity]];
+		playingAnimation.speed = newSpeed;
+	}
+}
+
+float NtshEngn::GraphicsModule::getAnimationSpeed(Entity entity) {
+	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
+		const PlayingAnimation& playingAnimation = m_playingAnimations[&m_objects[entity]];
+		return playingAnimation.speed;
+	}
+
+	return 0.0f;
 }
 
 void NtshEngn::GraphicsModule::emitParticles(const ParticleEmitter& particleEmitter) {
@@ -7434,15 +7481,21 @@ uint32_t NtshEngn::GraphicsModule::addToTextures(const InternalTexture& texture)
 }
 
 uint32_t NtshEngn::GraphicsModule::findPreviousAnimationKeyframe(float time, const std::vector<AnimationChannelKeyframe>& keyframes) {
-	const std::vector<AnimationChannelKeyframe>::const_iterator previousKeyframe = std::lower_bound(keyframes.begin(), keyframes.end(), time, [](const AnimationChannelKeyframe& keyframe, float time) {
+	const std::vector<NtshEngn::AnimationChannelKeyframe>::const_iterator previousKeyframe = std::lower_bound(keyframes.begin(), keyframes.end(), time, [](const NtshEngn::AnimationChannelKeyframe& keyframe, float time) {
 		return keyframe.timestamp < time;
 		});
 
+	uint32_t previousKeyframeIndex = std::numeric_limits<uint32_t>::max();
+
 	if (previousKeyframe != keyframes.end()) {
-		return static_cast<uint32_t>(std::distance(keyframes.begin(), previousKeyframe));
+		previousKeyframeIndex = static_cast<uint32_t>(std::distance(keyframes.begin(), previousKeyframe));
 	}
 
-	return std::numeric_limits<uint32_t>::max();
+	if (previousKeyframeIndex != 0) {
+		previousKeyframeIndex--;
+	}
+
+	return previousKeyframeIndex;
 }
 
 extern "C" NTSHENGN_MODULE_API NtshEngn::GraphicsModuleInterface* createModule() {
