@@ -4057,6 +4057,16 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		object.meshID = 0;
 	}
 
+	if (!renderable.fragmentShader.empty()) {
+		if (m_forwardRenderer.createGraphicsPipelineFromFragmentShader(renderable.fragmentShader)) {
+			object.graphicsPipelineKey = renderable.fragmentShader;
+		}
+	}
+
+	object.isVisible = renderable.isVisible;
+
+	object.castsShadows = renderable.castsShadows;
+
 	if (renderable.material == m_lastKnownMaterial[entity]) {
 		return;
 	}
@@ -4210,16 +4220,6 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 	if (renderable.material.offsetUV != material.offsetUV) {
 		material.offsetUV = renderable.material.offsetUV;
 	}
-
-	if (!renderable.fragmentShader.empty()) {
-		if (m_forwardRenderer.createGraphicsPipelineFromFragmentShader(renderable.fragmentShader)) {
-			object.graphicsPipelineKey = renderable.fragmentShader;
-		}
-	}
-
-	object.isVisible = renderable.isVisible;
-
-	object.castsShadows = renderable.castsShadows;
 
 	m_lastKnownMaterial[entity] = renderable.material;
 }
