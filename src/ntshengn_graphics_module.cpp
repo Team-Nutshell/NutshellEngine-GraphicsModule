@@ -6838,8 +6838,6 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 
 	object.isVisible = renderable.isVisible;
 
-	m_lastKnownMaterial[entity] = renderable.material;
-
 	if (renderable.material == m_lastKnownMaterial[entity]) {
 		return;
 	}
@@ -6993,6 +6991,8 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 	if (renderable.material.offsetUV != material.offsetUV) {
 		material.offsetUV = renderable.material.offsetUV;
 	}
+
+	m_lastKnownMaterial[entity] = renderable.material;
 }
 
 std::string NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler) {
