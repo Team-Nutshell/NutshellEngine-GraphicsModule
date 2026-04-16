@@ -351,7 +351,7 @@ namespace NtshEngn {
 		std::string createSampler(const ImageSampler& sampler);
 
 		// Create graphics pipeline from fragment shader
-		void createGraphicsPipelineFromFragmentShader(const std::string& fragmentShader);
+		bool createGraphicsPipelineFromFragmentShader(const std::string& fragmentShader);
 
 		// Add to textures
 		uint32_t addToTextures(const InternalTexture& texture);

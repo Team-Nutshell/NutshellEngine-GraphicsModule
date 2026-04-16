@@ -6830,6 +6830,16 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		object.meshID = 0;
 	}
 
+	if (!renderable.fragmentShader.empty()) {
+		if (createGraphicsPipelineFromFragmentShader(renderable.fragmentShader)) {
+			object.graphicsPipelineKey = renderable.fragmentShader;
+		}
+	}
+
+	object.isVisible = renderable.isVisible;
+
+	m_lastKnownMaterial[entity] = renderable.material;
+
 	if (renderable.material == m_lastKnownMaterial[entity]) {
 		return;
 	}
@@ -6983,15 +6993,6 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 	if (renderable.material.offsetUV != material.offsetUV) {
 		material.offsetUV = renderable.material.offsetUV;
 	}
-
-	if (!renderable.fragmentShader.empty()) {
-		createGraphicsPipelineFromFragmentShader(renderable.fragmentShader);
-		object.graphicsPipelineKey = renderable.fragmentShader;
-	}
-
-	object.isVisible = renderable.isVisible;
-
-	m_lastKnownMaterial[entity] = renderable.material;
 }
 
 std::string NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler) {
@@ -7042,13 +7043,13 @@ std::string NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler)
 	return samplerKey;
 }
 
-void NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const std::string& fragmentShader) {
+bool NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const std::string& fragmentShader) {
 	if (fragmentShader.empty()) {
-		return;
+		return false;
 	}
 
 	if (m_customGraphicsPipelines.find(fragmentShader) != m_customGraphicsPipelines.end()) {
-		return;
+		return true;
 	}
 
 	VkFormat pipelineRenderingColorFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
@@ -7251,7 +7252,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const st
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderPrefixCode + fragmentShader, ShaderType::Fragment);
 	if (fragmentShaderSpv.empty()) {
-		return;
+		return false;
 	}
 
 	VkShaderModule fragmentShaderModule;
@@ -7463,6 +7464,8 @@ void NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const st
 	vkDestroyShaderModule(m_device, fragmentShaderModule, nullptr);
 
 	m_customGraphicsPipelines[fragmentShader] = customGraphicsPipeline;
+
+	return true;
 }
 
 uint32_t NtshEngn::GraphicsModule::addToTextures(const InternalTexture& texture) {
