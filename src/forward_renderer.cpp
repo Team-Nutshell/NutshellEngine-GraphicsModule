@@ -16,7 +16,7 @@ void ForwardRenderer::init(VkDevice device, VkQueue graphicsQueue, uint32_t grap
 }
 
 void ForwardRenderer::destroy() {
-	for (const std::pair<std::string, VkPipeline>& customGraphicsPipeline : m_customGraphicsPipelines) {
+	for (const auto& customGraphicsPipeline : m_customGraphicsPipelines) {
 		vkDestroyPipeline(m_device, customGraphicsPipeline.second, nullptr);
 	}
 	if (m_customGraphicsPipelineLayout != VK_NULL_HANDLE) {
