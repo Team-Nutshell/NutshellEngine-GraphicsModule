@@ -1594,7 +1594,7 @@ void NtshEngn::GraphicsModule::destroy() {
 	NTSHENGN_VK_CHECK(vkQueueWaitIdle(m_graphicsComputeQueue));
 
 	// Destroy custom graphics pipelines
-	for (const std::pair<std::string, VkPipeline>& customGraphicsPipeline : m_customGraphicsPipelines) {
+	for (const auto& customGraphicsPipeline : m_customGraphicsPipelines) {
 		vkDestroyPipeline(m_device, customGraphicsPipeline.second, nullptr);
 	}
 	if (m_customGraphicsPipelineLayout != VK_NULL_HANDLE) {
