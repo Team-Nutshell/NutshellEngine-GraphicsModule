@@ -2361,35 +2361,35 @@ void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& tex
 	const Math::vec2 middle = (min + max) / 2.0f;
 	Math::vec2 positionOffset;
 	if (anchorPoint == AnchorPoint::TopLeft) {
-		positionOffset.x = 0.0f;
-		positionOffset.y = -middle.y * 2.0f;
+		positionOffset.x = -min.x;
+		positionOffset.y = -min.y;
 	}
 	else if (anchorPoint == AnchorPoint::TopRight) {
-		positionOffset.x = -middle.x * 2.0f;
-		positionOffset.y = -middle.y * 2.0f;
+		positionOffset.x = -max.x;
+		positionOffset.y = -min.y;
 	}
 	else if (anchorPoint == AnchorPoint::BottomLeft) {
-		positionOffset.x = 0.0f;
-		positionOffset.y = 0.0f;
+		positionOffset.x = -min.x;
+		positionOffset.y = -max.y;
 	}
 	else if (anchorPoint == AnchorPoint::BottomRight) {
-		positionOffset.x = -middle.x * 2.0f;
-		positionOffset.y = 0.0f;
+		positionOffset.x = -max.x;
+		positionOffset.y = -max.y;
 	}
 	else if (anchorPoint == AnchorPoint::TopCenter) {
 		positionOffset.x = -middle.x;
-		positionOffset.y = -middle.y * 2.0f;
+		positionOffset.y = -min.y;
 	}
 	else if (anchorPoint == AnchorPoint::BottomCenter) {
 		positionOffset.x = -middle.x;
-		positionOffset.y = 0.0f;
+		positionOffset.y = -max.y;
 	}
 	else if (anchorPoint == AnchorPoint::LeftCenter) {
-		positionOffset.x = 0.0f;
+		positionOffset.x = -min.x;
 		positionOffset.y = -middle.y;
 	}
 	else if (anchorPoint == AnchorPoint::RightCenter) {
-		positionOffset.x = -middle.x * 2.0f;
+		positionOffset.x = -max.x;
 		positionOffset.y = -middle.y;
 	}
 	else {
