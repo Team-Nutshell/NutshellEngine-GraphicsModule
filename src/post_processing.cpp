@@ -372,12 +372,12 @@ void PostProcessing::createGraphicsPipeline() {
 		void main() {
 			outColor = texture(colorSampler, uv);
 
-			outColor *= texture(ssaoSampler, uv).r;
+			outColor.rgb *= texture(ssaoSampler, uv).r;
 
-			vec4 bloom = textureLod(bloomSampler, uv, 1.5) +
-				textureLod(bloomSampler, uv, 3.5) +
-				textureLod(bloomSampler, uv, 4.5);
-			outColor += (bloom / 3.0);
+			vec3 bloom = textureLod(bloomSampler, uv, 1.5).rgb +
+				textureLod(bloomSampler, uv, 3.5).rgb +
+				textureLod(bloomSampler, uv, 4.5).rgb;
+			outColor.rgb += (bloom / 3.0);
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
