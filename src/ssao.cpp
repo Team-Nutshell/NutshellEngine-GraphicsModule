@@ -932,17 +932,42 @@ void SSAO::createPositionAndNormalFromDepthGraphicsPipeline() {
 		layout(location = 0) out vec4 outPosition;
 		layout(location = 1) out vec4 outNormal;
 
-		vec3 depthToPosition(float depth) {
-			vec4 clipSpace = vec4(uv * 2.0 - 1.0, depth, 1.0);
+		vec3 depthToPosition(float depth, vec2 screenPosition) {
+			vec4 clipSpace = vec4(screenPosition * 2.0 - 1.0, depth, 1.0);
 			vec4 viewSpace = inverse(camera.projection) * clipSpace;
 
 			return (viewSpace.xyz / viewSpace.w);
 		}
 
+		vec3 depthToNormal(float depth, vec3 centerPosition) {
+			vec2 size = textureSize(depthSampler, 0);
+			float horizontalPixelSize = 1.0 / size.x;
+			float verticalPixelSize = 1.0 / size.y;
+
+			float l1 = texture(depthSampler, uv - vec2(horizontalPixelSize, 0.0)).r;
+			float l2 = texture(depthSampler, uv - vec2(2.0 * horizontalPixelSize, 0.0)).r;
+			float r1 = texture(depthSampler, uv + vec2(horizontalPixelSize, 0.0)).r;
+			float r2 = texture(depthSampler, uv + vec2(2.0 * horizontalPixelSize, 0.0)).r;
+			float t1 = texture(depthSampler, uv - vec2(0.0, verticalPixelSize)).r;
+			float t2 = texture(depthSampler, uv - vec2(0.0, 2.0 * verticalPixelSize)).r;
+			float b1 = texture(depthSampler, uv + vec2(0.0, verticalPixelSize)).r;
+			float b2 = texture(depthSampler, uv + vec2(0.0, 2.0 * verticalPixelSize)).r;
+
+			float dl = abs(l1 * l2 / (2.0 * l2 - l1) - depth);
+			float dr = abs(r1 * r2 / (2.0 * r2 - r1) - depth);
+			float dt = abs(t1 * t2 / (2.0 * t2 - t1) - depth);
+			float db = abs(b1 * b2 / (2.0 * b2 - b1) - depth);
+
+			vec3 dpdx = (dl < dr) ? centerPosition - depthToPosition(l1, uv - vec2(horizontalPixelSize, 0.0)) : -centerPosition + depthToPosition(r1, uv + vec2(horizontalPixelSize, 0.0));
+			vec3 dpdy = (dt < db) ? centerPosition - depthToPosition(t1, uv - vec2(0.0, verticalPixelSize)) : -centerPosition + depthToPosition(b1, uv + vec2(0.0, verticalPixelSize));
+
+			return -normalize(cross(dpdx, dpdy));
+		}
+
 		void main() {
 			float depth = texture(depthSampler, uv).r;
-			outPosition = vec4(depthToPosition(depth), 0.0);
-			outNormal = vec4(-normalize(cross(dFdx(outPosition.xyz), dFdy(outPosition.xyz))), 0.0);
+			outPosition = vec4(depthToPosition(depth, uv), 0.0);
+			outNormal = vec4(depthToNormal(depth, outPosition.xyz), 0.0);
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
