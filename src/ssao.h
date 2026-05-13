@@ -17,7 +17,7 @@ private:
 	void createSSAOImages(uint32_t width, uint32_t height);
 	void destroySSAOImages();
 
-	void createImageSamplers();
+	void createSamplers();
 
 	void createDescriptorSetLayouts();
 
@@ -62,6 +62,7 @@ private:
 	VkDescriptorPool m_ssaoBlurDescriptorPool;
 	VkDescriptorSet m_ssaoBlurDescriptorSet;
 
+	VkSampler m_nearestSampler;
 	VkSampler m_linearSampler;
 	VkSampler m_repeatSampler;
 
@@ -74,6 +75,8 @@ private:
 	VkFence m_initializationFence;
 	VkViewport m_viewport;
 	VkRect2D m_scissor;
+	VkViewport m_downscaledViewport;
+	VkRect2D m_downscaledScissor;
 	uint32_t m_framesInFlight;
 
 	PFN_vkCmdBeginRenderingKHR m_vkCmdBeginRenderingKHR;

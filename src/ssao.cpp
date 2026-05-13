@@ -10,13 +10,19 @@ void SSAO::init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFa
 	m_initializationFence = initializationFence;
 	m_viewport = viewport;
 	m_scissor = scissor;
+	m_downscaledViewport = viewport;
+	m_downscaledViewport.width = std::max(std::ceil(viewport.width / static_cast<float>(SSAO_DOWNSCALE)), 1.0f);
+	m_downscaledViewport.height = std::max(std::ceil(viewport.height / static_cast<float>(SSAO_DOWNSCALE)), 1.0f);
+	m_downscaledScissor = scissor;
+	m_downscaledScissor.extent.width = static_cast<uint32_t>(m_downscaledViewport.width);
+	m_downscaledScissor.extent.height = static_cast<uint32_t>(m_downscaledViewport.height);
 	m_framesInFlight = framesInFlight;
 	m_vkCmdBeginRenderingKHR = vkCmdBeginRenderingKHR;
 	m_vkCmdEndRenderingKHR = vkCmdEndRenderingKHR;
 	m_vkCmdPipelineBarrier2KHR = vkCmdPipelineBarrier2KHR;
 
-	createImagesAndBuffer(m_scissor.extent.width, m_scissor.extent.height);
-	createImageSamplers();
+	createImagesAndBuffer(m_downscaledScissor.extent.width, m_downscaledScissor.extent.height);
+	createSamplers();
 	createDescriptorSetLayouts();
 	createGraphicsPipelines();
 	createDescriptorSets(cameraBuffers);
@@ -41,6 +47,7 @@ void SSAO::destroy() {
 
 	vkDestroySampler(m_device, m_repeatSampler, nullptr);
 	vkDestroySampler(m_device, m_linearSampler, nullptr);
+	vkDestroySampler(m_device, m_nearestSampler, nullptr);
 
 	m_randomSampleBuffer.destroy(m_allocator);
 	m_randomImage.destroy(m_device, m_allocator);
@@ -164,7 +171,7 @@ void SSAO::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight) {
 	positionAndNormalFromDepthRenderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
 	positionAndNormalFromDepthRenderingInfo.pNext = nullptr;
 	positionAndNormalFromDepthRenderingInfo.flags = 0;
-	positionAndNormalFromDepthRenderingInfo.renderArea = m_scissor;
+	positionAndNormalFromDepthRenderingInfo.renderArea = m_downscaledScissor;
 	positionAndNormalFromDepthRenderingInfo.layerCount = 1;
 	positionAndNormalFromDepthRenderingInfo.viewMask = 0;
 	positionAndNormalFromDepthRenderingInfo.colorAttachmentCount = static_cast<uint32_t>(positionAndNormalFromDepthAttachmentInfos.size());
@@ -175,8 +182,8 @@ void SSAO::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight) {
 
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_positionAndNormalFromDepthGraphicsPipelineLayout, 0, 1, &m_positionAndNormalFromDepthDescriptorSets[currentFrameInFlight], 0, nullptr);
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_positionAndNormalFromDepthGraphicsPipeline);
-	vkCmdSetViewport(commandBuffer, 0, 1, &m_viewport);
-	vkCmdSetScissor(commandBuffer, 0, 1, &m_scissor);
+	vkCmdSetViewport(commandBuffer, 0, 1, &m_downscaledViewport);
+	vkCmdSetScissor(commandBuffer, 0, 1, &m_downscaledScissor);
 
 	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
@@ -248,7 +255,7 @@ void SSAO::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight) {
 	ssaoRenderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
 	ssaoRenderingInfo.pNext = nullptr;
 	ssaoRenderingInfo.flags = 0;
-	ssaoRenderingInfo.renderArea = m_scissor;
+	ssaoRenderingInfo.renderArea = m_downscaledScissor;
 	ssaoRenderingInfo.layerCount = 1;
 	ssaoRenderingInfo.viewMask = 0;
 	ssaoRenderingInfo.colorAttachmentCount = 1;
@@ -259,8 +266,8 @@ void SSAO::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight) {
 
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_ssaoGraphicsPipelineLayout, 0, 1, &m_ssaoDescriptorSets[currentFrameInFlight], 0, nullptr);
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_ssaoGraphicsPipeline);
-	vkCmdSetViewport(commandBuffer, 0, 1, &m_viewport);
-	vkCmdSetScissor(commandBuffer, 0, 1, &m_scissor);
+	vkCmdSetViewport(commandBuffer, 0, 1, &m_downscaledViewport);
+	vkCmdSetScissor(commandBuffer, 0, 1, &m_downscaledScissor);
 
 	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
@@ -313,7 +320,7 @@ void SSAO::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight) {
 	ssaoBlurRenderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
 	ssaoBlurRenderingInfo.pNext = nullptr;
 	ssaoBlurRenderingInfo.flags = 0;
-	ssaoBlurRenderingInfo.renderArea = m_scissor;
+	ssaoBlurRenderingInfo.renderArea = m_downscaledScissor;
 	ssaoBlurRenderingInfo.layerCount = 1;
 	ssaoBlurRenderingInfo.viewMask = 0;
 	ssaoBlurRenderingInfo.colorAttachmentCount = 1;
@@ -324,8 +331,8 @@ void SSAO::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight) {
 
 	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_ssaoBlurGraphicsPipelineLayout, 0, 1, &m_ssaoBlurDescriptorSet, 0, nullptr);
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_ssaoBlurGraphicsPipeline);
-	vkCmdSetViewport(commandBuffer, 0, 1, &m_viewport);
-	vkCmdSetScissor(commandBuffer, 0, 1, &m_scissor);
+	vkCmdSetViewport(commandBuffer, 0, 1, &m_downscaledViewport);
+	vkCmdSetScissor(commandBuffer, 0, 1, &m_downscaledScissor);
 
 	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
@@ -367,9 +374,13 @@ void SSAO::onResize(uint32_t width, uint32_t height, VkImageView depthImageView)
 	m_viewport.height = static_cast<float>(height);
 	m_scissor.extent.width = width;
 	m_scissor.extent.height = height;
+	m_downscaledViewport.width = std::max(std::ceil(static_cast<float>(width) / static_cast<float>(SSAO_DOWNSCALE)), 1.0f);
+	m_downscaledViewport.height = std::max(std::ceil(static_cast<float>(height) / static_cast<float>(SSAO_DOWNSCALE)), 1.0f);
+	m_downscaledScissor.extent.width = static_cast<uint32_t>(m_downscaledViewport.width);
+	m_downscaledScissor.extent.height = static_cast<uint32_t>(m_downscaledViewport.height);
 
 	destroySSAOImages();
-	createSSAOImages(width, height);
+	createSSAOImages(m_downscaledScissor.extent.width, m_downscaledScissor.extent.height);
 
 	updateDescriptorSets(depthImageView);
 }
@@ -763,13 +774,13 @@ void SSAO::destroySSAOImages() {
 	m_positionFromDepthImage.destroy(m_device, m_allocator);
 }
 
-void SSAO::createImageSamplers() {
+void SSAO::createSamplers() {
 	VkSamplerCreateInfo samplerCreateInfo = {};
 	samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 	samplerCreateInfo.pNext = nullptr;
 	samplerCreateInfo.flags = 0;
-	samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-	samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+	samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+	samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
 	samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
 	samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -783,6 +794,10 @@ void SSAO::createImageSamplers() {
 	samplerCreateInfo.maxLod = 0.0f;
 	samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
 	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_nearestSampler));
+
+	samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+	samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
 	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_linearSampler));
 
 	samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -1811,7 +1826,7 @@ void SSAO::updatePositionAndNormalFromDepthDescriptorSet(VkImageView depthImageV
 void SSAO::updateSSAODescriptorSet() {
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		VkDescriptorImageInfo positionDescriptorImageInfo;
-		positionDescriptorImageInfo.sampler = m_linearSampler;
+		positionDescriptorImageInfo.sampler = m_nearestSampler;
 		positionDescriptorImageInfo.imageView = m_positionFromDepthImage.view;
 		positionDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
@@ -1828,7 +1843,7 @@ void SSAO::updateSSAODescriptorSet() {
 		positionDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
 		VkDescriptorImageInfo normalDescriptorImageInfo;
-		normalDescriptorImageInfo.sampler = m_linearSampler;
+		normalDescriptorImageInfo.sampler = m_nearestSampler;
 		normalDescriptorImageInfo.imageView = m_normalFromDepthImage.view;
 		normalDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
@@ -1851,7 +1866,7 @@ void SSAO::updateSSAODescriptorSet() {
 
 void SSAO::updateSSAOBlurDescriptorSet() {
 	VkDescriptorImageInfo ssaoDescriptorImageInfo;
-	ssaoDescriptorImageInfo.sampler = m_linearSampler;
+	ssaoDescriptorImageInfo.sampler = m_nearestSampler;
 	ssaoDescriptorImageInfo.imageView = m_ssaoImage.view;
 	ssaoDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
