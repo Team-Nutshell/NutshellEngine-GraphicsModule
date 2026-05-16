@@ -554,9 +554,7 @@ void NtshEngn::GraphicsModule::init() {
 
 	m_bloom.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_allocator, m_compositing.getImage().view, m_initializationCommandPool, m_initializationCommandBuffer, m_initializationFence, m_viewport, m_scissor, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdPipelineBarrier2KHR);
 
-	m_ssao.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_allocator, m_initializationCommandPool, m_initializationCommandBuffer, m_initializationFence, m_gBuffer.getDepth().view, m_viewport, m_scissor, m_framesInFlight, m_cameraBuffers, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdPipelineBarrier2KHR);
-
-	m_postProcessing.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_allocator, m_initializationCommandPool, m_initializationCommandBuffer, m_initializationFence, m_viewport, m_scissor, m_framesInFlight, m_compositing.getImage().view, m_bloom.getImage().view, m_ssao.getImage().view, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdPipelineBarrier2KHR);
+	m_postProcessing.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_allocator, m_initializationCommandPool, m_initializationCommandBuffer, m_initializationFence, m_viewport, m_scissor, m_framesInFlight, m_compositing.getImage().view, m_bloom.getImage().view, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdPipelineBarrier2KHR);
 
 	m_toneMapping.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_allocator, m_initializationCommandPool, m_initializationCommandBuffer, m_initializationFence, m_drawImageFormat, m_viewport, m_scissor, m_postProcessing.getImage().view, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdPipelineBarrier2KHR);
 
@@ -966,9 +964,6 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	// Bloom
 	m_bloom.draw(m_renderingCommandBuffers[m_currentFrameInFlight]);
 
-	// Draw SSAO
-	m_ssao.draw(m_renderingCommandBuffers[m_currentFrameInFlight], m_currentFrameInFlight);
-
 	// Post processing
 	m_postProcessing.draw(m_renderingCommandBuffers[m_currentFrameInFlight], m_currentFrameInFlight);
 
@@ -1228,9 +1223,6 @@ void NtshEngn::GraphicsModule::destroy() {
 
 	// Destroy post processing
 	m_postProcessing.destroy();
-
-	// Destroy SSAO
-	m_ssao.destroy();
 
 	// Destroy bloom
 	m_bloom.destroy();
@@ -4026,11 +4018,8 @@ void NtshEngn::GraphicsModule::resize() {
 		// Resize bloom
 		m_bloom.onResize(width, height, m_compositing.getImage().view);
 
-		// Resize SSAO
-		m_ssao.onResize(width, height, m_gBuffer.getDepth().view);
-
 		// Resize post processing
-		m_postProcessing.onResize(width, height, m_compositing.getImage().view, m_bloom.getImage().view, m_ssao.getImage().view);
+		m_postProcessing.onResize(width, height, m_compositing.getImage().view, m_bloom.getImage().view);
 
 		// Resize tone mapping
 		m_toneMapping.onResize(width, height, m_drawImageFormat, m_postProcessing.getImage().view);

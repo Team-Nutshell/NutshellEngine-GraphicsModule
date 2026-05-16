@@ -13,7 +13,6 @@
 #include "particles.h"
 #include "post_processing.h"
 #include "shadow_mapping.h"
-#include "ssao.h"
 #include "tone_mapping.h"
 #include <vector>
 #include <limits>
@@ -242,7 +241,6 @@ namespace NtshEngn {
 		GBuffer m_gBuffer;
 		Particles m_particles;
 		PostProcessing m_postProcessing;
-		SSAO m_ssao;
 		ShadowMapping m_shadowMapping;
 		ToneMapping m_toneMapping;
 

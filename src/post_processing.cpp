@@ -1,6 +1,6 @@
 #include "post_processing.h"
 
-void PostProcessing::init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VmaAllocator allocator, VkCommandPool initializationCommandPool, VkCommandBuffer initializationCommandBuffer, VkFence initializationFence, VkViewport viewport, VkRect2D scissor, uint32_t framesInFlight, VkImageView colorImageView, VkImageView bloomImageView, VkImageView ssaoImageView, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
+void PostProcessing::init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VmaAllocator allocator, VkCommandPool initializationCommandPool, VkCommandBuffer initializationCommandBuffer, VkFence initializationFence, VkViewport viewport, VkRect2D scissor, uint32_t framesInFlight, VkImageView colorImageView, VkImageView bloomImageView, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR) {
 	m_device = device;
 	m_graphicsQueue = graphicsQueue;
 	m_graphicsQueueFamilyIndex = graphicsQueueFamilyIndex;
@@ -20,7 +20,7 @@ void PostProcessing::init(VkDevice device, VkQueue graphicsQueue, uint32_t graph
 	createGraphicsPipeline();
 	createSamplers();
 	createDescriptorSets();
-	updateDescriptorSets(colorImageView, bloomImageView, ssaoImageView);
+	updateDescriptorSets(colorImageView, bloomImageView);
 
 	m_descriptorSetsShadowNeedUpdate.resize(m_framesInFlight);
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
@@ -143,7 +143,7 @@ void PostProcessing::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameIn
 	m_vkCmdPipelineBarrier2KHR(commandBuffer, &dependencyInfo);
 }
 
-void PostProcessing::onResize(uint32_t width, uint32_t height, VkImageView colorImageView, VkImageView bloomImageView, VkImageView ssaoImageView) {
+void PostProcessing::onResize(uint32_t width, uint32_t height, VkImageView colorImageView, VkImageView bloomImageView) {
 	m_viewport.width = static_cast<float>(width);
 	m_viewport.height = static_cast<float>(height);
 	m_scissor.extent.width = width;
@@ -152,7 +152,7 @@ void PostProcessing::onResize(uint32_t width, uint32_t height, VkImageView color
 	m_image.destroy(m_device, m_allocator);
 	createImage(width, height);
 
-	updateDescriptorSets(colorImageView, bloomImageView, ssaoImageView);
+	updateDescriptorSets(colorImageView, bloomImageView);
 }
 
 VulkanImage& PostProcessing::getImage() {
@@ -301,14 +301,7 @@ void PostProcessing::createDescriptorSetLayout() {
 	bloomDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 	bloomDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
-	VkDescriptorSetLayoutBinding ssaoDescriptorSetLayoutBinding = {};
-	ssaoDescriptorSetLayoutBinding.binding = 2;
-	ssaoDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	ssaoDescriptorSetLayoutBinding.descriptorCount = 1;
-	ssaoDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-	ssaoDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
-
-	std::array<VkDescriptorSetLayoutBinding, 3> descriptorSetLayoutBindings = { colorDescriptorSetLayoutBinding, bloomDescriptorSetLayoutBinding, ssaoDescriptorSetLayoutBinding };
+	std::array<VkDescriptorSetLayoutBinding, 2> descriptorSetLayoutBindings = { colorDescriptorSetLayoutBinding, bloomDescriptorSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
 	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	descriptorSetLayoutCreateInfo.pNext = nullptr;
@@ -363,7 +356,6 @@ void PostProcessing::createGraphicsPipeline() {
 
 		layout(set = 0, binding = 0) uniform sampler2D colorSampler;
 		layout(set = 0, binding = 1) uniform sampler2D bloomSampler;
-		layout(set = 0, binding = 2) uniform sampler2D ssaoSampler;
 
 		layout(location = 0) in vec2 uv;
 
@@ -371,8 +363,6 @@ void PostProcessing::createGraphicsPipeline() {
 
 		void main() {
 			outColor = texture(colorSampler, uv);
-
-			outColor.rgb *= texture(ssaoSampler, uv).r;
 
 			vec3 bloom = textureLod(bloomSampler, uv, 1.5).rgb +
 				textureLod(bloomSampler, uv, 3.5).rgb +
@@ -569,11 +559,7 @@ void PostProcessing::createDescriptorSets() {
 	bloomImageDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	bloomImageDescriptorPoolSize.descriptorCount = m_framesInFlight;
 
-	VkDescriptorPoolSize ssaoImageDescriptorPoolSize = {};
-	ssaoImageDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	ssaoImageDescriptorPoolSize.descriptorCount = m_framesInFlight;
-
-	std::array<VkDescriptorPoolSize, 3> descriptorPoolSizes = { colorImageDescriptorPoolSize, bloomImageDescriptorPoolSize, ssaoImageDescriptorPoolSize };
+	std::array<VkDescriptorPoolSize, 2> descriptorPoolSizes = { colorImageDescriptorPoolSize, bloomImageDescriptorPoolSize };
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.pNext = nullptr;
@@ -596,7 +582,7 @@ void PostProcessing::createDescriptorSets() {
 	}
 }
 
-void PostProcessing::updateDescriptorSets(VkImageView colorImageView, VkImageView bloomImageView, VkImageView ssaoImageView) {
+void PostProcessing::updateDescriptorSets(VkImageView colorImageView, VkImageView bloomImageView) {
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		VkDescriptorImageInfo colorImageDescriptorImageInfo;
 		colorImageDescriptorImageInfo.sampler = m_nearestSampler;
@@ -632,24 +618,7 @@ void PostProcessing::updateDescriptorSets(VkImageView colorImageView, VkImageVie
 		bloomImageDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
 		bloomImageDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
-		VkDescriptorImageInfo ssaoImageDescriptorImageInfo;
-		ssaoImageDescriptorImageInfo.sampler = m_nearestSampler;
-		ssaoImageDescriptorImageInfo.imageView = ssaoImageView;
-		ssaoImageDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-		VkWriteDescriptorSet ssaoImageDescriptorWriteDescriptorSet = {};
-		ssaoImageDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		ssaoImageDescriptorWriteDescriptorSet.pNext = nullptr;
-		ssaoImageDescriptorWriteDescriptorSet.dstSet = m_descriptorSets[i];
-		ssaoImageDescriptorWriteDescriptorSet.dstBinding = 2;
-		ssaoImageDescriptorWriteDescriptorSet.dstArrayElement = 0;
-		ssaoImageDescriptorWriteDescriptorSet.descriptorCount = 1;
-		ssaoImageDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		ssaoImageDescriptorWriteDescriptorSet.pImageInfo = &ssaoImageDescriptorImageInfo;
-		ssaoImageDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
-		ssaoImageDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
-
-		std::array<VkWriteDescriptorSet, 3> writeDescriptorSets = { colorImageDescriptorWriteDescriptorSet, bloomImageDescriptorWriteDescriptorSet, ssaoImageDescriptorWriteDescriptorSet };
+		std::array<VkWriteDescriptorSet, 2> writeDescriptorSets = { colorImageDescriptorWriteDescriptorSet, bloomImageDescriptorWriteDescriptorSet };
 		vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 	}
 }
