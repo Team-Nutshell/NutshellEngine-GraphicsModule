@@ -13,8 +13,8 @@ void Bloom::init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueF
 	m_viewport = viewport;
 	m_scissor = scissor;
 	m_downscaledViewport = viewport;
-	m_downscaledViewport.width = std::max(viewport.width / static_cast<float>(BLOOM_DOWNSCALE), 1.0f);
-	m_downscaledViewport.height = std::max(viewport.height / static_cast<float>(BLOOM_DOWNSCALE), 1.0f);
+	m_downscaledViewport.width = std::max(std::ceil(viewport.width / static_cast<float>(BLOOM_DOWNSCALE)), 1.0f);
+	m_downscaledViewport.height = std::max(std::ceil(viewport.height / static_cast<float>(BLOOM_DOWNSCALE)), 1.0f);
 	m_downscaledScissor = scissor;
 	m_downscaledScissor.extent.width = static_cast<uint32_t>(m_downscaledViewport.width);
 	m_downscaledScissor.extent.height = static_cast<uint32_t>(m_downscaledViewport.height);
@@ -371,8 +371,8 @@ void Bloom::onResize(uint32_t width, uint32_t height, VkImageView drawImageView)
 	m_viewport.height = static_cast<float>(height);
 	m_scissor.extent.width = width;
 	m_scissor.extent.height = height;
-	m_downscaledViewport.width = std::max(static_cast<float>(width) / static_cast<float>(BLOOM_DOWNSCALE), 1.0f);
-	m_downscaledViewport.height = std::max(static_cast<float>(height) / static_cast<float>(BLOOM_DOWNSCALE), 1.0f);
+	m_downscaledViewport.width = std::max(std::ceil(static_cast<float>(width) / static_cast<float>(BLOOM_DOWNSCALE)), 1.0f);
+	m_downscaledViewport.height = std::max(std::ceil(static_cast<float>(height) / static_cast<float>(BLOOM_DOWNSCALE)), 1.0f);
 	m_downscaledScissor.extent.width = static_cast<uint32_t>(m_downscaledViewport.width);
 	m_downscaledScissor.extent.height = static_cast<uint32_t>(m_downscaledViewport.height);
 
