@@ -29,7 +29,7 @@ private:
 	void createGraphicsResources(VkFormat drawImageFormat, const std::vector<HostVisibleVulkanBuffer>& cameraBuffers);
 
 private:
-	NtshEngn::ImageID m_defaultParticleTexture;
+	uint32_t m_defaultParticleTexture;
 
 	std::array<VulkanBuffer, 2> m_particleBuffers;
 	std::vector<HostVisibleVulkanBuffer> m_stagingBuffers;

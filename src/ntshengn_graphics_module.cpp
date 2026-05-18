@@ -4003,7 +4003,7 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		}
 	}
 	else {
-		material.diffuseTextureIndex = 0;
+		material.diffuseTextureIndex = m_defaultMaterial.diffuseTextureIndex;
 	}
 	if (renderable.material.normalTexture.image != NTSHENGN_IMAGE_UNKNOWN) {
 		bool textureChanged = false;
@@ -4025,7 +4025,7 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		}
 	}
 	else {
-		material.normalTextureIndex = 1;
+		material.normalTextureIndex = m_defaultMaterial.normalTextureIndex;
 	}
 	if (renderable.material.metalnessTexture.image != NTSHENGN_IMAGE_UNKNOWN) {
 		bool textureChanged = false;
@@ -4047,7 +4047,7 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		}
 	}
 	else {
-		material.metalnessTextureIndex = 2;
+		material.metalnessTextureIndex = m_defaultMaterial.metalnessTextureIndex;
 	}
 	if (renderable.material.roughnessTexture.image != NTSHENGN_IMAGE_UNKNOWN) {
 		bool textureChanged = false;
@@ -4069,7 +4069,7 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		}
 	}
 	else {
-		material.roughnessTextureIndex = 3;
+		material.roughnessTextureIndex = m_defaultMaterial.roughnessTextureIndex;
 	}
 	if (renderable.material.occlusionTexture.image != NTSHENGN_IMAGE_UNKNOWN) {
 		bool textureChanged = false;
@@ -4091,7 +4091,7 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		}
 	}
 	else {
-		material.occlusionTextureIndex = 4;
+		material.occlusionTextureIndex = m_defaultMaterial.occlusionTextureIndex;
 	}
 	if (renderable.material.emissiveTexture.image != NTSHENGN_IMAGE_UNKNOWN) {
 		bool textureChanged = false;
@@ -4113,7 +4113,7 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 		}
 	}
 	else {
-		material.emissiveTextureIndex = 5;
+		material.emissiveTextureIndex = m_defaultMaterial.emissiveTextureIndex;
 	}
 	if (renderable.material.emissiveFactor != material.emissiveFactor) {
 		material.emissiveFactor = renderable.material.emissiveFactor;
