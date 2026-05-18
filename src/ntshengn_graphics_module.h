@@ -112,16 +112,16 @@ struct InternalMesh {
 
 struct InternalTexture {
 	NtshEngn::ImageID imageID = 0;
-	std::string samplerKey = 0;
+	std::string samplerKey = "GM_defaultSampler";
 };
 
 struct InternalMaterial {
-	uint32_t diffuseTextureIndex = 0;
-	uint32_t normalTextureIndex = 1;
-	uint32_t metalnessTextureIndex = 2;
-	uint32_t roughnessTextureIndex = 3;
-	uint32_t occlusionTextureIndex = 4;
-	uint32_t emissiveTextureIndex = 5;
+	uint32_t diffuseTextureIndex;
+	uint32_t normalTextureIndex;
+	uint32_t metalnessTextureIndex;
+	uint32_t roughnessTextureIndex;
+	uint32_t occlusionTextureIndex;
+	uint32_t emissiveTextureIndex;
 	float emissiveFactor = 1.0f;
 	float alphaCutoff = 0.0f;
 	NtshEngn::Math::vec2 scaleUV = NtshEngn::Math::vec2(1.0f, 1.0f);
@@ -133,11 +133,7 @@ struct InternalMaterial {
 struct InternalFont {
 	uint32_t type;
 
-	VkImage image;
-	VmaAllocation imageAllocation;
-	VkImageView imageView;
-
-	NtshEngn::ImageSamplerFilter filter;
+	uint32_t fontTextureIndex;
 
 	float height;
 
@@ -174,7 +170,7 @@ enum class UIElement {
 
 struct InternalUIText {
 	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
-	NtshEngn::FontID fontID;
+	uint32_t fontTextureIndex;
 	uint32_t fontType = 0;
 
 	uint32_t charactersCount = 0;
@@ -193,7 +189,7 @@ struct InternalUIRectangle {
 
 struct InternalUIImage {
 	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
-	uint32_t uiTextureIndex;
+	uint32_t textureIndex;
 
 	NtshEngn::Math::vec2 v0 = { 0.0f, 0.0f };
 	NtshEngn::Math::vec2 v1 = { 0.0f, 0.0f };
@@ -300,7 +296,7 @@ namespace NtshEngn {
 
 		// Descriptor sets creation
 		void createDescriptorSets();
-		void updateDescriptorSet(uint32_t frameInFlight);
+		void updateDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& texturesDescriptorImageInfos);
 
 		// Tone mapping resources
 		void createToneMappingResources();
@@ -308,11 +304,11 @@ namespace NtshEngn {
 		// UI resources
 		void createUIResources();
 		void createUITextResources();
-		void updateUITextDescriptorSet(uint32_t frameInFlight);
+		void updateUITextDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& texturesDescriptorImageInfos);
 		void createUILineResources();
 		void createUIRectangleResources();
 		void createUIImageResources();
-		void updateUIImageDescriptorSet(uint32_t frameInFlight);
+		void updateUIImageDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& texturesDescriptorImageInfos);
 
 		// Default resources
 		void createDefaultResources();
@@ -411,8 +407,8 @@ namespace NtshEngn {
 		VkPipeline m_toneMappingGraphicsPipeline;
 		VkPipelineLayout m_toneMappingGraphicsPipelineLayout;
 
-		VkSampler m_uiNearestSampler;
-		VkSampler m_uiLinearSampler;
+		std::string m_uiNearestSamplerKey;
+		std::string m_uiLinearSamplerKey;
 
 		std::vector<HostVisibleBuffer> m_uiTextBuffers;
 		VkDescriptorSetLayout m_uiTextDescriptorSetLayout;
@@ -474,14 +470,6 @@ namespace NtshEngn {
 
 		std::vector<HostVisibleBuffer> m_lightBuffers;
 
-		Mesh m_defaultMesh;
-		Image m_defaultDiffuseTexture;
-		Image m_defaultNormalTexture;
-		Image m_defaultMetalnessTexture;
-		Image m_defaultRoughnessTexture;
-		Image m_defaultOcclusionTexture;
-		Image m_defaultEmissiveTexture;
-
 		std::vector<InternalMesh> m_meshes;
 		int32_t m_currentVertexOffset = 0;
 		uint32_t m_currentIndexOffset = 0;
@@ -499,6 +487,7 @@ namespace NtshEngn {
 		std::vector<InternalTexture> m_textures;
 
 		std::vector<InternalMaterial> m_materials;
+		InternalMaterial m_defaultMaterial;
 		IDPool m_materialsIDPool;
 
 		std::unordered_map<Entity, InternalObject> m_objects;
@@ -513,8 +502,6 @@ namespace NtshEngn {
 
 		std::vector<InternalFont> m_fonts;
 		std::unordered_map<const Font*, FontID> m_fontAddresses;
-
-		std::vector<std::pair<ImageID, ImageSamplerFilter>> m_uiTextures;
 
 		std::queue<UIElement> m_uiElements;
 
