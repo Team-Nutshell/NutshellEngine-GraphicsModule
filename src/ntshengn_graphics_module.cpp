@@ -6379,17 +6379,17 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 
 		layout(push_constant) uniform UITextureInfo {
 			layout(offset = 48) vec4 color;
-			uint uiTextureIndex;
+			uint textureIndex;
 		} uTI;
 
-		layout(set = 0, binding = 0) uniform sampler2D uiTextures[];
+		layout(set = 0, binding = 0) uniform sampler2D textures[];
 
 		layout(location = 0) in vec2 uv;
 
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			outColor = texture(uiTextures[nonuniformEXT(uTI.uiTextureIndex)], uv) * uTI.color;
+			outColor = texture(textures[nonuniformEXT(uTI.textureIndex)], uv) * uTI.color;
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
