@@ -489,16 +489,9 @@ void ShadowMapping::descriptorSetNeedsUpdate(uint32_t frameInFlight) {
 	m_descriptorSetsNeedUpdate[frameInFlight] = true;
 }
 
-void ShadowMapping::updateDescriptorSets(uint32_t frameInFlight, const std::vector<InternalTexture>& textures, const std::vector<VkImageView>& textureImageViews, const std::unordered_map<std::string, VkSampler>& textureSamplers) {
+void ShadowMapping::updateDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& texturesDescriptorImageInfos) {
 	if (!m_descriptorSetsNeedUpdate[frameInFlight]) {
 		return;
-	}
-
-	std::vector<VkDescriptorImageInfo> texturesDescriptorImageInfos(textures.size());
-	for (size_t i = 0; i < textures.size(); i++) {
-		texturesDescriptorImageInfos[i].sampler = textureSamplers.at(textures[i].samplerKey);
-		texturesDescriptorImageInfos[i].imageView = textureImageViews[textures[i].imageID];
-		texturesDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
 
 	VkWriteDescriptorSet texturesDescriptorWriteDescriptorSet = {};

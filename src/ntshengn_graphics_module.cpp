@@ -786,14 +786,29 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	}
 
 	// Update descriptor sets if needed
-	m_gBuffer.updateDescriptorSets(m_currentFrameInFlight, m_textures, m_textureImageViews, m_textureSamplers);
-	m_shadowMapping.updateDescriptorSets(m_currentFrameInFlight, m_textures, m_textureImageViews, m_textureSamplers);
-	m_compositing.updateShadowDescriptorSets(m_currentFrameInFlight, m_shadowMapping.getShadowMapImages(), m_shadowMapping.getShadowMapSampler());
-	m_forwardRenderer.updateDescriptorSets(m_currentFrameInFlight, m_textures, m_textureImageViews, m_textureSamplers);
-	m_forwardRenderer.updateShadowDescriptorSets(m_currentFrameInFlight, m_shadowMapping.getShadowMapImages(), m_shadowMapping.getShadowMapSampler());
-	m_particles.updateGraphicsDescriptorSets(m_currentFrameInFlight, m_textureImageViews);
-	updateUITextDescriptorSet(m_currentFrameInFlight);
-	updateUIImageDescriptorSet(m_currentFrameInFlight);
+	std::vector<VkDescriptorImageInfo> texturesDescriptorImageInfos(m_textures.size());
+	for (size_t i = 0; i < m_textures.size(); i++) {
+		texturesDescriptorImageInfos[i].sampler = m_textureSamplers.at(m_textures[i].samplerKey);
+		texturesDescriptorImageInfos[i].imageView = m_textureImageViews[m_textures[i].imageID];
+		texturesDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	}
+	
+	const std::vector<VulkanImage> shadowMaps = m_shadowMapping.getShadowMapImages();
+	std::vector<VkDescriptorImageInfo> shadowMapImageDescriptorImageInfos(shadowMaps.size());
+	for (uint32_t i = 0; i < shadowMaps.size(); i++) {
+		shadowMapImageDescriptorImageInfos[i].sampler = m_shadowMapping.getShadowMapSampler();
+		shadowMapImageDescriptorImageInfos[i].imageView = shadowMaps[i].view;
+		shadowMapImageDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	}
+
+	m_gBuffer.updateDescriptorSet(m_currentFrameInFlight, texturesDescriptorImageInfos);
+	m_shadowMapping.updateDescriptorSet(m_currentFrameInFlight, texturesDescriptorImageInfos);
+	m_compositing.updateShadowDescriptorSet(m_currentFrameInFlight, shadowMapImageDescriptorImageInfos);
+	m_forwardRenderer.updateDescriptorSet(m_currentFrameInFlight, texturesDescriptorImageInfos);
+	m_forwardRenderer.updateShadowDescriptorSet(m_currentFrameInFlight, shadowMapImageDescriptorImageInfos);
+	m_particles.updateGraphicsDescriptorSet(m_currentFrameInFlight, texturesDescriptorImageInfos);
+	updateUITextDescriptorSet(m_currentFrameInFlight, texturesDescriptorImageInfos);
+	updateUIImageDescriptorSet(m_currentFrameInFlight, texturesDescriptorImageInfos);
 
 	std::vector<FrustumCullingInfo> frustumCullingInfos;
 
@@ -1177,10 +1192,6 @@ void NtshEngn::GraphicsModule::destroy() {
 	vkDestroyPipeline(m_device, m_uiLineGraphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(m_device, m_uiLineGraphicsPipelineLayout, nullptr);
 
-	for (size_t i = 0; i < m_fonts.size(); i++) {
-		vkDestroyImageView(m_device, m_fonts[i].imageView, nullptr);
-		vmaDestroyImage(m_allocator, m_fonts[i].image, m_fonts[i].imageAllocation);
-	}
 	vkDestroyDescriptorPool(m_device, m_uiTextDescriptorPool, nullptr);
 	vkDestroyPipeline(m_device, m_uiTextGraphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(m_device, m_uiTextGraphicsPipelineLayout, nullptr);
@@ -1188,9 +1199,6 @@ void NtshEngn::GraphicsModule::destroy() {
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		m_uiTextBuffers[i].destroy(m_allocator);
 	}
-
-	vkDestroySampler(m_device, m_uiLinearSampler, nullptr);
-	vkDestroySampler(m_device, m_uiNearestSampler, nullptr);
 
 	// Destroy tone mapping resources
 	m_toneMapping.destroy();
@@ -1775,13 +1783,6 @@ NtshEngn::ImageID NtshEngn::GraphicsModule::load(const Image& image) {
 	m_textureImageViews.push_back(textureImageView);
 	m_textureSizes.push_back({ static_cast<float>(image.width), static_cast<float>(image.height) });
 
-	// Mark descriptor sets for update
-	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		m_gBuffer.descriptorSetNeedsUpdate(i);
-		m_shadowMapping.descriptorSetNeedsUpdate(i);
-		m_forwardRenderer.descriptorSetNeedsUpdate(i);
-	}
-
 	return static_cast<ImageID>(m_textureImages.size() - 1);
 }
 
@@ -1968,16 +1969,21 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 
 	vmaDestroyBuffer(m_allocator, textureStagingBuffer, textureStagingBufferAllocation);
 
+	m_textureImages.push_back(textureImage);
+	m_textureImageAllocations.push_back(textureImageAllocation);
+	m_textureImageViews.push_back(textureImageView);
+	m_textureSizes.push_back({ static_cast<float>(font.image->width), static_cast<float>(font.image->height) });
+
+	ImageID imageID = static_cast<ImageID>(m_textureImages.size() - 1);
+
 	uint32_t fontType = 0; // Bitmap
 	if (font.type == NtshEngn::FontType::SDF) { // SDF
 		fontType = 1;
 	}
-	m_fonts.push_back({ fontType, textureImage, textureImageAllocation, textureImageView, font.imageSamplerFilter, font.height, font.glyphs });
 
-	// Mark descriptor sets for update
-	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		m_uiTextDescriptorSetsNeedUpdate[i] = true;
-	}
+	uint32_t fontTexture = addToTextures({ imageID, (font.imageSamplerFilter == ImageSamplerFilter::Nearest) ? m_uiNearestSamplerKey : m_uiLinearSamplerKey });
+
+	m_fonts.push_back({ fontType, fontTexture, font.height, font.glyphs });
 
 	return static_cast<FontID>(m_fonts.size() - 1);
 }
@@ -2041,30 +2047,10 @@ void NtshEngn::GraphicsModule::emitParticles(const ParticleEmitter& particleEmit
 		return;
 	}
 	
-	uint32_t textureIndex = 0;
-	if (particleEmitter.image) {
-		NtshEngn::ImageID particleImageID = load(*particleEmitter.image);
-		bool foundParticleImage = false;
-		std::vector<ImageID>& particleImages = m_particles.getParticleImages();
-		for (size_t i = 0; i < particleImages.size(); i++) {
-			if (particleImages[i] == particleImageID) {
-				textureIndex = static_cast<uint32_t>(i);
-
-				foundParticleImage = true;
-				break;
-			}
-		}
-		if (!foundParticleImage) {
-			particleImages.push_back(particleImageID);
-
-			textureIndex = static_cast<uint32_t>(particleImages.size() - 1);
-
-			for (uint32_t i = 0; i < m_framesInFlight; i++) {
-				for (uint32_t j = 0; j < 2; j++) {
-					m_particles.graphicsDescriptorSetNeedsUpdate(i, j);
-				}
-			}
-		}
+	uint32_t textureIndex = m_particles.getDefaultParticleTexture();
+	if (particleEmitter.texture.image != NTSHENGN_IMAGE_UNKNOWN) {
+		std::string samplerKey = createSampler(particleEmitter.texture.imageSampler);
+		textureIndex = addToTextures({ particleEmitter.texture.image, samplerKey });
 	}
 
 	m_particles.emitParticles(particleEmitter, m_currentFrameInFlight, textureIndex);
@@ -2183,7 +2169,7 @@ void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& tex
 
 	InternalUIText uiText;
 	uiText.color = color;
-	uiText.fontID = fontID;
+	uiText.fontTextureIndex = font.fontTextureIndex;
 	uiText.fontType = font.type;
 	uiText.charactersCount = static_cast<uint32_t>(vertices.size() / 4);
 	uiText.bufferOffset = m_uiTextBufferOffset;
@@ -2289,25 +2275,7 @@ void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter i
 	const Math::mat3 transform = Math::translate(finalPosition) * Math::rotate(rotation) * Math::scale(Math::vec2(std::abs(scale.x), std::abs(scale.y))) * Math::translate(offset);
 
 	InternalUIImage uiImage;
-	bool foundUITexture = false;
-	for (size_t i = 0; i < m_uiTextures.size(); i++) {
-		if ((m_uiTextures[i].first == imageID) &&
-			(m_uiTextures[i].second == imageSamplerFilter)) {
-			uiImage.uiTextureIndex = static_cast<uint32_t>(i);
-
-			foundUITexture = true;
-			break;
-		}
-	}
-	if (!foundUITexture) {
-		m_uiTextures.push_back({ imageID, imageSamplerFilter });
-
-		uiImage.uiTextureIndex = static_cast<uint32_t>(m_uiTextures.size() - 1);
-
-		for (uint32_t i = 0; i < m_framesInFlight; i++) {
-			m_uiImageDescriptorSetsNeedUpdate[i] = true;
-		}
-	}
+	uiImage.textureIndex = addToTextures({ imageID, (imageSamplerFilter == ImageSamplerFilter::Nearest) ? m_uiNearestSamplerKey : m_uiLinearSamplerKey });
 
 	const float x = (m_textureSizes[imageID].x) / 2.0f;
 	const float y = (m_textureSizes[imageID].y) / 2.0f;
@@ -2348,7 +2316,7 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 		m_objects[entity] = object;
 
 		m_lastKnownMaterial[entity] = Material();
-		m_materials[object.materialIndex] = InternalMaterial();
+		m_materials[object.materialIndex] = m_defaultMaterial;
 		loadRenderableForEntity(entity);
 	}
 	else if (componentID == ecs->getComponentID<Camera>()) {
@@ -2640,31 +2608,21 @@ void NtshEngn::GraphicsModule::createVertexAndIndexBuffers() {
 
 void NtshEngn::GraphicsModule::createUIResources() {
 	// Create samplers
-	VkSamplerCreateInfo samplerCreateInfo = {};
-	samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerCreateInfo.pNext = nullptr;
-	samplerCreateInfo.flags = 0;
-	samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
-	samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
-	samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-	samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerCreateInfo.mipLodBias = 0.0f;
-	samplerCreateInfo.anisotropyEnable = VK_FALSE;
-	samplerCreateInfo.maxAnisotropy = 0.0f;
-	samplerCreateInfo.compareEnable = VK_FALSE;
-	samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
-	samplerCreateInfo.minLod = 0.0f;
-	samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
-	samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_uiNearestSampler));
+	ImageSampler uiSampler;
+	uiSampler.magFilter = ImageSamplerFilter::Nearest;
+	uiSampler.minFilter = ImageSamplerFilter::Nearest;
+	uiSampler.mipmapFilter = ImageSamplerFilter::Nearest;
+	uiSampler.addressModeU = ImageSamplerAddressMode::ClampToEdge;
+	uiSampler.addressModeV = ImageSamplerAddressMode::ClampToEdge;
+	uiSampler.addressModeW = ImageSamplerAddressMode::ClampToEdge;
+	uiSampler.borderColor = ImageSamplerBorderColor::IntOpaqueBlack;
+	uiSampler.anisotropyLevel = 0.0f;
+	m_uiNearestSamplerKey = createSampler(uiSampler);
 
-	samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-	samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-	samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_uiLinearSampler));
+	uiSampler.magFilter = ImageSamplerFilter::Linear;
+	uiSampler.minFilter = ImageSamplerFilter::Linear;
+	uiSampler.mipmapFilter = ImageSamplerFilter::Linear;
+	m_uiLinearSamplerKey = createSampler(uiSampler);
 
 	createUITextResources();
 	createUILineResources();
@@ -2804,11 +2762,11 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 		#version 460
 		#extension GL_EXT_nonuniform_qualifier : enable
 
-		layout(set = 0, binding = 1) uniform sampler2D fonts[];
+		layout(set = 0, binding = 1) uniform sampler2D textures[];
 
 		layout(push_constant) uniform TextInfo {
 			layout(offset = 16) vec4 color;
-			uint fontID;
+			uint fontTextureIndex;
 			uint fontType;
 		} tI;
 
@@ -2817,7 +2775,7 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			float alpha = texture(fonts[nonuniformEXT(tI.fontID)], uv).r;
+			float alpha = texture(textures[nonuniformEXT(tI.fontTextureIndex)], uv).r;
 			if (tI.fontType == 1) { // SDF
 				const float smoothing = 1.0 / 64.0;
 				alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, alpha);
@@ -3045,31 +3003,24 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 	}
 }
 
-void NtshEngn::GraphicsModule::updateUITextDescriptorSet(uint32_t frameInFlight) {
+void NtshEngn::GraphicsModule::updateUITextDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& texturesDescriptorImageInfos) {
 	if (!m_uiTextDescriptorSetsNeedUpdate[frameInFlight]) {
 		return;
 	}
 
-	std::vector<VkDescriptorImageInfo> fontsDescriptorImageInfos(m_fonts.size());
-	for (size_t i = 0; i < m_fonts.size(); i++) {
-		fontsDescriptorImageInfos[i].sampler = (m_fonts[i].filter == ImageSamplerFilter::Nearest) ? m_uiNearestSampler : m_uiLinearSampler;
-		fontsDescriptorImageInfos[i].imageView = m_fonts[i].imageView;
-		fontsDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	}
+	VkWriteDescriptorSet texturesDescriptorWriteDescriptorSet = {};
+	texturesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	texturesDescriptorWriteDescriptorSet.pNext = nullptr;
+	texturesDescriptorWriteDescriptorSet.dstSet = m_uiTextDescriptorSets[frameInFlight];
+	texturesDescriptorWriteDescriptorSet.dstBinding = 1;
+	texturesDescriptorWriteDescriptorSet.dstArrayElement = 0;
+	texturesDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(texturesDescriptorImageInfos.size());
+	texturesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	texturesDescriptorWriteDescriptorSet.pImageInfo = texturesDescriptorImageInfos.data();
+	texturesDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
+	texturesDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
-	VkWriteDescriptorSet fontsDescriptorWriteDescriptorSet = {};
-	fontsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	fontsDescriptorWriteDescriptorSet.pNext = nullptr;
-	fontsDescriptorWriteDescriptorSet.dstSet = m_uiTextDescriptorSets[frameInFlight];
-	fontsDescriptorWriteDescriptorSet.dstBinding = 1;
-	fontsDescriptorWriteDescriptorSet.dstArrayElement = 0;
-	fontsDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(fontsDescriptorImageInfos.size());
-	fontsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	fontsDescriptorWriteDescriptorSet.pImageInfo = fontsDescriptorImageInfos.data();
-	fontsDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
-	fontsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
-
-	vkUpdateDescriptorSets(m_device, 1, &fontsDescriptorWriteDescriptorSet, 0, nullptr);
+	vkUpdateDescriptorSets(m_device, 1, &texturesDescriptorWriteDescriptorSet, 0, nullptr);
 
 	m_uiTextDescriptorSetsNeedUpdate[frameInFlight] = false;
 }
@@ -3827,33 +3778,26 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 	}
 }
 
-void NtshEngn::GraphicsModule::updateUIImageDescriptorSet(uint32_t frameInFlight) {
+void NtshEngn::GraphicsModule::updateUIImageDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& texturesDescriptorImageInfos) {
 	if (!m_uiImageDescriptorSetsNeedUpdate[frameInFlight]) {
 		return;
 	}
 
-	std::vector<VkDescriptorImageInfo> uiTexturesDescriptorImageInfos(m_uiTextures.size());
-	for (size_t i = 0; i < m_uiTextures.size(); i++) {
-		uiTexturesDescriptorImageInfos[i].sampler = (m_uiTextures[i].second == ImageSamplerFilter::Nearest) ? m_uiNearestSampler : m_uiLinearSampler;
-		uiTexturesDescriptorImageInfos[i].imageView = m_textureImageViews[m_uiTextures[i].first];
-		uiTexturesDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	}
+	VkWriteDescriptorSet texturesDescriptorWriteDescriptorSet = {};
+	texturesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	texturesDescriptorWriteDescriptorSet.pNext = nullptr;
+	texturesDescriptorWriteDescriptorSet.dstSet = m_uiImageDescriptorSets[frameInFlight];
+	texturesDescriptorWriteDescriptorSet.dstBinding = 0;
+	texturesDescriptorWriteDescriptorSet.dstArrayElement = 0;
+	texturesDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(texturesDescriptorImageInfos.size());
+	texturesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	texturesDescriptorWriteDescriptorSet.pImageInfo = texturesDescriptorImageInfos.data();
+	texturesDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
+	texturesDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
-	VkWriteDescriptorSet uiTexturesDescriptorWriteDescriptorSet = {};
-	uiTexturesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	uiTexturesDescriptorWriteDescriptorSet.pNext = nullptr;
-	uiTexturesDescriptorWriteDescriptorSet.dstSet = m_uiImageDescriptorSets[frameInFlight];
-	uiTexturesDescriptorWriteDescriptorSet.dstBinding = 0;
-	uiTexturesDescriptorWriteDescriptorSet.dstArrayElement = 0;
-	uiTexturesDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(uiTexturesDescriptorImageInfos.size());
-	uiTexturesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	uiTexturesDescriptorWriteDescriptorSet.pImageInfo = uiTexturesDescriptorImageInfos.data();
-	uiTexturesDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
-	uiTexturesDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+	vkUpdateDescriptorSets(m_device, 1, &texturesDescriptorWriteDescriptorSet, 0, nullptr);
 
-	vkUpdateDescriptorSets(m_device, 1, &uiTexturesDescriptorWriteDescriptorSet, 0, nullptr);
-
-	m_uiImageDescriptorSetsNeedUpdate[frameInFlight] = true;
+	m_uiImageDescriptorSetsNeedUpdate[frameInFlight] = false;
 }
 
 void NtshEngn::GraphicsModule::createDefaultResources() {
@@ -3883,83 +3827,90 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	textureSamplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
 	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &textureSamplerCreateInfo, nullptr, &defaultTextureSampler));
 
-	m_textureSamplers["defaultSampler"] = defaultTextureSampler;
+	m_textureSamplers["GM_defaultSampler"] = defaultTextureSampler;
 
 	// Default diffuse texture
-	m_defaultDiffuseTexture.width = 16;
-	m_defaultDiffuseTexture.height = 16;
-	m_defaultDiffuseTexture.format = ImageFormat::R8G8B8A8;
-	m_defaultDiffuseTexture.colorSpace = ImageColorSpace::SRGB;
-	m_defaultDiffuseTexture.data.resize(m_defaultDiffuseTexture.width * m_defaultDiffuseTexture.height * 4 * 1);
+	Image* defaultDiffuseTexture = assetManager->createImage("GM_defaultDiffuseTexture");
+	defaultDiffuseTexture->width = 16;
+	defaultDiffuseTexture->height = 16;
+	defaultDiffuseTexture->format = ImageFormat::R8G8B8A8;
+	defaultDiffuseTexture->colorSpace = ImageColorSpace::SRGB;
+	defaultDiffuseTexture->data.resize(defaultDiffuseTexture->width * defaultDiffuseTexture->height * 4 * 1);
 	for (size_t i = 0; i < 256; i++) {
-		m_defaultDiffuseTexture.data[i * 4 + 0] = static_cast<uint8_t>(255 - i);
-		m_defaultDiffuseTexture.data[i * 4 + 1] = static_cast<uint8_t>(i % 128);
-		m_defaultDiffuseTexture.data[i * 4 + 2] = static_cast<uint8_t>(i);
-		m_defaultDiffuseTexture.data[i * 4 + 3] = static_cast<uint8_t>(255);
+		defaultDiffuseTexture->data[i * 4 + 0] = static_cast<uint8_t>(255 - i);
+		defaultDiffuseTexture->data[i * 4 + 1] = static_cast<uint8_t>(i % 128);
+		defaultDiffuseTexture->data[i * 4 + 2] = static_cast<uint8_t>(i);
+		defaultDiffuseTexture->data[i * 4 + 3] = static_cast<uint8_t>(255);
 	}
 
-	load(m_defaultDiffuseTexture);
-	m_textures.push_back({ 0, "defaultSampler" });
+	ImageID defaultDiffuseImageID = load(*defaultDiffuseTexture);
+	m_defaultMaterial.diffuseTextureIndex = addToTextures({ defaultDiffuseImageID, "GM_defaultSampler" });
 
 	// Default normal texture
-	m_defaultNormalTexture.width = 1;
-	m_defaultNormalTexture.height = 1;
-	m_defaultNormalTexture.format = ImageFormat::R8G8B8A8;
-	m_defaultNormalTexture.colorSpace = ImageColorSpace::Linear;
-	m_defaultNormalTexture.data = { 127, 127, 255, 255 };
+	Image* defaultNormalTexture = assetManager->createImage("GM_defaultNormalTexture");
+	defaultNormalTexture->width = 1;
+	defaultNormalTexture->height = 1;
+	defaultNormalTexture->format = ImageFormat::R8G8B8A8;
+	defaultNormalTexture->colorSpace = ImageColorSpace::Linear;
+	defaultNormalTexture->data = { 127, 127, 255, 255 };
 
-	load(m_defaultNormalTexture);
-	m_textures.push_back({ 1, "defaultSampler" });
+	ImageID defaultNormalImageID = load(*defaultNormalTexture);
+	m_defaultMaterial.normalTextureIndex = addToTextures({ defaultNormalImageID, "GM_defaultSampler" });
 
 	// Default metalness texture
-	m_defaultMetalnessTexture.width = 1;
-	m_defaultMetalnessTexture.height = 1;
-	m_defaultMetalnessTexture.format = ImageFormat::R8G8B8A8;
-	m_defaultMetalnessTexture.colorSpace = ImageColorSpace::Linear;
-	m_defaultMetalnessTexture.data = { 0, 0, 0, 255 };
+	Image* defaultMetalnessTexture = assetManager->createImage("GM_defaultMetalnessTexture");
+	defaultMetalnessTexture->width = 1;
+	defaultMetalnessTexture->height = 1;
+	defaultMetalnessTexture->format = ImageFormat::R8G8B8A8;
+	defaultMetalnessTexture->colorSpace = ImageColorSpace::Linear;
+	defaultMetalnessTexture->data = { 0, 0, 0, 255 };
 
-	load(m_defaultMetalnessTexture);
-	m_textures.push_back({ 2, "defaultSampler" });
+	ImageID defaultMetalnessImageID = load(*defaultMetalnessTexture);
+	m_defaultMaterial.metalnessTextureIndex = addToTextures({ defaultMetalnessImageID, "GM_defaultSampler" });
 
 	// Default roughness texture
-	m_defaultRoughnessTexture.width = 1;
-	m_defaultRoughnessTexture.height = 1;
-	m_defaultRoughnessTexture.format = ImageFormat::R8G8B8A8;
-	m_defaultRoughnessTexture.colorSpace = ImageColorSpace::Linear;
-	m_defaultRoughnessTexture.data = { 0, 0, 0, 255 };
+	Image* defaultRoughnessTexture = assetManager->createImage("GM_defaultRoughnessTexture");
+	defaultRoughnessTexture->width = 1;
+	defaultRoughnessTexture->height = 1;
+	defaultRoughnessTexture->format = ImageFormat::R8G8B8A8;
+	defaultRoughnessTexture->colorSpace = ImageColorSpace::Linear;
+	defaultRoughnessTexture->data = { 0, 0, 0, 255 };
 
-	load(m_defaultRoughnessTexture);
-	m_textures.push_back({ 3, "defaultSampler" });
+	ImageID defaultRoughnessImageID = load(*defaultRoughnessTexture);
+	m_defaultMaterial.roughnessTextureIndex = addToTextures({ defaultRoughnessImageID, "GM_defaultSampler" });
 
 	// Default occlusion texture
-	m_defaultOcclusionTexture.width = 1;
-	m_defaultOcclusionTexture.height = 1;
-	m_defaultOcclusionTexture.format = ImageFormat::R8G8B8A8;
-	m_defaultOcclusionTexture.colorSpace = ImageColorSpace::Linear;
-	m_defaultOcclusionTexture.data = { 255, 255, 255, 255 };
+	Image* defaultOcclusionTexture = assetManager->createImage("GM_defaultOcclusionTexture");
+	defaultOcclusionTexture->width = 1;
+	defaultOcclusionTexture->height = 1;
+	defaultOcclusionTexture->format = ImageFormat::R8G8B8A8;
+	defaultOcclusionTexture->colorSpace = ImageColorSpace::Linear;
+	defaultOcclusionTexture->data = { 255, 255, 255, 255 };
 
-	load(m_defaultOcclusionTexture);
-	m_textures.push_back({ 4, "defaultSampler" });
+	ImageID defaultOcclusionImageID = load(*defaultOcclusionTexture);
+	m_defaultMaterial.occlusionTextureIndex = addToTextures({ defaultOcclusionImageID, "GM_defaultSampler" });
 
 	// Default emissive texture
-	m_defaultEmissiveTexture.width = 1;
-	m_defaultEmissiveTexture.height = 1;
-	m_defaultEmissiveTexture.format = ImageFormat::R8G8B8A8;
-	m_defaultEmissiveTexture.colorSpace = ImageColorSpace::SRGB;
-	m_defaultEmissiveTexture.data = { 0, 0, 0, 255 };
+	Image* defaultEmissiveTexture = assetManager->createImage("GM_defaultEmissiveTexture");
+	defaultEmissiveTexture->width = 1;
+	defaultEmissiveTexture->height = 1;
+	defaultEmissiveTexture->format = ImageFormat::R8G8B8A8;
+	defaultEmissiveTexture->colorSpace = ImageColorSpace::SRGB;
+	defaultEmissiveTexture->data = { 0, 0, 0, 255 };
 
-	load(m_defaultEmissiveTexture);
-	m_textures.push_back({ 5, "defaultSampler" });
+	ImageID defaultEmissiveImageID = load(*defaultEmissiveTexture);
+	m_defaultMaterial.emissiveTextureIndex = addToTextures({ defaultEmissiveImageID, "GM_defaultSampler" });
 
 	// Create particle default texture
-	m_defaultParticleTexture.width = 1;
-	m_defaultParticleTexture.height = 1;
-	m_defaultParticleTexture.format = ImageFormat::R8G8B8A8;
-	m_defaultParticleTexture.colorSpace = ImageColorSpace::SRGB;
-	m_defaultParticleTexture.data = { 255, 255, 255, 255 };
+	Image* defaultParticleTexture = assetManager->createImage("GM_defaultParticleTexture");
+	defaultParticleTexture->width = 1;
+	defaultParticleTexture->height = 1;
+	defaultParticleTexture->format = ImageFormat::R8G8B8A8;
+	defaultParticleTexture->colorSpace = ImageColorSpace::SRGB;
+	defaultParticleTexture->data = { 255, 255, 255, 255 };
 
-	ImageID defaultParticleTextureImageID = load(m_defaultParticleTexture);
-	m_particles.getParticleImages().push_back(defaultParticleTextureImageID);
+	ImageID defaultParticleImageID = load(*defaultParticleTexture);
+	m_particles.setDefaultParticleTexture(addToTextures({ defaultParticleImageID, "GM_defaultSampler" }));
 }
 
 void NtshEngn::GraphicsModule::resize() {
@@ -4032,11 +3983,11 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 	}
 
 	InternalMaterial& material = m_materials[object.materialIndex];
-	if (renderable.material.diffuseTexture.image) {
+	if (renderable.material.diffuseTexture.image != NTSHENGN_IMAGE_UNKNOWN) {
 		bool textureChanged = false;
 
 		ImageID imageID = m_textures[material.diffuseTextureIndex].imageID;
-		ImageID newImageID = load(*renderable.material.diffuseTexture.image);
+		ImageID newImageID = renderable.material.diffuseTexture.image;
 		if (imageID != newImageID) {
 			imageID = newImageID;
 			textureChanged = true;
@@ -4054,11 +4005,11 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 	else {
 		material.diffuseTextureIndex = 0;
 	}
-	if (renderable.material.normalTexture.image) {
+	if (renderable.material.normalTexture.image != NTSHENGN_IMAGE_UNKNOWN) {
 		bool textureChanged = false;
 
 		ImageID imageID = m_textures[material.normalTextureIndex].imageID;
-		ImageID newImageID = load(*renderable.material.normalTexture.image);
+		ImageID newImageID = renderable.material.normalTexture.image;
 		if (imageID != newImageID) {
 			imageID = newImageID;
 			textureChanged = true;
@@ -4076,11 +4027,11 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 	else {
 		material.normalTextureIndex = 1;
 	}
-	if (renderable.material.metalnessTexture.image) {
+	if (renderable.material.metalnessTexture.image != NTSHENGN_IMAGE_UNKNOWN) {
 		bool textureChanged = false;
 
 		ImageID imageID = m_textures[material.metalnessTextureIndex].imageID;
-		ImageID newImageID = load(*renderable.material.metalnessTexture.image);
+		ImageID newImageID = renderable.material.metalnessTexture.image;
 		if (imageID != newImageID) {
 			imageID = newImageID;
 			textureChanged = true;
@@ -4098,11 +4049,11 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 	else {
 		material.metalnessTextureIndex = 2;
 	}
-	if (renderable.material.roughnessTexture.image) {
+	if (renderable.material.roughnessTexture.image != NTSHENGN_IMAGE_UNKNOWN) {
 		bool textureChanged = false;
 
 		ImageID imageID = m_textures[material.roughnessTextureIndex].imageID;
-		ImageID newImageID = load(*renderable.material.roughnessTexture.image);
+		ImageID newImageID = renderable.material.roughnessTexture.image;
 		if (imageID != newImageID) {
 			imageID = newImageID;
 			textureChanged = true;
@@ -4120,11 +4071,11 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 	else {
 		material.roughnessTextureIndex = 3;
 	}
-	if (renderable.material.occlusionTexture.image) {
+	if (renderable.material.occlusionTexture.image != NTSHENGN_IMAGE_UNKNOWN) {
 		bool textureChanged = false;
 
 		ImageID imageID = m_textures[material.occlusionTextureIndex].imageID;
-		ImageID newImageID = load(*renderable.material.occlusionTexture.image);
+		ImageID newImageID = renderable.material.occlusionTexture.image;
 		if (imageID != newImageID) {
 			imageID = newImageID;
 			textureChanged = true;
@@ -4142,11 +4093,11 @@ void NtshEngn::GraphicsModule::loadRenderableForEntity(Entity entity) {
 	else {
 		material.occlusionTextureIndex = 4;
 	}
-	if (renderable.material.emissiveTexture.image) {
+	if (renderable.material.emissiveTexture.image != NTSHENGN_IMAGE_UNKNOWN) {
 		bool textureChanged = false;
 
 		ImageID imageID = m_textures[material.emissiveTextureIndex].imageID;
-		ImageID newImageID = load(*renderable.material.emissiveTexture.image);
+		ImageID newImageID = renderable.material.emissiveTexture.image;
 		if (imageID != newImageID) {
 			imageID = newImageID;
 			textureChanged = true;
@@ -4248,6 +4199,9 @@ uint32_t NtshEngn::GraphicsModule::addToTextures(const InternalTexture& texture)
 		m_gBuffer.descriptorSetNeedsUpdate(i);
 		m_shadowMapping.descriptorSetNeedsUpdate(i);
 		m_forwardRenderer.descriptorSetNeedsUpdate(i);
+		m_particles.graphicsDescriptorSetNeedsUpdate(i);
+		m_uiImageDescriptorSetsNeedUpdate[i] = true;
+		m_uiTextDescriptorSetsNeedUpdate[i] = true;
 	}
 
 	return static_cast<uint32_t>(m_textures.size()) - 1;

@@ -162,16 +162,9 @@ void ForwardRenderer::descriptorSetNeedsUpdate(uint32_t frameInFlight) {
 	m_descriptorSetsNeedUpdate[frameInFlight] = true;
 }
 
-void ForwardRenderer::updateDescriptorSets(uint32_t frameInFlight, const std::vector<InternalTexture>& textures, const std::vector<VkImageView>& textureImageViews, const std::unordered_map<std::string, VkSampler>& textureSamplers) {
+void ForwardRenderer::updateDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& texturesDescriptorImageInfos) {
 	if (!m_descriptorSetsNeedUpdate[frameInFlight]) {
 		return;
-	}
-
-	std::vector<VkDescriptorImageInfo> texturesDescriptorImageInfos(textures.size());
-	for (size_t i = 0; i < textures.size(); i++) {
-		texturesDescriptorImageInfos[i].sampler = textureSamplers.at(textures[i].samplerKey);
-		texturesDescriptorImageInfos[i].imageView = textureImageViews[textures[i].imageID];
-		texturesDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
 
 	VkWriteDescriptorSet texturesDescriptorWriteDescriptorSet = {};
@@ -195,16 +188,9 @@ void ForwardRenderer::shadowDescriptorSetNeedsUpdate(uint32_t frameInFlight) {
 	m_descriptorSetsShadowNeedUpdate[frameInFlight] = true;
 }
 
-void ForwardRenderer::updateShadowDescriptorSets(uint32_t frameInFlight, const std::vector<VulkanImage>& shadowMaps, VkSampler shadowMapSampler) {
+void ForwardRenderer::updateShadowDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& shadowMapImageDescriptorImageInfos) {
 	if (!m_descriptorSetsShadowNeedUpdate[frameInFlight]) {
 		return;
-	}
-
-	std::vector<VkDescriptorImageInfo> shadowMapImageDescriptorImageInfos(shadowMaps.size());
-	for (uint32_t i = 0; i < shadowMaps.size(); i++) {
-		shadowMapImageDescriptorImageInfos[i].sampler = shadowMapSampler;
-		shadowMapImageDescriptorImageInfos[i].imageView = shadowMaps[i].view;
-		shadowMapImageDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
 
 	VkWriteDescriptorSet shadowMapImageDescriptorWriteDescriptorSet = {};
@@ -220,6 +206,8 @@ void ForwardRenderer::updateShadowDescriptorSets(uint32_t frameInFlight, const s
 	shadowMapImageDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
 	vkUpdateDescriptorSets(m_device, 1, &shadowMapImageDescriptorWriteDescriptorSet, 0, nullptr);
+
+	m_descriptorSetsShadowNeedUpdate[frameInFlight] = false;
 }
 
 bool ForwardRenderer::createGraphicsPipelineFromFragmentShader(const std::string& fragmentShader) {

@@ -16,26 +16,6 @@ void Particles::init(VkDevice device, VkQueue graphicsComputeQueue, uint32_t gra
 	m_vkCmdEndRenderingKHR = vkCmdEndRenderingKHR;
 	m_vkCmdPipelineBarrier2KHR = vkCmdPipelineBarrier2KHR;
 
-	VkSamplerCreateInfo samplerCreateInfo = {};
-	samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerCreateInfo.pNext = nullptr;
-	samplerCreateInfo.flags = 0;
-	samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
-	samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
-	samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-	samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerCreateInfo.mipLodBias = 0.0f;
-	samplerCreateInfo.anisotropyEnable = VK_FALSE;
-	samplerCreateInfo.maxAnisotropy = 0.0f;
-	samplerCreateInfo.compareEnable = VK_FALSE;
-	samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
-	samplerCreateInfo.minLod = 0.0f;
-	samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
-	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_textureSampler));
-
 	createBuffers();
 	createComputeResources();
 	createGraphicsResources(drawImageFormat, cameraBuffers);
@@ -59,7 +39,6 @@ void Particles::destroy() {
 	for (size_t i = 0; i < m_particleBuffers.size(); i++) {
 		vmaDestroyBuffer(m_allocator, m_particleBuffers[i].handle, m_particleBuffers[i].allocation);
 	}
-	vkDestroySampler(m_device, m_textureSampler, nullptr);
 }
 
 void Particles::draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView drawImageView, VkImage depthImage, VkImageView depthImageView, uint32_t currentFrameInFlight, float dt) {
@@ -384,31 +363,41 @@ void Particles::draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageVi
 	m_inParticleBufferCurrentIndex = (m_inParticleBufferCurrentIndex + 1) % 2;
 }
 
-void Particles::graphicsDescriptorSetNeedsUpdate(uint32_t frameInFlight, uint32_t particleBufferIndex) {
-	m_graphicsDescriptorSetsNeedUpdate[(frameInFlight * 2) + particleBufferIndex] = true;
+void Particles::graphicsDescriptorSetNeedsUpdate(uint32_t frameInFlight) {
+	m_graphicsDescriptorSetsNeedUpdate[frameInFlight] = true;
 }
 
-void Particles::updateGraphicsDescriptorSets(uint32_t frameInFlight, const std::vector<VkImageView>& textureImageViews) {
-	std::vector<VkDescriptorImageInfo> particleTexturesDescriptorImageInfos(m_particleImages.size());
-	for (size_t i = 0; i < m_particleImages.size(); i++) {
-		particleTexturesDescriptorImageInfos[i].sampler = m_textureSampler;
-		particleTexturesDescriptorImageInfos[i].imageView = textureImageViews[m_particleImages[i]];
-		particleTexturesDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+void Particles::updateGraphicsDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& texturesDescriptorImageInfos) {
+	if (!m_graphicsDescriptorSetsNeedUpdate[frameInFlight]) {
+		return;
 	}
 
-	VkWriteDescriptorSet particleTexturesDescriptorWriteDescriptorSet = {};
-	particleTexturesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	particleTexturesDescriptorWriteDescriptorSet.pNext = nullptr;
-	particleTexturesDescriptorWriteDescriptorSet.dstSet = m_graphicsDescriptorSets[(frameInFlight * 2) + ((m_inParticleBufferCurrentIndex + 1) % 2)];
-	particleTexturesDescriptorWriteDescriptorSet.dstBinding = 2;
-	particleTexturesDescriptorWriteDescriptorSet.dstArrayElement = 0;
-	particleTexturesDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(particleTexturesDescriptorImageInfos.size());
-	particleTexturesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	particleTexturesDescriptorWriteDescriptorSet.pImageInfo = particleTexturesDescriptorImageInfos.data();
-	particleTexturesDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
-	particleTexturesDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+	std::array<VkWriteDescriptorSet, 2> texturesDescriptorWriteDescriptorSets;
+	texturesDescriptorWriteDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	texturesDescriptorWriteDescriptorSets[0].pNext = nullptr;
+	texturesDescriptorWriteDescriptorSets[0].dstSet = m_graphicsDescriptorSets[(frameInFlight * 2) + 0];
+	texturesDescriptorWriteDescriptorSets[0].dstBinding = 2;
+	texturesDescriptorWriteDescriptorSets[0].dstArrayElement = 0;
+	texturesDescriptorWriteDescriptorSets[0].descriptorCount = static_cast<uint32_t>(texturesDescriptorImageInfos.size());
+	texturesDescriptorWriteDescriptorSets[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	texturesDescriptorWriteDescriptorSets[0].pImageInfo = texturesDescriptorImageInfos.data();
+	texturesDescriptorWriteDescriptorSets[0].pBufferInfo = nullptr;
+	texturesDescriptorWriteDescriptorSets[0].pTexelBufferView = nullptr;
 
-	vkUpdateDescriptorSets(m_device, 1, &particleTexturesDescriptorWriteDescriptorSet, 0, nullptr);
+	texturesDescriptorWriteDescriptorSets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	texturesDescriptorWriteDescriptorSets[1].pNext = nullptr;
+	texturesDescriptorWriteDescriptorSets[1].dstSet = m_graphicsDescriptorSets[(frameInFlight * 2) + 1];
+	texturesDescriptorWriteDescriptorSets[1].dstBinding = 2;
+	texturesDescriptorWriteDescriptorSets[1].dstArrayElement = 0;
+	texturesDescriptorWriteDescriptorSets[1].descriptorCount = static_cast<uint32_t>(texturesDescriptorImageInfos.size());
+	texturesDescriptorWriteDescriptorSets[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	texturesDescriptorWriteDescriptorSets[1].pImageInfo = texturesDescriptorImageInfos.data();
+	texturesDescriptorWriteDescriptorSets[1].pBufferInfo = nullptr;
+	texturesDescriptorWriteDescriptorSets[1].pTexelBufferView = nullptr;
+
+	vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(texturesDescriptorWriteDescriptorSets.size()), texturesDescriptorWriteDescriptorSets.data(), 0, nullptr);
+
+	m_graphicsDescriptorSetsNeedUpdate[frameInFlight] = false;
 }
 
 void Particles::onResize(uint32_t width, uint32_t height) {
@@ -469,8 +458,12 @@ void Particles::destroyParticles(uint32_t currentFrameInFlight) {
 	m_particleBuffersNeedUpdate[currentFrameInFlight] = true;
 }
 
-std::vector<NtshEngn::ImageID>& Particles::getParticleImages() {
-	return m_particleImages;
+void Particles::setDefaultParticleTexture(uint32_t defaultParticleTexture) {
+	m_defaultParticleTexture = defaultParticleTexture;
+}
+
+uint32_t Particles::getDefaultParticleTexture() {
+	return m_defaultParticleTexture;
 }
 
 void Particles::createBuffers() {
@@ -965,7 +958,7 @@ void Particles::createGraphicsResources(VkFormat drawImageFormat, const std::vec
 		#version 460
 		#extension GL_EXT_nonuniform_qualifier : enable
 
-		layout(set = 0, binding = 2) uniform sampler2D particleTextures[];
+		layout(set = 0, binding = 2) uniform sampler2D textures[];
 
 		layout(location = 0) in vec4 color;
 		layout(location = 1) in vec2 uv;
@@ -974,7 +967,7 @@ void Particles::createGraphicsResources(VkFormat drawImageFormat, const std::vec
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			outColor = texture(particleTextures[nonuniformEXT(textureIndex)], uv) * color;
+			outColor = texture(textures[nonuniformEXT(textureIndex)], uv) * color;
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
@@ -1203,10 +1196,8 @@ void Particles::createGraphicsResources(VkFormat drawImageFormat, const std::vec
 		}
 	}
 
-	m_graphicsDescriptorSetsNeedUpdate.resize(m_framesInFlight * 2);
+	m_graphicsDescriptorSetsNeedUpdate.resize(m_framesInFlight);
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		for (uint32_t j = 0; j < 2; j++) {
-			m_graphicsDescriptorSetsNeedUpdate[(i * 2) + j] = true;
-		}
+		m_graphicsDescriptorSetsNeedUpdate[i] = true;
 	}
 }

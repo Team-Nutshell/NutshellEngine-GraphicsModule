@@ -67,16 +67,16 @@ struct InternalMesh {
 
 struct InternalTexture {
 	NtshEngn::ImageID imageID = 0;
-	std::string samplerKey = "defaultSampler";
+	std::string samplerKey = "GM_defaultSampler";
 };
 
 struct InternalMaterial {
-	uint32_t diffuseTextureIndex = 0;
-	uint32_t normalTextureIndex = 1;
-	uint32_t metalnessTextureIndex = 2;
-	uint32_t roughnessTextureIndex = 3;
-	uint32_t occlusionTextureIndex = 4;
-	uint32_t emissiveTextureIndex = 5;
+	uint32_t diffuseTextureIndex;
+	uint32_t normalTextureIndex;
+	uint32_t metalnessTextureIndex;
+	uint32_t roughnessTextureIndex;
+	uint32_t occlusionTextureIndex;
+	uint32_t emissiveTextureIndex;
 	float emissiveFactor = 1.0f;
 	float alphaCutoff = 0.0f;
 	NtshEngn::Math::vec2 scaleUV = NtshEngn::Math::vec2(1.0f, 1.0f);
@@ -88,11 +88,7 @@ struct InternalMaterial {
 struct InternalFont {
 	uint32_t type;
 
-	VkImage image;
-	VmaAllocation imageAllocation;
-	VkImageView imageView;
-
-	NtshEngn::ImageSamplerFilter filter;
+	uint32_t fontTextureIndex;
 
 	float height;
 

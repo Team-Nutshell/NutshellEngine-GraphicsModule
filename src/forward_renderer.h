@@ -11,10 +11,10 @@ public:
 	void onResize(uint32_t width, uint32_t height);
 
 	void descriptorSetNeedsUpdate(uint32_t frameInFlight);
-	void updateDescriptorSets(uint32_t frameInFlight, const std::vector<InternalTexture>& textures, const std::vector<VkImageView>& textureImageViews, const std::unordered_map<std::string, VkSampler>& textureSamplers);
+	void updateDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& texturesDescriptorImageInfos);
 
 	void shadowDescriptorSetNeedsUpdate(uint32_t frameInFlight);
-	void updateShadowDescriptorSets(uint32_t frameInFlight, const std::vector<VulkanImage>& shadowMaps, VkSampler shadowMapSampler);
+	void updateShadowDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& shadowMapImageDescriptorImageInfos);
 
 	bool createGraphicsPipelineFromFragmentShader(const std::string& fragmentShader);
 

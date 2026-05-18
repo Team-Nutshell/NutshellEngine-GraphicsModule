@@ -10,15 +10,16 @@ public:
 
 	void draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView drawImageView, VkImage depthImage, VkImageView depthImageView, uint32_t currentFrameInFlight, float dt);
 
-	void graphicsDescriptorSetNeedsUpdate(uint32_t frameInFlight, uint32_t particleBufferIndex);
-	void updateGraphicsDescriptorSets(uint32_t frameInFlight, const std::vector<VkImageView>& textureImageViews);
+	void graphicsDescriptorSetNeedsUpdate(uint32_t frameInFlight);
+	void updateGraphicsDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& texturesDescriptorImageInfos);
 
 	void onResize(uint32_t width, uint32_t height);
 
 	void emitParticles(const NtshEngn::ParticleEmitter& particleEmitter, uint32_t currentFrameInFlight, uint32_t textureIndex);
 	void destroyParticles(uint32_t currentFrameInFlight);
 
-	std::vector<NtshEngn::ImageID>& getParticleImages();
+	void setDefaultParticleTexture(uint32_t defaultParticleTexture);
+	uint32_t getDefaultParticleTexture();
 
 private:
 	void createBuffers();
@@ -28,6 +29,8 @@ private:
 	void createGraphicsResources(VkFormat drawImageFormat, const std::vector<HostVisibleVulkanBuffer>& cameraBuffers);
 
 private:
+	NtshEngn::ImageID m_defaultParticleTexture;
+
 	std::array<VulkanBuffer, 2> m_particleBuffers;
 	std::vector<HostVisibleVulkanBuffer> m_stagingBuffers;
 	VulkanBuffer m_drawIndirectBuffer;
@@ -45,8 +48,6 @@ private:
 	std::vector<bool> m_graphicsDescriptorSetsNeedUpdate;
 	VkPipeline m_graphicsPipeline;
 	VkPipelineLayout m_graphicsPipelineLayout;
-	std::vector<NtshEngn::ImageID> m_particleImages;
-	VkSampler m_textureSampler;
 
 	uint32_t m_inParticleBufferCurrentIndex = 0;
 	uint32_t m_maxParticlesNumber = 1000000;

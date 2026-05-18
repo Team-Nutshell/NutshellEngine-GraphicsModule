@@ -986,16 +986,9 @@ void Compositing::updateDescriptorSets(VkImageView gBufferPositionView, VkImageV
 	}
 }
 
-void Compositing::updateShadowDescriptorSets(uint32_t frameInFlight, const std::vector<VulkanImage>& shadowMaps, VkSampler shadowMapSampler) {
+void Compositing::updateShadowDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& shadowMapImageDescriptorImageInfos) {
 	if (!m_descriptorSetsShadowNeedUpdate[frameInFlight]) {
 		return;
-	}
-
-	std::vector<VkDescriptorImageInfo> shadowMapImageDescriptorImageInfos(shadowMaps.size());
-	for (uint32_t i = 0; i < shadowMaps.size(); i++) {
-		shadowMapImageDescriptorImageInfos[i].sampler = shadowMapSampler;
-		shadowMapImageDescriptorImageInfos[i].imageView = shadowMaps[i].view;
-		shadowMapImageDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
 
 	VkWriteDescriptorSet shadowMapImageDescriptorWriteDescriptorSet = {};
@@ -1011,4 +1004,6 @@ void Compositing::updateShadowDescriptorSets(uint32_t frameInFlight, const std::
 	shadowMapImageDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
 	vkUpdateDescriptorSets(m_device, 1, &shadowMapImageDescriptorWriteDescriptorSet, 0, nullptr);
+
+	m_descriptorSetsShadowNeedUpdate[frameInFlight] = false;
 }

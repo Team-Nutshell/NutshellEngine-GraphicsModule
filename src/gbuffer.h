@@ -10,7 +10,7 @@ public:
 	void draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight, uint32_t drawIndirectCount, VulkanBuffer vertexBuffer, VulkanBuffer indexBuffer);
 
 	void descriptorSetNeedsUpdate(uint32_t frameInFlight);
-	void updateDescriptorSets(uint32_t frameInFlight, const std::vector<InternalTexture>& textures, const std::vector<VkImageView>& textureImageViews, const std::unordered_map<std::string, VkSampler>& textureSamplers);
+	void updateDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& texturesDescriptorImageInfos);
 
 	void onResize(uint32_t width, uint32_t height);
 
