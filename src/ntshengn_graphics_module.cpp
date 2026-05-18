@@ -4200,8 +4200,8 @@ uint32_t NtshEngn::GraphicsModule::addToTextures(const InternalTexture& texture)
 		m_shadowMapping.descriptorSetNeedsUpdate(i);
 		m_forwardRenderer.descriptorSetNeedsUpdate(i);
 		m_particles.graphicsDescriptorSetNeedsUpdate(i);
-		m_uiImageDescriptorSetsNeedUpdate[i] = true;
 		m_uiTextDescriptorSetsNeedUpdate[i] = true;
+		m_uiImageDescriptorSetsNeedUpdate[i] = true;
 	}
 
 	return static_cast<uint32_t>(m_textures.size()) - 1;
