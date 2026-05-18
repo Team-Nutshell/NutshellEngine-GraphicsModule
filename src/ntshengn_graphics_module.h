@@ -4,6 +4,7 @@
 #include "../Common/utils/ntshengn_defines.h"
 #include "../Common/utils/ntshengn_enums.h"
 #include "../Common/utils/ntshengn_utils_math.h"
+#include "../Common/utils/ntshengn_utils_id_pool.h"
 #include "../Module/utils/ntshengn_module_defines.h"
 #if defined(NTSHENGN_OS_WINDOWS)
 #define VK_USE_PLATFORM_WIN32_KHR
@@ -66,17 +67,13 @@ struct InternalMesh {
 
 struct InternalTexture {
 	NtshEngn::ImageID imageID = 0;
-	std::string samplerKey = "defaultSampler";
+	std::string samplerKey = "GM_defaultSampler";
 };
 
 struct InternalFont {
 	uint32_t type;
 
-	VkImage image;
-	VmaAllocation imageAllocation;
-	VkImageView imageView;
-
-	NtshEngn::ImageSamplerFilter filter;
+	uint32_t fontTextureIndex;
 
 	float height;
 
@@ -101,7 +98,7 @@ enum class UIElement {
 
 struct InternalUIText {
 	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
-	NtshEngn::FontID fontID;
+	uint32_t fontTextureIndex;
 	uint32_t fontType = 0;
 
 	uint32_t charactersCount = 0;
@@ -120,7 +117,7 @@ struct InternalUIRectangle {
 
 struct InternalUIImage {
 	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
-	uint32_t uiTextureIndex;
+	uint32_t textureIndex;
 
 	NtshEngn::Math::vec2 v0 = { 0.0f, 0.0f };
 	NtshEngn::Math::vec2 v1 = { 0.0f, 0.0f };
@@ -229,11 +226,11 @@ namespace NtshEngn {
 		// UI resources
 		void createUIResources();
 		void createUITextResources();
-		void updateUITextDescriptorSet(uint32_t frameInFlight);
+		void updateUITextDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& texturesDescriptorImageInfos);
 		void createUILineResources();
 		void createUIRectangleResources();
 		void createUIImageResources();
-		void updateUIImageDescriptorSet(uint32_t frameInFlight);
+		void updateUIImageDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& texturesDescriptorImageInfos);
 
 		// Default resources
 		void createDefaultResources();
@@ -241,11 +238,11 @@ namespace NtshEngn {
 		// On window resize
 		void resize();
 
-		// Attribute an InternalObject index
-		uint32_t attributeObjectIndex();
+		// Create sampler
+		std::string createSampler(const ImageSampler& sampler);
 
-		// Retrieve an InternalObject index
-		void retrieveObjectIndex(uint32_t objectIndex);
+		// Add to textures
+		uint32_t addToTextures(const InternalTexture& texture);
 
 		// Create meshes for colliders
 		MeshID createBox(const ColliderBox* box);
@@ -298,8 +295,8 @@ namespace NtshEngn {
 		VkDescriptorPool m_descriptorPool;
 		std::vector<VkDescriptorSet> m_descriptorSets;
 
-		VkSampler m_uiNearestSampler;
-		VkSampler m_uiLinearSampler;
+		std::string m_uiNearestSamplerKey;
+		std::string m_uiLinearSamplerKey;
 
 		std::vector<HostVisibleBuffer> m_uiTextBuffers;
 		VkDescriptorSetLayout m_uiTextDescriptorSetLayout;
@@ -346,8 +343,6 @@ namespace NtshEngn {
 
 		std::vector<HostVisibleBuffer> m_objectBuffers;
 
-		Mesh m_defaultMesh;
-
 		std::vector<InternalMesh> m_meshes;
 		int32_t m_currentVertexOffset = 0;
 		uint32_t m_currentIndexOffset = 0;
@@ -357,17 +352,17 @@ namespace NtshEngn {
 		std::vector<VmaAllocation> m_textureImageAllocations;
 		std::vector<VkImageView> m_textureImageViews;
 		std::vector<Math::vec2> m_textureSizes;
+		std::unordered_map<std::string, VkSampler> m_textureSamplers;
 		std::unordered_map<const Image*, ImageID> m_imageAddresses;
+		std::vector<InternalTexture> m_textures;
 
 		Math::vec4 m_backgroundColor = Math::vec4(0.0f, 0.0f, 0.0f, 0.0f);
 
 		std::vector<InternalFont> m_fonts;
 		std::unordered_map<const Font*, FontID> m_fontAddresses;
 
-		std::vector<std::pair<ImageID, ImageSamplerFilter>> m_uiTextures;
-
 		std::unordered_map<Entity, InternalObject> m_objects;
-		std::vector<uint32_t> m_freeObjectsIndices{ 0 };
+		IDPool m_objectsIDPool;
 
 		Entity m_mainCamera = NTSHENGN_ENTITY_UNKNOWN;
 
@@ -381,6 +376,29 @@ namespace NtshEngn {
 		std::queue<InternalUIRectangle> m_uiRectangles;
 
 		std::queue<InternalUIImage> m_uiImages;
+
+		const std::unordered_map<ImageSamplerFilter, VkFilter> m_filterMap{ { ImageSamplerFilter::Linear, VK_FILTER_LINEAR },
+			{ ImageSamplerFilter::Nearest, VK_FILTER_NEAREST },
+			{ ImageSamplerFilter::Unknown, VK_FILTER_LINEAR }
+		};
+		const std::unordered_map<ImageSamplerFilter, VkSamplerMipmapMode> m_mipmapFilterMap{ { ImageSamplerFilter::Linear, VK_SAMPLER_MIPMAP_MODE_LINEAR },
+			{ ImageSamplerFilter::Nearest, VK_SAMPLER_MIPMAP_MODE_NEAREST },
+			{ ImageSamplerFilter::Unknown, VK_SAMPLER_MIPMAP_MODE_LINEAR }
+		};
+		const std::unordered_map<ImageSamplerAddressMode, VkSamplerAddressMode> m_addressModeMap{ { ImageSamplerAddressMode::Repeat, VK_SAMPLER_ADDRESS_MODE_REPEAT },
+			{ ImageSamplerAddressMode::MirroredRepeat, VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT },
+			{ ImageSamplerAddressMode::ClampToEdge, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE },
+			{ ImageSamplerAddressMode::ClampToBorder, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER },
+			{ ImageSamplerAddressMode::Unknown, VK_SAMPLER_ADDRESS_MODE_REPEAT }
+		};
+		const std::unordered_map<ImageSamplerBorderColor, VkBorderColor> m_borderColorMap{ { ImageSamplerBorderColor::FloatTransparentBlack, VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK },
+			{ ImageSamplerBorderColor::IntTransparentBlack, VK_BORDER_COLOR_INT_TRANSPARENT_BLACK },
+			{ ImageSamplerBorderColor::FloatOpaqueBlack, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK },
+			{ ImageSamplerBorderColor::IntOpaqueBlack, VK_BORDER_COLOR_INT_OPAQUE_BLACK },
+			{ ImageSamplerBorderColor::FloatOpaqueWhite, VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE },
+			{ ImageSamplerBorderColor::IntOpaqueWhite, VK_BORDER_COLOR_INT_OPAQUE_WHITE },
+			{ ImageSamplerBorderColor::Unknown, VK_BORDER_COLOR_INT_OPAQUE_BLACK }
+		};
 	};
 
 }

@@ -566,16 +566,15 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	}
 
 	// Update descriptor sets if needed
-	if (m_uiTextDescriptorSetsNeedUpdate[m_currentFrameInFlight]) {
-		updateUITextDescriptorSet(m_currentFrameInFlight);
-
-		m_uiTextDescriptorSetsNeedUpdate[m_currentFrameInFlight] = false;
+	std::vector<VkDescriptorImageInfo> texturesDescriptorImageInfos(m_textures.size());
+	for (size_t i = 0; i < m_textures.size(); i++) {
+		texturesDescriptorImageInfos[i].sampler = m_textureSamplers.at(m_textures[i].samplerKey);
+		texturesDescriptorImageInfos[i].imageView = m_textureImageViews[m_textures[i].imageID];
+		texturesDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
-	if (m_uiImageDescriptorSetsNeedUpdate[m_currentFrameInFlight]) {
-		updateUIImageDescriptorSet(m_currentFrameInFlight);
 
-		m_uiImageDescriptorSetsNeedUpdate[m_currentFrameInFlight] = false;
-	}
+	updateUITextDescriptorSet(m_currentFrameInFlight, texturesDescriptorImageInfos);
+	updateUIImageDescriptorSet(m_currentFrameInFlight, texturesDescriptorImageInfos);
 
 	// Record rendering commands
 	NTSHENGN_VK_CHECK(vkResetCommandPool(m_device, m_renderingCommandPools[m_currentFrameInFlight], 0));
@@ -929,10 +928,6 @@ void NtshEngn::GraphicsModule::destroy() {
 	vkDestroyPipeline(m_device, m_uiLineGraphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(m_device, m_uiLineGraphicsPipelineLayout, nullptr);
 
-	for (size_t i = 0; i < m_fonts.size(); i++) {
-		vkDestroyImageView(m_device, m_fonts[i].imageView, nullptr);
-		vmaDestroyImage(m_allocator, m_fonts[i].image, m_fonts[i].imageAllocation);
-	}
 	vkDestroyDescriptorPool(m_device, m_uiTextDescriptorPool, nullptr);
 	vkDestroyPipeline(m_device, m_uiTextGraphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(m_device, m_uiTextGraphicsPipelineLayout, nullptr);
@@ -940,9 +935,6 @@ void NtshEngn::GraphicsModule::destroy() {
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		vmaDestroyBuffer(m_allocator, m_uiTextBuffers[i].handle, m_uiTextBuffers[i].allocation);
 	}
-
-	vkDestroySampler(m_device, m_uiLinearSampler, nullptr);
-	vkDestroySampler(m_device, m_uiNearestSampler, nullptr);
 
 	// Destroy descriptor pool
 	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
@@ -963,6 +955,11 @@ void NtshEngn::GraphicsModule::destroy() {
 	// Destroy vertex and index buffers
 	vmaDestroyBuffer(m_allocator, m_indexBuffer, m_indexBufferAllocation);
 	vmaDestroyBuffer(m_allocator, m_vertexBuffer, m_vertexBufferAllocation);
+
+	// Destroy samplers
+	for (const auto& sampler : m_textureSamplers) {
+		vkDestroySampler(m_device, sampler.second, nullptr);
+	}
 
 	// Destroy textures
 	for (size_t i = 0; i < m_textureImages.size(); i++) {
@@ -1642,16 +1639,21 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 
 	vmaDestroyBuffer(m_allocator, textureStagingBuffer, textureStagingBufferAllocation);
 
+	m_textureImages.push_back(textureImage);
+	m_textureImageAllocations.push_back(textureImageAllocation);
+	m_textureImageViews.push_back(textureImageView);
+	m_textureSizes.push_back({ static_cast<float>(font.image->width), static_cast<float>(font.image->height) });
+
+	ImageID imageID = static_cast<ImageID>(m_textureImages.size() - 1);
+
 	uint32_t fontType = 0; // Bitmap
 	if (font.type == NtshEngn::FontType::SDF) { // SDF
 		fontType = 1;
 	}
-	m_fonts.push_back({ fontType, textureImage, textureImageAllocation, textureImageView, font.imageSamplerFilter, font.height, font.glyphs });
 
-	// Mark descriptor sets for update
-	for (uint32_t i = 0; i < m_framesInFlight; i++) {
-		m_uiTextDescriptorSetsNeedUpdate[i] = true;
-	}
+	uint32_t fontTexture = addToTextures({ imageID, (font.imageSamplerFilter == ImageSamplerFilter::Nearest) ? m_uiNearestSamplerKey : m_uiLinearSamplerKey });
+
+	m_fonts.push_back({ fontType, fontTexture, font.height, font.glyphs });
 
 	return static_cast<FontID>(m_fonts.size() - 1);
 }
@@ -1834,7 +1836,7 @@ void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& tex
 
 	InternalUIText uiText;
 	uiText.color = color;
-	uiText.fontID = fontID;
+	uiText.fontTextureIndex = font.fontTextureIndex;
 	uiText.fontType = font.type;
 	uiText.charactersCount = static_cast<uint32_t>(vertices.size() / 4);
 	uiText.bufferOffset = m_uiTextBufferOffset;
@@ -1940,25 +1942,7 @@ void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter i
 	const Math::mat3 transform = Math::translate(finalPosition) * Math::rotate(rotation) * Math::scale(Math::vec2(std::abs(scale.x), std::abs(scale.y))) * Math::translate(offset);
 
 	InternalUIImage uiImage;
-	bool foundUITexture = false;
-	for (size_t i = 0; i < m_uiTextures.size(); i++) {
-		if ((m_uiTextures[i].first == imageID) &&
-			(m_uiTextures[i].second == imageSamplerFilter)) {
-			uiImage.uiTextureIndex = static_cast<uint32_t>(i);
-
-			foundUITexture = true;
-			break;
-		}
-	}
-	if (!foundUITexture) {
-		m_uiTextures.push_back({ imageID, imageSamplerFilter });
-
-		uiImage.uiTextureIndex = static_cast<uint32_t>(m_uiTextures.size() - 1);
-
-		for (uint32_t i = 0; i < m_framesInFlight; i++) {
-			m_uiImageDescriptorSetsNeedUpdate[i] = true;
-		}
-	}
+	uiImage.textureIndex = addToTextures({ imageID, (imageSamplerFilter == ImageSamplerFilter::Nearest) ? m_uiNearestSamplerKey : m_uiLinearSamplerKey });
 
 	const float x = (m_textureSizes[imageID].x) / 2.0f;
 	const float y = (m_textureSizes[imageID].y) / 2.0f;
@@ -1989,11 +1973,8 @@ const NtshEngn::ComponentMask NtshEngn::GraphicsModule::getComponentMask() const
 
 void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component componentID) {
 	if (componentID == ecs->getComponentID<Collidable>()) {
-		m_objects[entity] = InternalObject();
-
-		InternalObject& object = m_objects[entity];
-
-		m_objects[entity].index = attributeObjectIndex();
+		InternalObject object;
+		object.index = m_objectsIDPool.get();
 
 		const Collidable& collidable = ecs->getComponent<Collidable>(entity);
 
@@ -2012,6 +1993,7 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 
 			object.capsuleMeshIndex = createCapsule(colliderCapsule);
 		}
+		m_objects[entity] = object;
 	}
 	else if (componentID == ecs->getComponentID<Camera>()) {
 		if (m_mainCamera == std::numeric_limits<uint32_t>::max()) {
@@ -2024,7 +2006,7 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 	if (componentID == ecs->getComponentID<Collidable>()) {
 		InternalObject& object = m_objects[entity];
 
-		retrieveObjectIndex(object.index);
+		m_objectsIDPool.free(object.index);
 
 		m_objects.erase(entity);
 	}
@@ -2858,30 +2840,21 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 
 void NtshEngn::GraphicsModule::createUIResources() {
 	// Create samplers
-	VkSamplerCreateInfo samplerCreateInfo = {};
-	samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	samplerCreateInfo.pNext = nullptr;
-	samplerCreateInfo.flags = 0;
-	samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
-	samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
-	samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-	samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerCreateInfo.mipLodBias = 0.0f;
-	samplerCreateInfo.anisotropyEnable = VK_FALSE;
-	samplerCreateInfo.maxAnisotropy = 0.0f;
-	samplerCreateInfo.compareEnable = VK_FALSE;
-	samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
-	samplerCreateInfo.minLod = 0.0f;
-	samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
-	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_uiNearestSampler));
+	ImageSampler uiSampler;
+	uiSampler.magFilter = ImageSamplerFilter::Nearest;
+	uiSampler.minFilter = ImageSamplerFilter::Nearest;
+	uiSampler.mipmapFilter = ImageSamplerFilter::Nearest;
+	uiSampler.addressModeU = ImageSamplerAddressMode::ClampToEdge;
+	uiSampler.addressModeV = ImageSamplerAddressMode::ClampToEdge;
+	uiSampler.addressModeW = ImageSamplerAddressMode::ClampToEdge;
+	uiSampler.borderColor = ImageSamplerBorderColor::IntOpaqueBlack;
+	uiSampler.anisotropyLevel = 0.0f;
+	m_uiNearestSamplerKey = createSampler(uiSampler);
 
-	samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-	samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-	samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &m_uiLinearSampler));
+	uiSampler.magFilter = ImageSamplerFilter::Linear;
+	uiSampler.minFilter = ImageSamplerFilter::Linear;
+	uiSampler.mipmapFilter = ImageSamplerFilter::Linear;
+	m_uiLinearSamplerKey = createSampler(uiSampler);
 
 	createUITextResources();
 	createUILineResources();
@@ -3021,11 +2994,11 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 		#version 460
 		#extension GL_EXT_nonuniform_qualifier : enable
 
-		layout(set = 0, binding = 1) uniform sampler2D fonts[];
+		layout(set = 0, binding = 1) uniform sampler2D textures[];
 
 		layout(push_constant) uniform TextInfo {
 			layout(offset = 16) vec4 color;
-			uint fontID;
+			uint fontTextureIndex;
 			uint fontType;
 		} tI;
 
@@ -3034,7 +3007,7 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			float alpha = texture(fonts[nonuniformEXT(tI.fontID)], uv).r;
+			float alpha = texture(textures[nonuniformEXT(tI.fontTextureIndex)], uv).r;
 			if (tI.fontType == 1) { // SDF
 				const float smoothing = 1.0 / 64.0;
 				alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, alpha);
@@ -3262,27 +3235,26 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 	}
 }
 
-void NtshEngn::GraphicsModule::updateUITextDescriptorSet(uint32_t frameInFlight) {
-	std::vector<VkDescriptorImageInfo> fontsDescriptorImageInfos(m_fonts.size());
-	for (size_t i = 0; i < m_fonts.size(); i++) {
-		fontsDescriptorImageInfos[i].sampler = (m_fonts[i].filter == ImageSamplerFilter::Nearest) ? m_uiNearestSampler : m_uiLinearSampler;
-		fontsDescriptorImageInfos[i].imageView = m_fonts[i].imageView;
-		fontsDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+void NtshEngn::GraphicsModule::updateUITextDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& texturesDescriptorImageInfos) {
+	if (!m_uiTextDescriptorSetsNeedUpdate[frameInFlight]) {
+		return;
 	}
 
-	VkWriteDescriptorSet fontsDescriptorWriteDescriptorSet = {};
-	fontsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	fontsDescriptorWriteDescriptorSet.pNext = nullptr;
-	fontsDescriptorWriteDescriptorSet.dstSet = m_uiTextDescriptorSets[frameInFlight];
-	fontsDescriptorWriteDescriptorSet.dstBinding = 1;
-	fontsDescriptorWriteDescriptorSet.dstArrayElement = 0;
-	fontsDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(fontsDescriptorImageInfos.size());
-	fontsDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	fontsDescriptorWriteDescriptorSet.pImageInfo = fontsDescriptorImageInfos.data();
-	fontsDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
-	fontsDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+	VkWriteDescriptorSet texturesDescriptorWriteDescriptorSet = {};
+	texturesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	texturesDescriptorWriteDescriptorSet.pNext = nullptr;
+	texturesDescriptorWriteDescriptorSet.dstSet = m_uiTextDescriptorSets[frameInFlight];
+	texturesDescriptorWriteDescriptorSet.dstBinding = 1;
+	texturesDescriptorWriteDescriptorSet.dstArrayElement = 0;
+	texturesDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(texturesDescriptorImageInfos.size());
+	texturesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	texturesDescriptorWriteDescriptorSet.pImageInfo = texturesDescriptorImageInfos.data();
+	texturesDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
+	texturesDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
-	vkUpdateDescriptorSets(m_device, 1, &fontsDescriptorWriteDescriptorSet, 0, nullptr);
+	vkUpdateDescriptorSets(m_device, 1, &texturesDescriptorWriteDescriptorSet, 0, nullptr);
+
+	m_uiTextDescriptorSetsNeedUpdate[frameInFlight] = false;
 }
 
 void NtshEngn::GraphicsModule::createUILineResources() {
@@ -3833,17 +3805,17 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 
 		layout(push_constant) uniform UITextureInfo {
 			layout(offset = 48) vec4 color;
-			uint uiTextureIndex;
+			uint textureIndex;
 		} uTI;
 
-		layout(set = 0, binding = 0) uniform sampler2D uiTextures[];
+		layout(set = 0, binding = 0) uniform sampler2D textures[];
 
 		layout(location = 0) in vec2 uv;
 
 		layout(location = 0) out vec4 outColor;
 
 		void main() {
-			outColor = texture(uiTextures[nonuniformEXT(uTI.uiTextureIndex)], uv) * uTI.color;
+			outColor = texture(textures[nonuniformEXT(uTI.textureIndex)], uv) * uTI.color;
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
@@ -4038,27 +4010,26 @@ void NtshEngn::GraphicsModule::createUIImageResources() {
 	}
 }
 
-void NtshEngn::GraphicsModule::updateUIImageDescriptorSet(uint32_t frameInFlight) {
-	std::vector<VkDescriptorImageInfo> uiTexturesDescriptorImageInfos(m_uiTextures.size());
-	for (size_t i = 0; i < m_uiTextures.size(); i++) {
-		uiTexturesDescriptorImageInfos[i].sampler = (m_uiTextures[i].second == ImageSamplerFilter::Nearest) ? m_uiNearestSampler : m_uiLinearSampler;
-		uiTexturesDescriptorImageInfos[i].imageView = m_textureImageViews[m_uiTextures[i].first];
-		uiTexturesDescriptorImageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+void NtshEngn::GraphicsModule::updateUIImageDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& texturesDescriptorImageInfos) {
+	if (!m_uiImageDescriptorSetsNeedUpdate[frameInFlight]) {
+		return;
 	}
 
-	VkWriteDescriptorSet uiTexturesDescriptorWriteDescriptorSet = {};
-	uiTexturesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	uiTexturesDescriptorWriteDescriptorSet.pNext = nullptr;
-	uiTexturesDescriptorWriteDescriptorSet.dstSet = m_uiImageDescriptorSets[frameInFlight];
-	uiTexturesDescriptorWriteDescriptorSet.dstBinding = 0;
-	uiTexturesDescriptorWriteDescriptorSet.dstArrayElement = 0;
-	uiTexturesDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(uiTexturesDescriptorImageInfos.size());
-	uiTexturesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	uiTexturesDescriptorWriteDescriptorSet.pImageInfo = uiTexturesDescriptorImageInfos.data();
-	uiTexturesDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
-	uiTexturesDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+	VkWriteDescriptorSet texturesDescriptorWriteDescriptorSet = {};
+	texturesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	texturesDescriptorWriteDescriptorSet.pNext = nullptr;
+	texturesDescriptorWriteDescriptorSet.dstSet = m_uiImageDescriptorSets[frameInFlight];
+	texturesDescriptorWriteDescriptorSet.dstBinding = 0;
+	texturesDescriptorWriteDescriptorSet.dstArrayElement = 0;
+	texturesDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(texturesDescriptorImageInfos.size());
+	texturesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	texturesDescriptorWriteDescriptorSet.pImageInfo = texturesDescriptorImageInfos.data();
+	texturesDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
+	texturesDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
 
-	vkUpdateDescriptorSets(m_device, 1, &uiTexturesDescriptorWriteDescriptorSet, 0, nullptr);
+	vkUpdateDescriptorSets(m_device, 1, &texturesDescriptorWriteDescriptorSet, 0, nullptr);
+
+	m_uiImageDescriptorSetsNeedUpdate[frameInFlight] = false;
 }
 
 void NtshEngn::GraphicsModule::createDefaultResources() {
@@ -4086,18 +4057,72 @@ void NtshEngn::GraphicsModule::resize() {
 	}
 }
 
-uint32_t NtshEngn::GraphicsModule::attributeObjectIndex() {
-	uint32_t objectID = m_freeObjectsIndices[0];
-	m_freeObjectsIndices.erase(m_freeObjectsIndices.begin());
-	if (m_freeObjectsIndices.empty()) {
-		m_freeObjectsIndices.push_back(objectID + 1);
+std::string NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler) {
+	const std::string samplerKey = "mag:" + std::to_string(m_filterMap.at(sampler.magFilter)) +
+		"/min:" + std::to_string(m_filterMap.at(sampler.minFilter)) +
+		"/mip:" + std::to_string(m_mipmapFilterMap.at(sampler.mipmapFilter)) +
+		"/aU:" + std::to_string(m_addressModeMap.at(sampler.addressModeU)) +
+		"/aV:" + std::to_string(m_addressModeMap.at(sampler.addressModeV)) +
+		"/aW:" + std::to_string(m_addressModeMap.at(sampler.addressModeW)) +
+		"/mlb:" + std::to_string(0.0f) +
+		"/aE:" + std::to_string(sampler.anisotropyLevel > 0.0f ? VK_TRUE : VK_FALSE) +
+		"/cE:" + std::to_string(VK_FALSE) +
+		"/cO:" + std::to_string(VK_COMPARE_OP_NEVER) +
+		"/mL:" + std::to_string(0.0f) +
+		"/ML:" + std::to_string(VK_LOD_CLAMP_NONE) +
+		"/bC:" + std::to_string(m_borderColorMap.at(sampler.borderColor)) +
+		"/unC:" + std::to_string(VK_FALSE);
+
+	if (m_textureSamplers.find(samplerKey) != m_textureSamplers.end()) {
+		return samplerKey;
 	}
 
-	return objectID;
+	VkSampler newSampler;
+
+	VkSamplerCreateInfo samplerCreateInfo = {};
+	samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerCreateInfo.pNext = nullptr;
+	samplerCreateInfo.flags = 0;
+	samplerCreateInfo.magFilter = m_filterMap.at(sampler.magFilter);
+	samplerCreateInfo.minFilter = m_filterMap.at(sampler.minFilter);
+	samplerCreateInfo.mipmapMode = m_mipmapFilterMap.at(sampler.mipmapFilter);
+	samplerCreateInfo.addressModeU = m_addressModeMap.at(sampler.addressModeU);
+	samplerCreateInfo.addressModeV = m_addressModeMap.at(sampler.addressModeV);
+	samplerCreateInfo.addressModeW = m_addressModeMap.at(sampler.addressModeW);
+	samplerCreateInfo.mipLodBias = 0.0f;
+	samplerCreateInfo.anisotropyEnable = sampler.anisotropyLevel > 0.0f ? VK_TRUE : VK_FALSE;
+	samplerCreateInfo.maxAnisotropy = sampler.anisotropyLevel;
+	samplerCreateInfo.compareEnable = VK_FALSE;
+	samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
+	samplerCreateInfo.minLod = 0.0f;
+	samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
+	samplerCreateInfo.borderColor = m_borderColorMap.at(sampler.borderColor);
+	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &newSampler));
+
+	m_textureSamplers[samplerKey] = newSampler;
+
+	return samplerKey;
 }
 
-void NtshEngn::GraphicsModule::retrieveObjectIndex(uint32_t objectIndex) {
-	m_freeObjectsIndices.insert(m_freeObjectsIndices.begin(), objectIndex);
+uint32_t NtshEngn::GraphicsModule::addToTextures(const InternalTexture& texture) {
+	for (size_t i = 0; i < m_textures.size(); i++) {
+		const InternalTexture& tex = m_textures[i];
+		if ((tex.imageID == texture.imageID) &&
+			(tex.samplerKey == texture.samplerKey)) {
+			return static_cast<uint32_t>(i);
+		}
+	}
+
+	m_textures.push_back(texture);
+
+	// Mark descriptor sets for update
+	for (uint32_t i = 0; i < m_framesInFlight; i++) {
+		m_uiTextDescriptorSetsNeedUpdate[i] = true;
+		m_uiImageDescriptorSetsNeedUpdate[i] = true;
+	}
+
+	return static_cast<uint32_t>(m_textures.size()) - 1;
 }
 
 NtshEngn::MeshID NtshEngn::GraphicsModule::createBox(const ColliderBox* box) {
