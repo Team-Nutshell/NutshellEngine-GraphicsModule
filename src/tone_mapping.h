@@ -6,15 +6,11 @@ public:
 	void init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VmaAllocator allocator, VkCommandPool initializationCommandPool, VkCommandBuffer initializationCommandBuffer, VkFence initializationFence, VkFormat drawImageFormat, VkViewport viewport, VkRect2D scissor, VkImageView colorImageView, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
 	void destroy();
 
-	void draw(VkCommandBuffer commandBuffer);
+	void draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageView drawImageView);
 
-	void onResize(uint32_t width, uint32_t height, VkFormat drawImageFormat, VkImageView colorImageView);
-
-	VulkanImage& getImage();
+	void onResize(uint32_t width, uint32_t height, VkImageView colorImageView);
 
 private:
-	void createImage(uint32_t width, uint32_t height, VkFormat drawImageFormat);
-
 	void createDescriptorSetLayout();
 
 	void createGraphicsPipeline(VkFormat drawImageFormat);
@@ -26,7 +22,6 @@ private:
 	void updateDescriptorSet(VkImageView colorImageView);
 
 private:
-	VulkanImage m_image;
 	VkSampler m_sampler;
 	VkDescriptorSetLayout m_descriptorSetLayout;
 	VkDescriptorPool m_descriptorPool;

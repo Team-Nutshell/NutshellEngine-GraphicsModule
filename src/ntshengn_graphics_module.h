@@ -8,7 +8,6 @@
 #include "compositing.h"
 #include "forward_renderer.h"
 #include "frustum_culling.h"
-#include "fxaa.h"
 #include "gbuffer.h"
 #include "particles.h"
 #include "post_processing.h"
@@ -237,7 +236,6 @@ namespace NtshEngn {
 		Compositing m_compositing;
 		ForwardRenderer m_forwardRenderer;
 		FrustumCulling m_frustumCulling;
-		FXAA m_fxaa;
 		GBuffer m_gBuffer;
 		Particles m_particles;
 		PostProcessing m_postProcessing;

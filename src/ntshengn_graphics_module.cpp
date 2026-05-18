@@ -558,8 +558,6 @@ void NtshEngn::GraphicsModule::init() {
 
 	m_toneMapping.init(m_device, m_graphicsComputeQueue, m_graphicsComputeQueueFamilyIndex, m_allocator, m_initializationCommandPool, m_initializationCommandBuffer, m_initializationFence, m_drawImageFormat, m_viewport, m_scissor, m_postProcessing.getImage().view, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdPipelineBarrier2KHR);
 
-	m_fxaa.init(m_device, m_graphicsComputeQueueFamilyIndex, m_toneMapping.getImage().view, m_drawImageFormat, m_viewport, m_scissor, m_vkCmdBeginRenderingKHR, m_vkCmdEndRenderingKHR, m_vkCmdPipelineBarrier2KHR);
-
 	createUIResources();
 
 	createDefaultResources();
@@ -859,25 +857,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	compositingFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	compositingFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.layerCount = 1;
 
-	VkImageMemoryBarrier2 toneMappingFragmentToColorAttachmentImageMemoryBarrier = {};
-	toneMappingFragmentToColorAttachmentImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-	toneMappingFragmentToColorAttachmentImageMemoryBarrier.pNext = nullptr;
-	toneMappingFragmentToColorAttachmentImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-	toneMappingFragmentToColorAttachmentImageMemoryBarrier.srcAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
-	toneMappingFragmentToColorAttachmentImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-	toneMappingFragmentToColorAttachmentImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-	toneMappingFragmentToColorAttachmentImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	toneMappingFragmentToColorAttachmentImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	toneMappingFragmentToColorAttachmentImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
-	toneMappingFragmentToColorAttachmentImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsComputeQueueFamilyIndex;
-	toneMappingFragmentToColorAttachmentImageMemoryBarrier.image = m_toneMapping.getImage().handle;
-	toneMappingFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	toneMappingFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
-	toneMappingFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.levelCount = 1;
-	toneMappingFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-	toneMappingFragmentToColorAttachmentImageMemoryBarrier.subresourceRange.layerCount = 1;
-
-	std::array<VkImageMemoryBarrier2, 3> startFrameImageMemoryBarriers = { swapchainOrDrawImageMemoryBarrier, compositingFragmentToColorAttachmentImageMemoryBarrier, toneMappingFragmentToColorAttachmentImageMemoryBarrier };
+	std::array<VkImageMemoryBarrier2, 2> startFrameImageMemoryBarriers = { swapchainOrDrawImageMemoryBarrier, compositingFragmentToColorAttachmentImageMemoryBarrier };
 	VkDependencyInfo startFrameDependencyInfo = {};
 	startFrameDependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 	startFrameDependencyInfo.pNext = nullptr;
@@ -968,10 +948,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	m_postProcessing.draw(m_renderingCommandBuffers[m_currentFrameInFlight], m_currentFrameInFlight);
 
 	// Tone mapping
-	m_toneMapping.draw(m_renderingCommandBuffers[m_currentFrameInFlight]);
-
-	// FXAA
-	m_fxaa.draw(m_renderingCommandBuffers[m_currentFrameInFlight], (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage.handle, (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImage.view, m_fxaaEnabled);
+	m_toneMapping.draw(m_renderingCommandBuffers[m_currentFrameInFlight], (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage.handle, (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImage.view);
 
 	// UI
 	if (!m_uiElements.empty()) {
@@ -1214,9 +1191,6 @@ void NtshEngn::GraphicsModule::destroy() {
 
 	vkDestroySampler(m_device, m_uiLinearSampler, nullptr);
 	vkDestroySampler(m_device, m_uiNearestSampler, nullptr);
-
-	// Destroy FXAA
-	m_fxaa.destroy();
 
 	// Destroy tone mapping resources
 	m_toneMapping.destroy();
@@ -4022,10 +3996,7 @@ void NtshEngn::GraphicsModule::resize() {
 		m_postProcessing.onResize(width, height, m_compositing.getImage().view, m_bloom.getImage().view);
 
 		// Resize tone mapping
-		m_toneMapping.onResize(width, height, m_drawImageFormat, m_postProcessing.getImage().view);
-
-		// Resize FXAA
-		m_fxaa.onResize(width, height, m_toneMapping.getImage().view);
+		m_toneMapping.onResize(width, height, m_postProcessing.getImage().view);
 	}
 }
 
