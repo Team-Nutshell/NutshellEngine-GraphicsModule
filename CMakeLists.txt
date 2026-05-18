@@ -69,7 +69,6 @@ set(MODULE_SOURCES
 	src/compositing.cpp
 	src/forward_renderer.cpp
 	src/frustum_culling.cpp
-	src/fxaa.cpp
 	src/gbuffer.cpp
 	src/particles.cpp
 	src/post_processing.cpp
@@ -82,7 +81,6 @@ set(MODULE_HEADERS
 	src/compositing.h
 	src/forward_renderer.h
 	src/frustum_culling.h
-	src/fxaa.h
 	src/gbuffer.h
 	src/particles.h
 	src/post_processing.h
