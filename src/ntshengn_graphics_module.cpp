@@ -4170,7 +4170,7 @@ std::string NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler)
 	samplerCreateInfo.addressModeV = m_addressModeMap.at(sampler.addressModeV);
 	samplerCreateInfo.addressModeW = m_addressModeMap.at(sampler.addressModeW);
 	samplerCreateInfo.mipLodBias = 0.0f;
-	samplerCreateInfo.anisotropyEnable = (sampler.maxAnisotropy > 0.0f) ? VK_TRUE : VK_FALSE;
+	samplerCreateInfo.anisotropyEnable = (sampler.maxAnisotropy >= 1.0f) ? VK_TRUE : VK_FALSE;
 	samplerCreateInfo.maxAnisotropy = sampler.maxAnisotropy;
 	samplerCreateInfo.compareEnable = VK_FALSE;
 	samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
