@@ -2616,7 +2616,9 @@ void NtshEngn::GraphicsModule::createUIResources() {
 	uiSampler.addressModeV = ImageSamplerAddressMode::ClampToEdge;
 	uiSampler.addressModeW = ImageSamplerAddressMode::ClampToEdge;
 	uiSampler.borderColor = ImageSamplerBorderColor::IntOpaqueBlack;
-	uiSampler.anisotropyLevel = 0.0f;
+	uiSampler.minLod = 0.0f;
+	uiSampler.maxLod = 1000.0f;
+	uiSampler.maxAnisotropy = 0.0f;
 	m_uiNearestSamplerKey = createSampler(uiSampler);
 
 	uiSampler.magFilter = ImageSamplerFilter::Linear;
@@ -4143,11 +4145,11 @@ std::string NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler)
 		"/aV:" + std::to_string(m_addressModeMap.at(sampler.addressModeV)) +
 		"/aW:" + std::to_string(m_addressModeMap.at(sampler.addressModeW)) +
 		"/mlb:" + std::to_string(0.0f) +
-		"/aE:" + std::to_string(sampler.anisotropyLevel > 0.0f ? VK_TRUE : VK_FALSE) +
+		"/MA:" + std::to_string(sampler.maxAnisotropy) +
 		"/cE:" + std::to_string(VK_FALSE) +
 		"/cO:" + std::to_string(VK_COMPARE_OP_NEVER) +
-		"/mL:" + std::to_string(0.0f) +
-		"/ML:" + std::to_string(VK_LOD_CLAMP_NONE) +
+		"/mL:" + std::to_string(sampler.minLod) +
+		"/ML:" + std::to_string(sampler.maxLod) +
 		"/bC:" + std::to_string(m_borderColorMap.at(sampler.borderColor)) +
 		"/unC:" + std::to_string(VK_FALSE);
 
@@ -4168,12 +4170,12 @@ std::string NtshEngn::GraphicsModule::createSampler(const ImageSampler& sampler)
 	samplerCreateInfo.addressModeV = m_addressModeMap.at(sampler.addressModeV);
 	samplerCreateInfo.addressModeW = m_addressModeMap.at(sampler.addressModeW);
 	samplerCreateInfo.mipLodBias = 0.0f;
-	samplerCreateInfo.anisotropyEnable = sampler.anisotropyLevel > 0.0f ? VK_TRUE : VK_FALSE;
-	samplerCreateInfo.maxAnisotropy = sampler.anisotropyLevel;
+	samplerCreateInfo.anisotropyEnable = (sampler.maxAnisotropy > 0.0f) ? VK_TRUE : VK_FALSE;
+	samplerCreateInfo.maxAnisotropy = sampler.maxAnisotropy;
 	samplerCreateInfo.compareEnable = VK_FALSE;
 	samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
-	samplerCreateInfo.minLod = 0.0f;
-	samplerCreateInfo.maxLod = VK_LOD_CLAMP_NONE;
+	samplerCreateInfo.minLod = sampler.minLod;
+	samplerCreateInfo.maxLod = sampler.maxLod;
 	samplerCreateInfo.borderColor = m_borderColorMap.at(sampler.borderColor);
 	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
 	NTSHENGN_VK_CHECK(vkCreateSampler(m_device, &samplerCreateInfo, nullptr, &newSampler));
