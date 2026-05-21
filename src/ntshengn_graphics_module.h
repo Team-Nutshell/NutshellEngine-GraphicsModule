@@ -56,7 +56,9 @@ bool operator==(const NtshEngn::ImageSampler& lhs, const NtshEngn::ImageSampler&
 		(lhs.addressModeV == rhs.addressModeV) &&
 		(lhs.addressModeW == rhs.addressModeW) &&
 		(lhs.borderColor == rhs.borderColor) &&
-		(lhs.anisotropyLevel == rhs.anisotropyLevel);
+		(lhs.minLod == rhs.minLod) &&
+		(lhs.maxLod == rhs.maxLod) &&
+		(lhs.maxAnisotropy == rhs.maxAnisotropy);
 }
 
 bool operator==(const NtshEngn::Material& lhs, const NtshEngn::Material& rhs) {
