@@ -6665,38 +6665,18 @@ void NtshEngn::GraphicsModule::createDefaultResources() {
 	ImageID defaultNormalImageID = load(*defaultNormalTexture);
 	m_defaultMaterial.normalTextureIndex = addToTextures({ defaultNormalImageID, "GM_defaultSampler" });
 
-	// Default metalness texture
-	Image* defaultMetalnessTexture = assetManager->createImage("GM_defaultMetalnessTexture");
-	defaultMetalnessTexture->width = 1;
-	defaultMetalnessTexture->height = 1;
-	defaultMetalnessTexture->format = ImageFormat::R8G8B8A8;
-	defaultMetalnessTexture->colorSpace = ImageColorSpace::Linear;
-	defaultMetalnessTexture->data = { 0, 0, 0, 255 };
+	// Default occlusion-roughness-metalness texture
+	Image* defaultOcclusionRoughnessMetalnessTexture = assetManager->createImage("GM_defaultOcclusionRoughnessMetalnessTexture");
+	defaultOcclusionRoughnessMetalnessTexture->width = 1;
+	defaultOcclusionRoughnessMetalnessTexture->height = 1;
+	defaultOcclusionRoughnessMetalnessTexture->format = ImageFormat::R8G8B8A8;
+	defaultOcclusionRoughnessMetalnessTexture->colorSpace = ImageColorSpace::Linear;
+	defaultOcclusionRoughnessMetalnessTexture->data = { 255, 127, 127, 255 };
 
-	ImageID defaultMetalnessImageID = load(*defaultMetalnessTexture);
-	m_defaultMaterial.metalnessTextureIndex = addToTextures({ defaultMetalnessImageID, "GM_defaultSampler" });
-
-	// Default roughness texture
-	Image* defaultRoughnessTexture = assetManager->createImage("GM_defaultRoughnessTexture");
-	defaultRoughnessTexture->width = 1;
-	defaultRoughnessTexture->height = 1;
-	defaultRoughnessTexture->format = ImageFormat::R8G8B8A8;
-	defaultRoughnessTexture->colorSpace = ImageColorSpace::Linear;
-	defaultRoughnessTexture->data = { 0, 0, 0, 255 };
-
-	ImageID defaultRoughnessImageID = load(*defaultRoughnessTexture);
-	m_defaultMaterial.roughnessTextureIndex = addToTextures({ defaultRoughnessImageID, "GM_defaultSampler" });
-
-	// Default occlusion texture
-	Image* defaultOcclusionTexture = assetManager->createImage("GM_defaultOcclusionTexture");
-	defaultOcclusionTexture->width = 1;
-	defaultOcclusionTexture->height = 1;
-	defaultOcclusionTexture->format = ImageFormat::R8G8B8A8;
-	defaultOcclusionTexture->colorSpace = ImageColorSpace::Linear;
-	defaultOcclusionTexture->data = { 255, 255, 255, 255 };
-
-	ImageID defaultOcclusionImageID = load(*defaultOcclusionTexture);
-	m_defaultMaterial.occlusionTextureIndex = addToTextures({ defaultOcclusionImageID, "GM_defaultSampler" });
+	ImageID defaultOcclusionRoughnessMetalnessImageID = load(*defaultOcclusionRoughnessMetalnessTexture);
+	m_defaultMaterial.metalnessTextureIndex = addToTextures({ defaultOcclusionRoughnessMetalnessImageID, "GM_defaultSampler" });
+	m_defaultMaterial.roughnessTextureIndex = m_defaultMaterial.metalnessTextureIndex;
+	m_defaultMaterial.occlusionTextureIndex = m_defaultMaterial.metalnessTextureIndex;
 
 	// Default emissive texture
 	Image* defaultEmissiveTexture = assetManager->createImage("GM_defaultEmissiveTexture");
