@@ -2497,6 +2497,14 @@ void NtshEngn::GraphicsModule::stopAnimation(Entity entity) {
 	}
 }
 
+uint32_t NtshEngn::GraphicsModule::getPlayingAnimation(Entity entity) {
+	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
+		return m_playingAnimations[&m_objects[entity]].animationIndex;
+	}
+
+	return 0xFFFFFFFF;
+}
+
 bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animationIndex) {
 	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
 		const PlayingAnimation& playingAnimation = m_playingAnimations[&m_objects[entity]];
