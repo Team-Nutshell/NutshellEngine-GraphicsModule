@@ -1219,6 +1219,13 @@ void NtshEngn::GraphicsModule::stopAnimation(Entity entity) {
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
+uint32_t NtshEngn::GraphicsModule::getPlayingAnimation(Entity entity) {
+	NTSHENGN_UNUSED(entity);
+	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
+
+	return 0xFFFFFFFF;
+}
+
 bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animationIndex) {
 	NTSHENGN_UNUSED(entity);
 	NTSHENGN_UNUSED(animationIndex);
