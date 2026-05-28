@@ -68,6 +68,8 @@ namespace NtshEngn {
 		// Stops an animation played by an entity
 		void stopAnimation(Entity entity);
 
+		// Returns the index of the playing animation
+		uint32_t getPlayingAnimation(Entity entity);
 		// Returns true if the entity is currently playing the animation with index animationIndex, else, returns false
 		bool isAnimationPlaying(Entity entity, uint32_t animationIndex);
 
