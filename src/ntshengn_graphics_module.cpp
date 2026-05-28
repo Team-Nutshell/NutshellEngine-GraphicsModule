@@ -2022,16 +2022,20 @@ void NtshEngn::GraphicsModule::stopAnimation(Entity entity) {
 	m_animationSystem.stopAnimation(&m_objects[entity]);
 }
 
+uint32_t NtshEngn::GraphicsModule::getPlayingAnimation(Entity entity) {
+	return m_animationSystem.getPlayingAnimation(&m_objects[entity]);
+}
+
+bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animationIndex) {
+	return m_animationSystem.isAnimationPlaying(&m_objects[entity], animationIndex);
+}
+
 void NtshEngn::GraphicsModule::setAnimationCurrentTime(Entity entity, float time) {
 	m_animationSystem.setAnimationCurrentTime(&m_objects[entity], ecs->getComponent<NtshEngn::Renderable>(entity).mesh, time);
 }
 
 float NtshEngn::GraphicsModule::getAnimationCurrentTime(Entity entity) {
 	return m_animationSystem.getAnimationCurrentTime(&m_objects[entity]);
-}
-
-bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animationIndex) {
-	return m_animationSystem.isAnimationPlaying(&m_objects[entity], animationIndex);
 }
 
 void NtshEngn::GraphicsModule::setAnimationSpeed(Entity entity, float speed) {

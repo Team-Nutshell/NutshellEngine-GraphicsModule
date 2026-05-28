@@ -212,6 +212,14 @@ void AnimationSystem::stopAnimation(InternalObject* object) {
 	}
 }
 
+uint32_t AnimationSystem::getPlayingAnimation(InternalObject* object) {
+	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
+		return m_playingAnimations[object].animationIndex;
+	}
+
+	return 0xFFFFFFFF;
+}
+
 bool AnimationSystem::isAnimationPlaying(InternalObject* object, uint32_t animationIndex) {
 	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
 		const PlayingAnimation& playingAnimation = m_playingAnimations[object];

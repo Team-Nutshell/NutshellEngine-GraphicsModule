@@ -11,6 +11,7 @@ public:
 	void resumeAnimation(InternalObject* object);
 	void pauseAnimation(InternalObject* object);
 	void stopAnimation(InternalObject* object);
+	uint32_t getPlayingAnimation(InternalObject* object);
 	bool isAnimationPlaying(InternalObject* object, uint32_t animationIndex);
 	void setAnimationCurrentTime(InternalObject* object, NtshEngn::Mesh* mesh, float newTime);
 	float getAnimationCurrentTime(InternalObject* object);
