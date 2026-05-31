@@ -2986,7 +2986,7 @@ void NtshEngn::GraphicsModule::createUITextResources() {
 		VkDescriptorBufferInfo textDescriptorBufferInfo;
 		textDescriptorBufferInfo.buffer = m_uiTextBuffers[i].handle;
 		textDescriptorBufferInfo.offset = 0;
-		textDescriptorBufferInfo.range = 32768;
+		textDescriptorBufferInfo.range = 65536;
 
 		VkWriteDescriptorSet textDescriptorWriteDescriptorSet = {};
 		textDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
