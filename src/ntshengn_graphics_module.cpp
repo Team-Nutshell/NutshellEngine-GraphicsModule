@@ -808,11 +808,11 @@ void NtshEngn::GraphicsModule::update(float dt) {
 							m_playingAnimations.erase(&it.second);
 						}
 					}
-					if (playingAnimation.time < 0.0f) {
+					else if (playingAnimation.time < 0.0f) {
 						while (std::abs(playingAnimation.time) > animation.duration) {
-							playingAnimation.time = animation.duration + playingAnimation.time;
+							playingAnimation.time += animation.duration;
 						}
-						playingAnimation.time = animation.duration + playingAnimation.time;
+						playingAnimation.time += animation.duration;
 					}
 				}
 				else {
