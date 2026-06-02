@@ -144,11 +144,11 @@ void AnimationSystem::update(float dt, std::unordered_map<NtshEngn::Entity, Inte
 							m_playingAnimations.erase(&it.second);
 						}
 					}
-					if (playingAnimation.time < 0.0f) {
+					else if (playingAnimation.time < 0.0f) {
 						while (std::abs(playingAnimation.time) > animation.duration) {
-							playingAnimation.time = animation.duration + playingAnimation.time;
+							playingAnimation.time += animation.duration;
 						}
-						playingAnimation.time = animation.duration + playingAnimation.time;
+						playingAnimation.time += animation.duration;
 					}
 				}
 				else {
