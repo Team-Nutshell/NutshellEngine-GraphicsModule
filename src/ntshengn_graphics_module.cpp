@@ -524,9 +524,9 @@ void NtshEngn::GraphicsModule::init() {
 
 	createDescriptorSets();
 
-	createDefaultResources();
-
 	createParticleResources();
+
+	createDefaultResources();
 
 	// Resize buffers according to number of frames in flight and swapchain size
 	m_renderingCommandPools.resize(m_framesInFlight);
@@ -2559,7 +2559,7 @@ void NtshEngn::GraphicsModule::emitParticles(const ParticleEmitter& particleEmit
 	}
 
 	uint32_t textureIndex = m_defaultParticleTexture;
-	if (particleEmitter.texture.image) {
+	if (particleEmitter.texture.image != NTSHENGN_IMAGE_UNKNOWN) {
 		std::string samplerKey = createSampler(particleEmitter.texture.imageSampler);
 		textureIndex = addToTextures({ particleEmitter.texture.image, samplerKey });
 	}
@@ -4352,17 +4352,6 @@ void NtshEngn::GraphicsModule::updateDescriptorSet(uint32_t frameInFlight, const
 }
 
 void NtshEngn::GraphicsModule::createParticleResources() {
-	// Create default texture
-	Image* defaultParticleTexture = assetManager->createImage("GM_defaultParticleTexture");
-	defaultParticleTexture->width = 1;
-	defaultParticleTexture->height = 1;
-	defaultParticleTexture->format = ImageFormat::R8G8B8A8;
-	defaultParticleTexture->colorSpace = ImageColorSpace::SRGB;
-	defaultParticleTexture->data = { 255, 255, 255, 255 };
-
-	ImageID defaultParticleImageID = load(*defaultParticleTexture);
-	m_defaultParticleTexture = addToTextures({ defaultParticleImageID, "GM_defaultSampler" });
-
 	// Create sampler
 	VkSamplerCreateInfo samplerCreateInfo = {};
 	samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -5110,6 +5099,17 @@ void NtshEngn::GraphicsModule::createParticleResources() {
 	for (uint32_t i = 0; i < m_framesInFlight; i++) {
 		m_particleGraphicsDescriptorSetsNeedUpdate[i] = true;
 	}
+
+	// Create default texture
+	Image* defaultParticleTexture = assetManager->createImage("GM_defaultParticleTexture");
+	defaultParticleTexture->width = 1;
+	defaultParticleTexture->height = 1;
+	defaultParticleTexture->format = ImageFormat::R8G8B8A8;
+	defaultParticleTexture->colorSpace = ImageColorSpace::SRGB;
+	defaultParticleTexture->data = { 255, 255, 255, 255 };
+
+	ImageID defaultParticleImageID = load(*defaultParticleTexture);
+	m_defaultParticleTexture = addToTextures({ defaultParticleImageID, "GM_defaultSampler" });
 }
 
 void NtshEngn::GraphicsModule::updateParticleGraphicsDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& texturesDescriptorImageInfos) {
