@@ -1992,22 +1992,20 @@ void NtshEngn::GraphicsModule::setBackgroundColor(const Math::vec4& backgroundCo
 	m_backgroundColor = backgroundColor;
 }
 
-void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex, bool looping) {
+void NtshEngn::GraphicsModule::playAnimation(Entity entity, Animation* animation, bool looping) {
+	if (!animation) {
+		NTSHENGN_MODULE_WARNING("Animation does not exist when trying to play animation on Entity " + (ecs->entityHasName(entity) ? ("\"" + ecs->getEntityName(entity) + "\"") : std::to_string(entity)) + ".");
+
+		return;
+	}
+
 	if (!ecs->hasComponent<Renderable>(entity)) {
-		NTSHENGN_MODULE_WARNING("Entity " + (ecs->entityHasName(entity) ? ("\"" + ecs->getEntityName(entity) + "\"") : std::to_string(entity)) + " does not have a Renderable component, when trying to play animation " + std::to_string(animationIndex) + ".");
+		NTSHENGN_MODULE_WARNING("Entity " + (ecs->entityHasName(entity) ? ("\"" + ecs->getEntityName(entity) + "\"") : std::to_string(entity)) + " does not have a Renderable component, when trying to play an animation.");
 
 		return;
 	}
 
-	const NtshEngn::Renderable& renderable = ecs->getComponent<Renderable>(entity);
-
-	if (animationIndex >= renderable.mesh->animations.size()) {
-		NTSHENGN_MODULE_WARNING("Animation " + std::to_string(animationIndex) + " does not exist for Entity " + (ecs->entityHasName(entity) ? ("\"" + ecs->getEntityName(entity) + "\"") : std::to_string(entity)) + "\'s mesh.");
-
-		return;
-	}
-
-	m_animationSystem.playAnimation(&m_objects[entity], animationIndex, looping);
+	m_animationSystem.playAnimation(&m_objects[entity], animation, looping);
 }
 
 void NtshEngn::GraphicsModule::resumeAnimation(Entity entity) {
@@ -2022,16 +2020,20 @@ void NtshEngn::GraphicsModule::stopAnimation(Entity entity) {
 	m_animationSystem.stopAnimation(&m_objects[entity]);
 }
 
-uint32_t NtshEngn::GraphicsModule::getPlayingAnimation(Entity entity) {
+NtshEngn::Animation* NtshEngn::GraphicsModule::getPlayingAnimation(Entity entity) {
 	return m_animationSystem.getPlayingAnimation(&m_objects[entity]);
 }
 
-bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animationIndex) {
-	return m_animationSystem.isAnimationPlaying(&m_objects[entity], animationIndex);
+bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, Animation* animation) {
+	if (!animation) {
+		return false;
+	}
+
+	return m_animationSystem.isAnimationPlaying(&m_objects[entity], animation);
 }
 
 void NtshEngn::GraphicsModule::setAnimationCurrentTime(Entity entity, float time) {
-	m_animationSystem.setAnimationCurrentTime(&m_objects[entity], ecs->getComponent<NtshEngn::Renderable>(entity).mesh, time);
+	m_animationSystem.setAnimationCurrentTime(&m_objects[entity], time);
 }
 
 float NtshEngn::GraphicsModule::getAnimationCurrentTime(Entity entity) {

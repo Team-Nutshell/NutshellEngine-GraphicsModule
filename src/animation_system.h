@@ -7,13 +7,13 @@ public:
 
 	void update(float dt, std::unordered_map<NtshEngn::Entity, InternalObject>& objects, std::vector<InternalMesh>& meshes, HostVisibleVulkanBuffer& jointTransformBuffer);
 
-	void playAnimation(InternalObject* object, uint32_t animationIndex, bool looping);
+	void playAnimation(InternalObject* object, NtshEngn::Animation* animation, bool looping);
 	void resumeAnimation(InternalObject* object);
 	void pauseAnimation(InternalObject* object);
 	void stopAnimation(InternalObject* object);
-	uint32_t getPlayingAnimation(InternalObject* object);
-	bool isAnimationPlaying(InternalObject* object, uint32_t animationIndex);
-	void setAnimationCurrentTime(InternalObject* object, NtshEngn::Mesh* mesh, float newTime);
+	NtshEngn::Animation* getPlayingAnimation(InternalObject* object);
+	bool isAnimationPlaying(InternalObject* object, NtshEngn::Animation* animation);
+	void setAnimationCurrentTime(InternalObject* object, float newTime);
 	float getAnimationCurrentTime(InternalObject* object);
 	void setAnimationSpeed(InternalObject* object, float newSpeed);
 	float getAnimationSpeed(InternalObject* object);

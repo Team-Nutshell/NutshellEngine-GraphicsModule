@@ -108,7 +108,7 @@ struct InternalObject {
 };
 
 struct PlayingAnimation {
-	uint32_t animationIndex;
+	NtshEngn::Animation* animation = nullptr;
 	float time = 0.0f;
 	float speed = 1.0f;
 	bool playing = true;

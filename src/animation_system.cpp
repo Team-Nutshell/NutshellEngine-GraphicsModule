@@ -18,7 +18,7 @@ void AnimationSystem::update(float dt, std::unordered_map<NtshEngn::Entity, Inte
 
 				if (m_playingAnimations.find(&it.second) != m_playingAnimations.end()) {
 					PlayingAnimation& playingAnimation = m_playingAnimations[&it.second];
-					const NtshEngn::Animation& animation = objectRenderable.mesh->animations[m_playingAnimations[&it.second].animationIndex];
+					const NtshEngn::Animation& animation = *m_playingAnimations[&it.second].animation;
 
 					std::queue<std::pair<uint32_t, uint32_t>> jointsAndParents;
 					for (size_t i = 0; i < skin.rootJoints.size(); i++) {
@@ -185,9 +185,9 @@ void AnimationSystem::update(float dt, std::unordered_map<NtshEngn::Entity, Inte
 	}
 }
 
-void AnimationSystem::playAnimation(InternalObject* object, uint32_t animationIndex, bool looping) {
+void AnimationSystem::playAnimation(InternalObject* object, NtshEngn::Animation* animation, bool looping) {
 	PlayingAnimation playingAnimation;
-	playingAnimation.animationIndex = animationIndex;
+	playingAnimation.animation = animation;
 	playingAnimation.looping = looping;
 	m_playingAnimations[object] = playingAnimation;
 }
@@ -212,18 +212,18 @@ void AnimationSystem::stopAnimation(InternalObject* object) {
 	}
 }
 
-uint32_t AnimationSystem::getPlayingAnimation(InternalObject* object) {
+NtshEngn::Animation* AnimationSystem::getPlayingAnimation(InternalObject* object) {
 	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
-		return m_playingAnimations[object].animationIndex;
+		return m_playingAnimations[object].animation;
 	}
 
-	return 0xFFFFFFFF;
+	return nullptr;
 }
 
-bool AnimationSystem::isAnimationPlaying(InternalObject* object, uint32_t animationIndex) {
+bool AnimationSystem::isAnimationPlaying(InternalObject* object, NtshEngn::Animation* animation) {
 	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
 		const PlayingAnimation& playingAnimation = m_playingAnimations[object];
-		if (playingAnimation.animationIndex == animationIndex) {
+		if (playingAnimation.animation == animation) {
 			return playingAnimation.playing;
 		}
 	}
@@ -231,14 +231,19 @@ bool AnimationSystem::isAnimationPlaying(InternalObject* object, uint32_t animat
 	return false;
 }
 
-void AnimationSystem::setAnimationCurrentTime(InternalObject* object, NtshEngn::Mesh* mesh, float newTime) {
+void AnimationSystem::setAnimationCurrentTime(InternalObject* object, float newTime) {
 	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
 		PlayingAnimation& playingAnimation = m_playingAnimations[object];
 		if (playingAnimation.looping) {
-			playingAnimation.time = std::fmod(newTime, mesh->animations[playingAnimation.animationIndex].duration);
+			playingAnimation.time = std::fmod(newTime, playingAnimation.animation->duration);
 		}
 		else {
-			m_playingAnimations[object].time = newTime;
+			if (newTime <= playingAnimation.animation->duration) {
+				m_playingAnimations[object].time = newTime;
+			}
+			else {
+				m_playingAnimations.erase(object);
+			}
 		}
 	}
 }
