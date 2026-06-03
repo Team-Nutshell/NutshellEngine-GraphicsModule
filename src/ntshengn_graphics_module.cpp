@@ -682,7 +682,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 
 				if (m_playingAnimations.find(&it.second) != m_playingAnimations.end()) {
 					PlayingAnimation& playingAnimation = m_playingAnimations[&it.second];
-					const Animation& animation = objectRenderable.mesh->animations[m_playingAnimations[&it.second].animationIndex];
+					const Animation& animation = *m_playingAnimations[&it.second].animation;
 
 					std::queue<std::pair<uint32_t, uint32_t>> jointsAndParents;
 					for (size_t i = 0; i < skin.rootJoints.size(); i++) {
@@ -2458,21 +2458,21 @@ void NtshEngn::GraphicsModule::setBackgroundColor(const Math::vec4& backgroundCo
 	m_backgroundColor = backgroundColor;
 }
 
-void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex, bool looping) {
-	if (!ecs->hasComponent<Renderable>(entity)) {
-		NTSHENGN_MODULE_WARNING("Entity " + (ecs->entityHasName(entity) ? ("\"" + ecs->getEntityName(entity) + "\"") : std::to_string(entity)) + " does not have a Renderable component, when trying to play animation " + std::to_string(animationIndex) + ".");
+void NtshEngn::GraphicsModule::playAnimation(Entity entity, Animation* animation, bool looping) {
+	if (!animation) {
+		NTSHENGN_MODULE_WARNING("Animation does not exist when trying to play animation on Entity " + (ecs->entityHasName(entity) ? ("\"" + ecs->getEntityName(entity) + "\"") : std::to_string(entity)) + ".");
+
 		return;
 	}
 
-	const Renderable& renderable = ecs->getComponent<Renderable>(entity);
+	if (!ecs->hasComponent<Renderable>(entity)) {
+		NTSHENGN_MODULE_WARNING("Entity " + (ecs->entityHasName(entity) ? ("\"" + ecs->getEntityName(entity) + "\"") : std::to_string(entity)) + " does not have a Renderable component, when trying to play an animation.");
 
-	if (animationIndex >= renderable.mesh->animations.size()) {
-		NTSHENGN_MODULE_WARNING("Animation " + std::to_string(animationIndex) + " does not exist for Entity " + (ecs->entityHasName(entity) ? ("\"" + ecs->getEntityName(entity) + "\"") : std::to_string(entity)) + "\'s mesh.");
 		return;
 	}
 
 	PlayingAnimation playingAnimation;
-	playingAnimation.animationIndex = animationIndex;
+	playingAnimation.animation = animation;
 	playingAnimation.looping = looping;
 	m_playingAnimations[&m_objects[entity]] = playingAnimation;
 }
@@ -2497,18 +2497,18 @@ void NtshEngn::GraphicsModule::stopAnimation(Entity entity) {
 	}
 }
 
-uint32_t NtshEngn::GraphicsModule::getPlayingAnimation(Entity entity) {
+NtshEngn::Animation* NtshEngn::GraphicsModule::getPlayingAnimation(Entity entity) {
 	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
-		return m_playingAnimations[&m_objects[entity]].animationIndex;
+		return m_playingAnimations[&m_objects[entity]].animation;
 	}
 
-	return 0xFFFFFFFF;
+	return nullptr;
 }
 
-bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animationIndex) {
+bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, Animation* animation) {
 	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
 		const PlayingAnimation& playingAnimation = m_playingAnimations[&m_objects[entity]];
-		if (playingAnimation.animationIndex == animationIndex) {
+		if (playingAnimation.animation == animation) {
 			return playingAnimation.playing;
 		}
 	}
@@ -2520,10 +2520,15 @@ void NtshEngn::GraphicsModule::setAnimationCurrentTime(Entity entity, float newT
 	if (m_playingAnimations.find(&m_objects[entity]) != m_playingAnimations.end()) {
 		PlayingAnimation& playingAnimation = m_playingAnimations[&m_objects[entity]];
 		if (playingAnimation.looping) {
-			playingAnimation.time = std::fmod(newTime, ecs->getComponent<Renderable>(entity).mesh->animations[playingAnimation.animationIndex].duration);
+			playingAnimation.time = std::fmod(newTime, playingAnimation.animation->duration);
 		}
 		else {
-			m_playingAnimations[&m_objects[entity]].time = newTime;
+			if (newTime <= playingAnimation.animation->duration) {
+				m_playingAnimations[&m_objects[entity]].time = newTime;
+			}
+			else {
+				m_playingAnimations.erase(&m_objects[entity]);
+			}
 		}
 	}
 }
