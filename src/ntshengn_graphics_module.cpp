@@ -2310,9 +2310,9 @@ void NtshEngn::GraphicsModule::setBackgroundColor(const Math::vec4& backgroundCo
 	m_sampleBatch = 0;
 }
 
-void NtshEngn::GraphicsModule::playAnimation(Entity entity, uint32_t animationIndex, bool looping) {
+void NtshEngn::GraphicsModule::playAnimation(Entity entity, Animation* animation, bool looping) {
 	NTSHENGN_UNUSED(entity);
-	NTSHENGN_UNUSED(animationIndex);
+	NTSHENGN_UNUSED(animation);
 	NTSHENGN_UNUSED(looping);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
@@ -2332,16 +2332,16 @@ void NtshEngn::GraphicsModule::stopAnimation(Entity entity) {
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 }
 
-uint32_t NtshEngn::GraphicsModule::getPlayingAnimation(Entity entity) {
+NtshEngn::Animation* NtshEngn::GraphicsModule::getPlayingAnimation(Entity entity) {
 	NTSHENGN_UNUSED(entity);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 
-	return 0xFFFFFFFF;
+	return nullptr;
 }
 
-bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, uint32_t animationIndex) {
+bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, Animation* animation) {
 	NTSHENGN_UNUSED(entity);
-	NTSHENGN_UNUSED(animationIndex);
+	NTSHENGN_UNUSED(animation);
 	NTSHENGN_MODULE_FUNCTION_NOT_IMPLEMENTED();
 
 	return false;
