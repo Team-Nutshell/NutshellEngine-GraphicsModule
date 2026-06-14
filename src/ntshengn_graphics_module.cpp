@@ -5123,19 +5123,30 @@ void NtshEngn::GraphicsModule::updateParticleGraphicsDescriptorSet(uint32_t fram
 		return;
 	}
 
-	VkWriteDescriptorSet texturesDescriptorWriteDescriptorSet = {};
-	texturesDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	texturesDescriptorWriteDescriptorSet.pNext = nullptr;
-	texturesDescriptorWriteDescriptorSet.dstSet = m_particleGraphicsDescriptorSets[frameInFlight];
-	texturesDescriptorWriteDescriptorSet.dstBinding = 2;
-	texturesDescriptorWriteDescriptorSet.dstArrayElement = 0;
-	texturesDescriptorWriteDescriptorSet.descriptorCount = static_cast<uint32_t>(texturesDescriptorImageInfos.size());
-	texturesDescriptorWriteDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	texturesDescriptorWriteDescriptorSet.pImageInfo = texturesDescriptorImageInfos.data();
-	texturesDescriptorWriteDescriptorSet.pBufferInfo = nullptr;
-	texturesDescriptorWriteDescriptorSet.pTexelBufferView = nullptr;
+	std::array<VkWriteDescriptorSet, 2> texturesDescriptorWriteDescriptorSets;
+	texturesDescriptorWriteDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	texturesDescriptorWriteDescriptorSets[0].pNext = nullptr;
+	texturesDescriptorWriteDescriptorSets[0].dstSet = m_particleGraphicsDescriptorSets[(frameInFlight * 2) + 0];
+	texturesDescriptorWriteDescriptorSets[0].dstBinding = 2;
+	texturesDescriptorWriteDescriptorSets[0].dstArrayElement = 0;
+	texturesDescriptorWriteDescriptorSets[0].descriptorCount = static_cast<uint32_t>(texturesDescriptorImageInfos.size());
+	texturesDescriptorWriteDescriptorSets[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	texturesDescriptorWriteDescriptorSets[0].pImageInfo = texturesDescriptorImageInfos.data();
+	texturesDescriptorWriteDescriptorSets[0].pBufferInfo = nullptr;
+	texturesDescriptorWriteDescriptorSets[0].pTexelBufferView = nullptr;
 
-	vkUpdateDescriptorSets(m_device, 1, &texturesDescriptorWriteDescriptorSet, 0, nullptr);
+	texturesDescriptorWriteDescriptorSets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	texturesDescriptorWriteDescriptorSets[1].pNext = nullptr;
+	texturesDescriptorWriteDescriptorSets[1].dstSet = m_particleGraphicsDescriptorSets[(frameInFlight * 2) + 1];
+	texturesDescriptorWriteDescriptorSets[1].dstBinding = 2;
+	texturesDescriptorWriteDescriptorSets[1].dstArrayElement = 0;
+	texturesDescriptorWriteDescriptorSets[1].descriptorCount = static_cast<uint32_t>(texturesDescriptorImageInfos.size());
+	texturesDescriptorWriteDescriptorSets[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	texturesDescriptorWriteDescriptorSets[1].pImageInfo = texturesDescriptorImageInfos.data();
+	texturesDescriptorWriteDescriptorSets[1].pBufferInfo = nullptr;
+	texturesDescriptorWriteDescriptorSets[1].pTexelBufferView = nullptr;
+
+	vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(texturesDescriptorWriteDescriptorSets.size()), texturesDescriptorWriteDescriptorSets.data(), 0, nullptr);
 
 	m_particleGraphicsDescriptorSetsNeedUpdate[frameInFlight] = false;
 }
