@@ -247,9 +247,9 @@ namespace NtshEngn {
 		uint32_t addToTextures(const InternalTexture& texture);
 
 		// Create meshes for colliders
-		MeshID createBox(const ColliderBox* box);
-		MeshID createSphere(const ColliderSphere* sphere);
-		MeshID createCapsule(const ColliderCapsule* capsule);
+		MeshID createBox(const ColliderBox& box);
+		MeshID createSphere(const ColliderSphere& sphere);
+		MeshID createCapsule(const ColliderCapsule& capsule);
 
 	private:
 		VkInstance m_instance;

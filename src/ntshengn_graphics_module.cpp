@@ -555,9 +555,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		const Transform& objectTransform = ecs->getComponent<Transform>(it.first);
 
 		Math::mat4 objectModel = Math::translate(objectTransform.position) *
-			Math::rotate(objectTransform.rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
-			Math::rotate(objectTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
-			Math::rotate(objectTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f)) *
+			Math::quatToRotationMatrix(objectTransform.rotation) *
 			Math::scale(objectTransform.scale);
 
 		size_t offset = (it.second.index * (sizeof(Math::mat4)));
@@ -1985,20 +1983,14 @@ void NtshEngn::GraphicsModule::onEntityComponentAdded(Entity entity, Component c
 
 		const Collidable& collidable = ecs->getComponent<Collidable>(entity);
 
-		if (collidable.collider->getType() == ColliderShapeType::Box) {
-			const ColliderBox* colliderBox = static_cast<const ColliderBox*>(collidable.collider.get());
-
-			object.boxMeshIndex = createBox(colliderBox);
+		if (std::holds_alternative<ColliderBox>(collidable.collider)) {
+			object.boxMeshIndex = createBox(std::get<ColliderBox>(collidable.collider));
 		}
-		else if (collidable.collider->getType() == ColliderShapeType::Sphere) {
-			const ColliderSphere* colliderSphere = static_cast<const ColliderSphere*>(collidable.collider.get());
-
-			object.sphereMeshIndex = createSphere(colliderSphere);
+		else if (std::holds_alternative<ColliderSphere>(collidable.collider)) {
+			object.sphereMeshIndex = createSphere(std::get<ColliderSphere>(collidable.collider));
 		}
-		else if (collidable.collider->getType() == ColliderShapeType::Capsule) {
-			const ColliderCapsule* colliderCapsule = static_cast<const ColliderCapsule*>(collidable.collider.get());
-
-			object.capsuleMeshIndex = createCapsule(colliderCapsule);
+		else if (std::holds_alternative<ColliderCapsule>(collidable.collider)) {
+			object.capsuleMeshIndex = createCapsule(std::get<ColliderCapsule>(collidable.collider));
 		}
 		m_objects[entity] = object;
 	}
@@ -4134,23 +4126,21 @@ uint32_t NtshEngn::GraphicsModule::addToTextures(const InternalTexture& texture)
 	return static_cast<uint32_t>(m_textures.size()) - 1;
 }
 
-NtshEngn::MeshID NtshEngn::GraphicsModule::createBox(const ColliderBox* box) {
-	const Math::mat4 boxRotation = Math::rotate(box->rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
-		Math::rotate(box->rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
-		Math::rotate(box->rotation.z, Math::vec3(0.0f, 0.0f, 1.0f));
+NtshEngn::MeshID NtshEngn::GraphicsModule::createBox(const ColliderBox& box) {
+	const Math::mat4 boxRotation = Math::quatToRotationMatrix(box.rotation);
 
 	Model* cubeModel = assetManager->createModel("BoxCollider" + std::to_string(m_meshes.size()));
 	cubeModel->primitives.resize(1);
 	Mesh& cubeMesh = cubeModel->primitives[0].mesh;
 	cubeMesh.vertices.resize(8);
-	cubeMesh.vertices[0].position = box->center + Math::vec3(boxRotation * Math::vec4(-box->halfExtent.x, -box->halfExtent.y, -box->halfExtent.z, 1.0f));
-	cubeMesh.vertices[1].position = box->center + Math::vec3(boxRotation * Math::vec4(box->halfExtent.x, -box->halfExtent.y, -box->halfExtent.z, 1.0f));
-	cubeMesh.vertices[2].position = box->center + Math::vec3(boxRotation * Math::vec4(box->halfExtent.x, -box->halfExtent.y, box->halfExtent.z, 1.0f));
-	cubeMesh.vertices[3].position = box->center + Math::vec3(boxRotation * Math::vec4(-box->halfExtent.x, -box->halfExtent.y, box->halfExtent.z, 1.0f));
-	cubeMesh.vertices[4].position = box->center + Math::vec3(boxRotation * Math::vec4(-box->halfExtent.x, box->halfExtent.y, -box->halfExtent.z, 1.0f));
-	cubeMesh.vertices[5].position = box->center + Math::vec3(boxRotation * Math::vec4(box->halfExtent.x, box->halfExtent.y, -box->halfExtent.z, 1.0f));
-	cubeMesh.vertices[6].position = box->center + Math::vec3(boxRotation * Math::vec4(box->halfExtent.x, box->halfExtent.y, box->halfExtent.z, 1.0f));
-	cubeMesh.vertices[7].position = box->center + Math::vec3(boxRotation * Math::vec4(-box->halfExtent.x, box->halfExtent.y, box->halfExtent.z, 1.0f));
+	cubeMesh.vertices[0].position = box.center + Math::vec3(boxRotation * Math::vec4(-box.halfExtent.x, -box.halfExtent.y, -box.halfExtent.z, 1.0f));
+	cubeMesh.vertices[1].position = box.center + Math::vec3(boxRotation * Math::vec4(box.halfExtent.x, -box.halfExtent.y, -box.halfExtent.z, 1.0f));
+	cubeMesh.vertices[2].position = box.center + Math::vec3(boxRotation * Math::vec4(box.halfExtent.x, -box.halfExtent.y, box.halfExtent.z, 1.0f));
+	cubeMesh.vertices[3].position = box.center + Math::vec3(boxRotation * Math::vec4(-box.halfExtent.x, -box.halfExtent.y, box.halfExtent.z, 1.0f));
+	cubeMesh.vertices[4].position = box.center + Math::vec3(boxRotation * Math::vec4(-box.halfExtent.x, box.halfExtent.y, -box.halfExtent.z, 1.0f));
+	cubeMesh.vertices[5].position = box.center + Math::vec3(boxRotation * Math::vec4(box.halfExtent.x, box.halfExtent.y, -box.halfExtent.z, 1.0f));
+	cubeMesh.vertices[6].position = box.center + Math::vec3(boxRotation * Math::vec4(box.halfExtent.x, box.halfExtent.y, box.halfExtent.z, 1.0f));
+	cubeMesh.vertices[7].position = box.center + Math::vec3(boxRotation * Math::vec4(-box.halfExtent.x, box.halfExtent.y, box.halfExtent.z, 1.0f));
 
 	cubeMesh.indices = {
 		0, 1,
@@ -4170,7 +4160,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createBox(const ColliderBox* box) {
 	return load(cubeMesh);
 }
 
-NtshEngn::MeshID NtshEngn::GraphicsModule::createSphere(const ColliderSphere* sphere) {
+NtshEngn::MeshID NtshEngn::GraphicsModule::createSphere(const ColliderSphere& sphere) {
 	Model* sphereModel = assetManager->createModel("SphereCollider" + std::to_string(m_meshes.size()));
 	sphereModel->primitives.resize(1);
 	Mesh& sphereMesh = sphereModel->primitives[0].mesh;
@@ -4182,12 +4172,12 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createSphere(const ColliderSphere* sp
 		for (float phi = 0.0f; phi < Math::PI; phi += phiStep) {
 			if ((phi + phiStep) >= Math::PI) {
 				Vertex vertex;
-				vertex.position = sphere->center + Math::vec3(0.0f, -sphere->radius, 0.0f);
+				vertex.position = sphere.center + Math::vec3(0.0f, -sphere.radius, 0.0f);
 				sphereMesh.vertices.push_back(vertex);
 			}
 			else {
 				Vertex vertex;
-				vertex.position = sphere->center + (Math::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * sphere->radius);
+				vertex.position = sphere.center + (Math::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * sphere.radius);
 				sphereMesh.vertices.push_back(vertex);
 			}
 		}
@@ -4203,7 +4193,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createSphere(const ColliderSphere* sp
 	return load(sphereMesh);
 }
 
-NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const ColliderCapsule* capsule) {
+NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const ColliderCapsule& capsule) {
 	Model* capsuleModel = assetManager->createModel("CapsuleCollider" + std::to_string(m_meshes.size()));
 	capsuleModel->primitives.resize(1);
 	Mesh& capsuleMesh = capsuleModel->primitives[0].mesh;
@@ -4211,7 +4201,7 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const ColliderCapsule* 
 	const float thetaStep = Math::PI / static_cast<size_t>(nbLongLat);
 	const float phiStep = 2.0f * (Math::PI / static_cast<size_t>(nbLongLat));
 
-	const Math::vec3 baseTipDifference = capsule->tip - capsule->base;
+	const Math::vec3 baseTipDifference = capsule.tip - capsule.base;
 	const Math::vec3 facing = Math::vec3(0.0f, 1.0f, 0.0f);
 	const Math::vec3 toB = Math::normalize(baseTipDifference);
 	Math::mat4 rotation = Math::mat4::identity();
@@ -4232,20 +4222,20 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const ColliderCapsule* 
 		for (float phi = Math::PI / 2.0f; phi < Math::PI; phi += phiStep) {
 			if ((phi + phiStep) >= Math::PI) {
 				Vertex vertex;
-				Math::vec3 position = Math::vec3(0.0f, -capsule->radius, 0.0f);
+				Math::vec3 position = Math::vec3(0.0f, -capsule.radius, 0.0f);
 				Math::vec3 transformedPosition = rotation * Math::vec4(position, 1.0f);
-				vertex.position = { transformedPosition.x + capsule->base.x,
-					transformedPosition.y + capsule->base.y,
-					transformedPosition.z + capsule->base.z };
+				vertex.position = { transformedPosition.x + capsule.base.x,
+					transformedPosition.y + capsule.base.y,
+					transformedPosition.z + capsule.base.z };
 				capsuleMesh.vertices.push_back(vertex);
 			}
 			else {
 				Vertex vertex;
-				Math::vec3 position = Math::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * capsule->radius;
+				Math::vec3 position = Math::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * capsule.radius;
 				Math::vec3 transformedPosition = rotation * Math::vec4(position, 1.0f);
-				vertex.position = { transformedPosition.x + capsule->base.x,
-					transformedPosition.y + capsule->base.y,
-					transformedPosition.z + capsule->base.z };
+				vertex.position = { transformedPosition.x + capsule.base.x,
+					transformedPosition.y + capsule.base.y,
+					transformedPosition.z + capsule.base.z };
 				capsuleMesh.vertices.push_back(vertex);
 			}
 		}
@@ -4265,11 +4255,11 @@ NtshEngn::MeshID NtshEngn::GraphicsModule::createCapsule(const ColliderCapsule* 
 	for (float theta = 0.0f; theta < 2.0f * Math::PI; theta += thetaStep) {
 		for (float phi = 0.0f; phi < Math::PI / 2.0f; phi += phiStep) {
 			Vertex vertex;
-			Math::vec3 position = Math::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * capsule->radius;
+			Math::vec3 position = Math::vec3(std::cos(theta) * std::sin(phi), std::cos(phi), std::sin(theta) * std::sin(phi)) * capsule.radius;
 			Math::vec3 transformedPosition = rotation * Math::vec4(position, 1.0f);
-			vertex.position = { transformedPosition.x + capsule->tip.x,
-				transformedPosition.y + capsule->tip.y,
-				transformedPosition.z + capsule->tip.z };
+			vertex.position = { transformedPosition.x + capsule.tip.x,
+				transformedPosition.y + capsule.tip.y,
+				transformedPosition.z + capsule.tip.z };
 			capsuleMesh.vertices.push_back(vertex);
 		}
 		tipFinal.push_back(static_cast<uint32_t>(capsuleMesh.vertices.size() - 1));
