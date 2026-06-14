@@ -102,10 +102,11 @@ void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane,
 				const NtshEngn::Math::vec3 baseLightDirection = NtshEngn::Math::normalize(light.direction);
 				const float baseDirectionYaw = std::atan2(baseLightDirection.z, baseLightDirection.x);
 				const float baseDirectionPitch = -std::asin(baseLightDirection.y);
+				const NtshEngn::Math::vec3 eulerAnglesRotation = NtshEngn::Math::quatToEulerAngles(lightTransform.rotation);
 				const NtshEngn::Math::vec3 lightDirection = NtshEngn::Math::normalize(NtshEngn::Math::vec3(
-					std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::cos(baseDirectionYaw + lightTransform.rotation.y),
-					-std::sin(baseDirectionPitch + lightTransform.rotation.x),
-					std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::sin(baseDirectionYaw + lightTransform.rotation.y)
+					std::cos(baseDirectionPitch + eulerAnglesRotation.x) * std::cos(baseDirectionYaw + eulerAnglesRotation.y),
+					-std::sin(baseDirectionPitch + eulerAnglesRotation.x),
+					std::cos(baseDirectionPitch + eulerAnglesRotation.x) * std::sin(baseDirectionYaw + eulerAnglesRotation.y)
 				));
 				const NtshEngn::Math::vec3 upVector = (std::abs(NtshEngn::Math::dot(lightDirection, NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f))) == 1.0f) ? NtshEngn::Math::vec3(1.0f, 0.0f, 0.0f) : NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f);
 
@@ -176,10 +177,11 @@ void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane,
 		const NtshEngn::Math::vec3 baseLightDirection = NtshEngn::Math::normalize(light.direction);
 		const float baseDirectionYaw = std::atan2(baseLightDirection.z, baseLightDirection.x);
 		const float baseDirectionPitch = -std::asin(baseLightDirection.y);
+		const NtshEngn::Math::vec3 eulerAnglesRotation = NtshEngn::Math::quatToEulerAngles(lightTransform.rotation);
 		const NtshEngn::Math::vec3 lightDirection = NtshEngn::Math::normalize(NtshEngn::Math::vec3(
-			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::cos(baseDirectionYaw + lightTransform.rotation.y),
-			-std::sin(baseDirectionPitch + lightTransform.rotation.x),
-			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::sin(baseDirectionYaw + lightTransform.rotation.y)
+			std::cos(baseDirectionPitch + eulerAnglesRotation.x) * std::cos(baseDirectionYaw + eulerAnglesRotation.y),
+			-std::sin(baseDirectionPitch + eulerAnglesRotation.x),
+			std::cos(baseDirectionPitch + eulerAnglesRotation.x) * std::sin(baseDirectionYaw + eulerAnglesRotation.y)
 		));
 		const NtshEngn::Math::vec3 upVector = (std::abs(NtshEngn::Math::dot(lightDirection, NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f))) == 1.0f) ? NtshEngn::Math::vec3(1.0f, 0.0f, 0.0f) : NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f);
 		const NtshEngn::Math::mat4 lightView = NtshEngn::Math::lookAtRH(lightTransform.position, lightTransform.position + lightDirection, upVector);

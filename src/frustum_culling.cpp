@@ -82,10 +82,7 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer, uint32_t currentFra
 		frustumCullingObject.aabbMin = NtshEngn::Math::vec4(NtshEngn::Math::vec3(std::numeric_limits<float>::max()), 0.0f);
 		frustumCullingObject.aabbMax = NtshEngn::Math::vec4(NtshEngn::Math::vec3(std::numeric_limits<float>::lowest()), 0.0f);
 
-		NtshEngn::Math::mat4 rotationMatrix = NtshEngn::Math::rotate(entityTransform.rotation.x, NtshEngn::Math::vec3(1.0f, 0.0f, 0.0f)) *
-			NtshEngn::Math::rotate(entityTransform.rotation.y, NtshEngn::Math::vec3(0.0f, 1.0f, 0.0f)) *
-			NtshEngn::Math::rotate(entityTransform.rotation.z, NtshEngn::Math::vec3(0.0f, 0.0f, 1.0f));
-		NtshEngn::Math::mat4 transform = NtshEngn::Math::translate(entityTransform.position) * rotationMatrix * NtshEngn::Math::scale(entityTransform.scale);
+		NtshEngn::Math::mat4 transform = NtshEngn::Math::translate(entityTransform.position) * NtshEngn::Math::quatToRotationMatrix(entityTransform.rotation) * NtshEngn::Math::scale(entityTransform.scale);
 
 		std::array<NtshEngn::Math::vec3, 8> corners = { NtshEngn::Math::vec3(mesh.aabbMin.x, mesh.aabbMin.y, mesh.aabbMin.z),
 			NtshEngn::Math::vec3(mesh.aabbMax.x, mesh.aabbMin.y, mesh.aabbMin.z),

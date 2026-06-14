@@ -660,10 +660,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		cameraNearPlane = camera.nearPlane;
 		cameraFarPlane = camera.farPlane;
 
-		const Math::mat4 cameraRotation = Math::rotate(cameraTransform.rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
-			Math::rotate(cameraTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
-			Math::rotate(cameraTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f));
-		cameraView = cameraRotation * Math::lookAtRH(cameraTransform.position, cameraTransform.position + camera.forward, camera.up);
+		cameraView = Math::quatToRotationMatrix(cameraTransform.rotation) * Math::lookAtRH(cameraTransform.position, cameraTransform.position + camera.forward, camera.up);
 		cameraProjection = Math::mat4::identity();
 		float aspectRatio = m_viewport.width / m_viewport.height;
 		if (camera.projectionType == CameraProjectionType::Perspective) {
@@ -696,9 +693,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		const Transform& objectTransform = ecs->getComponent<Transform>(it.first);
 
 		Math::mat4 objectModel = Math::translate(objectTransform.position) *
-			Math::rotate(objectTransform.rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
-			Math::rotate(objectTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
-			Math::rotate(objectTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f)) *
+			Math::quatToRotationMatrix(objectTransform.rotation) *
 			Math::scale(objectTransform.scale);
 		Math::mat4 transposeInverseObjectModel = Math::transpose(Math::inverse(objectModel));
 
@@ -728,10 +723,11 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		const Math::vec3 baseLightDirection = Math::normalize(lightLight.direction);
 		const float baseDirectionYaw = std::atan2(baseLightDirection.z, baseLightDirection.x);
 		const float baseDirectionPitch = -std::asin(baseLightDirection.y);
+		const Math::vec3 eulerAnglesRotation = Math::quatToEulerAngles(lightTransform.rotation);
 		const Math::vec3 lightDirection = Math::normalize(Math::vec3(
-			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::cos(baseDirectionYaw + lightTransform.rotation.y),
-			-std::sin(baseDirectionPitch + lightTransform.rotation.x),
-			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::sin(baseDirectionYaw + lightTransform.rotation.y)
+			std::cos(baseDirectionPitch + eulerAnglesRotation.x) * std::cos(baseDirectionYaw + eulerAnglesRotation.y),
+			-std::sin(baseDirectionPitch + eulerAnglesRotation.x),
+			std::cos(baseDirectionPitch + eulerAnglesRotation.x) * std::sin(baseDirectionYaw + eulerAnglesRotation.y)
 		));
 
 		InternalLight internalLight;
@@ -760,10 +756,11 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		const Math::vec3 baseLightDirection = Math::normalize(lightLight.direction);
 		const float baseDirectionYaw = std::atan2(baseLightDirection.z, baseLightDirection.x);
 		const float baseDirectionPitch = -std::asin(baseLightDirection.y);
+		const Math::vec3 eulerAnglesRotation = Math::quatToEulerAngles(lightTransform.rotation);
 		const Math::vec3 lightDirection = Math::normalize(Math::vec3(
-			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::cos(baseDirectionYaw + lightTransform.rotation.y),
-			-std::sin(baseDirectionPitch + lightTransform.rotation.x),
-			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::sin(baseDirectionYaw + lightTransform.rotation.y)
+			std::cos(baseDirectionPitch + eulerAnglesRotation.x) * std::cos(baseDirectionYaw + eulerAnglesRotation.y),
+			-std::sin(baseDirectionPitch + eulerAnglesRotation.x),
+			std::cos(baseDirectionPitch + eulerAnglesRotation.x) * std::sin(baseDirectionYaw + eulerAnglesRotation.y)
 		));
 
 		InternalLight internalLight;
