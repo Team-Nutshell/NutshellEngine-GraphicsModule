@@ -671,10 +671,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		const Camera& camera = ecs->getComponent<Camera>(m_mainCamera);
 		const Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
 
-		const Math::mat4 cameraRotation = Math::rotate(cameraTransform.rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
-			Math::rotate(cameraTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
-			Math::rotate(cameraTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f));
-		Math::mat4 cameraView = cameraRotation * Math::lookAtRH(cameraTransform.position, cameraTransform.position + camera.forward, camera.up);
+		const Math::mat4 cameraView = Math::quatToRotationMatrix(cameraTransform.rotation) * Math::lookAtRH(cameraTransform.position, cameraTransform.position + camera.forward, camera.up);
 		Math::mat4 cameraProjection = Math::mat4::identity();
 		float aspectRatio = m_viewport.width / m_viewport.height;
 		if (camera.projectionType == CameraProjectionType::Perspective) {
@@ -686,7 +683,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 			cameraProjection[1][1] *= -1.0f;
 		}
 		std::array<Math::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
-		Math::vec4 cameraPositionAsVec4 = { cameraTransform.rotation, 0.0f };
+		Math::vec4 cameraPositionAsVec4 = { cameraTransform.position, 0.0f };
 
 		memcpy(m_cameraBuffers[m_currentFrameInFlight].address, cameraMatrices.data(), sizeof(Math::mat4) * 2);
 		memcpy(reinterpret_cast<char*>(m_cameraBuffers[m_currentFrameInFlight].address) + sizeof(Math::mat4) * 2, cameraPositionAsVec4.data(), sizeof(Math::vec4));
@@ -761,14 +758,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		const Light& lightLight = ecs->getComponent<Light>(light);
 		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
-		const Math::vec3 baseLightDirection = Math::normalize(lightLight.direction);
-		const float baseDirectionYaw = std::atan2(baseLightDirection.z, baseLightDirection.x);
-		const float baseDirectionPitch = -std::asin(baseLightDirection.y);
-		const Math::vec3 lightDirection = Math::normalize(Math::vec3(
-			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::cos(baseDirectionYaw + lightTransform.rotation.y),
-			-std::sin(baseDirectionPitch + lightTransform.rotation.x),
-			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::sin(baseDirectionYaw + lightTransform.rotation.y)
-		));
+		const Math::vec3 lightDirection = Math::normalize(Math::rotateVectorByQuat(lightLight.direction, lightTransform.rotation));
 
 		InternalLight internalLight;
 		internalLight.direction = Math::vec4(lightDirection, 0.0f);
@@ -816,14 +806,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		const Light& lightLight = ecs->getComponent<Light>(light);
 		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
-		const Math::vec3 baseLightDirection = Math::normalize(lightLight.direction);
-		const float baseDirectionYaw = std::atan2(baseLightDirection.z, baseLightDirection.x);
-		const float baseDirectionPitch = -std::asin(baseLightDirection.y);
-		const Math::vec3 lightDirection = Math::normalize(Math::vec3(
-			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::cos(baseDirectionYaw + lightTransform.rotation.y),
-			-std::sin(baseDirectionPitch + lightTransform.rotation.x),
-			std::cos(baseDirectionPitch + lightTransform.rotation.x) * std::sin(baseDirectionYaw + lightTransform.rotation.y)
-		));
+		const Math::vec3 lightDirection = Math::normalize(Math::rotateVectorByQuat(lightLight.direction, lightTransform.rotation));
 
 		InternalLight internalLight;
 		internalLight.position = Math::vec4(lightTransform.position, 0.0f);
@@ -868,9 +851,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		const Transform& objectTransform = ecs->getComponent<Transform>(it.first);
 
 		Math::mat4 objectModel = Math::transpose(Math::translate(objectTransform.position) *
-			Math::rotate(objectTransform.rotation.x, Math::vec3(1.0f, 0.0f, 0.0f)) *
-			Math::rotate(objectTransform.rotation.y, Math::vec3(0.0f, 1.0f, 0.0f)) *
-			Math::rotate(objectTransform.rotation.z, Math::vec3(0.0f, 0.0f, 1.0f)) *
+			Math::quatToRotationMatrix(objectTransform.rotation) *
 			Math::scale(objectTransform.scale));
 
 		VkTransformMatrixKHR objectTransformMatrix = { { { objectModel.x.x, objectModel.x.y, objectModel.x.z, objectModel.x.w },
