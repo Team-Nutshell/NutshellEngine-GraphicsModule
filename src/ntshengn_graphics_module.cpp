@@ -720,15 +720,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		const Light& lightLight = ecs->getComponent<Light>(light);
 		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
-		const Math::vec3 baseLightDirection = Math::normalize(lightLight.direction);
-		const float baseDirectionYaw = std::atan2(baseLightDirection.z, baseLightDirection.x);
-		const float baseDirectionPitch = -std::asin(baseLightDirection.y);
-		const Math::vec3 eulerAnglesRotation = Math::quatToEulerAngles(lightTransform.rotation);
-		const Math::vec3 lightDirection = Math::normalize(Math::vec3(
-			std::cos(baseDirectionPitch + eulerAnglesRotation.x) * std::cos(baseDirectionYaw + eulerAnglesRotation.y),
-			-std::sin(baseDirectionPitch + eulerAnglesRotation.x),
-			std::cos(baseDirectionPitch + eulerAnglesRotation.x) * std::sin(baseDirectionYaw + eulerAnglesRotation.y)
-		));
+		const Math::vec3 lightDirection = Math::normalize(Math::rotateVectorByQuat(lightLight.direction, lightTransform.rotation));
 
 		InternalLight internalLight;
 		internalLight.direction = Math::vec4(lightDirection, 0.0f);
@@ -753,15 +745,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		const Light& lightLight = ecs->getComponent<Light>(light);
 		const Transform& lightTransform = ecs->getComponent<Transform>(light);
 
-		const Math::vec3 baseLightDirection = Math::normalize(lightLight.direction);
-		const float baseDirectionYaw = std::atan2(baseLightDirection.z, baseLightDirection.x);
-		const float baseDirectionPitch = -std::asin(baseLightDirection.y);
-		const Math::vec3 eulerAnglesRotation = Math::quatToEulerAngles(lightTransform.rotation);
-		const Math::vec3 lightDirection = Math::normalize(Math::vec3(
-			std::cos(baseDirectionPitch + eulerAnglesRotation.x) * std::cos(baseDirectionYaw + eulerAnglesRotation.y),
-			-std::sin(baseDirectionPitch + eulerAnglesRotation.x),
-			std::cos(baseDirectionPitch + eulerAnglesRotation.x) * std::sin(baseDirectionYaw + eulerAnglesRotation.y)
-		));
+		const Math::vec3 lightDirection = Math::normalize(Math::rotateVectorByQuat(lightLight.direction, lightTransform.rotation));
 
 		InternalLight internalLight;
 		internalLight.position = Math::vec4(lightTransform.position, 0.0f);
