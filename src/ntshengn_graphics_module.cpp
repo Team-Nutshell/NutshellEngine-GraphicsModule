@@ -443,7 +443,7 @@ void NtshEngn::GraphicsModule::init() {
 	objectBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	objectBufferCreateInfo.pNext = nullptr;
 	objectBufferCreateInfo.flags = 0;
-	objectBufferCreateInfo.size = 32768;
+	objectBufferCreateInfo.size = ((sizeof(Math::mat4) * 2) + sizeof(Math::vec4)) * NTSHENGN_MAX_ENTITIES;
 	objectBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	objectBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	objectBufferCreateInfo.queueFamilyIndexCount = 1;
@@ -494,7 +494,7 @@ void NtshEngn::GraphicsModule::init() {
 	materialBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	materialBufferCreateInfo.pNext = nullptr;
 	materialBufferCreateInfo.flags = 0;
-	materialBufferCreateInfo.size = 32768;
+	materialBufferCreateInfo.size = sizeof(InternalMaterial) * NTSHENGN_MAX_ENTITIES;
 	materialBufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 	materialBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	materialBufferCreateInfo.queueFamilyIndexCount = 1;
@@ -4239,7 +4239,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		VkDescriptorBufferInfo objectsDescriptorBufferInfo;
 		objectsDescriptorBufferInfo.buffer = m_objectBuffers[i].handle;
 		objectsDescriptorBufferInfo.offset = 0;
-		objectsDescriptorBufferInfo.range = 32768;
+		objectsDescriptorBufferInfo.range = ((sizeof(Math::mat4) * 2) + sizeof(Math::vec4)) * NTSHENGN_MAX_ENTITIES;
 
 		VkWriteDescriptorSet objectsDescriptorWriteDescriptorSet = {};
 		objectsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -4293,7 +4293,7 @@ void NtshEngn::GraphicsModule::createDescriptorSets() {
 		VkDescriptorBufferInfo materialsDescriptorBufferInfo;
 		materialsDescriptorBufferInfo.buffer = m_materialBuffers[i].handle;
 		materialsDescriptorBufferInfo.offset = 0;
-		materialsDescriptorBufferInfo.range = 32768;
+		materialsDescriptorBufferInfo.range = sizeof(InternalMaterial) * NTSHENGN_MAX_ENTITIES;
 
 		VkWriteDescriptorSet materialsDescriptorWriteDescriptorSet = {};
 		materialsDescriptorWriteDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
