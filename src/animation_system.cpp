@@ -185,44 +185,44 @@ void AnimationSystem::update(float dt, std::unordered_map<NtshEngn::Entity, Inte
 	}
 }
 
-void AnimationSystem::playAnimation(InternalObject* object, NtshEngn::Animation* animation, bool looping) {
+void AnimationSystem::playAnimation(const InternalObject& object, NtshEngn::Animation* animation, bool looping) {
 	PlayingAnimation playingAnimation;
 	playingAnimation.animation = animation;
 	playingAnimation.looping = looping;
-	m_playingAnimations[object] = playingAnimation;
+	m_playingAnimations[&object] = playingAnimation;
 }
 
-void AnimationSystem::resumeAnimation(InternalObject* object) {
-	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
-		PlayingAnimation& playingAnimation = m_playingAnimations[object];
+void AnimationSystem::resumeAnimation(const InternalObject& object) {
+	if (m_playingAnimations.find(&object) != m_playingAnimations.end()) {
+		PlayingAnimation& playingAnimation = m_playingAnimations[&object];
 		playingAnimation.playing = true;
 	}
 }
 
-void AnimationSystem::pauseAnimation(InternalObject* object) {
-	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
-		PlayingAnimation& playingAnimation = m_playingAnimations[object];
+void AnimationSystem::pauseAnimation(const InternalObject& object) {
+	if (m_playingAnimations.find(&object) != m_playingAnimations.end()) {
+		PlayingAnimation& playingAnimation = m_playingAnimations[&object];
 		playingAnimation.playing = false;
 	}
 }
 
-void AnimationSystem::stopAnimation(InternalObject* object) {
-	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
-		m_playingAnimations.erase(object);
+void AnimationSystem::stopAnimation(const InternalObject& object) {
+	if (m_playingAnimations.find(&object) != m_playingAnimations.end()) {
+		m_playingAnimations.erase(&object);
 	}
 }
 
-NtshEngn::Animation* AnimationSystem::getPlayingAnimation(InternalObject* object) {
-	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
-		return m_playingAnimations[object].animation;
+NtshEngn::Animation* AnimationSystem::getPlayingAnimation(const InternalObject& object) {
+	if (m_playingAnimations.find(&object) != m_playingAnimations.end()) {
+		return m_playingAnimations[&object].animation;
 	}
 
 	return nullptr;
 }
 
-bool AnimationSystem::isAnimationPlaying(InternalObject* object, NtshEngn::Animation* animation) {
-	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
-		const PlayingAnimation& playingAnimation = m_playingAnimations[object];
+bool AnimationSystem::isAnimationPlaying(const InternalObject& object, NtshEngn::Animation* animation) {
+	if (m_playingAnimations.find(&object) != m_playingAnimations.end()) {
+		const PlayingAnimation& playingAnimation = m_playingAnimations[&object];
 		if (playingAnimation.animation == animation) {
 			return playingAnimation.playing;
 		}
@@ -231,42 +231,42 @@ bool AnimationSystem::isAnimationPlaying(InternalObject* object, NtshEngn::Anima
 	return false;
 }
 
-void AnimationSystem::setAnimationCurrentTime(InternalObject* object, float newTime) {
-	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
-		PlayingAnimation& playingAnimation = m_playingAnimations[object];
+void AnimationSystem::setAnimationCurrentTime(const InternalObject& object, float newTime) {
+	if (m_playingAnimations.find(&object) != m_playingAnimations.end()) {
+		PlayingAnimation& playingAnimation = m_playingAnimations[&object];
 		if (playingAnimation.looping) {
 			playingAnimation.time = std::fmod(newTime, playingAnimation.animation->duration);
 		}
 		else {
 			if (newTime <= playingAnimation.animation->duration) {
-				m_playingAnimations[object].time = newTime;
+				m_playingAnimations[&object].time = newTime;
 			}
 			else {
-				m_playingAnimations.erase(object);
+				m_playingAnimations.erase(&object);
 			}
 		}
 	}
 }
 
-float AnimationSystem::getAnimationCurrentTime(InternalObject* object) {
-	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
-		const PlayingAnimation& playingAnimation = m_playingAnimations[object];
+float AnimationSystem::getAnimationCurrentTime(const InternalObject& object) {
+	if (m_playingAnimations.find(&object) != m_playingAnimations.end()) {
+		const PlayingAnimation& playingAnimation = m_playingAnimations[&object];
 		return playingAnimation.time;
 	}
 
 	return 0.0f;
 }
 
-void AnimationSystem::setAnimationSpeed(InternalObject* object, float newSpeed) {
-	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
-		PlayingAnimation& playingAnimation = m_playingAnimations[object];
+void AnimationSystem::setAnimationSpeed(const InternalObject& object, float newSpeed) {
+	if (m_playingAnimations.find(&object) != m_playingAnimations.end()) {
+		PlayingAnimation& playingAnimation = m_playingAnimations[&object];
 		playingAnimation.speed = newSpeed;
 	}
 }
 
-float AnimationSystem::getAnimationSpeed(InternalObject* object) {
-	if (m_playingAnimations.find(object) != m_playingAnimations.end()) {
-		const PlayingAnimation& playingAnimation = m_playingAnimations[object];
+float AnimationSystem::getAnimationSpeed(const InternalObject& object) {
+	if (m_playingAnimations.find(&object) != m_playingAnimations.end()) {
+		const PlayingAnimation& playingAnimation = m_playingAnimations[&object];
 		return playingAnimation.speed;
 	}
 

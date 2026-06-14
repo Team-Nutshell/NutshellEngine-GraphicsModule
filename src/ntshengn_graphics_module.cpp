@@ -2005,23 +2005,23 @@ void NtshEngn::GraphicsModule::playAnimation(Entity entity, Animation* animation
 		return;
 	}
 
-	m_animationSystem.playAnimation(&m_objects[entity], animation, looping);
+	m_animationSystem.playAnimation(m_objects[entity], animation, looping);
 }
 
 void NtshEngn::GraphicsModule::resumeAnimation(Entity entity) {
-	m_animationSystem.resumeAnimation(&m_objects[entity]);
+	m_animationSystem.resumeAnimation(m_objects[entity]);
 }
 
 void NtshEngn::GraphicsModule::pauseAnimation(Entity entity) {
-	m_animationSystem.pauseAnimation(&m_objects[entity]);
+	m_animationSystem.pauseAnimation(m_objects[entity]);
 }
 
 void NtshEngn::GraphicsModule::stopAnimation(Entity entity) {
-	m_animationSystem.stopAnimation(&m_objects[entity]);
+	m_animationSystem.stopAnimation(m_objects[entity]);
 }
 
 NtshEngn::Animation* NtshEngn::GraphicsModule::getPlayingAnimation(Entity entity) {
-	return m_animationSystem.getPlayingAnimation(&m_objects[entity]);
+	return m_animationSystem.getPlayingAnimation(m_objects[entity]);
 }
 
 bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, Animation* animation) {
@@ -2029,23 +2029,23 @@ bool NtshEngn::GraphicsModule::isAnimationPlaying(Entity entity, Animation* anim
 		return false;
 	}
 
-	return m_animationSystem.isAnimationPlaying(&m_objects[entity], animation);
+	return m_animationSystem.isAnimationPlaying(m_objects[entity], animation);
 }
 
 void NtshEngn::GraphicsModule::setAnimationCurrentTime(Entity entity, float time) {
-	m_animationSystem.setAnimationCurrentTime(&m_objects[entity], time);
+	m_animationSystem.setAnimationCurrentTime(m_objects[entity], time);
 }
 
 float NtshEngn::GraphicsModule::getAnimationCurrentTime(Entity entity) {
-	return m_animationSystem.getAnimationCurrentTime(&m_objects[entity]);
+	return m_animationSystem.getAnimationCurrentTime(m_objects[entity]);
 }
 
 void NtshEngn::GraphicsModule::setAnimationSpeed(Entity entity, float speed) {
-	m_animationSystem.setAnimationSpeed(&m_objects[entity], speed);
+	m_animationSystem.setAnimationSpeed(m_objects[entity], speed);
 }
 
 float NtshEngn::GraphicsModule::getAnimationSpeed(Entity entity) {
-	return m_animationSystem.getAnimationSpeed(&m_objects[entity]);
+	return m_animationSystem.getAnimationSpeed(m_objects[entity]);
 }
 
 void NtshEngn::GraphicsModule::emitParticles(const ParticleEmitter& particleEmitter) {
@@ -2380,6 +2380,7 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 		if (m_meshes[object.meshID].jointCount > 0) {
 			m_freeJointTransformOffsets.freeBlock(static_cast<size_t>(object.jointTransformOffset), static_cast<size_t>(m_meshes[object.meshID].jointCount));
 		}
+		m_animationSystem.stopAnimation(object);
 
 		m_lastKnownMaterial.erase(entity);
 		m_objectsIDPool.free(object.index);
