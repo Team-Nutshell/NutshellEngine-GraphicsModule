@@ -620,7 +620,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		const Camera& camera = ecs->getComponent<Camera>(m_mainCamera);
 		const Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
 
-		Math::mat4 cameraView = Math::quatToRotationMatrix(cameraTransform.rotation) * Math::lookAtRH(cameraTransform.position, cameraTransform.position + camera.forward, camera.up);
+		const Math::mat4 cameraView = Math::quatToRotationMatrix(cameraTransform.rotation) * Math::lookAtRH(cameraTransform.position, cameraTransform.position + camera.forward, camera.up);
 		Math::mat4 cameraProjection = Math::mat4::identity();
 		float aspectRatio = m_viewport.width / m_viewport.height;
 		if (camera.projectionType == CameraProjectionType::Perspective) {
