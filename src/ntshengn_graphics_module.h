@@ -518,7 +518,7 @@ namespace NtshEngn {
 		BlockSuballocator m_freeJointTransformOffsets{ 4096 };
 		std::unordered_map<Entity, Material> m_lastKnownMaterial;
 
-		std::unordered_map<InternalObject*, PlayingAnimation> m_playingAnimations;
+		std::unordered_map<const InternalObject*, PlayingAnimation> m_playingAnimations;
 
 		VkShaderModule m_customVertexShaderModule = VK_NULL_HANDLE;
 		VkPipelineLayout m_customGraphicsPipelineLayout = VK_NULL_HANDLE;

@@ -2917,6 +2917,7 @@ void NtshEngn::GraphicsModule::onEntityComponentRemoved(Entity entity, Component
 		if (m_meshes[object.meshID].jointCount > 0) {
 			m_freeJointTransformOffsets.freeBlock(static_cast<size_t>(object.jointTransformOffset), static_cast<size_t>(m_meshes[object.meshID].jointCount));
 		}
+		stopAnimation(entity);
 
 		m_lastKnownMaterial.erase(entity);
 		m_objectsIDPool.free(object.index);
