@@ -632,10 +632,10 @@ void NtshEngn::GraphicsModule::update(float dt) {
 			cameraProjection[1][1] *= -1.0f;
 		}
 		std::array<Math::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
-		Math::vec4 cameraPositionAsVec4 = { cameraTransform.position, 0.0f };
+		Math::vec4 cameraPositionAndType = { cameraTransform.position, (camera.projectionType == CameraProjectionType::Perspective) ? 0.0f : 1.0f };
 
 		memcpy(m_cameraBuffers[m_currentFrameInFlight].address, cameraMatrices.data(), sizeof(Math::mat4) * 2);
-		memcpy(reinterpret_cast<char*>(m_cameraBuffers[m_currentFrameInFlight].address) + sizeof(Math::mat4) * 2, cameraPositionAsVec4.data(), sizeof(Math::vec4));
+		memcpy(reinterpret_cast<char*>(m_cameraBuffers[m_currentFrameInFlight].address) + sizeof(Math::mat4) * 2, cameraPositionAndType.data(), sizeof(Math::vec4));
 
 		cameraPositionAndTime = Math::vec4(cameraTransform.position, 0.0f);
 	}
@@ -3295,7 +3295,7 @@ void NtshEngn::GraphicsModule::createDescriptorSetLayout() {
 	cameraDescriptorSetLayoutBinding.binding = 0;
 	cameraDescriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	cameraDescriptorSetLayoutBinding.descriptorCount = 1;
-	cameraDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	cameraDescriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 	cameraDescriptorSetLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding objectsDescriptorSetLayoutBinding = {};
@@ -3616,8 +3616,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 		layout(location = 0) out vec3 outPosition;
 		layout(location = 1) out vec2 outUV;
 		layout(location = 2) out flat uint outMaterialID;
-		layout(location = 3) out flat vec3 outCameraPosition;
-		layout(location = 4) out mat3 outTBN;
+		layout(location = 3) out mat3 outTBN;
 
 		void main() {
 			mat4 skinMatrix = mat4(1.0);
@@ -3632,7 +3631,6 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 			outPosition = vec3(objects.info[oID.objectID].model * skinMatrix * vec4(position, 1.0));
 			outUV = uv;
 			outMaterialID = objects.info[oID.objectID].materialID;
-			outCameraPosition = camera.position;
 
 			vec3 skinnedNormal = vec3(transpose(inverse(skinMatrix)) * vec4(normal, 0.0));
 			vec3 skinnedTangent = vec3(skinMatrix * vec4(tangent.xyz, 0.0));
@@ -3774,6 +3772,12 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 			float distance;
 		};
 
+		layout(set = 0, binding = 0) uniform Camera {
+			mat4 view;
+			mat4 projection;
+			vec4 positionAndType;
+		} camera;
+
 		layout(set = 0, binding = 4) restrict readonly buffer Materials {
 			MaterialInfo info[];
 		} materials;
@@ -3788,8 +3792,7 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 		layout(location = 0) in vec3 position;
 		layout(location = 1) in vec2 uv;
 		layout(location = 2) in flat uint materialID;
-		layout(location = 3) in flat vec3 cameraPosition;
-		layout(location = 4) in mat3 TBN;
+		layout(location = 3) in mat3 TBN;
 
 		layout(location = 0) out vec4 outColor;
 
@@ -3887,7 +3890,14 @@ void NtshEngn::GraphicsModule::createGraphicsPipeline() {
 			}
 
 			const vec3 d = vec3(diffuseSample);
-			const vec3 v = normalize(cameraPosition - position);
+
+			vec3 v;
+			if (camera.positionAndType.w == 0.0f) { // Perspective
+			    v = normalize(camera.positionAndType.xyz - position);
+			}
+			else { // Orthographic
+			    v = vec3(camera.view[0][2], camera.view[1][2], camera.view[2][2]);
+			}
 
 			vec3 color = vec3(0.0);
 
