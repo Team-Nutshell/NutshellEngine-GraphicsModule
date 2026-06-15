@@ -482,7 +482,7 @@ void Compositing::createGraphicsPipeline() {
 		layout(set = 0, binding = 0) uniform Camera {
 			mat4 view;
 			mat4 projection;
-			vec3 position;
+			vec4 positionAndType;
 		} camera;
 
 		layout(set = 0, binding = 1) restrict readonly buffer Lights {
@@ -554,7 +554,14 @@ void Compositing::createGraphicsPipeline() {
 			const vec3 viewPosition = vec3(camera.view * vec4(position, 1.0));
 			const vec3 n = normalSample;
 			const vec3 d = vec3(diffuseSample);
-			const vec3 v = normalize(camera.position - position);
+
+			vec3 v;
+			if (camera.positionAndType.w == 0.0f) { // Perspective
+				v = normalize(camera.positionAndType.xyz - position);
+			}
+			else { // Orthographic
+				v = vec3(camera.view[0][2], camera.view[1][2], camera.view[2][2]);
+			}
 
 			vec3 color = vec3(0.0);
 
