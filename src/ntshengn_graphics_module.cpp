@@ -615,7 +615,6 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	}
 
 	// Update camera buffer
-	Math::vec4 cameraPositionAndTime;
 	if (m_mainCamera != NTSHENGN_ENTITY_UNKNOWN) {
 		const Camera& camera = ecs->getComponent<Camera>(m_mainCamera);
 		const Transform& cameraTransform = ecs->getComponent<Transform>(m_mainCamera);
@@ -636,10 +635,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 
 		memcpy(m_cameraBuffers[m_currentFrameInFlight].address, cameraMatrices.data(), sizeof(Math::mat4) * 2);
 		memcpy(reinterpret_cast<char*>(m_cameraBuffers[m_currentFrameInFlight].address) + sizeof(Math::mat4) * 2, cameraPositionAndType.data(), sizeof(Math::vec4));
-
-		cameraPositionAndTime = Math::vec4(cameraTransform.position, 0.0f);
 	}
-	cameraPositionAndTime.w = m_time;
 
 	// Update objects buffer
 	for (auto& it : m_objects) {
@@ -1282,8 +1278,8 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		
 		// Additional data for custom fragment shaders
 		if (currentLayout != m_graphicsPipelineLayout) {
-			vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], currentLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec4), sizeof(Math::vec4), &cameraPositionAndTime);
-			vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_customGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(NtshEngn::Math::vec4) + sizeof(NtshEngn::Math::vec4), sizeof(uint32_t) * 2, &m_scissor.extent.width);
+			vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], currentLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(Math::vec4), sizeof(float), &m_time);
+			vkCmdPushConstants(m_renderingCommandBuffers[m_currentFrameInFlight], m_customGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(NtshEngn::Math::vec4) + sizeof(NtshEngn::Math::vec2), sizeof(uint32_t) * 2, &m_scissor.extent.width);
 		}
 
 		// Draw
@@ -7019,7 +7015,7 @@ bool NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const st
 		layout(set = 0, binding = 0) uniform Camera {
 			mat4 view;
 			mat4 projection;
-			vec3 position;
+			vec4 positionAndType;
 		} camera;
 
 		layout(std430, set = 0, binding = 1) restrict readonly buffer Objects {
@@ -7103,13 +7099,15 @@ bool NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const st
 		#version 460
 		#extension GL_EXT_nonuniform_qualifier : enable
 
+		#define NTSHENGN_CAMERA_TYPE_PERSPECTIVE 0.0
+		#define NTSHENGN_CAMERA_TYPE_ORTHOGRAPHIC 1.0
+
 		#define NtshEngn_position position
 		#define NtshEngn_normal TBN[2]
 		#define NtshEngn_tangent TBN[0]
 		#define NtshEngn_bitangent TBN[1]
 		#define NtshEngn_uv uv
 		#define NtshEngn_color color
-		#define NtshEngn_tbn TBN
 		#define NtshEngn_diffuseTexture textures[nonuniformEXT(materials.info[materialID].diffuseTextureIndex)]
 		#define NtshEngn_normalTexture textures[nonuniformEXT(materials.info[materialID].normalTextureIndex)]
 		#define NtshEngn_metalnessTexture textures[nonuniformEXT(materials.info[materialID].metalnessTextureIndex)]
@@ -7132,8 +7130,11 @@ bool NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const st
         #define NtshEngn_spotLightShadows(i, p) 1.0
 		#define NtshEngn_ambientLightCount lights.count.w
 		#define NtshEngn_ambientLight(i) lights.info[lights.count.x + lights.count.y + lights.count.z + i]
-		#define NtshEngn_time pC.cameraPositionAndTime.w
-		#define NtshEngn_cameraPosition pC.cameraPositionAndTime.xyz
+		#define NtshEngn_time pC.time
+		#define NtshEngn_cameraPosition camera.positionAndType.xyz
+		#define NtshEngn_cameraType camera.positionAndType.w
+		#define NtshEngn_cameraView camera.view
+		#define NtshEngn_cameraProjection camera.projection
 		#define NtshEngn_width pC.widthAndHeight.x
 		#define NtshEngn_height pC.widthAndHeight.y
 		#define NtshEngn_useReversedDepth false
@@ -7163,6 +7164,12 @@ bool NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const st
 			float distance;
 		};
 
+		layout(set = 0, binding = 0) uniform Camera {
+			mat4 view;
+			mat4 projection;
+			vec4 positionAndType;
+		} camera;
+
 		layout(set = 0, binding = 4) restrict readonly buffer Materials {
 			MaterialInfo info[];
 		} materials;
@@ -7175,7 +7182,7 @@ bool NtshEngn::GraphicsModule::createGraphicsPipelineFromFragmentShader(const st
 		layout(set = 0, binding = 6) uniform sampler2D textures[];
 
 		layout(push_constant) uniform PushConstants {
-			layout(offset = 16) vec4 cameraPositionAndTime;
+			layout(offset = 16) float time;
 			uvec2 widthAndHeight;
 		} pC;
 
