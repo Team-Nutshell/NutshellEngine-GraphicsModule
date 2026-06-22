@@ -649,7 +649,6 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	// Update camera buffer
 	float cameraNearPlane = 0.0f;
 	float cameraFarPlane = 0.0f;
-	Math::vec4 cameraPositionAndType;
 	Math::mat4 cameraView = Math::mat4::identity();
 	Math::mat4 cameraProjection = Math::mat4::identity();
 	Math::mat4 cameraProjectionNonReversed = Math::mat4::identity();
@@ -676,7 +675,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 			cameraProjectionNonReversed[1][1] *= -1.0f;
 		}
 		std::array<Math::mat4, 2> cameraMatrices{ cameraView, cameraProjection };
-		cameraPositionAndType = { cameraTransform.position, (camera.projectionType == CameraProjectionType::Perspective) ? 0.0f : 1.0f };
+		Math::vec4 cameraPositionAndType = { cameraTransform.position, (camera.projectionType == CameraProjectionType::Perspective) ? 0.0f : 1.0f };
 
 		memcpy(m_cameraBuffers[m_currentFrameInFlight].address, cameraMatrices.data(), sizeof(Math::mat4) * 2);
 		memcpy(reinterpret_cast<char*>(m_cameraBuffers[m_currentFrameInFlight].address) + sizeof(Math::mat4) * 2, cameraPositionAndType.data(), sizeof(Math::vec4));
@@ -882,7 +881,7 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	m_compositing.draw(m_renderingCommandBuffers[m_currentFrameInFlight], m_currentFrameInFlight, m_backgroundColor);
 
 	// Draw with forward renderer
-	m_forwardRenderer.draw(dt, m_renderingCommandBuffers[m_currentFrameInFlight], m_currentFrameInFlight, m_frustumCulling.getCustomGraphicsPipelineObjectsAfterCulling(), m_meshes, Math::vec3(cameraPositionAndType), m_compositing.getImage(), m_gBuffer.getDepth());
+	m_forwardRenderer.draw(dt, m_renderingCommandBuffers[m_currentFrameInFlight], m_currentFrameInFlight, m_frustumCulling.getCustomGraphicsPipelineObjectsAfterCulling(), m_meshes, m_compositing.getImage(), m_gBuffer.getDepth());
 
 	// Draw particles
 	m_particles.draw(m_renderingCommandBuffers[m_currentFrameInFlight], m_compositing.getImage().handle, m_compositing.getImage().view, m_gBuffer.getDepth().handle, m_gBuffer.getDepth().view, m_currentFrameInFlight, dt);

@@ -6,7 +6,7 @@ public:
 	void init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VkViewport viewport, VkRect2D scissor, uint32_t framesInFlight, const std::vector<HostVisibleVulkanBuffer>& cameraBuffers, const std::vector<HostVisibleVulkanBuffer>& lightBuffers, const std::vector<HostVisibleVulkanBuffer>& objectBuffers, VulkanBuffer meshBuffer, const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers, const std::vector<HostVisibleVulkanBuffer>& materialBuffers, const std::vector<HostVisibleVulkanBuffer>& shadowSceneBuffers, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
 	void destroy();
 
-	void draw(float dt, VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight, const std::vector<InternalObject>& objects, const std::vector<InternalMesh>& meshes, const NtshEngn::Math::vec3& cameraPosition, const VulkanImage& colorImage, const VulkanImage& depthImage);
+	void draw(float dt, VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight, const std::vector<InternalObject>& objects, const std::vector<InternalMesh>& meshes, const VulkanImage& colorImage, const VulkanImage& depthImage);
 
 	void onResize(uint32_t width, uint32_t height);
 

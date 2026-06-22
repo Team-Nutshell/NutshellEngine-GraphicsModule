@@ -91,7 +91,7 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer, uint32_t currentFra
 			NtshEngn::Math::vec3(mesh.aabbMin.x, mesh.aabbMin.y, mesh.aabbMax.z),
 			NtshEngn::Math::vec3(mesh.aabbMax.x, mesh.aabbMin.y, mesh.aabbMax.z),
 			NtshEngn::Math::vec3(mesh.aabbMin.x, mesh.aabbMax.y, mesh.aabbMax.z),
-			NtshEngn::Math::vec3(mesh.aabbMax.x, mesh.aabbMax.y, mesh.aabbMax.z),
+			NtshEngn::Math::vec3(mesh.aabbMax.x, mesh.aabbMax.y, mesh.aabbMax.z)
 		};
 
 		for (const NtshEngn::Math::vec3& corner : corners) {

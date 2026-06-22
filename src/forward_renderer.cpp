@@ -30,10 +30,8 @@ void ForwardRenderer::destroy() {
 	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
 }
 
-void ForwardRenderer::draw(float dt, VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight, const std::vector<InternalObject>& objects, const std::vector<InternalMesh>& meshes, const NtshEngn::Math::vec3& cameraPosition, const VulkanImage& colorImage, const VulkanImage& depthImage) {
+void ForwardRenderer::draw(float dt, VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight, const std::vector<InternalObject>& objects, const std::vector<InternalMesh>& meshes, const VulkanImage& colorImage, const VulkanImage& depthImage) {
 	m_time += dt;
-
-	NtshEngn::Math::vec4 cameraPositionAndTime = NtshEngn::Math::vec4(cameraPosition, m_time);
 
 	VkRenderingAttachmentInfo forwardRendererColorAttachmentInfo = {};
 	forwardRendererColorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -91,8 +89,8 @@ void ForwardRenderer::draw(float dt, VkCommandBuffer commandBuffer, uint32_t cur
 		vkCmdPushConstants(commandBuffer, m_customGraphicsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &object.index);
 
 		// Additional data for custom fragment shaders
-		vkCmdPushConstants(commandBuffer, m_customGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(NtshEngn::Math::vec4), sizeof(NtshEngn::Math::vec4), &cameraPositionAndTime);
-		vkCmdPushConstants(commandBuffer, m_customGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(NtshEngn::Math::vec4) + sizeof(NtshEngn::Math::vec4), sizeof(uint32_t) * 2, &m_scissor.extent.width);
+		vkCmdPushConstants(commandBuffer, m_customGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(NtshEngn::Math::vec4), sizeof(float), &m_time);
+		vkCmdPushConstants(commandBuffer, m_customGraphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(NtshEngn::Math::vec4) + sizeof(NtshEngn::Math::vec2), sizeof(uint32_t) * 2, &m_scissor.extent.width);
 
 		// Draw
 		vkCmdDrawIndexed(commandBuffer, meshes[object.meshID].indexCount, 1, meshes[object.meshID].firstIndex, meshes[object.meshID].vertexOffset, 0);
@@ -334,13 +332,15 @@ bool ForwardRenderer::createGraphicsPipelineFromFragmentShader(const std::string
 
 		#define SHADOW_MAPPING_CASCADE_COUNT 3
 
+		#define NTSHENGN_CAMERA_TYPE_PERSPECTIVE 0.0
+		#define NTSHENGN_CAMERA_TYPE_ORTHOGRAPHIC 1.0
+
 		#define NtshEngn_position position
 		#define NtshEngn_normal TBN[2]
 		#define NtshEngn_tangent TBN[0]
 		#define NtshEngn_bitangent TBN[1]
 		#define NtshEngn_uv uv
 		#define NtshEngn_color color
-		#define NtshEngn_tbn TBN
 		#define NtshEngn_diffuseTexture textures[nonuniformEXT(materials.info[materialID].diffuseTextureIndex)]
 		#define NtshEngn_normalTexture textures[nonuniformEXT(materials.info[materialID].normalTextureIndex)]
 		#define NtshEngn_metalnessTexture textures[nonuniformEXT(materials.info[materialID].metalnessTextureIndex)]
@@ -363,8 +363,11 @@ bool ForwardRenderer::createGraphicsPipelineFromFragmentShader(const std::string
 		#define NtshEngn_spotLightShadows(i, p) spotLightShadows(i, p)
 		#define NtshEngn_ambientLightCount lights.count.w
 		#define NtshEngn_ambientLight(i) lights.info[lights.count.x + lights.count.y + lights.count.z + i]
-		#define NtshEngn_time pC.cameraPositionAndTime.w
-		#define NtshEngn_cameraPosition pC.cameraPositionAndTime.xyz
+		#define NtshEngn_time pC.time
+		#define NtshEngn_cameraPosition camera.positionAndType.xyz
+		#define NtshEngn_cameraType camera.positionAndType.w
+		#define NtshEngn_cameraView camera.view
+		#define NtshEngn_cameraProjection camera.projection
 		#define NtshEngn_width pC.widthAndHeight.x
 		#define NtshEngn_height pC.widthAndHeight.y
 		#define NtshEngn_useReversedDepth true
@@ -409,7 +412,7 @@ bool ForwardRenderer::createGraphicsPipelineFromFragmentShader(const std::string
 		layout(set = 0, binding = 0) uniform Camera {
 			mat4 view;
 			mat4 projection;
-			vec3 position;
+			vec4 positionAndType;
 		} camera;
 
 		layout(set = 0, binding = 4) restrict readonly buffer Materials {
@@ -431,7 +434,7 @@ bool ForwardRenderer::createGraphicsPipelineFromFragmentShader(const std::string
 		layout(set = 0, binding = 8) uniform samplerCube shadowCubeMaps[];
 
 		layout(push_constant) uniform PushConstants {
-			layout(offset = 16) vec4 cameraPositionAndTime;
+			layout(offset = 16) float time;
 			uvec2 widthAndHeight;
 		} pC;
 
