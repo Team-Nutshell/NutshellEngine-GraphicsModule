@@ -17,6 +17,10 @@ void FrustumCulling::init(VkDevice device, VkQueue computeQueue, uint32_t comput
 	createDescriptorSets();
 }
 
+void FrustumCulling::update() {
+	m_customGraphicsPipelineObjectsAfterCulling.clear();
+}
+
 void FrustumCulling::destroy() {
 	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
 
@@ -121,7 +125,6 @@ uint32_t FrustumCulling::cull(VkCommandBuffer commandBuffer, uint32_t currentFra
 		frustumCullingObjects.push_back(frustumCullingObject);
 	}
 
-	m_customGraphicsPipelineObjectsAfterCulling.clear();
 	std::vector<uint32_t> frustumCullingObjectStates(frustumCullingInfos.size() * frustumCullingObjects.size(), 0);
 	for (size_t i = 0; i < frustumCullingInfos.size(); i++) {
 		uint32_t objectIndex = 0;

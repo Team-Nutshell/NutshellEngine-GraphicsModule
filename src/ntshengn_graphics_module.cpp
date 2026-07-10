@@ -792,6 +792,9 @@ void NtshEngn::GraphicsModule::update(float dt) {
 
 	std::vector<FrustumCullingInfo> frustumCullingInfos;
 
+	// Update frustum culling
+	m_frustumCulling.update();
+
 	// Update G-Buffer
 	m_gBuffer.update(cameraProjection * cameraView);
 	frustumCullingInfos.push_back(m_gBuffer.getFrustumCullingInfo());
