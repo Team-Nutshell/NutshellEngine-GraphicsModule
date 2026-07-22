@@ -76,6 +76,8 @@ struct InternalFont {
 	uint32_t fontTextureIndex;
 
 	float height;
+	NtshEngn::Math::vec2 topLeft;
+	NtshEngn::Math::vec2 bottomRight;
 
 	std::unordered_map<wchar_t, NtshEngn::FontGlyph> glyphs;
 };

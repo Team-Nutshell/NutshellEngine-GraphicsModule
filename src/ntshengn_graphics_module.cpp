@@ -1648,7 +1648,7 @@ NtshEngn::FontID NtshEngn::GraphicsModule::load(const Font& font) {
 
 	uint32_t fontTexture = addToTextures({ imageID, (font.imageSamplerFilter == ImageSamplerFilter::Nearest) ? m_uiNearestSamplerKey : m_uiLinearSamplerKey });
 
-	m_fonts.push_back({ fontType, fontTexture, font.height, font.glyphs });
+	m_fonts.push_back({ fontType, fontTexture, font.height, font.topLeft, font.bottomRight, font.glyphs });
 
 	return static_cast<FontID>(m_fonts.size() - 1);
 }
@@ -1765,13 +1765,13 @@ void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& tex
 			positionsAndUVs.push_back(glyph.uvBottomRight);
 
 			min.x = std::min(min.x, std::min(topLeft.x, bottomRight.x));
-			min.y = std::min(min.y, std::min(topLeft.y, bottomRight.y));
 			max.x = std::max(max.x, std::max(topLeft.x, bottomRight.x));
-			max.y = std::max(max.y, std::max(topLeft.y, bottomRight.y));
 
 			positionAdvance += glyph.positionAdvance;
 		}
 	}
+	min.y = std::min(font.topLeft.y, font.bottomRight.y);
+	max.y = std::max(font.topLeft.y, font.bottomRight.y) + positionHeight;
 
 	const Math::vec2 middle = (min + max) / 2.0f;
 	Math::vec2 positionOffset;
