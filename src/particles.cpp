@@ -121,10 +121,15 @@ void Particles::draw(VkCommandBuffer commandBuffer, VkImage drawImage, VkImageVi
 		m_vkCmdPipelineBarrier2KHR(commandBuffer, &beforeParticleUpdateBufferBufferDependencyInfo);
 
 		// Copy particles staging buffer
+		size_t finalHostSize = m_currentParticleHostSize;
+		if (m_resetBuffer) {
+			finalHostSize = m_maxParticlesNumber * sizeof(Particle);
+			m_resetBuffer = false;
+		}
 		VkBufferCopy particleStagingBufferCopy = {};
 		particleStagingBufferCopy.srcOffset = 0;
-		particleStagingBufferCopy.dstOffset = (m_maxParticlesNumber * sizeof(Particle)) - m_currentParticleHostSize;
-		particleStagingBufferCopy.size = m_currentParticleHostSize;
+		particleStagingBufferCopy.dstOffset = (m_maxParticlesNumber * sizeof(Particle)) - finalHostSize;
+		particleStagingBufferCopy.size = finalHostSize;
 		vkCmdCopyBuffer(commandBuffer, m_stagingBuffers[currentFrameInFlight].handle, m_particleBuffers[m_inParticleBufferCurrentIndex].handle, 1, &particleStagingBufferCopy);
 
 		m_currentParticleHostSize = 0;
@@ -453,8 +458,9 @@ void Particles::emitParticles(const NtshEngn::ParticleEmitter& particleEmitter, 
 void Particles::destroyParticles(uint32_t currentFrameInFlight) {
 	memset(m_stagingBuffers[currentFrameInFlight].address, 0, m_maxParticlesNumber * sizeof(Particle));
 
-	m_currentParticleHostSize = m_maxParticlesNumber * sizeof(Particle);
+	m_currentParticleHostSize = 0;
 
+	m_resetBuffer = true;
 	m_particleBuffersNeedUpdate[currentFrameInFlight] = true;
 }
 
