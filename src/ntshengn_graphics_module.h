@@ -432,6 +432,7 @@ namespace NtshEngn {
 		uint32_t m_inParticleBufferCurrentIndex = 0;
 		uint32_t m_maxParticlesNumber = 1000000;
 		size_t m_currentParticleHostSize = 0;
+		bool m_resetParticleBuffer = false;
 
 		VkSampler m_toneMappingSampler;
 		VkDescriptorSetLayout m_toneMappingDescriptorSetLayout;
