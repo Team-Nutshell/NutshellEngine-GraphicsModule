@@ -2558,7 +2558,7 @@ void NtshEngn::GraphicsModule::emitParticles(const ParticleEmitter& particleEmit
 		particle.size = Math::lerp(particleEmitter.sizeRange[0], particleEmitter.sizeRange[1], randomDistribution(randomEngine));
 		particle.color = Math::vec4(Math::lerp(particleEmitter.colorRange[0].x, particleEmitter.colorRange[1].x, randomDistribution(randomEngine)),
 			Math::lerp(particleEmitter.colorRange[0].y, particleEmitter.colorRange[1].y, randomDistribution(randomEngine)),
-			Math::lerp(particleEmitter.colorRange[0].z, particleEmitter.colorRange[1].y, randomDistribution(randomEngine)),
+			Math::lerp(particleEmitter.colorRange[0].z, particleEmitter.colorRange[1].z, randomDistribution(randomEngine)),
 			Math::lerp(particleEmitter.colorRange[0].w, particleEmitter.colorRange[1].w, randomDistribution(randomEngine)));
 		Math::vec3 directionAngles = Math::vec3(Math::lerp(particleEmitter.directionAnglesRange[0].x, particleEmitter.directionAnglesRange[1].x, randomDistribution(randomEngine)),
 			Math::lerp(particleEmitter.directionAnglesRange[0].y, particleEmitter.directionAnglesRange[1].y, randomDistribution(randomEngine)),
