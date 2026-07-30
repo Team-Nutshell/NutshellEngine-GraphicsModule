@@ -53,7 +53,7 @@ private:
 	uint32_t m_maxParticlesNumber = 1000000;
 	size_t m_currentParticleHostSize = 0;
 
-	bool m_resetBuffer = false;
+	bool m_resetParticleBuffer = false;
 
 	VkDevice m_device;
 	VkQueue m_graphicsComputeQueue;
