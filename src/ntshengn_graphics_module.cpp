@@ -2309,19 +2309,16 @@ void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& tex
 		finalPosition = Math::vec2(position.x * m_viewport.width, position.y * m_viewport.height);
 	}
 
-	Math::vec2 min = Math::vec2(std::min(font.topLeft.x, font.bottomRight.x), std::min(font.topLeft.y, font.bottomRight.y));
+	Math::vec2 min = Math::vec2(0.0f, std::min(font.topLeft.y, font.bottomRight.y));
 	Math::vec2 max = Math::vec2(std::max(font.topLeft.x, font.bottomRight.x), std::max(font.topLeft.y, font.bottomRight.y));
 	float positionAdvance = 0.0f;
 	float positionHeight = 0.0f;
-	size_t maxCharAllLines = 0;
-	size_t maxCharCurrentLine = 0;
 	std::vector<Math::vec2> positionsAndUVs;
 	for (const wchar_t& c : text) {
 		if (c == '\n') {
+			max.x = std::max(max.x, positionAdvance);
 			positionAdvance = 0.0f;
 			positionHeight += font.height;
-			maxCharAllLines = std::max(maxCharAllLines, maxCharCurrentLine);
-			maxCharCurrentLine = 0;
 
 			continue;
 		}
@@ -2336,12 +2333,9 @@ void NtshEngn::GraphicsModule::drawUIText(FontID fontID, const std::wstring& tex
 			positionsAndUVs.push_back(glyph.uvBottomRight);
 
 			positionAdvance += glyph.positionAdvance;
-
-			maxCharCurrentLine++;
 		}
 	}
-	maxCharAllLines = std::max(maxCharAllLines, maxCharCurrentLine);
-	max.x *= static_cast<float>(maxCharAllLines);
+	max.x = std::max(max.x, positionAdvance);
 	max.y += positionHeight;
 
 	const Math::vec2 middle = (min + max) / 2.0f;
