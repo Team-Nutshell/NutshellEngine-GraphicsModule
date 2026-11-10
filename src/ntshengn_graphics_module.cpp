@@ -94,7 +94,12 @@ void NtshEngn::GraphicsModule::init() {
 #if defined(NTSHENGN_OS_WINDOWS)
 		instanceExtensions.push_back("VK_KHR_win32_surface");
 #elif defined(NTSHENGN_OS_LINUX) || defined(NTSHENGN_OS_FREEBSD)
-		instanceExtensions.push_back("VK_KHR_xlib_surface");
+		if (windowModule->getDisplayProtocol() == DisplayProtocol::X11) {
+			instanceExtensions.push_back("VK_KHR_xlib_surface");
+		}
+		else if (windowModule->getDisplayProtocol() == DisplayProtocol::Wayland) {
+			instanceExtensions.push_back("VK_KHR_wayland_surface");
+		}
 #endif
 	}
 	instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(instanceExtensions.size());
@@ -122,25 +127,35 @@ void NtshEngn::GraphicsModule::init() {
 	// Create surface
 	if (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) {
 #if defined(NTSHENGN_OS_WINDOWS)
-		HWND windowHandle = reinterpret_cast<HWND>(windowModule->getWindowNativeHandle(windowModule->getMainWindowID()));
 		VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
 		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 		surfaceCreateInfo.pNext = nullptr;
 		surfaceCreateInfo.flags = 0;
 		surfaceCreateInfo.hinstance = reinterpret_cast<HINSTANCE>(windowModule->getWindowNativeAdditionalInformation(windowModule->getMainWindowID()));
-		surfaceCreateInfo.hwnd = windowHandle;
+		surfaceCreateInfo.hwnd = reinterpret_cast<HWND>(windowModule->getWindowNativeHandle(windowModule->getMainWindowID()));
 		auto createWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateWin32SurfaceKHR");
 		NTSHENGN_VK_CHECK(createWin32SurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
 #elif defined(NTSHENGN_OS_LINUX) || defined(NTSHENGN_OS_FREEBSD)
-		Window windowHandle = reinterpret_cast<Window>(windowModule->getWindowNativeHandle(windowModule->getMainWindowID()));
-		VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
-		surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
-		surfaceCreateInfo.pNext = nullptr;
-		surfaceCreateInfo.flags = 0;
-		surfaceCreateInfo.dpy = reinterpret_cast<Display*>(windowModule->getWindowNativeAdditionalInformation(windowModule->getMainWindowID()));
-		surfaceCreateInfo.window = windowHandle;
-		auto createXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateXlibSurfaceKHR");
-		NTSHENGN_VK_CHECK(createXlibSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
+		if (windowModule->getDisplayProtocol() == DisplayProtocol::X11) {
+			VkXlibSurfaceCreateInfoKHR surfaceCreateInfo = {};
+			surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
+			surfaceCreateInfo.pNext = nullptr;
+			surfaceCreateInfo.flags = 0;
+			surfaceCreateInfo.dpy = reinterpret_cast<Display*>(windowModule->getWindowNativeAdditionalInformation(windowModule->getMainWindowID()));
+			surfaceCreateInfo.window = reinterpret_cast<Window>(windowModule->getWindowNativeHandle(windowModule->getMainWindowID()));
+			auto createXlibSurfaceKHR = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateXlibSurfaceKHR");
+			NTSHENGN_VK_CHECK(createXlibSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
+		}
+		else if (windowModule->getDisplayProtocol() == DisplayProtocol::Wayland) {
+			VkWaylandSurfaceCreateInfoKHR surfaceCreateInfo = {};
+			surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
+			surfaceCreateInfo.pNext = nullptr;
+			surfaceCreateInfo.flags = 0;
+			surfaceCreateInfo.display = reinterpret_cast<struct wl_display*>(windowModule->getWindowNativeAdditionalInformation(windowModule->getMainWindowID()));
+			surfaceCreateInfo.surface = reinterpret_cast<struct wl_surface*>(windowModule->getWindowNativeHandle(windowModule->getMainWindowID()));
+			auto createWaylandSurfaceKHR = (PFN_vkCreateWaylandSurfaceKHR)vkGetInstanceProcAddr(m_instance, "vkCreateWaylandSurfaceKHR");
+			NTSHENGN_VK_CHECK(createWaylandSurfaceKHR(m_instance, &surfaceCreateInfo, nullptr, &m_surface));
+		}
 #endif
 	}
 
@@ -643,6 +658,16 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		m_uiTextBufferOffset = 0;
 		return;
 	}
+
+#if defined(NTSHENGN_OS_LINUX) || defined(NTSHENGN_OS_FREEBSD)
+	if (windowModule && (windowModule->getDisplayProtocol() == DisplayProtocol::Wayland)) {
+		uint32_t currentWidth = static_cast<uint32_t>(windowModule->getWindowWidth(windowModule->getMainWindowID()));
+		uint32_t currentHeight = static_cast<uint32_t>(windowModule->getWindowHeight(windowModule->getMainWindowID()));
+		if ((currentWidth != m_scissor.extent.width) || (currentHeight != m_scissor.extent.height)) {
+			resize();
+		}
+	}
+#endif
 
 	NTSHENGN_VK_CHECK(vkWaitForFences(m_device, 1, &m_fences[m_currentFrameInFlight], VK_TRUE, std::numeric_limits<uint64_t>::max()));
 
