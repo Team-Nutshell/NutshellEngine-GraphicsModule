@@ -11,6 +11,7 @@
 #define VK_USE_PLATFORM_WIN32_KHR
 #elif defined(NTSHENGN_OS_LINUX) || defined(NTSHENGN_OS_FREEBSD)
 #define VK_USE_PLATFORM_XLIB_KHR
+#define VK_USE_PLATFORM_WAYLAND_KHR
 #endif
 #include "../external/VulkanMemoryAllocator/include/vk_mem_alloc.h"
 #if defined(NTSHENGN_OS_LINUX) || defined(NTSHENGN_OS_FREEBSD)
