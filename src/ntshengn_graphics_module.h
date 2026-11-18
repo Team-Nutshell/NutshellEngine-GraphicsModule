@@ -1,7 +1,6 @@
 #pragma once
 #include "../Common/modules/ntshengn_graphics_module_interface.h"
 #include "../Common/utils/ntshengn_defines.h"
-#include "../Common/utils/ntshengn_enums.h"
 #include "../Module/utils/ntshengn_module_defines.h"
 #include "../Common/modules/ntshengn_window_module_interface.h"
 #if defined(NTSHENGN_OS_WINDOWS)
