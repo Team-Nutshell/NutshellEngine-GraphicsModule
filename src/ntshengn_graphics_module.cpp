@@ -2,7 +2,6 @@
 #include "../Module/utils/ntshengn_module_defines.h"
 #include "../Module/utils/ntshengn_dynamic_library.h"
 #include "../Common/utils/ntshengn_defines.h"
-#include "../Common/utils/ntshengn_enums.h"
 #include "../Common/modules/ntshengn_window_module_interface.h"
 #include "../external/d3dx12/d3dx12.h"
 #include <algorithm>
