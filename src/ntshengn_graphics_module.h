@@ -2,7 +2,6 @@
 #include "../Common/modules/ntshengn_graphics_module_interface.h"
 #include "../Common/resources/ntshengn_resources_graphics.h"
 #include "../Common/utils/ntshengn_defines.h"
-#include "../Common/utils/ntshengn_enums.h"
 #include "../Common/utils/ntshengn_utils_math.h"
 #include "../Common/utils/ntshengn_utils_id_pool.h"
 #include "../Module/utils/ntshengn_module_defines.h"
