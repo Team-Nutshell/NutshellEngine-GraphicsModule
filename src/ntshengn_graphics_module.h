@@ -159,6 +159,9 @@ namespace NtshEngn {
 		void drawUIImage(ImageID imageID, ImageSamplerFilter imageSamplerFilter, AnchorPoint anchorPoint, CoordinateType coordinateType, const Math::vec2& position, float rotation, const Math::vec2& scale, const Math::vec4& color);
 
 	public:
+		void setParameter(const std::string& parameterName, void* data);
+		void* getParameter(const std::string& parameterName);
+
 		const ComponentMask getComponentMask() const;
 
 		void onEntityComponentAdded(Entity entity, Component componentID);
@@ -233,7 +236,7 @@ namespace NtshEngn {
 		VulkanBuffer m_vertexBuffer;
 		VulkanBuffer m_indexBuffer;
 
-		bool m_fxaaEnabled = false;
+		bool m_enableBloom = true;
 
 		AnimationSystem m_animationSystem;
 		Bloom m_bloom;

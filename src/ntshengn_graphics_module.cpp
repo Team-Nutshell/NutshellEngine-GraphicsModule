@@ -971,10 +971,12 @@ void NtshEngn::GraphicsModule::update(float dt) {
 	m_vkCmdPipelineBarrier2KHR(m_renderingCommandBuffers[m_currentFrameInFlight], &compositingAndDepthAfterParticlesDependencyInfo);
 
 	// Bloom
-	m_bloom.draw(m_renderingCommandBuffers[m_currentFrameInFlight]);
+	if (m_enableBloom) {
+		m_bloom.draw(m_renderingCommandBuffers[m_currentFrameInFlight]);
+	}
 
 	// Post processing
-	m_postProcessing.draw(m_renderingCommandBuffers[m_currentFrameInFlight], m_currentFrameInFlight);
+	m_postProcessing.draw(m_renderingCommandBuffers[m_currentFrameInFlight], m_currentFrameInFlight, m_enableBloom);
 
 	// Tone mapping
 	m_toneMapping.draw(m_renderingCommandBuffers[m_currentFrameInFlight], (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImages[imageIndex] : m_drawImage.handle, (windowModule && windowModule->isWindowOpen(windowModule->getMainWindowID())) ? m_swapchainImageViews[imageIndex] : m_drawImage.view);
@@ -2312,6 +2314,20 @@ void NtshEngn::GraphicsModule::drawUIImage(ImageID imageID, ImageSamplerFilter i
 	m_uiImages.push(uiImage);
 
 	m_uiElements.push(UIElement::Image);
+}
+
+void NtshEngn::GraphicsModule::setParameter(const std::string& parameterName, void* data) {
+	if (parameterName == "enableBloom") {
+		m_enableBloom = *static_cast<bool*>(data);
+	}
+}
+
+void* NtshEngn::GraphicsModule::getParameter(const std::string& parameterName) {
+	if (parameterName == "enableBloom") {
+		return &m_enableBloom;
+	}
+
+	return nullptr;
 }
 
 const NtshEngn::ComponentMask NtshEngn::GraphicsModule::getComponentMask() const {

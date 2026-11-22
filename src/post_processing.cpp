@@ -42,7 +42,7 @@ void PostProcessing::destroy() {
 	m_image.destroy(m_device, m_allocator);
 }
 
-void PostProcessing::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight) {
+void PostProcessing::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight, bool enableBloom) {
 	// Synchronization before rendering
 	VkImageMemoryBarrier2 beforeImageMemoryBarrier = {};
 	beforeImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -104,6 +104,8 @@ void PostProcessing::draw(VkCommandBuffer commandBuffer, uint32_t currentFrameIn
 
 	// Bind graphics pipeline
 	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+	uint32_t pushConstant = enableBloom ? 1 : 0;
+	vkCmdPushConstants(commandBuffer, m_graphicsPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(uint32_t), &pushConstant);
 	vkCmdSetViewport(commandBuffer, 0, 1, &m_viewport);
 	vkCmdSetScissor(commandBuffer, 0, 1, &m_scissor);
 
@@ -356,6 +358,9 @@ void PostProcessing::createGraphicsPipeline() {
 
 		layout(set = 0, binding = 0) uniform sampler2D colorSampler;
 		layout(set = 0, binding = 1) uniform sampler2D bloomSampler;
+		layout(push_constant) uniform PushConstants {
+			uint enableBloom;
+		} pC;
 
 		layout(location = 0) in vec2 uv;
 
@@ -364,10 +369,12 @@ void PostProcessing::createGraphicsPipeline() {
 		void main() {
 			outColor = texture(colorSampler, uv);
 
-			vec3 bloom = textureLod(bloomSampler, uv, 1.5).rgb +
-				textureLod(bloomSampler, uv, 3.5).rgb +
-				textureLod(bloomSampler, uv, 4.5).rgb;
-			outColor.rgb += (bloom / 3.0);
+			if (pC.enableBloom == 1) {
+				vec3 bloom = textureLod(bloomSampler, uv, 1.5).rgb +
+					textureLod(bloomSampler, uv, 3.5).rgb +
+					textureLod(bloomSampler, uv, 4.5).rgb;
+				outColor.rgb += (bloom / 3.0);
+			}
 		}
 	)GLSL";
 	const std::vector<uint32_t> fragmentShaderSpv = compileShader(fragmentShaderCode, ShaderType::Fragment);
@@ -484,14 +491,19 @@ void PostProcessing::createGraphicsPipeline() {
 	dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 	dynamicStateCreateInfo.pDynamicStates = dynamicStates.data();
 
+	VkPushConstantRange pushConstantRange = {};
+	pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	pushConstantRange.offset = 0;
+	pushConstantRange.size = sizeof(uint32_t);
+
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutCreateInfo.pNext = nullptr;
 	pipelineLayoutCreateInfo.flags = 0;
 	pipelineLayoutCreateInfo.setLayoutCount = 1;
 	pipelineLayoutCreateInfo.pSetLayouts = &m_descriptorSetLayout;
-	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
-	pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
+	pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+	pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
 	NTSHENGN_VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_graphicsPipelineLayout));
 
 	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};

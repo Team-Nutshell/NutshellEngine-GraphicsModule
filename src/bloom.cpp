@@ -457,7 +457,7 @@ void Bloom::createImages(uint32_t width, uint32_t height) {
 		NTSHENGN_VK_CHECK(vkCreateImageView(m_device, &bloomBlurImageViewCreateInfo, nullptr, &m_blurImage.layerMipViews[mipLevel]));
 	}
 
-	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+	// Layout transition VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL and VK_IMAGE_LAYOUT_UNDEFINED -> VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
 	NTSHENGN_VK_CHECK(vkResetCommandPool(m_device, m_initializationCommandPool, 0));
 
 	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
@@ -467,7 +467,7 @@ void Bloom::createImages(uint32_t width, uint32_t height) {
 	commandBufferBeginInfo.pInheritanceInfo = nullptr;
 	NTSHENGN_VK_CHECK(vkBeginCommandBuffer(m_initializationCommandBuffer, &commandBufferBeginInfo));
 
-	VkImageMemoryBarrier2 bloomImageMemoryBarrier = {};
+	VkImageMemoryBarrier2 bloomImageMemoryBarrier = {}; // Transition to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL in case bloom is disabled the first frame after the bloom image is created
 	bloomImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	bloomImageMemoryBarrier.pNext = nullptr;
 	bloomImageMemoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
@@ -475,7 +475,7 @@ void Bloom::createImages(uint32_t width, uint32_t height) {
 	bloomImageMemoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 	bloomImageMemoryBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 	bloomImageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	bloomImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	bloomImageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	bloomImageMemoryBarrier.srcQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 	bloomImageMemoryBarrier.dstQueueFamilyIndex = m_graphicsQueueFamilyIndex;
 	bloomImageMemoryBarrier.image = m_bloomImage.handle;

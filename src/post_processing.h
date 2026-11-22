@@ -6,7 +6,7 @@ public:
 	void init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VmaAllocator allocator, VkCommandPool initializationCommandPool, VkCommandBuffer initializationCommandBuffer, VkFence initializationFence, VkViewport viewport, VkRect2D scissor, uint32_t framesInFlight, VkImageView colorImageView, VkImageView bloomImageView, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
 	void destroy();
 
-	void draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight);
+	void draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight, bool enableBloom);
 
 	void onResize(uint32_t width, uint32_t height, VkImageView colorImageView, VkImageView bloomImageView);
 
