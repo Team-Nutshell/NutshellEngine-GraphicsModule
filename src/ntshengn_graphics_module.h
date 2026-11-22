@@ -8,10 +8,12 @@
 #include "compositing.h"
 #include "forward_renderer.h"
 #include "frustum_culling.h"
+#include "fxaa.h"
 #include "gbuffer.h"
 #include "particles.h"
 #include "post_processing.h"
 #include "shadow_mapping.h"
+#include "ssao.h"
 #include "tone_mapping.h"
 #include <vector>
 #include <limits>
@@ -237,16 +239,20 @@ namespace NtshEngn {
 		VulkanBuffer m_indexBuffer;
 
 		bool m_enableBloom = true;
+		bool m_enableSSAO = false;
+		bool m_enableFXAA = false;
 
 		AnimationSystem m_animationSystem;
 		Bloom m_bloom;
 		Compositing m_compositing;
 		ForwardRenderer m_forwardRenderer;
 		FrustumCulling m_frustumCulling;
+		FXAA m_fxaa;
 		GBuffer m_gBuffer;
 		Particles m_particles;
 		PostProcessing m_postProcessing;
 		ShadowMapping m_shadowMapping;
+		SSAO m_ssao;
 		ToneMapping m_toneMapping;
 
 		std::string m_uiNearestSamplerKey;

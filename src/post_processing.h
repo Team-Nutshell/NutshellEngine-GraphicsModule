@@ -3,12 +3,12 @@
 
 class PostProcessing {
 public:
-	void init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VmaAllocator allocator, VkCommandPool initializationCommandPool, VkCommandBuffer initializationCommandBuffer, VkFence initializationFence, VkViewport viewport, VkRect2D scissor, uint32_t framesInFlight, VkImageView colorImageView, VkImageView bloomImageView, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
+	void init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VmaAllocator allocator, VkCommandPool initializationCommandPool, VkCommandBuffer initializationCommandBuffer, VkFence initializationFence, VkViewport viewport, VkRect2D scissor, uint32_t framesInFlight, VkImageView colorImageView, VkImageView bloomImageView, VkImageView ssaoImageView, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR);
 	void destroy();
 
-	void draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight, bool enableBloom);
+	void draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight, bool enableBloom, bool enableSSAO);
 
-	void onResize(uint32_t width, uint32_t height, VkImageView colorImageView, VkImageView bloomImageView);
+	void onResize(uint32_t width, uint32_t height, VkImageView colorImageView, VkImageView bloomImageView, VkImageView ssaoImageView);
 
 	VulkanImage& getImage();
 
@@ -23,7 +23,7 @@ private:
 
 	void createDescriptorSets();
 
-	void updateDescriptorSets(VkImageView colorImageView, VkImageView bloomImageView);
+	void updateDescriptorSets(VkImageView colorImageView, VkImageView bloomImageView, VkImageView ssaoImageView);
 
 private:
 	VulkanImage m_image;

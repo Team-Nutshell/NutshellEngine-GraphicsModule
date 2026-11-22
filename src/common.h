@@ -29,6 +29,9 @@
 
 #define BLOOM_DOWNSCALE 4
 
+#define SSAO_DOWNSCALE 2
+#define SSAO_SAMPLE_COUNT 64
+
 #define DRAW_INDIRECT_MAX_ENTITIES_SIZE (sizeof(uint32_t) * 4) + (sizeof(VkDrawIndexedIndirectCommand) * NTSHENGN_MAX_ENTITIES)
 #define PER_DRAW_MAX_ENTITIES_SIZE sizeof(uint32_t) * NTSHENGN_MAX_ENTITIES
 

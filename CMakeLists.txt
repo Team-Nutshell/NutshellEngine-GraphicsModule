@@ -69,10 +69,12 @@ set(MODULE_SOURCES
 	src/compositing.cpp
 	src/forward_renderer.cpp
 	src/frustum_culling.cpp
+	src/fxaa.cpp
 	src/gbuffer.cpp
 	src/particles.cpp
 	src/post_processing.cpp
 	src/shadow_mapping.cpp
+	src/ssao.cpp
 	src/tone_mapping.cpp)
 set(MODULE_HEADERS
 	src/ntshengn_graphics_module.h
@@ -81,10 +83,12 @@ set(MODULE_HEADERS
 	src/compositing.h
 	src/forward_renderer.h
 	src/frustum_culling.h
+	src/fxaa.h
 	src/gbuffer.h
 	src/particles.h
 	src/post_processing.h
 	src/shadow_mapping.h
+	src/ssao.h
 	src/tone_mapping.h
 	src/common.h)
 
