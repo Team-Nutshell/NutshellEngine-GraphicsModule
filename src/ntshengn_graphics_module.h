@@ -15,9 +15,9 @@
 #include "shadow_mapping.h"
 #include "ssao.h"
 #include "tone_mapping.h"
+#include "ui.h"
 #include <vector>
 #include <limits>
-#include <queue>
 #include <utility>
 
 VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) {
@@ -64,43 +64,6 @@ bool operator==(const NtshEngn::Material& lhs, const NtshEngn::Material& rhs) {
 		(lhs.scaleUV == rhs.scaleUV) &&
 		(lhs.offsetUV == rhs.offsetUV);
 }
-
-enum class UIElement {
-	Text,
-	Line,
-	Rectangle,
-	Image
-};
-
-struct InternalUIText {
-	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
-	uint32_t fontTextureIndex;
-	uint32_t fontType = 0;
-
-	uint32_t charactersCount = 0;
-	uint32_t bufferOffset = 0;
-};
-
-struct InternalUILine {
-	NtshEngn::Math::vec4 positions = { 0.0f, 0.0f, 0.0f, 0.0f };
-	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
-};
-
-struct InternalUIRectangle {
-	NtshEngn::Math::vec4 positions = { 0.0f, 0.0f, 0.0f, 0.0f };
-	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
-};
-
-struct InternalUIImage {
-	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
-	uint32_t textureIndex;
-
-	NtshEngn::Math::vec2 v0 = { 0.0f, 0.0f };
-	NtshEngn::Math::vec2 v1 = { 0.0f, 0.0f };
-	NtshEngn::Math::vec2 v2 = { 0.0f, 0.0f };
-	NtshEngn::Math::vec2 v3 = { 0.0f, 0.0f };
-	NtshEngn::Math::vec2 reverseUV = { 0.0f, 0.0f };
-};
 
 namespace NtshEngn {
 
@@ -185,15 +148,6 @@ namespace NtshEngn {
 		// Vertex and index buffers creation
 		void createVertexAndIndexBuffers();
 
-		// UI resources
-		void createUIResources();
-		void createUITextResources();
-		void updateUITextDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& texturesDescriptorImageInfos);
-		void createUILineResources();
-		void createUIRectangleResources();
-		void createUIImageResources();
-		void updateUIImageDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& texturesDescriptorImageInfos);
-
 		// Default resources
 		void createDefaultResources();
 
@@ -254,30 +208,7 @@ namespace NtshEngn {
 		ShadowMapping m_shadowMapping;
 		SSAO m_ssao;
 		ToneMapping m_toneMapping;
-
-		std::string m_uiNearestSamplerKey;
-		std::string m_uiLinearSamplerKey;
-
-		std::vector<HostVisibleVulkanBuffer> m_uiTextBuffers;
-		VkDescriptorSetLayout m_uiTextDescriptorSetLayout;
-		VkDescriptorPool m_uiTextDescriptorPool;
-		std::vector<VkDescriptorSet> m_uiTextDescriptorSets;
-		std::vector<bool> m_uiTextDescriptorSetsNeedUpdate;
-		VkPipeline m_uiTextGraphicsPipeline;
-		VkPipelineLayout m_uiTextGraphicsPipelineLayout;
-
-		VkPipeline m_uiLineGraphicsPipeline;
-		VkPipelineLayout m_uiLineGraphicsPipelineLayout;
-
-		VkPipeline m_uiRectangleGraphicsPipeline;
-		VkPipelineLayout m_uiRectangleGraphicsPipelineLayout;
-
-		VkDescriptorSetLayout m_uiImageDescriptorSetLayout;
-		VkDescriptorPool m_uiImageDescriptorPool;
-		std::vector<VkDescriptorSet> m_uiImageDescriptorSets;
-		std::vector<bool> m_uiImageDescriptorSetsNeedUpdate;
-		VkPipeline m_uiImageGraphicsPipeline;
-		VkPipelineLayout m_uiImageGraphicsPipelineLayout;
+		UI m_ui;
 
 		std::vector<VkCommandPool> m_renderingCommandPools;
 		std::vector<VkCommandBuffer> m_renderingCommandBuffers;
@@ -344,17 +275,6 @@ namespace NtshEngn {
 
 		std::vector<InternalFont> m_fonts;
 		std::unordered_map<const Font*, FontID> m_fontAddresses;
-
-		std::queue<UIElement> m_uiElements;
-
-		std::queue<InternalUIText> m_uiTexts;
-		uint32_t m_uiTextBufferOffset = 0;
-
-		std::queue<InternalUILine> m_uiLines;
-
-		std::queue<InternalUIRectangle> m_uiRectangles;
-
-		std::queue<InternalUIImage> m_uiImages;
 
 		const std::unordered_map<ImageSamplerFilter, VkFilter> m_filterMap{ { ImageSamplerFilter::Linear, VK_FILTER_LINEAR },
 			{ ImageSamplerFilter::Nearest, VK_FILTER_NEAREST },

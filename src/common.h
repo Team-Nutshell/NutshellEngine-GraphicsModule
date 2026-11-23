@@ -134,6 +134,43 @@ struct InternalLights {
 	std::set<NtshEngn::Entity> ambientLights;
 };
 
+enum class UIElement {
+	Text,
+	Line,
+	Rectangle,
+	Image
+};
+
+struct InternalUIText {
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
+	uint32_t fontTextureIndex;
+	uint32_t fontType = 0;
+
+	uint32_t charactersCount = 0;
+	uint32_t bufferOffset = 0;
+};
+
+struct InternalUILine {
+	NtshEngn::Math::vec4 positions = { 0.0f, 0.0f, 0.0f, 0.0f };
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
+};
+
+struct InternalUIRectangle {
+	NtshEngn::Math::vec4 positions = { 0.0f, 0.0f, 0.0f, 0.0f };
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
+};
+
+struct InternalUIImage {
+	NtshEngn::Math::vec4 color = { 0.0f, 0.0f, 0.0f, 0.0f };
+	uint32_t textureIndex;
+
+	NtshEngn::Math::vec2 v0 = { 0.0f, 0.0f };
+	NtshEngn::Math::vec2 v1 = { 0.0f, 0.0f };
+	NtshEngn::Math::vec2 v2 = { 0.0f, 0.0f };
+	NtshEngn::Math::vec2 v3 = { 0.0f, 0.0f };
+	NtshEngn::Math::vec2 reverseUV = { 0.0f, 0.0f };
+};
+
 struct VulkanImage {
 	VkImage handle = VK_NULL_HANDLE;
 	VmaAllocation allocation;

@@ -75,7 +75,8 @@ set(MODULE_SOURCES
 	src/post_processing.cpp
 	src/shadow_mapping.cpp
 	src/ssao.cpp
-	src/tone_mapping.cpp)
+	src/tone_mapping.cpp
+	src/ui.cpp)
 set(MODULE_HEADERS
 	src/ntshengn_graphics_module.h
 	src/animation_system.h
@@ -90,6 +91,7 @@ set(MODULE_HEADERS
 	src/shadow_mapping.h
 	src/ssao.h
 	src/tone_mapping.h
+	src/ui.h
 	src/common.h)
 
 set(SOURCES ${MODULE_SOURCES})
