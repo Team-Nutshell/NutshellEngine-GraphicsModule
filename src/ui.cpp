@@ -179,6 +179,13 @@ void UI::updateImageDescriptorSet(uint32_t frameInFlight, const std::vector<VkDe
 	m_imageDescriptorSetsNeedUpdate[frameInFlight] = false;
 }
 
+void UI::onResize(uint32_t width, uint32_t height) {
+	m_viewport.width = static_cast<float>(width);
+	m_viewport.height = static_cast<float>(height);
+	m_scissor.extent.width = width;
+	m_scissor.extent.height = height;
+}
+
 void UI::clearQueues() {
 	m_elements = std::queue<UIElement>();
 	m_texts = std::queue<InternalUIText>();

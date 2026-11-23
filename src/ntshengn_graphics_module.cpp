@@ -2525,6 +2525,9 @@ void NtshEngn::GraphicsModule::resize() {
 
 		// Resize FXAA
 		m_fxaa.onResize(width, height, m_toneMapping.getImage().view);
+
+		// Resize UI
+		m_ui.onResize(width, height);
 	}
 }
 

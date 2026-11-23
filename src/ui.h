@@ -14,6 +14,8 @@ public:
 	void imageDescriptorSetNeedsUpdate(uint32_t frameInFlight);
 	void updateImageDescriptorSet(uint32_t frameInFlight, const std::vector<VkDescriptorImageInfo>& texturesDescriptorImageInfos);
 
+	void onResize(uint32_t width, uint32_t height);
+
 	void clearQueues();
 
 	void setNearestSamplerKey(const std::string& nearestSamplerKey);
