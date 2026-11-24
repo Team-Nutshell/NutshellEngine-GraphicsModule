@@ -195,6 +195,7 @@ namespace NtshEngn {
 		bool m_enableBloom = true;
 		bool m_enableSSAO = false;
 		bool m_enableFXAA = false;
+		float m_splitLambda = 0.95f;
 
 		AnimationSystem m_animationSystem;
 		Bloom m_bloom;

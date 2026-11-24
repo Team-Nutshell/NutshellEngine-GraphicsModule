@@ -853,7 +853,8 @@ void NtshEngn::GraphicsModule::update(float dt) {
 		cameraNearPlane,
 		cameraFarPlane,
 		cameraView,
-		cameraProjectionNonReversed);
+		cameraProjectionNonReversed,
+		m_splitLambda);
 	std::vector<FrustumCullingInfo> shadowMappingFrustumCullingInfos = m_shadowMapping.getFrustumCullingInfos();
 	frustumCullingInfos.insert(frustumCullingInfos.end(), shadowMappingFrustumCullingInfos.begin(), shadowMappingFrustumCullingInfos.end());
 
@@ -2064,6 +2065,9 @@ void NtshEngn::GraphicsModule::setParameter(const std::string& parameterName, vo
 	else if (parameterName == "enableFXAA") {
 		m_enableFXAA = *static_cast<bool*>(data);
 	}
+	else if (parameterName == "shadowMappingCascadeSplitLambda") {
+		m_splitLambda = *static_cast<float*>(data);
+	}
 }
 
 void* NtshEngn::GraphicsModule::getParameter(const std::string& parameterName) {
@@ -2075,6 +2079,9 @@ void* NtshEngn::GraphicsModule::getParameter(const std::string& parameterName) {
 	}
 	else if (parameterName == "enableFXAA") {
 		return &m_enableFXAA;
+	}
+	else if (parameterName == "shadowMappingCascadeSplitLambda") {
+		return &m_splitLambda;
 	}
 
 	return nullptr;

@@ -37,7 +37,7 @@ void ShadowMapping::init(VkDevice device, VkQueue graphicsQueue, uint32_t graphi
 	createDescriptorSets(objectBuffers, meshBuffer, jointTransformBuffers, materialBuffers);
 }
 
-void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane, float cameraFarPlane, const NtshEngn::Math::mat4& cameraView, const NtshEngn::Math::mat4& cameraProjection) {
+void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane, float cameraFarPlane, const NtshEngn::Math::mat4& cameraView, const NtshEngn::Math::mat4& cameraProjection, float splitLambda) {
 	if (!m_directionalLightEntities.empty()) {
 		std::array<float, SHADOW_MAPPING_CASCADE_COUNT> cascadeSplits;
 
@@ -48,7 +48,7 @@ void ShadowMapping::update(uint32_t currentFrameInFlight, float cameraNearPlane,
 			const float p = (cascadeIndex + 1) / static_cast<float>(SHADOW_MAPPING_CASCADE_COUNT);
 			const float log = cameraNearPlane * std::pow(clipRatio, p);
 			const float uniform = cameraNearPlane + (clipRange * p);
-			const float d = SHADOW_MAPPING_CASCADE_SPLIT_LAMBDA * (log - uniform) + uniform;
+			const float d = splitLambda * (log - uniform) + uniform;
 			cascadeSplits[cascadeIndex] = (d - cameraNearPlane) / clipRange;
 		}
 

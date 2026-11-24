@@ -9,3 +9,4 @@ NutshellEngine Graphics Module implementing rendering techniques, to be used in 
 | ``enableBloom`` | ``bool`` | Enables or disables bloom. | ``true`` |
 | ``enableSSAO`` | ``bool`` | Enables or disables Screen Space Ambient Occlusion. | ``false`` |
 | ``enableFXAA`` | ``bool`` | Enables or disables Fast approXimate Anti-Aliasing. | ``false`` |
+| ``shadowMappingCascadeSplitLambda`` | ``float`` | Split lambda for directional light cascaded shadow mapping. | ``0.95`` |

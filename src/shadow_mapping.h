@@ -38,7 +38,7 @@ struct SpotLightShadowMap {
 class ShadowMapping {
 public:
 	void init(VkDevice device, VkQueue graphicsQueue, uint32_t graphicsQueueFamilyIndex, VmaAllocator allocator, VkCommandPool initializationCommandPool, VkCommandBuffer initializationCommandBuffer, VkFence initializationFence, uint32_t framesInFlight, const std::vector<HostVisibleVulkanBuffer>& objectBuffers, VulkanBuffer meshBuffer, const std::vector<HostVisibleVulkanBuffer>& jointTransformBuffers, const std::vector<HostVisibleVulkanBuffer>& materialBuffers, PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR, PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR, PFN_vkCmdDrawIndexedIndirectCountKHR vkCmdDrawIndexedIndirectCountKHR, PFN_vkCmdPipelineBarrier2KHR vkCmdPipelineBarrier2KHR, PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR, NtshEngn::ECSInterface* ecs);
-	void update(uint32_t currentFrameInFlight, float cameraNearPlane, float cameraFarPlane, const NtshEngn::Math::mat4& cameraView, const NtshEngn::Math::mat4& cameraProjection);
+	void update(uint32_t currentFrameInFlight, float cameraNearPlane, float cameraFarPlane, const NtshEngn::Math::mat4& cameraView, const NtshEngn::Math::mat4& cameraProjection, float splitLambda);
 	void destroy();
 
 	void draw(VkCommandBuffer commandBuffer, uint32_t currentFrameInFlight, uint32_t drawIndirectCount, VulkanBuffer& vertexBuffer, VulkanBuffer& indexBuffer);
