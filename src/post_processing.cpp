@@ -591,7 +591,7 @@ void PostProcessing::createDescriptorSets() {
 	ssaoImageDescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	ssaoImageDescriptorPoolSize.descriptorCount = m_framesInFlight;
 
-	std::array<VkDescriptorPoolSize, 3> descriptorPoolSizes = { colorImageDescriptorPoolSize, ssaoImageDescriptorPoolSize, ssaoImageDescriptorPoolSize };
+	std::array<VkDescriptorPoolSize, 3> descriptorPoolSizes = { colorImageDescriptorPoolSize, bloomImageDescriptorPoolSize, ssaoImageDescriptorPoolSize };
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.pNext = nullptr;
